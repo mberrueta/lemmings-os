@@ -1,0 +1,11 @@
+# Default owner for everything
+* @mberrueta
+
+# Core runtime
+/lib/lemmings_os/ @mberrueta
+
+# UI & assets
+/assets/ @mberrueta
+
+# Docs & ADRs
+/docs/ @mberrueta

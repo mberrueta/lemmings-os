@@ -11,7 +11,12 @@ defmodule LemmingsOs.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.html": :test
+      ]
     ]
   end
 
@@ -27,7 +32,10 @@ defmodule LemmingsOs.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [
+        precommit: :test,
+        "precommit.full": :test
+      ]
     ]
   end
 
@@ -63,7 +71,22 @@ defmodule LemmingsOs.MixProject do
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+
+      # Dev tooling
+      {:sobelow, "~> 0.8", only: [:dev, :test]},
+      {:ex_doc, "~> 0.27", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
+      {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+
+      # Test
+      {:floki, ">= 0.30.0", only: :test},
+      {:excoveralls, "~> 0.18.5", only: :test},
+      {:faker, "~> 0.17", only: [:dev, :test]},
+      {:ex_machina, "~> 2.8.0", only: [:dev, :test]},
+      {:mox, "~> 1.0", only: :test},
+      {:bypass, "~> 2.1", only: :test}
     ]
   end
 
@@ -80,13 +103,28 @@ defmodule LemmingsOs.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind lemmings_os", "esbuild lemmings_os"],
+      "assets.build": ["compile", "tailwind lemmings_os", "esbuild lemmings_os"],
       "assets.deploy": [
         "tailwind lemmings_os --minify",
         "esbuild lemmings_os --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warning-as-errors", "deps.unlock --unused", "format", "test"]
+      # Fast checks (used constantly)
+      precommit: [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "credo"
+      ],
+      # Full validation (before PR)
+      "precommit.full": [
+        "precommit",
+        "deps.unlock --unused",
+        "sobelow --config .sobelow-conf",
+        "credo --strict",
+        "deps.audit",
+        "test",
+        "docs"
+      ]
     ]
   end
 end

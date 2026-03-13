@@ -1,0 +1,67 @@
+# Type
+- name: "type:feature"
+  color: "0075ca"
+  description: "New feature or request"
+
+- name: "type:bug"
+  color: "d73a4a"
+  description: "Something isn't working"
+
+- name: "type:refactor"
+  color: "e4e669"
+  description: "Code improvement without behavior change"
+
+- name: "type:docs"
+  color: "0075ca"
+  description: "Documentation only"
+
+- name: "type:chore"
+  color: "ededed"
+  description: "Maintenance, deps, config"
+
+- name: "type:architecture"
+  color: "8b5cf6"
+  description: "Architectural change or ADR"
+
+# Priority
+- name: "prio:p0"
+  color: "b60205"
+  description: "Critical — blocks release or production"
+
+- name: "prio:p1"
+  color: "e4501b"
+  description: "High — should be resolved this cycle"
+
+- name: "prio:p2"
+  color: "fbca04"
+  description: "Normal — scheduled work"
+
+# Status
+- name: "status:ready"
+  color: "0e8a16"
+  description: "Ready to be picked up"
+
+- name: "status:in-progress"
+  color: "1d76db"
+  description: "Currently being worked on"
+
+- name: "status:blocked"
+  color: "b60205"
+  description: "Blocked by external dependency"
+
+# Area
+- name: "area:agents"
+  color: "c5def5"
+  description: "Agent hierarchy and lifecycle"
+
+- name: "area:runtime"
+  color: "c5def5"
+  description: "OTP supervision and runtime"
+
+- name: "area:ui"
+  color: "c5def5"
+  description: "LiveView and frontend"
+
+- name: "area:infra"
+  color: "c5def5"
+  description: "CI, deployment, infrastructure"
