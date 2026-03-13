@@ -1,0 +1,66 @@
+name: Feature Request
+description: Propose a new capability or improvement for LemmingsOS
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the proposal.
+        Please focus on user value, constraints, and acceptance criteria.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues and did not find a duplicate
+          required: true
+        - label: This request is aligned with the project goals
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user/problem is this solving?
+      placeholder: Describe the pain point clearly
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature behavior and UX/API expectations
+      placeholder: Explain the expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches and why they are less suitable
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable outcomes for completion
+      placeholder: |
+        - [ ] Given ..., when ..., then ...
+        - [ ] Given ..., when ..., then ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / tradeoffs
+      description: Data, security, migration, performance, or UX impacts
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Links, mockups, references, related issues
