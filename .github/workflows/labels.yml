@@ -10,6 +10,9 @@ on:
 jobs:
   labels:
     name: Sync labels
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
