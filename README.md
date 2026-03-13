@@ -3,6 +3,7 @@
 > An open-source runtime for autonomous AI agent hierarchies.
 > Pixel-inspired identity. Staff-engineer-level engineering standards.
 
+[![CI](https://github.com/mberrueta/lemmings-os/actions/workflows/elixir.yml/badge.svg)](https://github.com/mberrueta/lemmings-os/actions/workflows/elixir.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Elixir](https://img.shields.io/badge/elixir-1.15%2B-purple.svg)](https://elixir-lang.org/)
 [![Status](https://img.shields.io/badge/status-early--stage-orange.svg)]()

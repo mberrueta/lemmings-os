@@ -1,6 +1,6 @@
 name: Feature Request
 description: Propose a new capability or improvement for LemmingsOS
-labels: ["type: feature"]
+labels: ["type:feature"]
 body:
   - type: markdown
     attributes:

@@ -153,15 +153,25 @@ PRs should keep `main` releasable and CI-green.
 
 ---
 
+## Branch strategy
+
+| Prefix | Purpose | Example |
+|---|---|---|
+| `main` | Production-ready, always releasable | — |
+| `feature/*` | New features | `feature/rules-runner` |
+| `fix/*` | Bug fixes | `fix/import-csv-parser` |
+| `chore/*` | Maintenance, deps, config | `chore/update-deps` |
+| `docs/*` | Documentation and ADRs | `docs/adr-agent-architecture` |
+
+Use short, lowercase, hyphen-separated slugs.
+
+---
+
 ## Pull request process
 
 1. Fork the repo
 
-2. Create a branch:
-   * `fix/<short-description>`
-   * `feat/<short-description>`
-   * `docs/<short-description>`
-   * `adr/<short-description>`
+2. Create a branch following the [branch strategy](#branch-strategy) above
 
 3. Make focused changes (small PRs are easier to review)
 
