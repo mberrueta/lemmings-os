@@ -30,8 +30,9 @@ playful but structurally rigorous).
 
 Four levels: global boundary → node → logical group → individual agent.
 
-* **World**: the global isolation boundary — no cross-World communication without an
-  explicit gateway. Maps to a deployment or tenant.
+* **World**: the hard isolation boundary — no cross-World communication exists, by
+  design. Maps to a deployment or tenant. Worlds on the same infrastructure are
+  completely opaque to each other (see ADR-0003).
 * **City**: a running Elixir/OTP node. Cities join and leave Worlds dynamically.
   Maps directly to a `Node` in Elixir distributed computing.
 * **Department**: a logical group of Lemmings within a City. Defines shared purpose,
@@ -110,4 +111,5 @@ a sub-Department grouping) without redesigning the top-level model.
   `LemmingsOs.Lemming`
 * Database tables: `worlds`, `cities`, `departments`, `lemmings`
 * The hierarchy levels are schema-backed; runtime process names are derived from their DB identities
-* Cross-World communication will require an explicit `LemmingsOs.Gateway` boundary (separate ADR)
+* Cross-World communication does not exist — Worlds are permanently isolated from each other; see ADR-0003
+* The full runtime topology of a City node — services, isolation boundaries, Secret Bank locality, and cross-City routing — is specified in ADR-0017
