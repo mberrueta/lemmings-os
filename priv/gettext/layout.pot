@@ -12,7 +12,7 @@ msgid ".aria_open_navigation"
 msgstr ""
 
 #: lib/lemmings_os_web/components/layouts.ex:61
-#: lib/lemmings_os_web/components/layouts/root.html.heex:7
+#: lib/lemmings_os_web/components/layouts/root.html.heex:8
 #, elixir-autogen
 msgid ".brand_name"
 msgstr ""
@@ -346,7 +346,7 @@ msgstr ""
 msgid ".flash_settings_mock"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts/root.html.heex:7
+#: lib/lemmings_os_web/components/layouts/root.html.heex:9
 #, elixir-autogen
 msgid ".title_suffix"
 msgstr ""
