@@ -31,42 +31,52 @@ defmodule LemmingsOsWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
+  attr :page_key, :atom, default: :home
+  attr :page_title, :string, default: "Home"
+  attr :summary, :map, default: %{}
   slot :inner_block, required: true
 
   def app(assigns) do
-    ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+    assigns =
+      assigns
+      |> assign_new(:summary, fn -> LemmingsOs.MockData.summary() end)
+      |> assign(:terminal_path, "C:\\LEMMINGS_OS\\#{page_segment(assigns.page_key)}")
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
+    ~H"""
+    <div class="app-shell">
+      <SidebarComponents.sidebar active_page={@page_key} summary={@summary} />
+
+      <div id="mobile-backdrop" class="mobile-backdrop" phx-click={toggle_mobile_nav()} />
+
+      <div class="app-main">
+        <div class="mobile-header">
+          <button
+            class="mobile-burger"
+            phx-click={toggle_mobile_nav()}
+            aria-label="Open navigation"
+            aria-controls="app-sidebar"
+          >
+            <.icon name="hero-bars-3" class="size-5" />
+          </button>
+          <span class="mobile-header__brand">LemmingsOS</span>
+        </div>
+
+        <.terminal_bar
+          id="app-terminal-bar"
+          path={@terminal_path}
+          title={@page_title}
+          metrics={[
+            "MEM: #{@summary.mem}",
+            "TICK: #{@summary.tick}",
+            "AGENTS: #{@summary.agents_count}/#{@summary.max_agents}"
+          ]}
+        />
+
+        <main class="app-content">
+          {render_slot(@inner_block)}
+        </main>
       </div>
-    </main>
+    </div>
 
     <.flash_group flash={@flash} />
     """
@@ -84,7 +94,7 @@ defmodule LemmingsOsWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} aria-live="polite">
+    <div id={@id} class="flash-stack" aria-live="polite">
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
@@ -115,40 +125,12 @@ defmodule LemmingsOsWeb.Layouts do
     """
   end
 
-  @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
+  defp toggle_mobile_nav do
+    JS.toggle_class("mobile-open", to: "#app-sidebar")
+    |> JS.toggle_class("mobile-open", to: "#mobile-backdrop")
+  end
 
-  See <head> in root.html.heex which applies the theme before page load.
-  """
-  def theme_toggle(assigns) do
-    ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
-      >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-    </div>
-    """
+  defp page_segment(page_key) do
+    page_key |> Atom.to_string() |> String.upcase()
   end
 end
