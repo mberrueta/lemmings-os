@@ -9,7 +9,7 @@ must be captured here as an ADR.
 
 ## Suggested naming
 
-Use `NNNN-short-title.md`, for example: `0004-lemming-identity-model.md`.
+Use `NNNN-short-title.md`, for example: `0004-lemming-execution-model.md`.
 
 ## ADR format
 

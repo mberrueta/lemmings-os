@@ -7,30 +7,29 @@
 ## Context
 
 The World is the outermost level of the LemmingsOS hierarchy (see ADR 0002). We need
-to define precisely what "isolation" means at the World level and what constraints apply
-to cross-World communication.
+to define precisely what "isolation" means at the World level.
 
 This decision affects:
 
 * multi-tenant deployments
 * staging vs. production separation
 * air-gapped agent environments
-* the design of any future inter-World bridge or gateway
+* the security model for all agent execution within a deployment
 
 ## Decision Drivers
 
-1. Strong isolation guarantees by default for security and correctness
-2. Explicit, auditable cross-boundary communication
+1. Security over convenience — the isolation boundary must be structural, not configurable away
+2. No accidental data leakage between tenants or environments, ever
 3. Compatibility with single-World deployments (the common case)
 4. Clear failure semantics when boundary rules are violated
 
 ## Considered Options
 
-### Option A — Hard Isolation: No Cross-World Communication Without Explicit Gateway (Chosen)
+### Option A — Hard Isolation: No Cross-World Communication (Chosen)
 
-Worlds are fully isolated by default. No agent in World A can directly send a message
-to, observe, or depend on an agent in World B. Cross-World communication requires an
-explicit `Gateway` abstraction that is separately configured, audited, and monitored.
+Worlds are fully and permanently isolated. No agent in World A can send a message to,
+observe, or depend on an agent in World B. There is no mechanism — configured or
+otherwise — for cross-World communication within the platform.
 
 ### Option B — Soft Isolation: Cross-World Communication Allowed With Permission Flags
 
@@ -51,45 +50,59 @@ infrastructure level (separate deployments, separate databases).
 
 ## Decision
 
-**Worlds are hard isolation boundaries.** No cross-World communication is permitted
-without routing through a named, explicitly configured Gateway.
+**Worlds are hard, permanent isolation boundaries.** There is no cross-World
+communication. No agent, tool, or runtime service may address or observe anything
+outside its own World. This is not a default that can be configured away — it is a
+structural property of the platform.
 
-Specifically:
+The primary driver is security: a misconfigured or compromised agent in one World must
+not be able to affect or observe any other World. This guarantee must hold without
+depending on operator discipline or runtime policy configuration.
 
-* A World has its own:
-  * process namespace (no cross-World process discovery)
-  * database scope (no cross-World schema access)
-  * event bus scope (no cross-World event subscription)
-  * telemetry scope (metrics are tagged by World and do not aggregate cross-World by default)
-* The World identity is propagated as metadata on all logs, telemetry events, and DB rows.
-* A future `LemmingsOs.Gateway` module will mediate cross-World communication with
-  explicit configuration, rate limits, and audit logging.
+A typical deployment runs two or more Worlds on shared infrastructure — for example,
+`world_production` and `world_staging`, or `world_argentina` and `world_brazil` for a
+multi-region company. These Worlds share the same hardware but are completely opaque to
+each other at the platform level.
+
+Specifically, each World has its own:
+
+* process namespace (no cross-World process discovery)
+* database scope (no cross-World schema access)
+* event bus scope (no cross-World event subscription)
+* telemetry scope (metrics are tagged by World and do not aggregate cross-World by default)
+* Secret Bank (credentials are never shared across Worlds)
+
+The World identity is propagated as mandatory metadata on all logs, telemetry events, and DB rows.
 
 ## Rationale
 
-Hard isolation by default:
+Hard, permanent isolation:
 
-* Makes security reasoning simple: the boundary is always enforced unless explicitly bridged.
-* Enables true multi-tenancy without accidental data leakage between tenants.
-* Aligns with the "explicit over implicit" design principle.
+* Makes security reasoning simple: there is no boundary to misconfigure, no flag to set
+  incorrectly, no Gateway to forget to lock down. Isolation is structural.
+* Enables true multi-tenancy without any possibility of accidental data leakage between
+  tenants — a compromised agent in one World cannot reach another World by any path.
 * Gives operators clear operational handles: a World can be suspended, terminated, or
-  migrated independently.
+  migrated without affecting other Worlds on the same infrastructure.
+* Aligns with the principle of security over convenience: teams that need coordination
+  across environments do so through external integrations, not through the platform runtime.
 
-The cost — slightly more configuration for single-World use cases — is acceptable.
-A well-designed default configuration will make single-World deployments transparent.
+The cost — operators who want to share data between Worlds must do so outside the
+platform — is acceptable and intentional. A platform that can be configured to leak
+across tenant boundaries provides weaker guarantees than one that structurally cannot.
 
 ## Consequences
 
 ### Positive
 
-* Strong multi-tenant isolation guarantee
-* Clear security boundary that is easy to audit
+* Strong multi-tenant isolation that does not depend on operator configuration to hold
+* Clear security boundary: no agent action can leak outside its World by any path
 * Enables independent lifecycle management per World (suspend, migrate, terminate)
-* All cross-boundary communication is explicit, logged, and auditable
+* Security reasoning is simple — there is no cross-World communication model to audit
 
 ### Negative / Trade-offs
 
-* Adds indirection for use cases that genuinely need cross-World coordination
+* Teams that need coordination across environments (e.g., syncing data between production and staging) must do so through external integrations outside the platform
 * World identity must be propagated explicitly through all data models and telemetry
 
 ### Mitigations / Follow-ups
@@ -97,7 +110,6 @@ A well-designed default configuration will make single-World deployments transpa
 * Design the default single-World startup to require zero extra configuration
 * Tag all database rows with `world_id`; enforce at the context API level, not just
   at the query level
-* Design the `Gateway` abstraction before exposing any multi-World feature in the UI
 * Document isolation semantics in `docs/architecture.md`
 
 ## Implementation Notes
@@ -108,3 +120,4 @@ A well-designed default configuration will make single-World deployments transpa
 * The World Registry (`LemmingsOs.World.Registry`) is the authoritative source of
   active Worlds on a node.
 * Telemetry metadata: all `telemetry.execute/3` calls must include `%{world_id: id}` in metadata.
+* The runtime execution unit that operates within a World boundary is the Lemming instance (ADR-0004). Configuration inheritance, peer communication policy, and routing scope all start at the World level and flow down through City → Department → Lemming type → instance.
