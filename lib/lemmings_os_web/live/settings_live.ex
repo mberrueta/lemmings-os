@@ -6,7 +6,7 @@ defmodule LemmingsOsWeb.SettingsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:settings, "Settings")
+     |> assign_shell(:settings, dgettext("layout", ".page_title_settings"))
      |> assign(:form, build_form(default_params()))}
   end
 
@@ -18,7 +18,7 @@ defmodule LemmingsOsWeb.SettingsLive do
     {:noreply,
      socket
      |> assign(:form, build_form(params))
-     |> put_flash(:info, "Settings are mocked in this branch and were not persisted.")}
+     |> put_flash(:info, dgettext("layout", ".flash_settings_mock"))}
   end
 
   defp build_form(params), do: to_form(params, as: :settings)

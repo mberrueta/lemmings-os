@@ -53,12 +53,12 @@ defmodule LemmingsOsWeb.Layouts do
           <button
             class="mobile-burger"
             phx-click={toggle_mobile_nav()}
-            aria-label="Open navigation"
+            aria-label={dgettext("layout", ".aria_open_navigation")}
             aria-controls="app-sidebar"
           >
             <.icon name="hero-bars-3" class="size-5" />
           </button>
-          <span class="mobile-header__brand">LemmingsOS</span>
+          <span class="mobile-header__brand">{dgettext("layout", ".brand_name")}</span>
         </div>
 
         <.terminal_bar
@@ -66,9 +66,12 @@ defmodule LemmingsOsWeb.Layouts do
           path={@terminal_path}
           title={@page_title}
           metrics={[
-            "MEM: #{@summary.mem}",
-            "TICK: #{@summary.tick}",
-            "AGENTS: #{@summary.agents_count}/#{@summary.max_agents}"
+            dgettext("layout", ".terminal_mem", value: @summary.mem),
+            dgettext("layout", ".terminal_tick", value: @summary.tick),
+            dgettext("layout", ".terminal_agents",
+              current: @summary.agents_count,
+              max: @summary.max_agents
+            )
           ]}
         />
 
@@ -101,24 +104,24 @@ defmodule LemmingsOsWeb.Layouts do
       <.flash
         id="client-error"
         kind={:error}
-        title={gettext("We can't find the internet")}
+        title={dgettext("errors", ".error_no_internet")}
         phx-disconnected={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
         phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        {dgettext("errors", ".error_attempting_reconnect")}
         <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
 
       <.flash
         id="server-error"
         kind={:error}
-        title={gettext("Something went wrong!")}
+        title={dgettext("errors", ".error_something_went_wrong")}
         phx-disconnected={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
         phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        {dgettext("errors", ".error_attempting_reconnect")}
         <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
     </div>

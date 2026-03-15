@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.ToolsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:tools, "Tools")
+     |> assign_shell(:tools, dgettext("layout", ".page_title_tools"))
      |> assign(:tools, MockData.tools())}
   end
 end

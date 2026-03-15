@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:lemmings, "Lemmings")
+     |> assign_shell(:lemmings, dgettext("layout", ".page_title_lemmings"))
      |> assign(:lemmings, MockData.lemmings())
      |> assign(:selected_lemming, nil)}
   end

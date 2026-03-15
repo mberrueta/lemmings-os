@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.CitiesLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:cities, "Cities")
+     |> assign_shell(:cities, dgettext("layout", ".page_title_cities"))
      |> assign(:cities, MockData.cities())
      |> assign(:selected_city, nil)}
   end

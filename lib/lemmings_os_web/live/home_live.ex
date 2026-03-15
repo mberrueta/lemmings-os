@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.HomeLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:home, "Home")
+     |> assign_shell(:home, dgettext("layout", ".page_title_home"))
      |> assign(:cities, MockData.cities())
      |> assign(:departments, MockData.departments())
      |> assign(:lemmings, MockData.lemmings())

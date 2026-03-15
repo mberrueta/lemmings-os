@@ -40,7 +40,7 @@ defmodule LemmingsOsWeb.CoreComponents do
         <p :if={@title} class="flash-card__title">{@title}</p>
         <p>{msg}</p>
       </div>
-      <button type="button" class="flash-card__close" aria-label={gettext("close")}>
+      <button type="button" class="flash-card__close" aria-label={dgettext("errors", ".aria_close")}>
         <.icon name="hero-x-mark" class="size-4" />
       </button>
     </div>

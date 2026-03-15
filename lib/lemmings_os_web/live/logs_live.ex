@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.LogsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:logs, "Logs")
+     |> assign_shell(:logs, dgettext("layout", ".page_title_logs"))
      |> assign(:activity_log, MockData.global_activity_log())}
   end
 end

@@ -12,17 +12,18 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
   end
 
   test "world page renders the world map", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/world")
+    {:ok, view, _html} = live(conn, ~p"/world")
 
-    assert html =~ "world-map-panel"
-    assert html =~ "world-city-city-alpha"
+    assert has_element?(view, "#world-map-panel")
+    assert has_element?(view, "#world-network-map")
   end
 
   test "cities page supports a selected city view", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/cities?city=city-alpha")
+    {:ok, view, _html} = live(conn, ~p"/cities?city=city-alpha")
 
-    assert html =~ "city-detail-panel"
-    assert html =~ "Engineering"
+    assert has_element?(view, "#city-detail-panel")
+    assert has_element?(view, "#city-detail-node")
+    assert has_element?(view, "#city-departments-grid")
   end
 
   test "departments page supports a selected department view", %{conn: conn} do

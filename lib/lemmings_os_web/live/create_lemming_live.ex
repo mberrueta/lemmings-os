@@ -17,7 +17,7 @@ defmodule LemmingsOsWeb.CreateLemmingLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:lemmings, "Create Lemming")
+     |> assign_shell(:lemmings, dgettext("lemmings", ".page_title_create_lemming"))
      |> assign(:available_tools, @available_tools)
      |> assign(:selected_tools, ["code_editor", "terminal"])
      |> assign(:form, build_form(default_params()))}
@@ -42,7 +42,7 @@ defmodule LemmingsOsWeb.CreateLemmingLive do
     {:noreply,
      socket
      |> assign(:form, build_form(params))
-     |> put_flash(:info, "Lemming deployment is mocked in this branch.")}
+     |> put_flash(:info, dgettext("lemmings", ".flash_deploy_mock"))}
   end
 
   defp build_form(params), do: to_form(params, as: :lemming)

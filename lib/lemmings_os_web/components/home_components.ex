@@ -26,25 +26,34 @@ defmodule LemmingsOsWeb.HomeComponents do
     <.content_container>
       <.content_grid id="home-top-grid" columns="sidebar">
         <.panel id="home-hero" tone="accent">
-          <:title>Operations Overview</:title>
+          <:title>{dgettext("layout", ".home_title_operations_overview")}</:title>
           <:subtitle>
-            The Phoenix app now mirrors the mock shell and uses reusable components for every major section.
+            {dgettext("layout", ".home_subtitle_operations_overview")}
           </:subtitle>
           <:actions>
-            <.button navigate={~p"/world"} variant="secondary">Explore world</.button>
+            <.button navigate={~p"/world"} variant="secondary">
+              {dgettext("layout", ".button_explore_world")}
+            </.button>
           </:actions>
 
           <div class="hero-copy">
             <p>
-              This branch establishes the visual system first: terminal shell, sidebar navigation, pixel panels,
-              status badges, stat tiles, and routed mock pages for every major area of the app.
+              {dgettext("layout", ".home_hero_copy")}
             </p>
 
             <div class="quick-links">
-              <.button navigate={~p"/cities"} variant="ghost">Cities</.button>
-              <.button navigate={~p"/departments"} variant="ghost">Departments</.button>
-              <.button navigate={~p"/lemmings"} variant="ghost">Lemmings</.button>
-              <.button navigate={~p"/tools"} variant="ghost">Tools</.button>
+              <.button navigate={~p"/cities"} variant="ghost">
+                {dgettext("layout", ".nav_cities")}
+              </.button>
+              <.button navigate={~p"/departments"} variant="ghost">
+                {dgettext("layout", ".nav_departments")}
+              </.button>
+              <.button navigate={~p"/lemmings"} variant="ghost">
+                {dgettext("layout", ".nav_lemmings")}
+              </.button>
+              <.button navigate={~p"/tools"} variant="ghost">
+                {dgettext("layout", ".nav_tools")}
+              </.button>
             </div>
           </div>
         </.panel>
@@ -52,37 +61,37 @@ defmodule LemmingsOsWeb.HomeComponents do
         <div class="page-stack">
           <.content_grid columns="two">
             <.stat_item
-              label="Active Agents"
+              label={dgettext("layout", ".stat_active_agents")}
               value={to_string(@summary.active_agents_count)}
-              detail="running + thinking"
+              detail={dgettext("layout", ".stat_active_agents_detail")}
               tone="accent"
             />
             <.stat_item
-              label="Online Nodes"
+              label={dgettext("layout", ".stat_online_nodes")}
               value={to_string(@summary.online_cities_count)}
-              detail="healthy regions"
+              detail={dgettext("layout", ".stat_online_nodes_detail")}
               tone="info"
             />
             <.stat_item
-              label="Departments"
+              label={dgettext("layout", ".stat_departments")}
               value={to_string(@summary.departments_count)}
-              detail="operational queues"
+              detail={dgettext("layout", ".stat_departments_detail")}
               tone="warning"
             />
             <.stat_item
-              label="Tool Registry"
+              label={dgettext("layout", ".stat_tool_registry")}
               value={to_string(@summary.tools_count)}
-              detail="available capabilities"
+              detail={dgettext("layout", ".stat_tool_registry_detail")}
               tone="default"
             />
           </.content_grid>
 
           <.panel id="home-system-strip">
-            <:title>Cluster Signals</:title>
+            <:title>{dgettext("layout", ".home_title_cluster_signals")}</:title>
             <div class="inline-metrics">
-              <span>CPU {@summary.cpu}</span>
-              <span>Memory {@summary.mem}</span>
-              <span>Tick {@summary.tick}</span>
+              <span>{dgettext("layout", ".metric_cpu")} {@summary.cpu}</span>
+              <span>{dgettext("layout", ".metric_memory")} {@summary.mem}</span>
+              <span>{dgettext("layout", ".metric_tick")} {@summary.tick}</span>
             </div>
           </.panel>
         </div>
@@ -90,8 +99,8 @@ defmodule LemmingsOsWeb.HomeComponents do
 
       <.content_grid id="home-middle-grid" columns="two">
         <.panel id="home-network-snapshot">
-          <:title>Network Snapshot</:title>
-          <:subtitle>Jump directly into routed city pages.</:subtitle>
+          <:title>{dgettext("layout", ".home_title_network_snapshot")}</:title>
+          <:subtitle>{dgettext("layout", ".home_subtitle_network_snapshot")}</:subtitle>
           <div class="card-grid">
             <.link
               :for={city <- @city_snapshot}
@@ -109,8 +118,8 @@ defmodule LemmingsOsWeb.HomeComponents do
         </.panel>
 
         <.panel id="home-active-lemmings">
-          <:title>Active Lemmings</:title>
-          <:subtitle>Use the detailed roster view for full mock records.</:subtitle>
+          <:title>{dgettext("lemmings", ".title_active_lemmings")}</:title>
+          <:subtitle>{dgettext("lemmings", ".subtitle_active_lemmings")}</:subtitle>
           <div class="stack-list">
             <.link
               :for={lemming <- Enum.take(@active_lemmings, 4)}
@@ -132,7 +141,7 @@ defmodule LemmingsOsWeb.HomeComponents do
 
       <.content_grid id="home-bottom-grid" columns="two">
         <.panel id="home-department-queues">
-          <:title>Department Queues</:title>
+          <:title>{dgettext("world", ".title_department_queues")}</:title>
           <div class="stack-list">
             <.link
               :for={department <- @department_snapshot}
@@ -144,7 +153,7 @@ defmodule LemmingsOsWeb.HomeComponents do
                 <p class="list-row-card__meta">{department.description}</p>
               </div>
               <div class="list-row-card__aside">
-                <span>Next</span>
+                <span>{dgettext("world", ".label_next")}</span>
                 <span>{List.first(department.tasks_queue)}</span>
               </div>
             </.link>
@@ -152,7 +161,7 @@ defmodule LemmingsOsWeb.HomeComponents do
         </.panel>
 
         <.panel id="home-activity-feed">
-          <:title>Recent Activity</:title>
+          <:title>{dgettext("layout", ".home_title_recent_activity")}</:title>
           <div class="activity-feed">
             <div :for={item <- Enum.take(@activity_log, 6)} class="activity-feed__row">
               <span class="activity-feed__time">[{item.time}]</span>
@@ -175,8 +184,9 @@ defmodule LemmingsOsWeb.HomeComponents do
   defp status_tone(:thinking), do: "warning"
   defp status_tone(:error), do: "danger"
   defp status_tone(_), do: "default"
-  defp status_label(:running), do: "RUNNING"
-  defp status_label(:thinking), do: "THINKING"
-  defp status_label(:error), do: "ERROR"
-  defp status_label(:idle), do: "IDLE"
+  defp status_label(:running), do: dgettext("lemmings", ".status_running")
+  defp status_label(:thinking), do: dgettext("lemmings", ".status_thinking")
+  defp status_label(:error), do: dgettext("lemmings", ".status_error")
+  defp status_label(:idle), do: dgettext("lemmings", ".status_idle")
+  defp status_label(status), do: status |> Atom.to_string() |> String.upcase()
 end

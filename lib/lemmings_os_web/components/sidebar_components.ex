@@ -19,7 +19,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
         <div class="sidebar-brand__identity">
           <LemmingComponents.lemming_logo size={32} animation="blink" class="sidebar-brand__mark" />
           <div>
-            <p class="sidebar-brand__eyebrow">Cluster Control</p>
+            <p class="sidebar-brand__eyebrow">{dgettext("layout", ".sidebar_eyebrow")}</p>
             <h1 class="sidebar-brand__title">
               <LemmingComponents.brand_wordmark />
             </h1>
@@ -49,14 +49,14 @@ defmodule LemmingsOsWeb.SidebarComponents do
       <div class="sidebar-action">
         <.button navigate={~p"/lemmings/new"} class="w-full sidebar-action__full">
           <.icon name="hero-plus-circle" class="size-4" />
-          <span class="sidebar-action__label">New Lemming</span>
+          <span class="sidebar-action__label">{dgettext("layout", ".button_new_lemming")}</span>
         </.button>
       </div>
 
       <button
         class="sidebar-collapse-btn"
         phx-click={JS.toggle_class("app-sidebar--collapsed", to: "#app-sidebar")}
-        aria-label="Toggle sidebar"
+        aria-label={dgettext("layout", ".aria_toggle_sidebar")}
       >
         <.icon name="hero-chevron-double-left" class="size-3" />
       </button>
@@ -64,29 +64,29 @@ defmodule LemmingsOsWeb.SidebarComponents do
       <div class="sidebar-footer">
         <div class="sidebar-footer__grid">
           <div>
-            <p class="sidebar-footer__label">Agents</p>
+            <p class="sidebar-footer__label">{dgettext("layout", ".footer_agents")}</p>
             <p class="sidebar-footer__value">
               {@summary.agents_count}/{@summary.max_agents}
             </p>
           </div>
           <div>
-            <p class="sidebar-footer__label">Nodes</p>
+            <p class="sidebar-footer__label">{dgettext("layout", ".footer_nodes")}</p>
             <p class="sidebar-footer__value">
               {@summary.online_cities_count}/{@summary.cities_count}
             </p>
           </div>
           <div>
-            <p class="sidebar-footer__label">CPU</p>
+            <p class="sidebar-footer__label">{dgettext("layout", ".footer_cpu")}</p>
             <p class="sidebar-footer__value">{@summary.cpu}</p>
           </div>
           <div>
-            <p class="sidebar-footer__label">Tools</p>
+            <p class="sidebar-footer__label">{dgettext("layout", ".footer_tools")}</p>
             <p class="sidebar-footer__value">{@summary.tools_count}</p>
           </div>
         </div>
 
         <div class="sidebar-footer__status">
-          <span class="sidebar-footer__dot"></span> Cluster online
+          <span class="sidebar-footer__dot"></span> {dgettext("layout", ".footer_cluster_online")}
         </div>
       </div>
     </aside>
@@ -106,26 +106,56 @@ defmodule LemmingsOsWeb.SidebarComponents do
   defp navigation_groups do
     [
       %{
-        title: "Overview",
+        title: dgettext("layout", ".nav_section_overview"),
         items: [
-          %{key: :home, label: "Home", path: ~p"/", icon: "hero-home"},
-          %{key: :world, label: "World", path: ~p"/world", icon: "hero-globe-alt"},
-          %{key: :cities, label: "Cities", path: ~p"/cities", icon: "hero-map"},
+          %{key: :home, label: dgettext("layout", ".nav_home"), path: ~p"/", icon: "hero-home"},
+          %{
+            key: :world,
+            label: dgettext("layout", ".nav_world"),
+            path: ~p"/world",
+            icon: "hero-globe-alt"
+          },
+          %{
+            key: :cities,
+            label: dgettext("layout", ".nav_cities"),
+            path: ~p"/cities",
+            icon: "hero-map"
+          },
           %{
             key: :departments,
-            label: "Departments",
+            label: dgettext("layout", ".nav_departments"),
             path: ~p"/departments",
             icon: "hero-building-office-2"
           },
-          %{key: :lemmings, label: "Lemmings", path: ~p"/lemmings", icon: "hero-users"}
+          %{
+            key: :lemmings,
+            label: dgettext("layout", ".nav_lemmings"),
+            path: ~p"/lemmings",
+            icon: "hero-users"
+          }
         ]
       },
       %{
-        title: "Operations",
+        title: dgettext("layout", ".nav_section_operations"),
         items: [
-          %{key: :tools, label: "Tools", path: ~p"/tools", icon: "hero-wrench-screwdriver"},
-          %{key: :logs, label: "Logs", path: ~p"/logs", icon: "hero-clipboard-document-list"},
-          %{key: :settings, label: "Settings", path: ~p"/settings", icon: "hero-cog-6-tooth"}
+          %{
+            key: :tools,
+            label: dgettext("layout", ".nav_tools"),
+            path: ~p"/tools",
+            icon: "hero-wrench-screwdriver"
+          },
+          %{
+            key: :logs,
+            label: dgettext("layout", ".nav_logs"),
+            path: ~p"/logs",
+            icon: "hero-clipboard-document-list"
+          },
+          %{
+            key: :settings,
+            label: dgettext("layout", ".nav_settings"),
+            path: ~p"/settings",
+            icon: "hero-cog-6-tooth"
+          }
         ]
       }
     ]

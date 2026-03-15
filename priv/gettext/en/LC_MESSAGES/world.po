@@ -1,0 +1,204 @@
+## `msgid`s in this file come from POT (.pot) files.
+##
+## Do not add, change, or remove `msgid`s manually here as
+## they're tied to the ones in the corresponding POT file
+## (with the same domain).
+##
+## Use `mix gettext.extract --merge` or `mix gettext.merge`
+## to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: en\n"
+
+#: lib/lemmings_os_web/components/home_components.ex:144
+#, elixir-autogen
+msgid ".title_department_queues"
+msgstr "Department Queues"
+
+#: lib/lemmings_os_web/components/home_components.ex:156
+#, elixir-autogen
+msgid ".label_next"
+msgstr "Next"
+
+#: lib/lemmings_os_web/components/map_components.ex:146
+#: lib/lemmings_os_web/components/world_components.ex:24
+#, elixir-autogen
+msgid ".title_world_map"
+msgstr "World Map"
+
+#: lib/lemmings_os_web/components/world_components.ex:25
+#, elixir-autogen
+msgid ".subtitle_world_map"
+msgstr "Mock regions, departments, and agent density wired into the new shell."
+
+#: lib/lemmings_os_web/components/map_components.ex:148
+#: lib/lemmings_os_web/components/world_components.ex:27
+#, elixir-autogen
+msgid ".metric_nodes"
+msgstr "Nodes"
+
+#: lib/lemmings_os_web/components/map_components.ex:150
+#: lib/lemmings_os_web/components/world_components.ex:28
+#, elixir-autogen
+msgid ".metric_online"
+msgstr "Online"
+
+#: lib/lemmings_os_web/components/map_components.ex:152
+#: lib/lemmings_os_web/components/world_components.ex:29
+#, elixir-autogen
+msgid ".metric_agents"
+msgstr "Agents"
+
+#: lib/lemmings_os_web/components/world_components.ex:34
+#, elixir-autogen
+msgid ".title_network_map"
+msgstr "Network Map"
+
+#: lib/lemmings_os_web/components/world_components.ex:35
+#, elixir-autogen
+msgid ".subtitle_network_map"
+msgstr "Select any node to open its city page."
+
+#: lib/lemmings_os_web/components/world_components.ex:41
+#, elixir-autogen
+msgid ".title_node_summary"
+msgstr "Node Summary"
+
+#: lib/lemmings_os_web/components/world_components.ex:48
+#, elixir-autogen
+msgid ".title_departments_by_node"
+msgstr "Departments by Node"
+
+#: lib/lemmings_os_web/components/world_components.ex:54
+#, elixir-autogen
+msgid ".count_departments_deployed"
+msgstr "%{count} departments deployed"
+
+#: lib/lemmings_os_web/components/world_components.ex:61
+#: lib/lemmings_os_web/components/world_components.ex:115
+#: lib/lemmings_os_web/components/world_components.ex:152
+#: lib/lemmings_os_web/components/world_components.ex:191
+#: lib/lemmings_os_web/components/world_components.ex:268
+#, elixir-autogen
+msgid ".count_agents"
+msgstr "%{count} agents"
+
+#: lib/lemmings_os_web/components/world_components.ex:66
+#, elixir-autogen
+msgid ".button_open"
+msgstr "Open"
+
+#: lib/lemmings_os_web/components/world_components.ex:86
+#, elixir-autogen
+msgid ".title_all_cities"
+msgstr "All Cities"
+
+#: lib/lemmings_os_web/components/world_components.ex:87
+#, elixir-autogen
+msgid ".subtitle_all_cities"
+msgstr "Select a node to explore its departments."
+
+#: lib/lemmings_os_web/components/world_components.ex:105
+#, elixir-autogen
+msgid ".title_departments"
+msgstr "Departments"
+
+#: lib/lemmings_os_web/components/world_components.ex:106
+#, elixir-autogen
+msgid ".subtitle_departments"
+msgstr "Mock queues and agent rosters ready for real data later."
+
+#: lib/lemmings_os_web/components/world_components.ex:120
+#, elixir-autogen
+msgid ".button_inspect"
+msgstr "Inspect"
+
+#: lib/lemmings_os_web/components/world_components.ex:152
+#, elixir-autogen
+msgid ".count_depts"
+msgstr "%{count} depts"
+
+#: lib/lemmings_os_web/components/world_components.ex:179
+#, elixir-autogen
+msgid ".button_all_cities"
+msgstr "All cities"
+
+#: lib/lemmings_os_web/components/world_components.ex:190
+#, elixir-autogen
+msgid ".count_departments"
+msgstr "%{count} departments"
+
+#: lib/lemmings_os_web/components/world_components.ex:207
+#, elixir-autogen
+msgid ".empty_no_departments"
+msgstr "No departments deployed"
+
+#: lib/lemmings_os_web/components/world_components.ex:208
+#, elixir-autogen
+msgid ".empty_no_departments_copy"
+msgstr "This node is ready to receive its first department."
+
+#: lib/lemmings_os_web/components/world_components.ex:225
+#, elixir-autogen
+msgid ".button_open_dept"
+msgstr "Open dept"
+
+#: lib/lemmings_os_web/components/world_components.ex:239
+#, elixir-autogen
+msgid ".label_queue"
+msgstr "Queue"
+
+#: lib/lemmings_os_web/components/world_components.ex:240
+#, elixir-autogen
+msgid ".label_empty"
+msgstr "empty"
+
+#: lib/lemmings_os_web/components/world_components.ex:263
+#, elixir-autogen
+msgid ".button_all_departments"
+msgstr "All departments"
+
+#: lib/lemmings_os_web/components/world_components.ex:267
+#, elixir-autogen
+msgid ".label_node"
+msgstr "Node"
+
+#: lib/lemmings_os_web/components/world_components.ex:270
+#, elixir-autogen
+msgid ".count_queued_tasks"
+msgstr "%{count} queued tasks"
+
+#: lib/lemmings_os_web/components/world_components.ex:277
+#, elixir-autogen
+msgid ".title_assigned_agents"
+msgstr "Assigned Agents"
+
+#: lib/lemmings_os_web/components/world_components.ex:289
+#, elixir-autogen
+msgid ".title_task_queue"
+msgstr "Task Queue"
+
+#: lib/lemmings_os_web/components/world_components.ex:308
+#, elixir-autogen
+msgid ".status_online"
+msgstr "ONLINE"
+
+#: lib/lemmings_os_web/components/world_components.ex:309
+#, elixir-autogen
+msgid ".status_degraded"
+msgstr "DEGRADED"
+
+#: lib/lemmings_os_web/components/world_components.ex:310
+#, elixir-autogen
+msgid ".status_offline"
+msgstr "OFFLINE"
+
+#: lib/lemmings_os_web/components/world_components.ex:194
+#, elixir-autogen
+msgid ".copy_city_detail_hero"
+msgstr "Node visual adapted from the world map model and wired to the live mock metrics for this city."
+
+#: lib/lemmings_os_web/components/map_components.ex:35
+#, elixir-autogen
+msgid ".aria_city_node"
+msgstr "City: %{name}"

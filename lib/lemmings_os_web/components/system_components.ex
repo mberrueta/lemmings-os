@@ -11,8 +11,8 @@ defmodule LemmingsOsWeb.SystemComponents do
     ~H"""
     <.content_container>
       <.panel id="tools-page" tone="accent">
-        <:title>Tools Registry</:title>
-        <:subtitle>Capabilities referenced across the mock agent fleet.</:subtitle>
+        <:title>{dgettext("layout", ".title_tools_registry")}</:title>
+        <:subtitle>{dgettext("layout", ".subtitle_tools_registry")}</:subtitle>
       </.panel>
 
       <.panel id="tools-grid-panel">
@@ -24,7 +24,9 @@ defmodule LemmingsOsWeb.SystemComponents do
             </div>
             <p class="mini-card__meta">{tool.description}</p>
             <div class="mini-card__footer">
-              <.badge tone="warning">{tool.agents} agents</.badge>
+              <.badge tone="warning">
+                {dgettext("layout", ".badge_agents_count", count: tool.agents)}
+              </.badge>
             </div>
           </div>
         </div>
@@ -39,8 +41,8 @@ defmodule LemmingsOsWeb.SystemComponents do
     ~H"""
     <.content_container>
       <.panel id="logs-page" tone="accent">
-        <:title>Activity Logs</:title>
-        <:subtitle>Global event timeline from the mock management environment.</:subtitle>
+        <:title>{dgettext("layout", ".title_activity_logs")}</:title>
+        <:subtitle>{dgettext("layout", ".subtitle_activity_logs")}</:subtitle>
       </.panel>
 
       <.panel id="logs-feed-panel">
@@ -52,7 +54,7 @@ defmodule LemmingsOsWeb.SystemComponents do
           </div>
           <div class="activity-feed__row">
             <span class="terminal-bar__cursor">█</span>
-            <span>Waiting for events...</span>
+            <span>{dgettext("layout", ".logs_waiting_for_events")}</span>
           </div>
         </div>
       </.panel>
@@ -67,16 +69,20 @@ defmodule LemmingsOsWeb.SystemComponents do
     <.content_container>
       <.content_grid columns="sidebar">
         <.panel id="settings-page" tone="accent">
-          <:title>Settings</:title>
-          <:subtitle>Visual-only controls using the final shell primitives.</:subtitle>
+          <:title>{dgettext("layout", ".title_settings")}</:title>
+          <:subtitle>{dgettext("layout", ".subtitle_settings")}</:subtitle>
           <.form for={@form} id="settings-form" phx-change="validate" phx-submit="save">
             <div class="page-stack">
-              <.input field={@form[:world_name]} label="World Name" />
-              <.input field={@form[:max_agents]} type="number" label="Max Agents" />
+              <.input field={@form[:world_name]} label={dgettext("layout", ".label_world_name")} />
+              <.input
+                field={@form[:max_agents]}
+                type="number"
+                label={dgettext("layout", ".label_max_agents")}
+              />
               <.input
                 field={@form[:default_model]}
                 type="select"
-                label="Default Model"
+                label={dgettext("layout", ".label_default_model")}
                 options={[
                   {"gpt-4o", "gpt-4o"},
                   {"gpt-4o-mini", "gpt-4o-mini"},
@@ -86,7 +92,7 @@ defmodule LemmingsOsWeb.SystemComponents do
               <.input
                 field={@form[:log_level]}
                 type="select"
-                label="Log Level"
+                label={dgettext("layout", ".label_log_level")}
                 options={[
                   {"verbose", "verbose"},
                   {"info", "info"},
@@ -94,18 +100,17 @@ defmodule LemmingsOsWeb.SystemComponents do
                   {"error", "error"}
                 ]}
               />
-              <.button type="submit">Save Config</.button>
+              <.button type="submit">{dgettext("layout", ".button_save_config")}</.button>
             </div>
           </.form>
         </.panel>
 
         <.panel id="settings-info-panel">
-          <:title>Environment Notes</:title>
+          <:title>{dgettext("layout", ".title_environment_notes")}</:title>
           <div class="page-stack">
-            <.badge tone="warning">Visual mock only</.badge>
+            <.badge tone="warning">{dgettext("layout", ".badge_visual_mock_only")}</.badge>
             <p>
-              These controls now behave like Phoenix forms and use the shared component primitives, but they do
-              not persist changes yet. The next tickets can connect them to real LiveView-backed state safely.
+              {dgettext("layout", ".copy_settings_mock_note")}
             </p>
           </div>
         </.panel>

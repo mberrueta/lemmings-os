@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign_shell(:departments, "Departments")
+     |> assign_shell(:departments, dgettext("layout", ".page_title_departments"))
      |> assign(:departments, MockData.departments())
      |> assign(:selected_department, nil)}
   end

@@ -1,0 +1,225 @@
+## `msgid`s in this file come from POT (.pot) files.
+##
+## Do not add, change, or remove `msgid`s manually here as
+## they're tied to the ones in the corresponding POT file
+## (with the same domain).
+##
+## Use `mix gettext.extract --merge` or `mix gettext.merge`
+## to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: en\n"
+
+#: lib/lemmings_os_web/components/home_components.ex:121
+#, elixir-autogen
+msgid ".title_active_lemmings"
+msgstr "Active Lemmings"
+
+#: lib/lemmings_os_web/components/home_components.ex:122
+#, elixir-autogen
+msgid ".subtitle_active_lemmings"
+msgstr "Use the detailed roster view for full mock records."
+
+#: lib/lemmings_os_web/components/home_components.ex:187
+#: lib/lemmings_os_web/components/lemming_components.ex:419
+#, elixir-autogen
+msgid ".status_running"
+msgstr "RUNNING"
+
+#: lib/lemmings_os_web/components/home_components.ex:188
+#: lib/lemmings_os_web/components/lemming_components.ex:420
+#, elixir-autogen
+msgid ".status_thinking"
+msgstr "THINKING"
+
+#: lib/lemmings_os_web/components/home_components.ex:189
+#: lib/lemmings_os_web/components/lemming_components.ex:421
+#, elixir-autogen
+msgid ".status_error"
+msgstr "ERROR"
+
+#: lib/lemmings_os_web/components/home_components.ex:190
+#: lib/lemmings_os_web/components/lemming_components.ex:422
+#, elixir-autogen
+msgid ".status_idle"
+msgstr "IDLE"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:91
+#, elixir-autogen
+msgid ".title_all_lemmings"
+msgstr "All Lemmings"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:92
+#, elixir-autogen
+msgid ".subtitle_all_lemmings"
+msgstr "Mock agent registry for future real LiveView behavior."
+
+#: lib/lemmings_os_web/components/lemming_components.ex:97
+#, elixir-autogen
+msgid ".title_agent_registry"
+msgstr "Agent Registry"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:100
+#, elixir-autogen
+msgid ".col_name"
+msgstr "Name"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:101
+#, elixir-autogen
+msgid ".col_role"
+msgstr "Role"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:102
+#, elixir-autogen
+msgid ".col_status"
+msgstr "Status"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:103
+#, elixir-autogen
+msgid ".col_task"
+msgstr "Task"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:104
+#, elixir-autogen
+msgid ".col_model"
+msgstr "Model"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:130
+#, elixir-autogen
+msgid ".title_agent_detail"
+msgstr "Agent Detail"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:133
+#, elixir-autogen
+msgid ".empty_select_lemming"
+msgstr "Select a lemming"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:134
+#, elixir-autogen
+msgid ".empty_select_lemming_copy"
+msgstr "Choose an agent from the registry to inspect its task, model, tools, and activity."
+
+#: lib/lemmings_os_web/components/lemming_components.ex:168
+#, elixir-autogen
+msgid ".detail_model"
+msgstr "Model"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:173
+#, elixir-autogen
+msgid ".detail_system_prompt"
+msgstr "System Prompt"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:178
+#, elixir-autogen
+msgid ".detail_tools"
+msgstr "Tools"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:185
+#, elixir-autogen
+msgid ".detail_recent_messages"
+msgstr "Recent Messages"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:188
+#, elixir-autogen
+msgid ".empty_no_messages"
+msgstr "No messages yet."
+
+#: lib/lemmings_os_web/components/lemming_components.ex:205
+#, elixir-autogen
+msgid ".detail_activity_log"
+msgstr "Activity Log"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:413
+#, elixir-autogen
+msgid ".role_agent"
+msgstr "AGENT"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:414
+#, elixir-autogen
+msgid ".role_user"
+msgstr "USER"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:244
+#, elixir-autogen
+msgid ".title_create_lemming"
+msgstr "Create New Lemming"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:245
+#, elixir-autogen
+msgid ".subtitle_create_lemming"
+msgstr "Mock form now, real workflow later."
+
+#: lib/lemmings_os_web/components/lemming_components.ex:250
+#, elixir-autogen
+msgid ".label_name"
+msgstr "Name"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:251
+#, elixir-autogen
+msgid ".placeholder_name"
+msgstr "e.g. Turing"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:255
+#, elixir-autogen
+msgid ".label_role"
+msgstr "Role"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:256
+#, elixir-autogen
+msgid ".placeholder_role"
+msgstr "e.g. Reliability Engineer"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:261
+#, elixir-autogen
+msgid ".label_model"
+msgstr "Model"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:273
+#, elixir-autogen
+msgid ".label_system_prompt"
+msgstr "System Prompt"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:278
+#, elixir-autogen
+msgid ".detail_tools_allowed"
+msgstr "Tools Allowed"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:296
+#, elixir-autogen
+msgid ".button_deploy_lemming"
+msgstr "Deploy Lemming"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:302
+#, elixir-autogen
+msgid ".title_deployment_preview"
+msgstr "Deployment Preview"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:305
+#, elixir-autogen
+msgid ".detail_selected_tooling"
+msgstr "Selected Tooling"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:309
+#, elixir-autogen
+msgid ".empty_no_tools_selected"
+msgstr "No tools selected"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:315
+#, elixir-autogen
+msgid ".detail_expected_outcome"
+msgstr "Expected Outcome"
+
+#: lib/lemmings_os_web/components/lemming_components.ex:317
+#, elixir-autogen
+msgid ".copy_expected_outcome"
+msgstr "This submit path is intentionally mocked. It exercises the LiveView form flow, keeps the shell interactive, and provides the shape we will connect to real persistence in the next tickets."
+
+#: lib/lemmings_os_web/live/create_lemming_live.ex:20
+#, elixir-autogen
+msgid ".page_title_create_lemming"
+msgstr "Create Lemming"
+
+#: lib/lemmings_os_web/live/create_lemming_live.ex:45
+#, elixir-autogen
+msgid ".flash_deploy_mock"
+msgstr "Lemming deployment is mocked in this branch."

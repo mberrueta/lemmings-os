@@ -88,20 +88,20 @@ defmodule LemmingsOsWeb.LemmingComponents do
     ~H"""
     <.content_container>
       <.panel id="lemmings-header-panel" tone="accent">
-        <:title>All Lemmings</:title>
-        <:subtitle>Mock agent registry for future real LiveView behavior.</:subtitle>
+        <:title>{dgettext("lemmings", ".title_all_lemmings")}</:title>
+        <:subtitle>{dgettext("lemmings", ".subtitle_all_lemmings")}</:subtitle>
       </.panel>
 
       <.content_grid id="lemmings-grid" columns="sidebar">
         <.panel id="lemmings-table-panel">
-          <:title>Agent Registry</:title>
+          <:title>{dgettext("lemmings", ".title_agent_registry")}</:title>
           <div class="data-table">
             <div class="data-table__header">
-              <span>Name</span>
-              <span>Role</span>
-              <span>Status</span>
-              <span>Task</span>
-              <span>Model</span>
+              <span>{dgettext("lemmings", ".col_name")}</span>
+              <span>{dgettext("lemmings", ".col_role")}</span>
+              <span>{dgettext("lemmings", ".col_status")}</span>
+              <span>{dgettext("lemmings", ".col_task")}</span>
+              <span>{dgettext("lemmings", ".col_model")}</span>
             </div>
 
             <.link
@@ -127,11 +127,11 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <.lemming_detail_panel :if={@selected_lemming} lemming={@selected_lemming} />
 
         <.panel :if={!@selected_lemming} id="lemming-detail-empty">
-          <:title>Agent Detail</:title>
+          <:title>{dgettext("lemmings", ".title_agent_detail")}</:title>
           <.empty_state
             id="lemmings-empty-state"
-            title="Select a lemming"
-            copy="Choose an agent from the registry to inspect its task, model, tools, and activity."
+            title={dgettext("lemmings", ".empty_select_lemming")}
+            copy={dgettext("lemmings", ".empty_select_lemming_copy")}
           />
         </.panel>
       </.content_grid>
@@ -165,27 +165,27 @@ defmodule LemmingsOsWeb.LemmingComponents do
         </div>
 
         <div class="detail-section">
-          <p class="detail-section__title">Model</p>
+          <p class="detail-section__title">{dgettext("lemmings", ".detail_model")}</p>
           <p>{@lemming.model}</p>
         </div>
 
         <div class="detail-section">
-          <p class="detail-section__title">System Prompt</p>
+          <p class="detail-section__title">{dgettext("lemmings", ".detail_system_prompt")}</p>
           <p>{@lemming.system_prompt}</p>
         </div>
 
         <div class="detail-section">
-          <p class="detail-section__title">Tools</p>
+          <p class="detail-section__title">{dgettext("lemmings", ".detail_tools")}</p>
           <div class="tool-badges">
             <.badge :for={tool <- @lemming.tools} tone="info">{tool}</.badge>
           </div>
         </div>
 
         <div class="detail-section">
-          <p class="detail-section__title">Recent Messages</p>
+          <p class="detail-section__title">{dgettext("lemmings", ".detail_recent_messages")}</p>
           <div class="activity-feed">
             <div :if={@lemming.recent_messages == []} class="activity-feed__row">
-              <span>No messages yet.</span>
+              <span>{dgettext("lemmings", ".empty_no_messages")}</span>
             </div>
 
             <div :for={message <- @lemming.recent_messages} class="activity-feed__row">
@@ -202,7 +202,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         </div>
 
         <div class="detail-section">
-          <p class="detail-section__title">Activity Log</p>
+          <p class="detail-section__title">{dgettext("lemmings", ".detail_activity_log")}</p>
           <div class="activity-feed">
             <div :for={item <- @lemming.activity_log} class="activity-feed__row">
               <span class="activity-feed__time">[{item.time}]</span>
@@ -241,16 +241,24 @@ defmodule LemmingsOsWeb.LemmingComponents do
     <.content_container>
       <.content_grid columns="sidebar">
         <.panel id="create-lemming-panel" tone="accent">
-          <:title>Create New Lemming</:title>
-          <:subtitle>Mock form now, real workflow later.</:subtitle>
+          <:title>{dgettext("lemmings", ".title_create_lemming")}</:title>
+          <:subtitle>{dgettext("lemmings", ".subtitle_create_lemming")}</:subtitle>
           <.form for={@form} id="create-lemming-form" phx-change="validate" phx-submit="save">
             <div class="page-stack">
-              <.input field={@form[:name]} label="Name" placeholder="e.g. Turing" />
-              <.input field={@form[:role]} label="Role" placeholder="e.g. Reliability Engineer" />
+              <.input
+                field={@form[:name]}
+                label={dgettext("lemmings", ".label_name")}
+                placeholder={dgettext("lemmings", ".placeholder_name")}
+              />
+              <.input
+                field={@form[:role]}
+                label={dgettext("lemmings", ".label_role")}
+                placeholder={dgettext("lemmings", ".placeholder_role")}
+              />
               <.input
                 field={@form[:model]}
                 type="select"
-                label="Model"
+                label={dgettext("lemmings", ".label_model")}
                 options={[
                   {"gpt-4o", "gpt-4o"},
                   {"gpt-4o-mini", "gpt-4o-mini"},
@@ -259,10 +267,15 @@ defmodule LemmingsOsWeb.LemmingComponents do
                   {"llama-3", "llama-3"}
                 ]}
               />
-              <.input field={@form[:system_prompt]} type="textarea" label="System Prompt" rows="5" />
+              <.input
+                field={@form[:system_prompt]}
+                type="textarea"
+                label={dgettext("lemmings", ".label_system_prompt")}
+                rows="5"
+              />
 
               <div class="detail-section">
-                <p class="detail-section__title">Tools Allowed</p>
+                <p class="detail-section__title">{dgettext("lemmings", ".detail_tools_allowed")}</p>
                 <div class="tool-toggle-grid">
                   <button
                     :for={tool <- @available_tools}
@@ -280,27 +293,28 @@ defmodule LemmingsOsWeb.LemmingComponents do
                 </div>
               </div>
 
-              <.button type="submit">Deploy Lemming</.button>
+              <.button type="submit">{dgettext("lemmings", ".button_deploy_lemming")}</.button>
             </div>
           </.form>
         </.panel>
 
         <.panel id="create-lemming-preview">
-          <:title>Deployment Preview</:title>
+          <:title>{dgettext("lemmings", ".title_deployment_preview")}</:title>
           <div class="page-stack">
             <div class="detail-section">
-              <p class="detail-section__title">Selected Tooling</p>
+              <p class="detail-section__title">{dgettext("lemmings", ".detail_selected_tooling")}</p>
               <div class="tool-badges">
                 <.badge :for={tool <- @selected_tools} tone="accent">{tool}</.badge>
-                <.badge :if={@selected_tools == []} tone="default">No tools selected</.badge>
+                <.badge :if={@selected_tools == []} tone="default">
+                  {dgettext("lemmings", ".empty_no_tools_selected")}
+                </.badge>
               </div>
             </div>
 
             <div class="detail-section">
-              <p class="detail-section__title">Expected Outcome</p>
+              <p class="detail-section__title">{dgettext("lemmings", ".detail_expected_outcome")}</p>
               <p>
-                This submit path is intentionally mocked. It exercises the LiveView form flow, keeps the shell
-                interactive, and provides the shape we will connect to real persistence in the next tickets.
+                {dgettext("lemmings", ".copy_expected_outcome")}
               </p>
             </div>
           </div>
@@ -396,15 +410,15 @@ defmodule LemmingsOsWeb.LemmingComponents do
 
   defp sprite_size("sm"), do: nil
   defp sprite_size("md"), do: "sprite-card--md"
-  defp role_label(:assistant), do: "AGENT"
-  defp role_label(:user), do: "USER"
+  defp role_label(:assistant), do: dgettext("lemmings", ".role_agent")
+  defp role_label(:user), do: dgettext("lemmings", ".role_user")
   defp status_tone(:running), do: "success"
   defp status_tone(:thinking), do: "warning"
   defp status_tone(:error), do: "danger"
   defp status_tone(_), do: "default"
-  defp status_label(:running), do: "RUNNING"
-  defp status_label(:thinking), do: "THINKING"
-  defp status_label(:error), do: "ERROR"
-  defp status_label(:idle), do: "IDLE"
+  defp status_label(:running), do: dgettext("lemmings", ".status_running")
+  defp status_label(:thinking), do: dgettext("lemmings", ".status_thinking")
+  defp status_label(:error), do: dgettext("lemmings", ".status_error")
+  defp status_label(:idle), do: dgettext("lemmings", ".status_idle")
   defp status_label(status), do: status |> Atom.to_string() |> String.upcase()
 end
