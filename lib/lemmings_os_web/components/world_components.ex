@@ -7,96 +7,30 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   alias LemmingsOs.MockData
 
+  @map_cols 45
+  @map_rows 26
+
   attr :summary, :map, required: true
   attr :cities, :list, required: true
   attr :departments, :list, required: true
   attr :lemmings, :list, required: true
 
   def world_page(assigns) do
-    city_connections =
-      for {city, index} <- Enum.with_index(assigns.cities),
-          other <- Enum.drop(assigns.cities, index + 1) do
-        {city, other}
-      end
-
-    assigns = assign(assigns, :city_connections, city_connections)
+    assigns = assign(assigns, :map_cities, Enum.map(assigns.cities, &to_map_city/1))
 
     ~H"""
     <.content_container>
-      <.panel id="world-summary-panel" tone="accent">
-        <:title>World Map</:title>
-        <:subtitle>Mock regions, departments, and agent density wired into the new shell.</:subtitle>
-        <div class="inline-metrics">
-          <span>Nodes {@summary.cities_count}</span>
-          <span>Online {@summary.online_cities_count}</span>
-          <span>Agents {@summary.agents_count}</span>
-        </div>
-      </.panel>
-
-      <.panel id="world-map-panel">
-        <:title>Network Map</:title>
-        <:subtitle>Select any node to open its city page.</:subtitle>
-        <div class="world-map">
-          <div class="world-map__grid"></div>
-          <div class="world-map__scanlines"></div>
-
-          <svg class="world-map__connections" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <line
-              :for={{city, other} <- @city_connections}
-              x1={city.x}
-              y1={city.y}
-              x2={other.x}
-              y2={other.y}
-              vector-effect="non-scaling-stroke"
-            />
-          </svg>
-
-          <.link
-            :for={city <- @cities}
-            id={"world-city-#{city.id}"}
-            navigate={~p"/cities?#{%{city: city.id}}"}
-            class="world-map__node"
-            style={node_style(city)}
-          >
-            <div class="world-map__node-card">
-              <div
-                :for={department <- MockData.departments_for_city(city.id)}
-                class="world-map__tower"
-                style={accent_style(department.accent)}
-              >
-              </div>
-            </div>
-            <div class="world-map__node-copy">
-              <span>{city.name}</span>
-              <small>{city.region}</small>
-            </div>
-          </.link>
-        </div>
-      </.panel>
-
-      <.content_grid columns="two">
-        <.panel id="world-cities-snapshot">
-          <:title>Node Summary</:title>
-          <div class="card-grid">
-            <.city_card :for={city <- @cities} city={city} />
-          </div>
+      <.content_grid id="world-overview-grid" columns="two" class="content-grid--world-overview">
+        <.panel id="world-map-panel">
+          <:title>{dgettext("world", ".title_network_map")}</:title>
+          <:subtitle>{dgettext("world", ".subtitle_network_map")}</:subtitle>
+          <MapComponents.world_map cities={@map_cities} id="world-network-map" />
         </.panel>
 
-        <.panel id="world-departments-snapshot">
-          <:title>Departments by Node</:title>
-          <div class="stack-list">
-            <div :for={city <- @cities} class="list-row-card">
-              <div>
-                <p class="list-row-card__title">{city.name}</p>
-                <p class="list-row-card__meta">
-                  {length(MockData.departments_for_city(city.id))} departments deployed
-                </p>
-              </div>
-              <div class="list-row-card__aside">
-                <span>{length(MockData.lemmings_for_city(city.id))} agents</span>
-                <.button navigate={~p"/cities?#{%{city: city.id}}"} variant="ghost">Open</.button>
-              </div>
-            </div>
+        <.panel id="world-cities-snapshot">
+          <:title>{dgettext("world", ".title_node_summary")}</:title>
+          <div class="stack-list world-node-summary-list">
+            <.city_card :for={city <- @cities} city={city} compact />
           </div>
         </.panel>
       </.content_grid>
@@ -113,8 +47,8 @@ defmodule LemmingsOsWeb.WorldComponents do
       <.city_detail_page :if={@selected_city} city={@selected_city} />
 
       <.panel :if={!@selected_city} id="cities-list-panel">
-        <:title>All Cities</:title>
-        <:subtitle>Select a node to explore its departments.</:subtitle>
+        <:title>{dgettext("world", ".title_all_cities")}</:title>
+        <:subtitle>{dgettext("world", ".subtitle_all_cities")}</:subtitle>
         <div id="cities-grid" class="card-grid">
           <.city_card :for={city <- @cities} city={city} />
         </div>
@@ -132,8 +66,8 @@ defmodule LemmingsOsWeb.WorldComponents do
       <.department_detail_page :if={@selected_department} department={@selected_department} />
 
       <.panel :if={!@selected_department} id="departments-list">
-        <:title>Departments</:title>
-        <:subtitle>Mock queues and agent rosters ready for real data later.</:subtitle>
+        <:title>{dgettext("world", ".title_departments")}</:title>
+        <:subtitle>{dgettext("world", ".subtitle_departments")}</:subtitle>
         <div class="stack-list">
           <div :for={department <- @departments} class="list-row-card">
             <div>
@@ -141,9 +75,13 @@ defmodule LemmingsOsWeb.WorldComponents do
               <p class="list-row-card__meta">{department.description}</p>
             </div>
             <div class="list-row-card__aside">
-              <span>{length(MockData.lemmings_for_department(department.id))} agents</span>
+              <span>
+                {dgettext("world", ".count_agents",
+                  count: length(MockData.lemmings_for_department(department.id))
+                )}
+              </span>
               <.button navigate={~p"/departments?#{%{dept: department.id}}"} variant="ghost">
-                Inspect
+                {dgettext("world", ".button_inspect")}
               </.button>
             </div>
           </div>
@@ -154,6 +92,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   end
 
   attr :city, :map, required: true
+  attr :compact, :boolean, default: false
 
   def city_card(assigns) do
     city_departments = MockData.departments_for_city(assigns.city.id)
@@ -165,16 +104,22 @@ defmodule LemmingsOsWeb.WorldComponents do
       |> assign(:city_lemmings, city_lemmings)
 
     ~H"""
-    <.link navigate={~p"/cities?#{%{city: @city.id}}"} class="mini-card">
+    <.link
+      navigate={~p"/cities?#{%{city: @city.id}}"}
+      class={["mini-card", @compact && "mini-card--compact"]}
+    >
       <div class="mini-card__title">
         <span class="accent-dot" style={accent_style(@city.accent)}></span>
         {@city.name}
       </div>
       <p class="mini-card__meta">{@city.region}</p>
       <p class="mini-card__meta">{@city.description}</p>
-      <div class="mini-card__footer">
-        <.badge tone={status_tone(@city.status)}>{status_label(@city.status)}</.badge>
-        <span>{length(@city_departments)} depts · {length(@city_lemmings)} agents</span>
+      <div class={["mini-card__footer", @compact && "mini-card__footer--compact"]}>
+        <span>{dgettext("world", ".count_depts", count: length(@city_departments))}</span>
+        <span>{dgettext("world", ".count_agents", count: length(@city_lemmings))}</span>
+        <.badge class={@compact && "mini-card__status-badge"} tone={status_tone(@city.status)}>
+          {status_label(@city.status)}
+        </.badge>
       </div>
     </.link>
     """
@@ -185,19 +130,35 @@ defmodule LemmingsOsWeb.WorldComponents do
   def city_detail_page(assigns) do
     departments = MockData.departments_for_city(assigns.city.id)
 
-    assigns = assign(assigns, :departments, departments)
+    assigns =
+      assigns
+      |> assign(:departments, departments)
+      |> assign(:map_city, to_map_city(assigns.city))
 
     ~H"""
     <.panel id="city-detail-panel" tone="accent">
       <:title>{@city.name}</:title>
       <:subtitle>{@city.description}</:subtitle>
       <:actions>
-        <.button navigate={~p"/cities"} variant="ghost">All cities</.button>
+        <.button navigate={~p"/cities"} variant="ghost">
+          {dgettext("world", ".button_all_cities")}
+        </.button>
       </:actions>
-      <div class="inline-metrics">
-        <span>{@city.region}</span>
-        <span>{status_label(@city.status)}</span>
-        <span>{length(@departments)} departments</span>
+      <div class="city-detail-hero">
+        <div class="city-detail-hero__visual">
+          <MapComponents.city_node city={@map_city} id="city-detail-node" size={132} />
+        </div>
+        <div class="city-detail-hero__copy">
+          <div class="inline-metrics">
+            <span>{@city.region}</span>
+            <span>{status_label(@city.status)}</span>
+            <span>{dgettext("world", ".count_departments", count: length(@departments))}</span>
+            <span>{dgettext("world", ".count_agents", count: Map.get(@map_city, :agents, 0))}</span>
+          </div>
+          <p class="city-detail-hero__summary">
+            {dgettext("world", ".copy_city_detail_hero")}
+          </p>
+        </div>
       </div>
     </.panel>
 
@@ -208,8 +169,8 @@ defmodule LemmingsOsWeb.WorldComponents do
     <.empty_state
       :if={@departments == []}
       id="city-empty-state"
-      title="No departments deployed"
-      copy="This node is ready to receive its first department."
+      title={dgettext("world", ".empty_no_departments")}
+      copy={dgettext("world", ".empty_no_departments_copy")}
     />
     """
   end
@@ -226,7 +187,7 @@ defmodule LemmingsOsWeb.WorldComponents do
       <:subtitle>{@department.description}</:subtitle>
       <:actions>
         <.button navigate={~p"/departments?#{%{dept: @department.id}}"} variant="ghost">
-          Open dept
+          {dgettext("world", ".button_open_dept")}
         </.button>
       </:actions>
       <div class="department-room__stage">
@@ -240,7 +201,8 @@ defmodule LemmingsOsWeb.WorldComponents do
         </div>
       </div>
       <div class="department-room__queue">
-        Queue: {List.first(@department.tasks_queue) || "empty"}
+        {dgettext("world", ".label_queue")}: {List.first(@department.tasks_queue) ||
+          dgettext("world", ".label_empty")}
       </div>
     </.panel>
     """
@@ -262,18 +224,22 @@ defmodule LemmingsOsWeb.WorldComponents do
       <:title>{@department.name}</:title>
       <:subtitle>{@department.description}</:subtitle>
       <:actions>
-        <.button navigate={~p"/departments"} variant="ghost">All departments</.button>
+        <.button navigate={~p"/departments"} variant="ghost">
+          {dgettext("world", ".button_all_departments")}
+        </.button>
       </:actions>
       <div class="inline-metrics">
-        <span>Node {@city.name}</span>
-        <span>{length(@lemmings)} agents</span>
-        <span>{length(@department.tasks_queue)} queued tasks</span>
+        <span>{dgettext("world", ".label_node")} {@city.name}</span>
+        <span>{dgettext("world", ".count_agents", count: length(@lemmings))}</span>
+        <span>
+          {dgettext("world", ".count_queued_tasks", count: length(@department.tasks_queue))}
+        </span>
       </div>
     </.panel>
 
     <.content_grid columns="two">
       <.panel id="department-agents-panel">
-        <:title>Assigned Agents</:title>
+        <:title>{dgettext("world", ".title_assigned_agents")}</:title>
         <div class="sprite-grid">
           <LemmingComponents.lemming_sprite
             :for={lemming <- @lemmings}
@@ -285,7 +251,7 @@ defmodule LemmingsOsWeb.WorldComponents do
       </.panel>
 
       <.panel id="department-queue-panel">
-        <:title>Task Queue</:title>
+        <:title>{dgettext("world", ".title_task_queue")}</:title>
         <div class="queue-list">
           <div
             :for={{task, index} <- Enum.with_index(@department.tasks_queue, 1)}
@@ -300,14 +266,36 @@ defmodule LemmingsOsWeb.WorldComponents do
     """
   end
 
-  defp node_style(city),
-    do: "left: #{city.x}%; top: #{city.y}%; --node-accent: #{city.accent};"
-
   defp accent_style(color), do: "background-color: #{color};"
   defp status_tone(:online), do: "success"
   defp status_tone(:degraded), do: "warning"
   defp status_tone(:offline), do: "danger"
-  defp status_label(:online), do: "ONLINE"
-  defp status_label(:degraded), do: "DEGRADED"
-  defp status_label(:offline), do: "OFFLINE"
+  defp status_label(:online), do: dgettext("world", ".status_online")
+  defp status_label(:degraded), do: dgettext("world", ".status_degraded")
+  defp status_label(:offline), do: dgettext("world", ".status_offline")
+
+  defp to_map_city(city) do
+    %{
+      id: city.id,
+      name: city.name,
+      region: city.region,
+      color: city.accent,
+      status: city.status,
+      agents: city.id |> MockData.lemmings_for_city() |> length(),
+      depts: city.id |> MockData.departments_for_city() |> length(),
+      col: grid_coordinate(city.x, @map_cols - 1),
+      row: grid_coordinate(city.y, @map_rows - 1)
+    }
+  end
+
+  defp grid_coordinate(nil, _max_index), do: nil
+
+  defp grid_coordinate(percent, max_index) do
+    percent
+    |> Kernel.*(max_index)
+    |> Kernel./(100)
+    |> round()
+    |> max(0)
+    |> min(max_index)
+  end
 end

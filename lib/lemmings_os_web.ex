@@ -94,6 +94,7 @@ defmodule LemmingsOsWeb do
         HomeComponents,
         Layouts,
         LemmingComponents,
+        MapComponents,
         SidebarComponents,
         SystemComponents,
         WorldComponents

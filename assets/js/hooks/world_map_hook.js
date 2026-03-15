@@ -1,0 +1,488 @@
+const TILE_SIZE = 20
+const MAP_COLS = 45
+const MAP_ROWS = 26
+const TOOLTIP_WIDTH = 176
+const TOOLTIP_HEIGHT = 88
+
+function hash(x, y) {
+  const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+  return value - Math.floor(value)
+}
+
+function smooth(x, y) {
+  const ix = Math.floor(x)
+  const iy = Math.floor(y)
+  const fx = x - ix
+  const fy = y - iy
+  const ux = fx * fx * (3 - 2 * fx)
+  const uy = fy * fy * (3 - 2 * fy)
+  const a = hash(ix, iy)
+  const b = hash(ix + 1, iy)
+  const c = hash(ix, iy + 1)
+  const d = hash(ix + 1, iy + 1)
+
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy
+}
+
+function fbm(x, y) {
+  let value = 0
+  let amplitude = 1
+  let frequency = 1
+  let maxAmplitude = 0
+
+  for (let index = 0; index < 4; index += 1) {
+    value += smooth(x * frequency * 0.07, y * frequency * 0.07) * amplitude
+    maxAmplitude += amplitude
+    amplitude *= 0.5
+    frequency *= 2
+  }
+
+  return value / maxAmplitude
+}
+
+const COLORS = {
+  0: ["#0c1e2e", "#0e2232"],
+  1: ["#162e22", "#183224"],
+  2: ["#142a18", "#162e1a"],
+  3: ["#10240e", "#122810"],
+  4: ["#2a2820", "#2e2c22"],
+}
+
+function autoPlace(cities) {
+  const positions = [
+    {col: 10, row: 11},
+    {col: 24, row: 6},
+    {col: 36, row: 18},
+    {col: 15, row: 20},
+    {col: 30, row: 12},
+    {col: 8, row: 5},
+    {col: 38, row: 8},
+    {col: 22, row: 20},
+  ]
+
+  return cities.map((city, index) => ({
+    ...city,
+    col: city.col ?? positions[index % positions.length].col,
+    row: city.row ?? positions[index % positions.length].row,
+  }))
+}
+
+function generateTerrain(cities) {
+  const map = []
+
+  for (let row = 0; row < MAP_ROWS; row += 1) {
+    map[row] = []
+
+    for (let col = 0; col < MAP_COLS; col += 1) {
+      const noise = fbm(col + 10, row + 5)
+
+      if (noise < 0.32) {
+        map[row][col] = 0
+      } else if (noise < 0.38) {
+        map[row][col] = 1
+      } else if (noise < 0.58) {
+        map[row][col] = 2
+      } else if (noise < 0.72) {
+        map[row][col] = 3
+      } else {
+        map[row][col] = 4
+      }
+    }
+  }
+
+  cities.forEach(city => {
+    for (let rowOffset = -2; rowOffset <= 2; rowOffset += 1) {
+      for (let colOffset = -2; colOffset <= 2; colOffset += 1) {
+        const row = city.row + rowOffset
+        const col = city.col + colOffset
+
+        if (
+          row >= 0 &&
+            row < MAP_ROWS &&
+            col >= 0 &&
+            col < MAP_COLS &&
+            Math.abs(rowOffset) + Math.abs(colOffset) < 4
+        ) {
+          map[row][col] = 2
+        }
+      }
+    }
+  })
+
+  return map
+}
+
+function generateRoads(cities) {
+  const roads = new Set()
+
+  function drawRoad(from, to) {
+    let x = from.col
+    let y = from.row
+
+    while (x !== to.col || y !== to.row) {
+      roads.add(`${x},${y}`)
+
+      if (Math.abs(to.col - x) > Math.abs(to.row - y)) {
+        x += to.col > x ? 1 : -1
+      } else {
+        y += to.row > y ? 1 : -1
+      }
+    }
+  }
+
+  for (let index = 0; index < cities.length; index += 1) {
+    const nextIndex = (index + 1) % cities.length
+    drawRoad(cities[index], cities[nextIndex])
+  }
+
+  return roads
+}
+
+function generateFog(cities, roads) {
+  const fog = []
+
+  for (let row = 0; row < MAP_ROWS; row += 1) {
+    fog[row] = []
+
+    for (let col = 0; col < MAP_COLS; col += 1) {
+      fog[row][col] = 1
+    }
+  }
+
+  cities.forEach(city => {
+    const radius = 8
+
+    for (let rowOffset = -radius; rowOffset <= radius; rowOffset += 1) {
+      for (let colOffset = -radius; colOffset <= radius; colOffset += 1) {
+        const row = city.row + rowOffset
+        const col = city.col + colOffset
+
+        if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
+          const distance = Math.sqrt(rowOffset * rowOffset + colOffset * colOffset)
+
+          if (distance < radius) {
+            fog[row][col] = Math.min(fog[row][col], distance / radius)
+          }
+        }
+      }
+    }
+  })
+
+  roads.forEach(key => {
+    const [col, row] = key.split(",").map(Number)
+
+    for (let rowOffset = -3; rowOffset <= 3; rowOffset += 1) {
+      for (let colOffset = -3; colOffset <= 3; colOffset += 1) {
+        const fogRow = row + rowOffset
+        const fogCol = col + colOffset
+
+        if (fogRow >= 0 && fogRow < MAP_ROWS && fogCol >= 0 && fogCol < MAP_COLS) {
+          const distance = Math.sqrt(rowOffset * rowOffset + colOffset * colOffset)
+
+          if (distance < 3) {
+            fog[fogRow][fogCol] = Math.min(fog[fogRow][fogCol], 0.3 + distance * 0.15)
+          }
+        }
+      }
+    }
+  })
+
+  return fog
+}
+
+function createPackets(roads, cities) {
+  const roadSegments = [...roads].map(key => {
+    const [x, y] = key.split(",").map(Number)
+    return {x, y}
+  })
+
+  if (roadSegments.length === 0) {
+    return {roadSegments, packets: []}
+  }
+
+  const packetCount = Math.min(8, Math.max(3, cities.length * 2))
+  const packets = []
+
+  for (let index = 0; index < packetCount; index += 1) {
+    const roadIndex = Math.floor(Math.random() * roadSegments.length)
+
+    packets.push({
+      idx: roadIndex,
+      progress: 0,
+      speed: 0.02 + Math.random() * 0.03,
+      color: cities[index % cities.length]?.color || "#3ddc84",
+    })
+  }
+
+  return {roadSegments, packets}
+}
+
+function drawTerrain(ctx, terrain, roads) {
+  for (let row = 0; row < MAP_ROWS; row += 1) {
+    for (let col = 0; col < MAP_COLS; col += 1) {
+      const tile = terrain[row][col]
+      const variant = (col * 7 + row * 13) % 2
+      ctx.fillStyle = COLORS[tile][variant]
+      ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+
+      if (tile === 3 && hash(col, row) > 0.45) {
+        ctx.fillStyle = "#1a3a18"
+        ctx.fillRect(col * TILE_SIZE + 8, row * TILE_SIZE + 4, 3, 6)
+        ctx.fillStyle = "#1e4420"
+        ctx.fillRect(col * TILE_SIZE + 5, row * TILE_SIZE + 2, 9, 5)
+      }
+
+      if (tile === 4 && hash(col + 1, row + 1) > 0.4) {
+        ctx.fillStyle = "#3a3830"
+        ctx.fillRect(col * TILE_SIZE + 4, row * TILE_SIZE + 6, 8, 4)
+        ctx.fillRect(col * TILE_SIZE + 6, row * TILE_SIZE + 3, 4, 3)
+      }
+
+      if (roads.has(`${col},${row}`)) {
+        ctx.fillStyle = "rgba(61,220,132,0.12)"
+        ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+
+        if ((col + row) % 3 === 0) {
+          ctx.fillStyle = "rgba(61,220,132,0.2)"
+          ctx.fillRect(col * TILE_SIZE + 8, row * TILE_SIZE + 8, 3, 3)
+        }
+      }
+    }
+  }
+}
+
+function drawFog(ctx, fog) {
+  for (let row = 0; row < MAP_ROWS; row += 1) {
+    for (let col = 0; col < MAP_COLS; col += 1) {
+      if (fog[row][col] > 0.05) {
+        ctx.fillStyle = `rgba(4,8,4,${fog[row][col] * 0.88})`
+        ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+      }
+    }
+  }
+}
+
+function drawCity(ctx, city, tick) {
+  const x = city.col * TILE_SIZE
+  const y = city.row * TILE_SIZE
+
+  ctx.fillStyle = city.color
+  ctx.globalAlpha = 0.06 + Math.sin(tick * 0.04) * 0.02
+  ctx.fillRect(x - 20, y - 20, TILE_SIZE + 40, TILE_SIZE + 40)
+  ctx.globalAlpha = 1
+
+  ctx.fillStyle = "#0c1a10"
+  ctx.fillRect(x - 10, y - 6, TILE_SIZE + 20, TILE_SIZE + 12)
+  ctx.strokeStyle = city.color
+  ctx.lineWidth = 1
+  ctx.strokeRect(x - 10, y - 6, TILE_SIZE + 20, TILE_SIZE + 12)
+
+  const tallHeight = 18
+  const shortHeight = 12
+
+  ctx.fillStyle = "#0a1610"
+  ctx.fillRect(x - 4, y - 6 - tallHeight, 8, tallHeight)
+  ctx.strokeRect(x - 4, y - 6 - tallHeight, 8, tallHeight)
+  ctx.fillRect(x + 8, y - 6 - shortHeight, 6, shortHeight)
+  ctx.strokeRect(x + 8, y - 6 - shortHeight, 6, shortHeight)
+
+  const firstLit = Math.sin(tick * 0.06 + city.col) > 0
+  const secondLit = Math.sin(tick * 0.08 + city.row) > -0.2
+
+  ctx.fillStyle = firstLit ? city.color : "#0a1610"
+  ctx.globalAlpha = firstLit ? 0.6 : 1
+  ctx.fillRect(x - 1, y - 6 - tallHeight + 4, 2, 2)
+  ctx.fillRect(x + 2, y - 6 - tallHeight + 4, 2, 2)
+  ctx.fillStyle = secondLit ? city.color : "#0a1610"
+  ctx.globalAlpha = secondLit ? 0.5 : 1
+  ctx.fillRect(x + 10, y - 6 - shortHeight + 3, 2, 2)
+  ctx.globalAlpha = 1
+
+  if (Math.sin(tick * 0.1) > 0.3) {
+    ctx.fillStyle = city.status === "degraded" ? "#ff9b54" : city.color
+    ctx.fillRect(x, y - 6 - tallHeight - 3, 2, 2)
+  }
+
+  ctx.font = "9px IBM Plex Mono, monospace"
+  ctx.textAlign = "center"
+  ctx.fillStyle = city.color
+  ctx.fillText(city.name.toUpperCase(), x + TILE_SIZE / 2, y + TILE_SIZE + 16)
+  ctx.fillStyle = "#7aa18a"
+  ctx.font = "8px IBM Plex Mono, monospace"
+  ctx.fillText(city.region, x + TILE_SIZE / 2, y + TILE_SIZE + 27)
+  ctx.textAlign = "left"
+}
+
+function drawPackets(ctx, roadSegments, packets) {
+  packets.forEach(packet => {
+    packet.progress += packet.speed
+
+    if (packet.progress >= 1) {
+      packet.progress = 0
+      packet.idx = (packet.idx + 1) % roadSegments.length
+    }
+
+    const current = roadSegments[packet.idx]
+    const next = roadSegments[(packet.idx + 1) % roadSegments.length]
+    const x = (current.x + (next.x - current.x) * packet.progress) * TILE_SIZE + TILE_SIZE / 2
+    const y = (current.y + (next.y - current.y) * packet.progress) * TILE_SIZE + TILE_SIZE / 2
+
+    ctx.fillStyle = packet.color
+    ctx.globalAlpha = 0.6
+    ctx.fillRect(x - 2, y - 2, 3, 3)
+    ctx.globalAlpha = 1
+  })
+}
+
+function getHoveredCity(cities, mapX, mapY) {
+  const mapCol = Math.floor(mapX / TILE_SIZE)
+  const mapRow = Math.floor(mapY / TILE_SIZE)
+
+  return cities.find(city => Math.abs(city.col - mapCol) <= 2 && Math.abs(city.row - mapRow) <= 2)
+}
+
+function parseCities(data) {
+  try {
+    const cities = JSON.parse(data || "[]")
+    return Array.isArray(cities) ? cities : []
+  } catch (_error) {
+    return []
+  }
+}
+
+function pointerPosition(event, root, canvas, worldWidth, worldHeight) {
+  const rootRect = root.getBoundingClientRect()
+  const rect = canvas.getBoundingClientRect()
+  const cssX = event.clientX - rootRect.left
+  const cssY = event.clientY - rootRect.top
+  const scaleX = worldWidth / rect.width
+  const scaleY = worldHeight / rect.height
+  const mapX = (event.clientX - rect.left) * scaleX
+  const mapY = (event.clientY - rect.top) * scaleY
+
+  return {
+    cssX,
+    cssY,
+    mapX,
+    mapY,
+    rootRect,
+  }
+}
+
+function setupWorldMap(hook) {
+  const root = hook.el
+  const canvas = root.querySelector("canvas")
+  const tooltip = root.querySelector("[id$='-tooltip']")
+
+  if (!canvas || !tooltip) {
+    return () => {}
+  }
+
+  const ctx = canvas.getContext("2d")
+  const worldWidth = MAP_COLS * TILE_SIZE
+  const worldHeight = MAP_ROWS * TILE_SIZE
+
+  canvas.width = worldWidth
+  canvas.height = worldHeight
+
+  const cities = autoPlace(parseCities(root.dataset.cities))
+  const terrain = generateTerrain(cities)
+  const roads = generateRoads(cities)
+  const fog = generateFog(cities, roads)
+  const {roadSegments, packets} = createPackets(roads, cities)
+
+  let tick = 0
+  let frameId = null
+
+  const render = () => {
+    ctx.clearRect(0, 0, worldWidth, worldHeight)
+    drawTerrain(ctx, terrain, roads)
+    drawFog(ctx, fog)
+    drawPackets(ctx, roadSegments, packets)
+    cities.forEach(city => drawCity(ctx, city, tick))
+    tick += 1
+    frameId = window.requestAnimationFrame(render)
+  }
+
+  const showTooltip = event => {
+    const {cssX, cssY, mapX, mapY, rootRect} = pointerPosition(
+      event,
+      root,
+      canvas,
+      worldWidth,
+      worldHeight
+    )
+    const city = getHoveredCity(cities, mapX, mapY)
+
+    if (!city) {
+      tooltip.hidden = true
+      root.style.cursor = "default"
+      return
+    }
+
+    const statusColor =
+      city.status === "online" ? "#3ddc84" : city.status === "offline" ? "#ff4444" : "#ff9b54"
+
+    tooltip.hidden = false
+    tooltip.style.left = `${Math.max(0, Math.min(cssX + 14, rootRect.width - TOOLTIP_WIDTH))}px`
+    tooltip.style.top = `${Math.max(0, Math.min(cssY + 14, rootRect.height - TOOLTIP_HEIGHT))}px`
+    tooltip.innerHTML =
+      `<b style="color:${city.color}">${city.name}</b><br>` +
+      `<small>${city.region}</small><br>` +
+      `${city.depts} depts · ${city.agents} agents<br>` +
+      `<span style="color:${statusColor}">● ${city.status}</span>`
+    root.style.cursor = "pointer"
+  }
+
+  const hideTooltip = () => {
+    tooltip.hidden = true
+    root.style.cursor = "default"
+  }
+
+  const handleClick = event => {
+    const {mapX, mapY} = pointerPosition(event, root, canvas, worldWidth, worldHeight)
+    const city = getHoveredCity(cities, mapX, mapY)
+
+    if (city) {
+      hook.pushEvent("navigate_city", {city_id: city.id})
+    }
+  }
+
+  canvas.addEventListener("mousemove", showTooltip)
+  canvas.addEventListener("mouseleave", hideTooltip)
+  canvas.addEventListener("click", handleClick)
+
+  render()
+
+  return () => {
+    if (frameId) {
+      window.cancelAnimationFrame(frameId)
+    }
+
+    canvas.removeEventListener("mousemove", showTooltip)
+    canvas.removeEventListener("mouseleave", hideTooltip)
+    canvas.removeEventListener("click", handleClick)
+    tooltip.hidden = true
+    root.style.cursor = "default"
+  }
+}
+
+export const WorldMapHook = {
+  mounted() {
+    this._cleanup = setupWorldMap(this)
+  },
+
+  updated() {
+    if (this._cleanup) {
+      this._cleanup()
+    }
+
+    this._cleanup = setupWorldMap(this)
+  },
+
+  destroyed() {
+    if (this._cleanup) {
+      this._cleanup()
+    }
+  },
+}

@@ -20,7 +20,6 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :size, :integer, default: 32
   attr :seed, :string, default: "lemming-logo"
 
-  # TODO: add CSS @keyframes for jump / head-turn / eyes-scan / walk
   attr :animation, :string,
     default: "default",
     values: ~w(default random blink none)

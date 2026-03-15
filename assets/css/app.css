@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Press+Start+2P&display=swap");
 
 @import "tailwindcss" source(none);
+@import "./map_components.css";
 @source "../css";
 @source "../js";
 @source "../../lib/lemmings_os_web";
@@ -43,6 +44,7 @@
 
   html {
     background: var(--bg);
+    font-size: 90%;
   }
 
   body {
@@ -632,6 +634,50 @@
     gap: 0.75rem;
   }
 
+  .mini-card--compact {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-height: 11.5rem;
+    padding: 0.8rem 0.8rem 2.4rem;
+  }
+
+  .mini-card--compact .mini-card__title {
+    align-items: flex-start;
+    font-size: 0.88rem;
+    line-height: 1.35;
+  }
+
+  .mini-card--compact .mini-card__meta {
+    max-width: 18ch;
+    line-height: 1.45;
+  }
+
+  .mini-card__footer--compact {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.2rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .mini-card__status-badge {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    min-height: 1.85rem;
+    margin: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .world-node-summary-list {
+    gap: 0.65rem;
+  }
+
   .activity-feed__row,
   .queue-list__row {
     display: flex;
@@ -1051,6 +1097,11 @@
   .content-grid--three {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .content-grid--world-overview {
+    grid-template-columns: minmax(0, 5fr) minmax(11rem, 1fr);
+    align-items: start;
+  }
 }
 
 /* ── Mobile: sidebar as drawer, hidden by default ───────────── */
@@ -1076,6 +1127,20 @@
 /* ── Tablet: auto-collapsed sidebar (icon-only) ─────────────── */
 
 @media (min-width: 768px) and (max-width: 1023px) {
+  .content-grid--world-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .world-node-summary-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .mini-card--compact {
+    min-height: 10.5rem;
+  }
+
   .mobile-header {
     display: none;
   }
