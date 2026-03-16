@@ -1,0 +1,18 @@
+msgid ""
+msgstr ""
+"Language: es\n"
+
+msgid ".world_status_ok"
+msgstr "OK"
+
+msgid ".world_status_degraded"
+msgstr "Degradado"
+
+msgid ".world_status_unavailable"
+msgstr "No disponible"
+
+msgid ".world_status_invalid"
+msgstr "Inválido"
+
+msgid ".world_status_unknown"
+msgstr "Desconocido"

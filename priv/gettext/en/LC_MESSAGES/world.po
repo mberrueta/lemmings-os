@@ -10,6 +10,21 @@ msgid ""
 msgstr ""
 "Language: en\n"
 
+msgid ".world_status_ok"
+msgstr "OK"
+
+msgid ".world_status_degraded"
+msgstr "Degraded"
+
+msgid ".world_status_unavailable"
+msgstr "Unavailable"
+
+msgid ".world_status_invalid"
+msgstr "Invalid"
+
+msgid ".world_status_unknown"
+msgstr "Unknown"
+
 #: lib/lemmings_os_web/components/home_components.ex:144
 #, elixir-autogen
 msgid ".title_department_queues"

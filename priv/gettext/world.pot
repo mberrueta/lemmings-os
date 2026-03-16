@@ -6,6 +6,21 @@
 ## Run `mix gettext.extract` to bring this file up to
 ## date. Leave `msgstr`s empty as changing them here has no
 ## effect: edit them in PO (`.po`) files instead.
+msgid ".world_status_ok"
+msgstr ""
+
+msgid ".world_status_degraded"
+msgstr ""
+
+msgid ".world_status_unavailable"
+msgstr ""
+
+msgid ".world_status_invalid"
+msgstr ""
+
+msgid ".world_status_unknown"
+msgstr ""
+
 #: lib/lemmings_os_web/components/home_components.ex:144
 #, elixir-autogen
 msgid ".title_department_queues"
