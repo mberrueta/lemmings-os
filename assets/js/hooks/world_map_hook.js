@@ -265,51 +265,103 @@ function drawFog(ctx, fog) {
 function drawCity(ctx, city, tick) {
   const x = city.col * TILE_SIZE
   const y = city.row * TILE_SIZE
+  const centerX = x + TILE_SIZE / 2
+  const centerY = y + TILE_SIZE / 2
+  const buildingCount = Math.max(2, Math.min(5, city.depts || 2))
+  const islandRows = [
+    {offsetY: -2, start: -1, end: 2},
+    {offsetY: -1, start: -2, end: 3},
+    {offsetY: 0, start: -3, end: 4},
+    {offsetY: 1, start: -3, end: 4},
+    {offsetY: 2, start: -2, end: 3},
+    {offsetY: 3, start: -1, end: 2},
+  ]
+  const innerRows = [
+    {offsetY: -1, start: -1, end: 2},
+    {offsetY: 0, start: -2, end: 3},
+    {offsetY: 1, start: -2, end: 3},
+    {offsetY: 2, start: -1, end: 2},
+  ]
+  const buildingSlots = [
+    {offsetX: -26, width: 10, height: 14},
+    {offsetX: -10, width: 12, height: 19},
+    {offsetX: 8, width: 10, height: 15},
+    {offsetX: 22, width: 8, height: 11},
+    {offsetX: 34, width: 7, height: 9},
+  ]
 
   ctx.fillStyle = city.color
-  ctx.globalAlpha = 0.06 + Math.sin(tick * 0.04) * 0.02
-  ctx.fillRect(x - 20, y - 20, TILE_SIZE + 40, TILE_SIZE + 40)
+  ctx.globalAlpha = 0.05 + Math.sin(tick * 0.04) * 0.02
+  ctx.fillRect(x - 42, y - 24, TILE_SIZE + 84, TILE_SIZE + 58)
   ctx.globalAlpha = 1
 
-  ctx.fillStyle = "#0c1a10"
-  ctx.fillRect(x - 10, y - 6, TILE_SIZE + 20, TILE_SIZE + 12)
-  ctx.strokeStyle = city.color
-  ctx.lineWidth = 1
-  ctx.strokeRect(x - 10, y - 6, TILE_SIZE + 20, TILE_SIZE + 12)
+  islandRows.forEach(row => {
+    ctx.fillStyle = "#49422f"
+    ctx.fillRect(
+      centerX + row.start * 8,
+      centerY + row.offsetY * 8,
+      (row.end - row.start) * 8,
+      8
+    )
+  })
 
-  const tallHeight = 18
-  const shortHeight = 12
+  innerRows.forEach(row => {
+    ctx.fillStyle = "#182e1c"
+    ctx.fillRect(
+      centerX + row.start * 8,
+      centerY + row.offsetY * 8,
+      (row.end - row.start) * 8,
+      8
+    )
+  })
 
-  ctx.fillStyle = "#0a1610"
-  ctx.fillRect(x - 4, y - 6 - tallHeight, 8, tallHeight)
-  ctx.strokeRect(x - 4, y - 6 - tallHeight, 8, tallHeight)
-  ctx.fillRect(x + 8, y - 6 - shortHeight, 6, shortHeight)
-  ctx.strokeRect(x + 8, y - 6 - shortHeight, 6, shortHeight)
+  ctx.fillStyle = "rgba(61,220,132,0.18)"
+  ctx.fillRect(centerX - 16, centerY + 12, 32, 4)
+  ctx.fillRect(centerX - 10, centerY + 8, 20, 4)
 
-  const firstLit = Math.sin(tick * 0.06 + city.col) > 0
-  const secondLit = Math.sin(tick * 0.08 + city.row) > -0.2
+  for (let index = 0; index < buildingCount; index += 1) {
+    const slot = buildingSlots[index]
+    const buildingX = centerX + slot.offsetX
+    const buildingY = centerY + 8
+    const litBase = Math.sin(tick * 0.05 + city.col + index) > -0.15
 
-  ctx.fillStyle = firstLit ? city.color : "#0a1610"
-  ctx.globalAlpha = firstLit ? 0.6 : 1
-  ctx.fillRect(x - 1, y - 6 - tallHeight + 4, 2, 2)
-  ctx.fillRect(x + 2, y - 6 - tallHeight + 4, 2, 2)
-  ctx.fillStyle = secondLit ? city.color : "#0a1610"
-  ctx.globalAlpha = secondLit ? 0.5 : 1
-  ctx.fillRect(x + 10, y - 6 - shortHeight + 3, 2, 2)
-  ctx.globalAlpha = 1
+    ctx.fillStyle = "#0a1610"
+    ctx.fillRect(buildingX, buildingY - slot.height, slot.width, slot.height)
+    ctx.strokeStyle = city.color
+    ctx.lineWidth = 1
+    ctx.strokeRect(buildingX, buildingY - slot.height, slot.width, slot.height)
 
-  if (Math.sin(tick * 0.1) > 0.3) {
+    for (let windowY = buildingY - slot.height + 4; windowY < buildingY - 2; windowY += 5) {
+      for (let windowX = buildingX + 2; windowX < buildingX + slot.width - 2; windowX += 4) {
+        const lit = Math.sin(tick * 0.08 + windowX * 0.2 + windowY * 0.15) > (litBase ? -0.4 : 0.2)
+        ctx.fillStyle = lit ? city.color : "#0a1610"
+        ctx.globalAlpha = lit ? 0.55 : 1
+        ctx.fillRect(windowX, windowY, 2, 2)
+      }
+    }
+
+    ctx.globalAlpha = 1
+  }
+
+  if (Math.sin(tick * 0.1 + city.row) > 0.25) {
     ctx.fillStyle = city.status === "degraded" ? "#ff9b54" : city.color
-    ctx.fillRect(x, y - 6 - tallHeight - 3, 2, 2)
+    ctx.fillRect(centerX - 1, centerY - 20, 2, 2)
+  }
+
+  if (city.status === "offline") {
+    ctx.fillStyle = "#ff4444"
+    ctx.globalAlpha = 0.28
+    ctx.fillRect(centerX - 26, centerY - 14, 52, 30)
+    ctx.globalAlpha = 1
   }
 
   ctx.font = "9px IBM Plex Mono, monospace"
   ctx.textAlign = "center"
   ctx.fillStyle = city.color
-  ctx.fillText(city.name.toUpperCase(), x + TILE_SIZE / 2, y + TILE_SIZE + 16)
+  ctx.fillText(city.name.toUpperCase(), centerX, y + TILE_SIZE + 28)
   ctx.fillStyle = "#7aa18a"
   ctx.font = "8px IBM Plex Mono, monospace"
-  ctx.fillText(city.region, x + TILE_SIZE / 2, y + TILE_SIZE + 27)
+  ctx.fillText(city.region, centerX, y + TILE_SIZE + 39)
   ctx.textAlign = "left"
 }
 
@@ -338,7 +390,12 @@ function getHoveredCity(cities, mapX, mapY) {
   const mapCol = Math.floor(mapX / TILE_SIZE)
   const mapRow = Math.floor(mapY / TILE_SIZE)
 
-  return cities.find(city => Math.abs(city.col - mapCol) <= 2 && Math.abs(city.row - mapRow) <= 2)
+  return cities.find(city => {
+    const colDistance = mapCol - city.col
+    const rowDistance = mapRow - city.row
+
+    return (colDistance * colDistance) / 16 + (rowDistance * rowDistance) / 9 <= 1.65
+  })
 }
 
 function parseCities(data) {

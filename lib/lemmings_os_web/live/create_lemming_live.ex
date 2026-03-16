@@ -18,6 +18,10 @@ defmodule LemmingsOsWeb.CreateLemmingLive do
     {:ok,
      socket
      |> assign_shell(:lemmings, dgettext("lemmings", ".page_title_create_lemming"))
+     |> put_shell_breadcrumb([
+       shell_item(:lemmings, "/lemmings"),
+       shell_item("new", "/lemmings/new")
+     ])
      |> assign(:available_tools, @available_tools)
      |> assign(:selected_tools, ["code_editor", "terminal"])
      |> assign(:form, build_form(default_params()))}

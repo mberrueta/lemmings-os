@@ -21,13 +21,35 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
   test "cities page supports a selected city view", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/cities?city=city-alpha")
 
+    assert has_element?(view, "#cities-list-panel")
     assert has_element?(view, "#city-detail-panel")
     assert has_element?(view, "#city-detail-node")
-    assert has_element?(view, "#city-departments-grid")
+    assert has_element?(view, "#city-departments-panel")
+    assert has_element?(view, "#city-active-lemmings-panel")
+    refute has_element?(view, "#cities-selector")
+    refute has_element?(view, "#city-map-panel")
+    refute has_element?(view, "#city-network-map")
+  end
+
+  test "cities page renders the default city detail", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/cities")
+
+    assert has_element?(view, "#cities-list-panel")
+    assert has_element?(view, "#city-detail-panel")
+    assert has_element?(view, "#city-departments-panel")
+    refute has_element?(view, "#city-network-map")
+  end
+
+  test "departments page renders the city department map", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/departments?city=city-alpha")
+
+    assert has_element?(view, "#departments-selected-city-node")
+    assert has_element?(view, "#departments-map-panel")
+    assert has_element?(view, "#departments-city-map")
   end
 
   test "departments page supports a selected department view", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/departments?dept=eng")
+    {:ok, _view, html} = live(conn, ~p"/departments?city=city-alpha&dept=eng")
 
     assert html =~ "department-detail-panel"
     assert html =~ "Assigned Agents"

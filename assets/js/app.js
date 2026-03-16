@@ -2,6 +2,7 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/lemmings_os"
+import {CityMapHook} from "./hooks/city_map_hook"
 import {WorldMapHook} from "./hooks/world_map_hook"
 import topbar from "../vendor/topbar"
 
@@ -9,7 +10,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, WorldMapHook},
+  hooks: {...colocatedHooks, CityMapHook, WorldMapHook},
 })
 
 topbar.config({barColors: {0: "#49f28e"}, shadowColor: "rgba(0, 0, 0, .3)"})

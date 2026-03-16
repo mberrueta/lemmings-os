@@ -28,7 +28,7 @@ msgstr "World Map"
 #: lib/lemmings_os_web/components/map_components.ex:148
 #, elixir-autogen
 msgid ".metric_nodes"
-msgstr "Nodes"
+msgstr "Cities"
 
 #: lib/lemmings_os_web/components/map_components.ex:150
 #, elixir-autogen
@@ -48,12 +48,12 @@ msgstr "Network Map"
 #: lib/lemmings_os_web/components/world_components.ex:26
 #, elixir-autogen
 msgid ".subtitle_network_map"
-msgstr "Select any node to open its city page."
+msgstr "Select any city to open its city page."
 
 #: lib/lemmings_os_web/components/world_components.ex:31
 #, elixir-autogen
 msgid ".title_node_summary"
-msgstr "Node Summary"
+msgstr "City Summary"
 
 #: lib/lemmings_os_web/components/world_components.ex:79
 #: lib/lemmings_os_web/components/world_components.ex:119
@@ -71,7 +71,7 @@ msgstr "All Cities"
 #: lib/lemmings_os_web/components/world_components.ex:51
 #, elixir-autogen
 msgid ".subtitle_all_cities"
-msgstr "Select a node to explore its departments."
+msgstr "Select a city to explore its departments."
 
 #: lib/lemmings_os_web/components/world_components.ex:69
 #, elixir-autogen
@@ -111,7 +111,7 @@ msgstr "No departments deployed"
 #: lib/lemmings_os_web/components/world_components.ex:173
 #, elixir-autogen
 msgid ".empty_no_departments_copy"
-msgstr "This node is ready to receive its first department."
+msgstr "This city is ready to receive its first department."
 
 #: lib/lemmings_os_web/components/world_components.ex:190
 #, elixir-autogen
@@ -136,7 +136,7 @@ msgstr "All departments"
 #: lib/lemmings_os_web/components/world_components.ex:232
 #, elixir-autogen
 msgid ".label_node"
-msgstr "Node"
+msgstr "City"
 
 #: lib/lemmings_os_web/components/world_components.ex:235
 #, elixir-autogen
@@ -171,7 +171,7 @@ msgstr "OFFLINE"
 #: lib/lemmings_os_web/components/world_components.ex:159
 #, elixir-autogen
 msgid ".copy_city_detail_hero"
-msgstr "Node visual adapted from the world map model and wired to the live mock metrics for this city."
+msgstr "City visual adapted from the world map model and wired to the live mock metrics for this city."
 
 #: lib/lemmings_os_web/components/map_components.ex:35
 #, elixir-autogen

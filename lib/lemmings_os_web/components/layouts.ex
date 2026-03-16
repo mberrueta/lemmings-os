@@ -33,14 +33,14 @@ defmodule LemmingsOsWeb.Layouts do
 
   attr :page_key, :atom, default: :home
   attr :page_title, :string, default: "Home"
+  attr :shell_user, :string, default: "operator"
+  attr :shell_host, :string, default: "world_a"
+  attr :shell_breadcrumb, :list, default: []
   attr :summary, :map, default: %{}
   slot :inner_block, required: true
 
   def app(assigns) do
-    assigns =
-      assigns
-      |> assign_new(:summary, fn -> LemmingsOs.MockData.summary() end)
-      |> assign(:terminal_path, "C:\\LEMMINGS_OS\\#{page_segment(assigns.page_key)}")
+    assigns = assign_new(assigns, :summary, fn -> LemmingsOs.MockData.summary() end)
 
     ~H"""
     <div class="app-shell">
@@ -63,7 +63,9 @@ defmodule LemmingsOsWeb.Layouts do
 
         <.terminal_bar
           id="app-terminal-bar"
-          path={@terminal_path}
+          shell_user={@shell_user}
+          shell_host={@shell_host}
+          breadcrumb={@shell_breadcrumb}
           title={@page_title}
           metrics={[
             dgettext("layout", ".terminal_mem", value: @summary.mem),
@@ -131,9 +133,5 @@ defmodule LemmingsOsWeb.Layouts do
   defp toggle_mobile_nav do
     JS.toggle_class("mobile-open", to: "#app-sidebar")
     |> JS.toggle_class("mobile-open", to: "#mobile-backdrop")
-  end
-
-  defp page_segment(page_key) do
-    page_key |> Atom.to_string() |> String.upcase()
   end
 end

@@ -113,7 +113,7 @@ msgstr "Agents"
 #: lib/lemmings_os_web/components/sidebar_components.ex:73
 #, elixir-autogen
 msgid ".footer_nodes"
-msgstr "Nodes"
+msgstr "Cities"
 
 #: lib/lemmings_os_web/components/sidebar_components.ex:79
 #, elixir-autogen
@@ -163,12 +163,12 @@ msgstr "running + thinking"
 #: lib/lemmings_os_web/components/home_components.ex:70
 #, elixir-autogen
 msgid ".stat_online_nodes"
-msgstr "Online Nodes"
+msgstr "Online Cities"
 
 #: lib/lemmings_os_web/components/home_components.ex:72
 #, elixir-autogen
 msgid ".stat_online_nodes_detail"
-msgstr "healthy regions"
+msgstr "healthy cities"
 
 #: lib/lemmings_os_web/components/home_components.ex:76
 #, elixir-autogen

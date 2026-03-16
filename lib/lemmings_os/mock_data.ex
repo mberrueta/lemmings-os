@@ -6,7 +6,7 @@ defmodule LemmingsOs.MockData do
   @cities [
     %{
       id: "city-alpha",
-      name: "Alpha Node",
+      name: "Alpha City",
       description: "Primary production server with the busiest agent traffic.",
       region: "us-east-1",
       status: :online,
@@ -16,7 +16,7 @@ defmodule LemmingsOs.MockData do
     },
     %{
       id: "city-beta",
-      name: "Beta Node",
+      name: "Beta City",
       description: "Research and model evaluation cluster for experiments.",
       region: "eu-west-1",
       status: :online,
@@ -26,7 +26,7 @@ defmodule LemmingsOs.MockData do
     },
     %{
       id: "city-gamma",
-      name: "Gamma Node",
+      name: "Gamma City",
       description: "Support and edge automation cluster currently under load.",
       region: "ap-southeast-1",
       status: :degraded,

@@ -302,7 +302,9 @@ defmodule LemmingsOsWeb.CoreComponents do
   end
 
   attr :id, :string, default: nil
-  attr :path, :string, required: true
+  attr :shell_user, :string, default: "operator"
+  attr :shell_host, :string, default: "world_a"
+  attr :breadcrumb, :list, default: []
   attr :title, :string, required: true
   attr :metrics, :list, default: []
 
@@ -310,7 +312,12 @@ defmodule LemmingsOsWeb.CoreComponents do
     ~H"""
     <div id={@id} class="terminal-bar">
       <div class="terminal-bar__path">
-        {@path}&gt;<span class="terminal-bar__cursor">█</span>
+        <span class="terminal-bar__prompt-user">{@shell_user}</span><span>@</span><span class="terminal-bar__prompt-host">{@shell_host}</span><span>:</span><span class="terminal-bar__prompt-root">/</span><span :if={
+          @breadcrumb == []
+        }>~</span><span :for={{segment, index} <- Enum.with_index(@breadcrumb)}><span
+          :if={index > 0}
+          class="terminal-bar__separator"
+        >/</span><.link navigate={segment.to} class="terminal-bar__crumb">{segment.label}</.link></span><span>$</span><span class="terminal-bar__cursor">█</span>
       </div>
       <div class="terminal-bar__meta">
         <span class="terminal-bar__title">{@title}</span>
