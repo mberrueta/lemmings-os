@@ -10,123 +10,131 @@ msgid ""
 msgstr ""
 "Language: en\n"
 
-#: lib/lemmings_os_web/components/layouts.ex:60
+#: lib/lemmings_os_web/components/layouts.ex:61
 #, elixir-autogen
 msgid ".aria_open_navigation"
 msgstr "Open navigation"
 
-#: lib/lemmings_os_web/components/layouts.ex:66
+#: lib/lemmings_os_web/components/layouts.ex:68
 #: lib/lemmings_os_web/components/layouts/root.html.heex:8
 #, elixir-autogen
 msgid ".brand_name"
 msgstr "LemmingsOS"
 
-#: lib/lemmings_os_web/components/layouts.ex:77
+#: lib/lemmings_os_web/components/layouts.ex:79
 #, elixir-autogen
 msgid ".terminal_mem"
 msgstr "MEM: %{value}"
 
-#: lib/lemmings_os_web/components/layouts.ex:78
+#: lib/lemmings_os_web/components/layouts.ex:80
 #, elixir-autogen
 msgid ".terminal_tick"
 msgstr "TICK: %{value}"
 
-#: lib/lemmings_os_web/components/layouts.ex:79
+#: lib/lemmings_os_web/components/layouts.ex:81
 #, elixir-autogen
 msgid ".terminal_agents"
 msgstr "AGENTS: %{current}/%{max}"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:34
+#: lib/lemmings_os_web/components/sidebar_components.ex:35
 #, elixir-autogen
 msgid ".sidebar_eyebrow"
 msgstr "Cluster Control"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:139
+#: lib/lemmings_os_web/components/sidebar_components.ex:140
 #, elixir-autogen
 msgid ".nav_section_overview"
 msgstr "Overview"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:169
+#: lib/lemmings_os_web/components/sidebar_components.ex:170
 #, elixir-autogen
 msgid ".nav_section_operations"
 msgstr "Operations"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:141
+#: lib/lemmings_os_web/components/sidebar_components.ex:142
+#: lib/lemmings_os_web/live/mock_shell.ex:40
 #, elixir-autogen
 msgid ".nav_home"
 msgstr "Home"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:144
+#: lib/lemmings_os_web/components/sidebar_components.ex:145
+#: lib/lemmings_os_web/live/mock_shell.ex:41
 #, elixir-autogen
 msgid ".nav_world"
 msgstr "World"
 
 #: lib/lemmings_os_web/components/home_components.ex:46
-#: lib/lemmings_os_web/components/sidebar_components.ex:150
+#: lib/lemmings_os_web/components/sidebar_components.ex:151
+#: lib/lemmings_os_web/live/mock_shell.ex:42
 #, elixir-autogen
 msgid ".nav_cities"
 msgstr "Cities"
 
 #: lib/lemmings_os_web/components/home_components.ex:49
-#: lib/lemmings_os_web/components/sidebar_components.ex:156
-#: lib/lemmings_os_web/components/world_components.ex:248
+#: lib/lemmings_os_web/components/sidebar_components.ex:157
+#: lib/lemmings_os_web/components/world_components.ex:274
+#: lib/lemmings_os_web/live/mock_shell.ex:45
 #, elixir-autogen
 msgid ".nav_departments"
 msgstr "Departments"
 
 #: lib/lemmings_os_web/components/home_components.ex:52
-#: lib/lemmings_os_web/components/sidebar_components.ex:162
+#: lib/lemmings_os_web/components/sidebar_components.ex:163
+#: lib/lemmings_os_web/live/mock_shell.ex:47
 #, elixir-autogen
 msgid ".nav_lemmings"
 msgstr "Lemmings"
 
 #: lib/lemmings_os_web/components/home_components.ex:55
-#: lib/lemmings_os_web/components/sidebar_components.ex:173
+#: lib/lemmings_os_web/components/sidebar_components.ex:174
+#: lib/lemmings_os_web/live/mock_shell.ex:48
 #, elixir-autogen
 msgid ".nav_tools"
 msgstr "Tools"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:179
+#: lib/lemmings_os_web/components/sidebar_components.ex:180
+#: lib/lemmings_os_web/live/mock_shell.ex:49
 #, elixir-autogen
 msgid ".nav_logs"
 msgstr "Logs"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:185
+#: lib/lemmings_os_web/components/sidebar_components.ex:186
+#: lib/lemmings_os_web/live/mock_shell.ex:50
 #, elixir-autogen
 msgid ".nav_settings"
 msgstr "Settings"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:68
+#: lib/lemmings_os_web/components/sidebar_components.ex:69
 #, elixir-autogen
 msgid ".button_new_lemming"
 msgstr "New Lemming"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:75
+#: lib/lemmings_os_web/components/sidebar_components.ex:76
 #, elixir-autogen
 msgid ".aria_toggle_sidebar"
 msgstr "Toggle sidebar"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:84
+#: lib/lemmings_os_web/components/sidebar_components.ex:85
 #, elixir-autogen
 msgid ".footer_agents"
 msgstr "Agents"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:92
+#: lib/lemmings_os_web/components/sidebar_components.ex:93
 #, elixir-autogen
 msgid ".footer_nodes"
 msgstr "Cities"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:100
+#: lib/lemmings_os_web/components/sidebar_components.ex:101
 #, elixir-autogen
 msgid ".footer_cpu"
 msgstr "CPU"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:108
+#: lib/lemmings_os_web/components/sidebar_components.ex:109
 #, elixir-autogen
 msgid ".footer_tools"
 msgstr "Tools"
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:119
+#: lib/lemmings_os_web/components/sidebar_components.ex:120
 #, elixir-autogen
 msgid ".footer_cluster_online"
 msgstr "Cluster online"
@@ -355,3 +363,8 @@ msgstr "Settings are mocked in this branch and were not persisted."
 #, elixir-autogen
 msgid ".title_suffix"
 msgstr " · Agent Operations"
+
+#: lib/lemmings_os_web/live/mock_shell.ex:52
+#, elixir-autogen, elixir-format
+msgid ".breadcrumb_new"
+msgstr "New"

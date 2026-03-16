@@ -55,10 +55,12 @@ defmodule LemmingsOsWeb.Layouts do
       <div class="app-main min-w-0 flex flex-col gap-4">
         <div class="mobile-header flex items-center justify-between gap-3 border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(12,22,15,0.98),rgba(16,25,18,0.98))] px-[0.85rem] py-[0.65rem] shadow-[7px_7px_0_0_var(--shadow)] md:hidden">
           <button
+            id="mobile-nav-toggle"
             class="mobile-burger inline-flex items-center justify-center border border-[var(--border-soft)] bg-transparent p-[0.35rem] text-[var(--text)] transition duration-150 hover:border-[var(--accent)] hover:text-[var(--accent)]"
             phx-click={toggle_mobile_nav()}
             aria-label={dgettext("layout", ".aria_open_navigation")}
             aria-controls="app-sidebar"
+            aria-expanded="false"
           >
             <.icon name="hero-bars-3" class="size-5" />
           </button>
@@ -139,10 +141,12 @@ defmodule LemmingsOsWeb.Layouts do
   defp toggle_mobile_nav do
     JS.toggle_class("mobile-open", to: "#app-sidebar")
     |> JS.toggle_class("mobile-open", to: "#mobile-backdrop")
+    |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#mobile-nav-toggle")
   end
 
   defp close_mobile_nav do
     JS.remove_class("mobile-open", to: "#app-sidebar")
     |> JS.remove_class("mobile-open", to: "#mobile-backdrop")
+    |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-nav-toggle")
   end
 end

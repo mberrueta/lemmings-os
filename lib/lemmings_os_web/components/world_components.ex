@@ -171,6 +171,32 @@ defmodule LemmingsOsWeb.WorldComponents do
             </div>
           </div>
         </:actions>
+        <p class="departments-list__hint">
+          {dgettext("world", ".copy_departments_browser")}
+        </p>
+        <div id="departments-links" class="departments-fallback-list">
+          <.link
+            :for={department <- @departments}
+            id={"department-link-#{department.id}"}
+            patch={~p"/departments?#{%{city: @selected_city.id, dept: department.id}}"}
+            class="list-row-card"
+          >
+            <div>
+              <p class="list-row-card__title">{department.name}</p>
+              <p class="list-row-card__meta">{department.description}</p>
+            </div>
+            <div class="list-row-card__aside">
+              <span>
+                {dgettext("world", ".count_agents",
+                  count: length(MockData.lemmings_for_department(department.id))
+                )}
+              </span>
+              <span>
+                {dgettext("world", ".count_queued_tasks", count: length(department.tasks_queue))}
+              </span>
+            </div>
+          </.link>
+        </div>
       </.panel>
 
       <.panel :if={!@selected_department && @selected_city} id="departments-map-panel">

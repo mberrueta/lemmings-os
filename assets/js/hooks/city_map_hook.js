@@ -467,6 +467,52 @@ function parseDepartments(data) {
   }
 }
 
+function parseLabels(data) {
+  try {
+    const labels = JSON.parse(data || "{}")
+    return labels && typeof labels === "object" ? labels : {}
+  } catch (_error) {
+    return {}
+  }
+}
+
+function resetTooltip(tooltip) {
+  tooltip.replaceChildren()
+}
+
+function appendTooltipLine(tooltip, text, color = null) {
+  const line = document.createElement("div")
+
+  if (color) {
+    line.style.color = color
+  }
+
+  line.textContent = text
+  tooltip.append(line)
+}
+
+function renderDepartmentTooltip(tooltip, department, labels) {
+  const lemmingCount = (department.lemmings || []).length
+  const runningCount = (department.lemmings || []).filter(lemming => lemming.status === "running").length
+
+  resetTooltip(tooltip)
+  appendTooltipLine(tooltip, department.name, department.color)
+  appendTooltipLine(tooltip, labels.department || "")
+  appendTooltipLine(tooltip, `${labels.lemmings || ""}: ${lemmingCount}`)
+  appendTooltipLine(tooltip, `${labels.running || ""}: ${runningCount}`, "#3ddc84")
+}
+
+function renderLemmingTooltip(tooltip, lemming, labels) {
+  const statusText =
+    lemming.status === "running" ? labels.running_status || lemming.status : labels.idle_status || lemming.status
+  const statusColor = lemming.status === "running" ? "#3ddc84" : "#5a8a6a"
+
+  resetTooltip(tooltip)
+  appendTooltipLine(tooltip, lemming.name, lemming.deptColor)
+  appendTooltipLine(tooltip, lemming.deptName, "#7aa18a")
+  appendTooltipLine(tooltip, statusText, statusColor)
+}
+
 function pointerPosition(event, root, canvas, worldWidth, worldHeight) {
   const rootRect = root.getBoundingClientRect()
   const canvasRect = canvas.getBoundingClientRect()
@@ -502,6 +548,7 @@ function setupCityMap(hook) {
 
   const city = parseCity(root.dataset.city)
   const departments = autoPlaceDepartments(parseDepartments(root.dataset.departments))
+  const labels = parseLabels(root.dataset.labels)
   const terrain = generateTerrain(departments)
   const wallPoints = generateWall()
   const paths = generatePaths(departments)
@@ -548,25 +595,9 @@ function setupCityMap(hook) {
     tooltip.style.top = `${Math.max(0, Math.min(cssY + 14, rootRect.height - TOOLTIP_HEIGHT))}px`
 
     if (hit.type === "dept") {
-      const department = hit.data
-      const runningCount = (department.lemmings || []).filter(lemming => lemming.status === "running").length
-
-      tooltip.innerHTML =
-        `<b style="color:${department.color}">◆ ${department.name}</b><br>` +
-        "<small>Department</small><br>" +
-        `Lemmings: ${(department.lemmings || []).length}<br>` +
-        `Running: <span style="color:#3ddc84">${runningCount}</span>`
+      renderDepartmentTooltip(tooltip, hit.data, labels)
     } else {
-      const lemming = hit.data
-      const status =
-        lemming.status === "running"
-          ? '<span style="color:#3ddc84">● running</span>'
-          : '<span style="color:#5a8a6a">○ idle</span>'
-
-      tooltip.innerHTML =
-        `<b style="color:${lemming.deptColor}">▸ ${lemming.name}</b><br>` +
-        `<small>${lemming.deptName}</small><br>` +
-        status
+      renderLemmingTooltip(tooltip, hit.data, labels)
     }
 
     root.style.cursor = "pointer"

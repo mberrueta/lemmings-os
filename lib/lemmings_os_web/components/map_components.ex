@@ -138,7 +138,11 @@ defmodule LemmingsOsWeb.MapComponents do
       id={@id}
       class={["world-map-canvas", @class]}
       phx-hook="WorldMapHook"
+      phx-update="ignore"
+      tabindex="0"
+      aria-label={dgettext("world", ".aria_world_map")}
       data-cities={encode_cities(@cities)}
+      data-labels={encode_labels()}
     >
       <canvas id={"#{@id}-canvas"}></canvas>
 
@@ -189,6 +193,19 @@ defmodule LemmingsOsWeb.MapComponents do
         row: Map.get(city, :row)
       }
     end)
+    |> Jason.encode!()
+  end
+
+  defp encode_labels do
+    %{
+      departments: dgettext("world", ".metric_departments"),
+      agents: dgettext("world", ".metric_agents"),
+      statuses: %{
+        online: dgettext("world", ".status_online"),
+        degraded: dgettext("world", ".status_degraded"),
+        offline: dgettext("world", ".status_offline")
+      }
+    }
     |> Jason.encode!()
   end
 end

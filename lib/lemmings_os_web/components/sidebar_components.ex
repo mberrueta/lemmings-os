@@ -18,6 +18,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
       phx-click-away={
         JS.remove_class("mobile-open", to: "#app-sidebar")
         |> JS.remove_class("mobile-open", to: "#mobile-backdrop")
+        |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-nav-toggle")
       }
     >
       <.app_version_badge />

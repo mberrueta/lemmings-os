@@ -407,6 +407,46 @@ function parseCities(data) {
   }
 }
 
+function parseLabels(data) {
+  try {
+    const labels = JSON.parse(data || "{}")
+    return labels && typeof labels === "object" ? labels : {}
+  } catch (_error) {
+    return {}
+  }
+}
+
+function resetTooltip(tooltip) {
+  tooltip.replaceChildren()
+}
+
+function appendTooltipLine(tooltip, text, color = null) {
+  const line = document.createElement("div")
+
+  if (color) {
+    line.style.color = color
+  }
+
+  line.textContent = text
+  tooltip.append(line)
+}
+
+function renderCityTooltip(tooltip, city, labels) {
+  const statusLabels = labels.statuses || {}
+  const statusText = statusLabels[city.status] || city.status
+  const statusColor =
+    city.status === "online" ? "#3ddc84" : city.status === "offline" ? "#ff4444" : "#ff9b54"
+
+  resetTooltip(tooltip)
+  appendTooltipLine(tooltip, city.name, city.color)
+  appendTooltipLine(tooltip, city.region, "#7aa18a")
+  appendTooltipLine(
+    tooltip,
+    `${city.depts} ${labels.departments || ""} · ${city.agents} ${labels.agents || ""}`.trim()
+  )
+  appendTooltipLine(tooltip, statusText, statusColor)
+}
+
 function pointerPosition(event, root, canvas, worldWidth, worldHeight) {
   const rootRect = root.getBoundingClientRect()
   const rect = canvas.getBoundingClientRect()
@@ -443,6 +483,7 @@ function setupWorldMap(hook) {
   canvas.height = worldHeight
 
   const cities = autoPlace(parseCities(root.dataset.cities))
+  const labels = parseLabels(root.dataset.labels)
   const terrain = generateTerrain(cities)
   const roads = generateRoads(cities)
   const fog = generateFog(cities, roads)
@@ -477,17 +518,10 @@ function setupWorldMap(hook) {
       return
     }
 
-    const statusColor =
-      city.status === "online" ? "#3ddc84" : city.status === "offline" ? "#ff4444" : "#ff9b54"
-
     tooltip.hidden = false
     tooltip.style.left = `${Math.max(0, Math.min(cssX + 14, rootRect.width - TOOLTIP_WIDTH))}px`
     tooltip.style.top = `${Math.max(0, Math.min(cssY + 14, rootRect.height - TOOLTIP_HEIGHT))}px`
-    tooltip.innerHTML =
-      `<b style="color:${city.color}">${city.name}</b><br>` +
-      `<small>${city.region}</small><br>` +
-      `${city.depts} depts · ${city.agents} agents<br>` +
-      `<span style="color:${statusColor}">● ${city.status}</span>`
+    renderCityTooltip(tooltip, city, labels)
     root.style.cursor = "pointer"
   }
 

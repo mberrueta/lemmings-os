@@ -53,7 +53,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         _ -> %{dept: department_id}
       end
 
-    {:noreply, push_navigate(socket, to: ~p"/departments?#{params}")}
+    {:noreply, push_patch(socket, to: ~p"/departments?#{params}")}
   end
 
   defp build_shell_breadcrumb(nil, nil), do: default_shell_breadcrumb(:departments)

@@ -31,7 +31,7 @@ defmodule LemmingsOsWeb.CityMapComponents do
         xmlns="http://www.w3.org/2000/svg"
         class="dept-node__svg"
         role="img"
-        aria-label={"Department: #{@department.name}"}
+        aria-label={dgettext("world", ".aria_department_node", name: @department.name)}
       >
         <rect
           x="4"
@@ -128,7 +128,12 @@ defmodule LemmingsOsWeb.CityMapComponents do
         <span class="dept-node__name" style={"color: #{department_color(@department)};"}>
           {@department.name}
         </span>
-        <small class="dept-node__meta">{@running_count}/{@lemming_count} running</small>
+        <small class="dept-node__meta">
+          {dgettext("world", ".count_running_of_total",
+            running: @running_count,
+            total: @lemming_count
+          )}
+        </small>
       </div>
     </div>
     """
@@ -147,8 +152,12 @@ defmodule LemmingsOsWeb.CityMapComponents do
       id={@id}
       class={["city-map-canvas", @class]}
       phx-hook="CityMapHook"
+      phx-update="ignore"
+      tabindex="0"
+      aria-label={dgettext("world", ".aria_city_map", name: @city.name)}
       data-city={encode_city(@city)}
       data-departments={encode_departments(@departments)}
+      data-labels={encode_labels()}
     >
       <canvas id={"#{@id}-canvas"}></canvas>
 
@@ -157,18 +166,18 @@ defmodule LemmingsOsWeb.CityMapComponents do
           {@city.name} <span class="city-map-canvas__region">· {@city.region}</span>
         </span>
         <span class="city-map-canvas__stats">
-          <span class="city-map-canvas__stat-label">Depts</span>
+          <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_departments")}</span>
           <span class="city-map-canvas__stat-value">{length(@departments)}</span>
-          <span class="city-map-canvas__stat-label">Lemmings</span>
+          <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_lemmings")}</span>
           <span class="city-map-canvas__stat-value">{@total_lemmings}</span>
-          <span class="city-map-canvas__stat-label">Status</span>
+          <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_status")}</span>
           <span class={"city-map-canvas__status city-map-canvas__status--#{@city.status}"}>
             {status_label(@city.status)}
           </span>
         </span>
       </div>
 
-      <div class="city-map-canvas__hud-bottom">Click a department to inspect</div>
+      <div class="city-map-canvas__hud-bottom">{dgettext("world", ".map_hint_department")}</div>
       <div id={"#{@id}-tooltip"} class="city-map-canvas__tooltip" hidden></div>
     </div>
     """
@@ -221,6 +230,17 @@ defmodule LemmingsOsWeb.CityMapComponents do
           end)
       }
     end)
+    |> Jason.encode!()
+  end
+
+  defp encode_labels do
+    %{
+      department: dgettext("world", ".tooltip_department"),
+      lemmings: dgettext("world", ".metric_lemmings"),
+      running: dgettext("world", ".tooltip_running"),
+      running_status: dgettext("lemmings", ".status_running"),
+      idle_status: dgettext("lemmings", ".status_idle")
+    }
     |> Jason.encode!()
   end
 end
