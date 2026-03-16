@@ -15,7 +15,7 @@ defmodule LemmingsOs.Worlds do
 
   ## Examples
 
-      iex> world = LemmingsOs.WorldsDocTestHelpers.seed_world!()
+      iex> world = LemmingsOs.Factory.insert(:world)
       iex> fetched_world = LemmingsOs.Worlds.get_world!(world.id)
       iex> fetched_world.id == world.id
       true
@@ -28,7 +28,7 @@ defmodule LemmingsOs.Worlds do
 
   ## Examples
 
-      iex> world = LemmingsOs.WorldsDocTestHelpers.seed_world!()
+      iex> world = LemmingsOs.Factory.insert(:world)
       iex> {:ok, fetched_world} = LemmingsOs.Worlds.fetch_world(world.id)
       iex> fetched_world.slug == world.slug
       true
@@ -47,7 +47,8 @@ defmodule LemmingsOs.Worlds do
 
   ## Examples
 
-      iex> world = LemmingsOs.WorldsDocTestHelpers.seed_world!()
+      iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
+      iex> world = LemmingsOs.Factory.insert(:world)
       iex> {:ok, default_world} = LemmingsOs.Worlds.get_default_world()
       iex> default_world.id == world.id
       true
@@ -73,12 +74,12 @@ defmodule LemmingsOs.Worlds do
 
   ## Examples
 
-      iex> attrs = LemmingsOs.WorldsDocTestHelpers.world_attrs(%{name: "Doc World"})
+      iex> attrs = LemmingsOs.Factory.params_for(:world, name: "Doc World")
       iex> {:ok, world} = LemmingsOs.Worlds.upsert_world(attrs)
       iex> {world.name, world.status, world.last_import_status}
       {"Doc World", "unknown", "unknown"}
 
-      iex> attrs = LemmingsOs.WorldsDocTestHelpers.world_attrs(%{name: "Before"})
+      iex> attrs = LemmingsOs.Factory.params_for(:world, name: "Before")
       iex> {:ok, world} = LemmingsOs.Worlds.upsert_world(attrs)
       iex> {:ok, updated_world} =
       ...>   LemmingsOs.Worlds.upsert_world(%{
@@ -102,13 +103,12 @@ defmodule LemmingsOs.Worlds do
 
   ## Examples
 
-      iex> attrs = LemmingsOs.WorldsDocTestHelpers.world_attrs(%{name: "Bootstrap World"})
+      iex> attrs = LemmingsOs.Factory.params_for(:world, name: "Bootstrap World")
       iex> {:ok, world} = LemmingsOs.Worlds.upsert_bootstrap_world(attrs)
       iex> world.name
       "Bootstrap World"
   """
   @spec upsert_bootstrap_world(map()) :: {:ok, World.t()} | {:error, Ecto.Changeset.t()}
-  # TODO: Replace this alias once Task 04 adds bootstrap-specific import/sync behavior.
   def upsert_bootstrap_world(attrs), do: upsert_world(attrs)
 
   defp bootstrap_lookup_target(attrs), do: lookup_world(attrs) || %World{}

@@ -10,6 +10,24 @@ msgid ""
 msgstr ""
 "Language: en\n"
 
+msgid ".bootstrap_file_not_found_summary"
+msgstr "Bootstrap file not found"
+
+msgid ".bootstrap_file_not_found_action_hint"
+msgstr "Create the file or update LEMMINGS_WORLD_BOOTSTRAP_PATH."
+
+msgid ".bootstrap_yaml_parse_error_summary"
+msgstr "Bootstrap YAML could not be parsed"
+
+msgid ".bootstrap_yaml_parse_error_action_hint"
+msgstr "Fix the YAML syntax and try the bootstrap load again."
+
+msgid ".bootstrap_persistence_failed_summary"
+msgstr "Bootstrap world sync failed"
+
+msgid ".bootstrap_persistence_failed_action_hint"
+msgstr "Fix the persisted World data contract and retry the bootstrap sync."
+
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"
 msgstr ""

@@ -1,0 +1,232 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/lemmings_os_web/components/home_components.ex:121
+#, elixir-autogen
+msgid ".title_active_lemmings"
+msgstr ""
+
+#: lib/lemmings_os_web/components/home_components.ex:122
+#, elixir-autogen
+msgid ".subtitle_active_lemmings"
+msgstr ""
+
+#: lib/lemmings_os_web/components/city_map_components.ex:241
+#: lib/lemmings_os_web/components/home_components.ex:187
+#: lib/lemmings_os_web/components/lemming_components.ex:419
+#: lib/lemmings_os_web/components/world_components.ex:419
+#, elixir-autogen
+msgid ".status_running"
+msgstr ""
+
+#: lib/lemmings_os_web/components/home_components.ex:188
+#: lib/lemmings_os_web/components/lemming_components.ex:420
+#: lib/lemmings_os_web/components/world_components.ex:420
+#, elixir-autogen
+msgid ".status_thinking"
+msgstr ""
+
+#: lib/lemmings_os_web/components/home_components.ex:189
+#: lib/lemmings_os_web/components/lemming_components.ex:421
+#: lib/lemmings_os_web/components/world_components.ex:421
+#, elixir-autogen
+msgid ".status_error"
+msgstr ""
+
+#: lib/lemmings_os_web/components/city_map_components.ex:242
+#: lib/lemmings_os_web/components/home_components.ex:190
+#: lib/lemmings_os_web/components/lemming_components.ex:422
+#: lib/lemmings_os_web/components/world_components.ex:422
+#, elixir-autogen
+msgid ".status_idle"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:91
+#, elixir-autogen
+msgid ".title_all_lemmings"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:92
+#, elixir-autogen
+msgid ".subtitle_all_lemmings"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:97
+#, elixir-autogen
+msgid ".title_agent_registry"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:100
+#, elixir-autogen
+msgid ".col_name"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:101
+#, elixir-autogen
+msgid ".col_role"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:102
+#, elixir-autogen
+msgid ".col_status"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:103
+#, elixir-autogen
+msgid ".col_task"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:104
+#, elixir-autogen
+msgid ".col_model"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:130
+#, elixir-autogen
+msgid ".title_agent_detail"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:133
+#, elixir-autogen
+msgid ".empty_select_lemming"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:134
+#, elixir-autogen
+msgid ".empty_select_lemming_copy"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:168
+#, elixir-autogen
+msgid ".detail_model"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:173
+#, elixir-autogen
+msgid ".detail_system_prompt"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:178
+#, elixir-autogen
+msgid ".detail_tools"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:185
+#, elixir-autogen
+msgid ".detail_recent_messages"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:188
+#, elixir-autogen
+msgid ".empty_no_messages"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:205
+#, elixir-autogen
+msgid ".detail_activity_log"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:413
+#, elixir-autogen
+msgid ".role_agent"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:414
+#, elixir-autogen
+msgid ".role_user"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:244
+#, elixir-autogen
+msgid ".title_create_lemming"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:245
+#, elixir-autogen
+msgid ".subtitle_create_lemming"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:250
+#, elixir-autogen
+msgid ".label_name"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:251
+#, elixir-autogen
+msgid ".placeholder_name"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:255
+#, elixir-autogen
+msgid ".label_role"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:256
+#, elixir-autogen
+msgid ".placeholder_role"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:261
+#, elixir-autogen
+msgid ".label_model"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:273
+#, elixir-autogen
+msgid ".label_system_prompt"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:278
+#, elixir-autogen
+msgid ".detail_tools_allowed"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:296
+#, elixir-autogen
+msgid ".button_deploy_lemming"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:302
+#, elixir-autogen
+msgid ".title_deployment_preview"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:305
+#, elixir-autogen
+msgid ".detail_selected_tooling"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:309
+#, elixir-autogen
+msgid ".empty_no_tools_selected"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:315
+#, elixir-autogen
+msgid ".detail_expected_outcome"
+msgstr ""
+
+#: lib/lemmings_os_web/components/lemming_components.ex:317
+#, elixir-autogen
+msgid ".copy_expected_outcome"
+msgstr ""
+
+#: lib/lemmings_os_web/live/create_lemming_live.ex:20
+#, elixir-autogen
+msgid ".page_title_create_lemming"
+msgstr ""
+
+#: lib/lemmings_os_web/live/create_lemming_live.ex:49
+#, elixir-autogen
+msgid ".flash_deploy_mock"
+msgstr ""

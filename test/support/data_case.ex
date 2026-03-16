@@ -18,6 +18,8 @@ defmodule LemmingsOs.DataCase do
 
   using do
     quote do
+      import LemmingsOs.Factory
+
       alias LemmingsOs.Repo
 
       import Ecto

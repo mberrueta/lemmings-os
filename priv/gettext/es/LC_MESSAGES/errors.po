@@ -1,29 +1,24 @@
-## This is a PO Template file.
-##
-## `msgid`s here are often extracted from source code.
-## Add new translations manually only if they're dynamic
-## translations that can't be statically extracted.
-##
-## Run `mix gettext.extract` to bring this file up to
-## date. Leave `msgstr`s empty as changing them here has no
-## effect: edit them in PO (`.po`) files instead.
-msgid ".bootstrap_file_not_found_summary"
+msgid ""
 msgstr ""
+"Language: es\n"
+
+msgid ".bootstrap_file_not_found_summary"
+msgstr "No se encontró el archivo de bootstrap"
 
 msgid ".bootstrap_file_not_found_action_hint"
-msgstr ""
+msgstr "Creá el archivo o actualizá LEMMINGS_WORLD_BOOTSTRAP_PATH."
 
 msgid ".bootstrap_yaml_parse_error_summary"
-msgstr ""
+msgstr "No se pudo parsear el YAML de bootstrap"
 
 msgid ".bootstrap_yaml_parse_error_action_hint"
-msgstr ""
+msgstr "Corregí la sintaxis YAML y volvé a cargar el bootstrap."
 
 msgid ".bootstrap_persistence_failed_summary"
-msgstr ""
+msgstr "Falló la sincronización del World desde bootstrap"
 
 msgid ".bootstrap_persistence_failed_action_hint"
-msgstr ""
+msgstr "Corregí el contrato persistido de World e intentá de nuevo la sincronización de bootstrap."
 
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"

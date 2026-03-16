@@ -1,0 +1,51 @@
+world:
+  id: "world_local"
+  slug: "local"
+  name: "Local World"
+
+infrastructure:
+  postgres:
+    url_env: "DATABASE_URL"
+
+cities: {}
+
+tools: {}
+
+models:
+  providers:
+    ollama:
+      enabled: true
+      base_url: "http://127.0.0.1:11434"
+      default_billing_mode: "zero_cost"
+      allowed_models:
+        - "llama3.2"
+        - "qwen2.5:7b"
+    openai:
+      enabled: false
+      api_key_env: "OPENAI_API_KEY"
+      base_url: "https://api.openai.com/v1"
+      default_billing_mode: "metered"
+      allowed_models: []
+  profiles:
+    default:
+      provider: "ollama"
+      model: "qwen2.5:7b"
+      fallbacks:
+        - provider: "ollama"
+          model: "gemma2"
+        - provider: "openai"
+          model: "gpt-4o-mini"
+
+limits:
+  max_cities: 1
+  max_departments_per_city: 20
+  max_lemmings_per_department: 50
+
+costs:
+  budgets:
+    monthly_usd: 0
+    daily_tokens: 1000000
+
+runtime:
+  idle_ttl_seconds: 3600
+  cross_city_communication: false

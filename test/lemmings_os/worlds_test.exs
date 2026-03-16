@@ -1,5 +1,5 @@
 defmodule LemmingsOs.WorldsTest do
-  use LemmingsOs.DataCase, async: true
+  use LemmingsOs.DataCase, async: false
 
   alias Ecto.NoResultsError
   alias LemmingsOs.World
@@ -36,7 +36,7 @@ defmodule LemmingsOs.WorldsTest do
 
   describe "fetch_world/1" do
     test "returns the persisted world" do
-      world = world_fixture()
+      world = insert(:world)
 
       assert {:ok, fetched_world} = Worlds.fetch_world(world.id)
       assert fetched_world.id == world.id
@@ -50,7 +50,7 @@ defmodule LemmingsOs.WorldsTest do
 
   describe "get_world!/1" do
     test "returns the persisted world" do
-      world = world_fixture()
+      world = insert(:world)
 
       fetched_world = Worlds.get_world!(world.id)
 
@@ -66,13 +66,15 @@ defmodule LemmingsOs.WorldsTest do
 
   describe "get_default_world/0" do
     test "returns the default world when one exists" do
-      world = world_fixture()
+      Repo.delete_all(World)
+      world = insert(:world)
 
       assert {:ok, default_world} = Worlds.get_default_world()
       assert default_world.id == world.id
     end
 
     test "returns an error tuple when no world exists" do
+      Repo.delete_all(World)
       assert {:error, reason} = Worlds.get_default_world()
       assert reason in [:not_found, :world_not_found, :default_world_not_found]
     end
@@ -80,17 +82,21 @@ defmodule LemmingsOs.WorldsTest do
 
   describe "upsert_world/1" do
     test "inserts a world with persisted defaults" do
-      attrs = %{
-        slug: "local",
-        name: "Local World",
-        bootstrap_path: "/tmp/worlds/local.default.world.yaml"
-      }
+      Repo.delete_all(World)
+      unique_value = System.unique_integer([:positive])
+
+      attrs =
+        params_for(:world,
+          slug: "local-#{unique_value}",
+          name: "Local World #{unique_value}",
+          bootstrap_path: "/tmp/worlds/local-#{unique_value}.default.world.yaml"
+        )
 
       assert function_exported?(Worlds, :upsert_world, 1)
       assert {:ok, world} = Worlds.upsert_world(attrs)
 
-      assert world.slug == "local"
-      assert world.name == "Local World"
+      assert world.slug == "local-#{unique_value}"
+      assert world.name == "Local World #{unique_value}"
       assert world.status == "unknown"
       assert world.last_import_status == "unknown"
       assert world.limits_config == %{}
@@ -100,20 +106,24 @@ defmodule LemmingsOs.WorldsTest do
     end
 
     test "updates the existing world instead of inserting a duplicate" do
-      attrs = %{
-        slug: "local",
-        name: "Local World",
-        bootstrap_path: "/tmp/worlds/local.default.world.yaml"
-      }
+      Repo.delete_all(World)
+      unique_value = System.unique_integer([:positive])
+
+      attrs =
+        params_for(:world,
+          slug: "local-#{unique_value}",
+          name: "Local World #{unique_value}",
+          bootstrap_path: "/tmp/worlds/local-#{unique_value}.default.world.yaml"
+        )
 
       assert {:ok, world} = Worlds.upsert_world(attrs)
 
       assert {:ok, updated_world} =
                Worlds.upsert_world(%{
-                 slug: "local",
+                 slug: "local-#{unique_value}",
                  name: "Renamed Local World",
                  status: "degraded",
-                 bootstrap_path: "/tmp/worlds/local.default.world.yaml",
+                 bootstrap_path: "/tmp/worlds/local-#{unique_value}.default.world.yaml",
                  models_config: %{"providers" => %{"ollama" => %{"enabled" => true}}}
                })
 
@@ -124,21 +134,5 @@ defmodule LemmingsOs.WorldsTest do
 
       assert Repo.aggregate(World, :count) == 1
     end
-  end
-
-  defp world_fixture(attrs \\ %{}) do
-    unique_value = System.unique_integer([:positive])
-
-    base_attrs = %{
-      slug: "world-#{unique_value}",
-      name: "World #{unique_value}",
-      bootstrap_path: "/tmp/worlds/world-#{unique_value}.default.world.yaml"
-    }
-
-    attrs = Map.merge(base_attrs, attrs)
-
-    %World{}
-    |> World.changeset(attrs)
-    |> Repo.insert!()
   end
 end

@@ -5,6 +5,8 @@ defmodule LemmingsOs.Application do
 
   use Application
 
+  require Logger
+
   @impl true
   def start(_type, _args) do
     children = [
@@ -18,10 +20,16 @@ defmodule LemmingsOs.Application do
       LemmingsOsWeb.Endpoint
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: LemmingsOs.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    case Supervisor.start_link(children, opts) do
+      {:ok, _supervisor} = result ->
+        maybe_run_world_bootstrap_import()
+        result
+
+      error ->
+        error
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration
@@ -31,4 +39,30 @@ defmodule LemmingsOs.Application do
     LemmingsOsWeb.Endpoint.config_change(changed, removed)
     :ok
   end
+
+  defp maybe_run_world_bootstrap_import do
+    if Application.get_env(:lemmings_os, :world_bootstrap_import_on_startup, true) do
+      run_world_bootstrap_import()
+    end
+  end
+
+  defp run_world_bootstrap_import do
+    case LemmingsOs.WorldBootstrap.Importer.sync_default_world() do
+      {:ok, result} -> log_bootstrap_result(result, :info, "world bootstrap sync completed")
+      {:error, result} -> log_bootstrap_result(result, :error, "world bootstrap sync failed")
+    end
+  end
+
+  defp log_bootstrap_result(result, level, message) do
+    Logger.log(level, message,
+      event: "world_bootstrap.sync",
+      status: result.operation_status,
+      bootstrap_path: result.path,
+      issue_count: length(result.issues),
+      world_id: world_id(result.world)
+    )
+  end
+
+  defp world_id(%LemmingsOs.World{id: id}), do: id
+  defp world_id(nil), do: nil
 end
