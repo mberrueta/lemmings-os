@@ -25,6 +25,18 @@ msgstr ""
 msgid ".bootstrap_persistence_failed_action_hint"
 msgstr ""
 
+msgid ".bootstrap_input_not_configured_summary"
+msgstr ""
+
+msgid ".bootstrap_input_not_configured_action_hint"
+msgstr ""
+
+msgid ".bootstrap_input_not_configured_missing_path_detail"
+msgstr ""
+
+msgid ".bootstrap_input_not_configured_empty_path_detail"
+msgstr ""
+
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"
 msgstr ""
@@ -126,7 +138,7 @@ msgstr ""
 msgid "must be equal to %{number}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/core_components.ex:43
+#: lib/lemmings_os_web/components/core_components.ex:44
 #, elixir-autogen
 msgid ".aria_close"
 msgstr ""
@@ -145,4 +157,22 @@ msgstr ""
 #: lib/lemmings_os_web/components/layouts.ex:129
 #, elixir-autogen
 msgid ".error_something_went_wrong"
+msgstr ""
+
+#: lib/lemmings_os_web/components/core_components.ex:522
+#: lib/lemmings_os_web/components/core_components.ex:525
+#, elixir-autogen, elixir-format
+msgid ".issue_severity_error"
+msgstr ""
+
+#: lib/lemmings_os_web/components/core_components.ex:524
+#: lib/lemmings_os_web/components/core_components.ex:527
+#, elixir-autogen, elixir-format
+msgid ".issue_severity_info"
+msgstr ""
+
+#: lib/lemmings_os_web/components/core_components.ex:523
+#: lib/lemmings_os_web/components/core_components.ex:526
+#, elixir-autogen, elixir-format
+msgid ".issue_severity_warning"
 msgstr ""

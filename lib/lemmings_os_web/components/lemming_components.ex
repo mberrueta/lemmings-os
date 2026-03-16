@@ -116,7 +116,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
               <span>{lemming.name}</span>
               <span>{lemming.role}</span>
               <span>
-                <.badge tone={status_tone(lemming.status)}>{status_label(lemming.status)}</.badge>
+                <.status kind={:lemming} value={lemming.status} />
               </span>
               <span class="truncate">{lemming.current_task}</span>
               <span>{lemming.model}</span>
@@ -158,7 +158,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <div class="detail-hero">
           <div class="detail-hero__avatar" style={accent_style(@lemming.accent)}></div>
           <div class="detail-hero__copy">
-            <.badge tone={status_tone(@lemming.status)}>{status_label(@lemming.status)}</.badge>
+            <.status kind={:lemming} value={@lemming.status} />
             <p>{@lemming.current_task}</p>
             <small :if={@department && @city}>{@department.name} · {@city.name}</small>
           </div>
@@ -412,13 +412,4 @@ defmodule LemmingsOsWeb.LemmingComponents do
   defp sprite_size("md"), do: "sprite-card--md"
   defp role_label(:assistant), do: dgettext("lemmings", ".role_agent")
   defp role_label(:user), do: dgettext("lemmings", ".role_user")
-  defp status_tone(:running), do: "success"
-  defp status_tone(:thinking), do: "warning"
-  defp status_tone(:error), do: "danger"
-  defp status_tone(_), do: "default"
-  defp status_label(:running), do: dgettext("lemmings", ".status_running")
-  defp status_label(:thinking), do: dgettext("lemmings", ".status_thinking")
-  defp status_label(:error), do: dgettext("lemmings", ".status_error")
-  defp status_label(:idle), do: dgettext("lemmings", ".status_idle")
-  defp status_label(status), do: status |> Atom.to_string() |> String.upcase()
 end

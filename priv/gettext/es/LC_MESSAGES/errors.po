@@ -1,24 +1,44 @@
+## `msgid`s in this file come from POT (.pot) files.
+##
+## Do not add, change, or remove `msgid`s manually here as
+## they're tied to the ones in the corresponding POT file
+## (with the same domain).
+##
+## Use `mix gettext.extract --merge` or `mix gettext.merge`
+## to merge POT files into PO files.
 msgid ""
 msgstr ""
 "Language: es\n"
 
 msgid ".bootstrap_file_not_found_summary"
-msgstr "No se encontró el archivo de bootstrap"
+msgstr "No se encontro el archivo bootstrap"
 
 msgid ".bootstrap_file_not_found_action_hint"
-msgstr "Creá el archivo o actualizá LEMMINGS_WORLD_BOOTSTRAP_PATH."
+msgstr "Crea el archivo o actualiza LEMMINGS_WORLD_BOOTSTRAP_PATH."
 
 msgid ".bootstrap_yaml_parse_error_summary"
-msgstr "No se pudo parsear el YAML de bootstrap"
+msgstr "No se pudo parsear el YAML bootstrap"
 
 msgid ".bootstrap_yaml_parse_error_action_hint"
-msgstr "Corregí la sintaxis YAML y volvé a cargar el bootstrap."
+msgstr "Corrige la sintaxis YAML e intenta cargar el bootstrap de nuevo."
 
 msgid ".bootstrap_persistence_failed_summary"
-msgstr "Falló la sincronización del World desde bootstrap"
+msgstr "Fallo la sincronizacion del mundo bootstrap"
 
 msgid ".bootstrap_persistence_failed_action_hint"
-msgstr "Corregí el contrato persistido de World e intentá de nuevo la sincronización de bootstrap."
+msgstr "Corrige el contrato persistido de World y reintenta la sincronizacion bootstrap."
+
+msgid ".bootstrap_input_not_configured_summary"
+msgstr "La entrada bootstrap no esta configurada"
+
+msgid ".bootstrap_input_not_configured_action_hint"
+msgstr "Configura bootstrap_path en el World persistido o ejecuta primero la sincronizacion bootstrap."
+
+msgid ".bootstrap_input_not_configured_missing_path_detail"
+msgstr "El World persistido no tiene bootstrap_path configurado."
+
+msgid ".bootstrap_input_not_configured_empty_path_detail"
+msgstr "El World persistido tiene bootstrap_path vacio."
 
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"
@@ -121,7 +141,7 @@ msgstr ""
 msgid "must be equal to %{number}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/core_components.ex:43
+#: lib/lemmings_os_web/components/core_components.ex:44
 #, elixir-autogen
 msgid ".aria_close"
 msgstr ""
@@ -141,3 +161,21 @@ msgstr ""
 #, elixir-autogen
 msgid ".error_something_went_wrong"
 msgstr ""
+
+#: lib/lemmings_os_web/components/core_components.ex:522
+#: lib/lemmings_os_web/components/core_components.ex:525
+#, elixir-autogen, elixir-format
+msgid ".issue_severity_error"
+msgstr "Error"
+
+#: lib/lemmings_os_web/components/core_components.ex:524
+#: lib/lemmings_os_web/components/core_components.ex:527
+#, elixir-autogen, elixir-format
+msgid ".issue_severity_info"
+msgstr "Info"
+
+#: lib/lemmings_os_web/components/core_components.ex:523
+#: lib/lemmings_os_web/components/core_components.ex:526
+#, elixir-autogen, elixir-format
+msgid ".issue_severity_warning"
+msgstr "Advertencia"

@@ -68,7 +68,7 @@ msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:49
 #: lib/lemmings_os_web/components/sidebar_components.ex:157
-#: lib/lemmings_os_web/components/world_components.ex:274
+#: lib/lemmings_os_web/components/world_components.ex:615
 #: lib/lemmings_os_web/live/mock_shell.ex:45
 #, elixir-autogen
 msgid ".nav_departments"
@@ -330,7 +330,7 @@ msgstr ""
 msgid ".page_title_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/live/world_live.ex:11
+#: lib/lemmings_os_web/live/world_live.ex:13
 #, elixir-autogen
 msgid ".page_title_world"
 msgstr ""

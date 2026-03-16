@@ -3,6 +3,16 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias LemmingsOs.Repo
+  alias LemmingsOs.World
+  alias LemmingsOs.WorldCache
+
+  setup do
+    Repo.delete_all(World)
+    WorldCache.invalidate_all()
+    :ok
+  end
+
   test "home page is the default route", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 
@@ -14,8 +24,8 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
   test "world page renders the world map", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/world")
 
-    assert has_element?(view, "#world-map-panel")
-    assert has_element?(view, "#world-network-map")
+    assert has_element?(view, "#world-page-empty-state")
+    assert has_element?(view, "#world-import-button")
   end
 
   test "cities page supports a selected city view", %{conn: conn} do

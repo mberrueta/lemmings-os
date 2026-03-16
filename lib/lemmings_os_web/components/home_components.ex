@@ -131,7 +131,7 @@ defmodule LemmingsOsWeb.HomeComponents do
                 <p class="list-row-card__meta">{lemming.role}</p>
               </div>
               <div class="list-row-card__aside">
-                <.badge tone={status_tone(lemming.status)}>{status_label(lemming.status)}</.badge>
+                <.status kind={:lemming} value={lemming.status} />
                 <span>{lemming.current_task}</span>
               </div>
             </.link>
@@ -180,13 +180,4 @@ defmodule LemmingsOsWeb.HomeComponents do
   defp activity_class(_), do: "activity-feed__agent--accent"
 
   defp accent_style(color), do: "background-color: #{color};"
-  defp status_tone(:running), do: "success"
-  defp status_tone(:thinking), do: "warning"
-  defp status_tone(:error), do: "danger"
-  defp status_tone(_), do: "default"
-  defp status_label(:running), do: dgettext("lemmings", ".status_running")
-  defp status_label(:thinking), do: dgettext("lemmings", ".status_thinking")
-  defp status_label(:error), do: dgettext("lemmings", ".status_error")
-  defp status_label(:idle), do: dgettext("lemmings", ".status_idle")
-  defp status_label(status), do: status |> Atom.to_string() |> String.upcase()
 end

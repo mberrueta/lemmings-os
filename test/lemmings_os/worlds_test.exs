@@ -76,6 +76,7 @@ defmodule LemmingsOs.WorldsTest do
 
     test "returns an error tuple when no world exists" do
       Repo.delete_all(World)
+      LemmingsOs.WorldCache.invalidate_all()
       assert {:error, reason} = Worlds.get_default_world()
       assert reason in [:not_found, :world_not_found, :default_world_not_found]
     end

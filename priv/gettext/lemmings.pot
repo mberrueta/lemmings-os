@@ -16,32 +16,28 @@ msgstr ""
 msgid ".subtitle_active_lemmings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/city_map_components.ex:241
-#: lib/lemmings_os_web/components/home_components.ex:187
-#: lib/lemmings_os_web/components/lemming_components.ex:419
-#: lib/lemmings_os_web/components/world_components.ex:419
+#: lib/lemmings_os_web/components/city_map_components.ex:231
+#: lib/lemmings_os_web/components/core_components.ex:499
+#: lib/lemmings_os_web/components/core_components.ex:503
 #, elixir-autogen
 msgid ".status_running"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:188
-#: lib/lemmings_os_web/components/lemming_components.ex:420
-#: lib/lemmings_os_web/components/world_components.ex:420
+#: lib/lemmings_os_web/components/core_components.ex:500
+#: lib/lemmings_os_web/components/core_components.ex:504
 #, elixir-autogen
 msgid ".status_thinking"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:189
-#: lib/lemmings_os_web/components/lemming_components.ex:421
-#: lib/lemmings_os_web/components/world_components.ex:421
+#: lib/lemmings_os_web/components/core_components.ex:501
+#: lib/lemmings_os_web/components/core_components.ex:505
 #, elixir-autogen
 msgid ".status_error"
 msgstr ""
 
-#: lib/lemmings_os_web/components/city_map_components.ex:242
-#: lib/lemmings_os_web/components/home_components.ex:190
-#: lib/lemmings_os_web/components/lemming_components.ex:422
-#: lib/lemmings_os_web/components/world_components.ex:422
+#: lib/lemmings_os_web/components/city_map_components.ex:232
+#: lib/lemmings_os_web/components/core_components.ex:502
+#: lib/lemmings_os_web/components/core_components.ex:506
 #, elixir-autogen
 msgid ".status_idle"
 msgstr ""

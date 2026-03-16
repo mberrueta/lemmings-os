@@ -6,6 +6,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: LemmingsOsWeb.Gettext
 
+  alias LemmingsOs.World
   alias Phoenix.LiveView.JS
 
   attr :id, :string, doc: "the optional id of flash container"
@@ -288,15 +289,39 @@ defmodule LemmingsOsWeb.CoreComponents do
     """
   end
 
+  attr :id, :string, default: nil
   attr :tone, :string, default: "default", values: ~w(default accent info success warning danger)
   attr :class, :string, default: nil
+  attr :rest, :global
   slot :inner_block, required: true
 
   def badge(assigns) do
     ~H"""
-    <span class={["ui-badge", "ui-badge--#{@tone}", @class]}>
+    <span id={@id} class={["ui-badge", "ui-badge--#{@tone}", @class]} {@rest}>
       {render_slot(@inner_block)}
     </span>
+    """
+  end
+
+  attr :id, :string, default: nil
+  attr :kind, :atom, required: true, values: [:world, :city, :lemming, :issue]
+  attr :value, :any, required: true
+  attr :class, :string, default: nil
+  attr :rest, :global
+
+  def status(assigns) do
+    assigns = assign(assigns, :status, status_details(assigns.kind, assigns.value))
+
+    ~H"""
+    <.badge
+      id={@id}
+      tone={@status.tone}
+      class={@class}
+      data-status={@status.value}
+      {@rest}
+    >
+      {@status.label}
+    </.badge>
     """
   end
 
@@ -407,6 +432,109 @@ defmodule LemmingsOsWeb.CoreComponents do
       class
     ]
   end
+
+  defp status_details(:world, status) do
+    %{
+      tone: world_status_tone(status),
+      label: World.translate_status(status),
+      value: status_value(status)
+    }
+  end
+
+  defp status_details(:city, status) do
+    %{
+      tone: city_status_tone(status),
+      label: city_status_label(status),
+      value: status_value(status)
+    }
+  end
+
+  defp status_details(:lemming, status) do
+    %{
+      tone: lemming_status_tone(status),
+      label: lemming_status_label(status),
+      value: status_value(status)
+    }
+  end
+
+  defp status_details(:issue, severity) do
+    %{
+      tone: issue_status_tone(severity),
+      label: issue_status_label(severity),
+      value: status_value(severity)
+    }
+  end
+
+  defp world_status_tone("ok"), do: "success"
+  defp world_status_tone("degraded"), do: "warning"
+  defp world_status_tone("unavailable"), do: "danger"
+  defp world_status_tone("invalid"), do: "danger"
+  defp world_status_tone("unknown"), do: "default"
+  defp world_status_tone(_status), do: "default"
+
+  defp city_status_tone(:online), do: "success"
+  defp city_status_tone(:degraded), do: "warning"
+  defp city_status_tone(:offline), do: "danger"
+  defp city_status_tone("online"), do: "success"
+  defp city_status_tone("degraded"), do: "warning"
+  defp city_status_tone("offline"), do: "danger"
+  defp city_status_tone(_status), do: "default"
+
+  defp city_status_label(:online), do: dgettext("world", ".status_online")
+  defp city_status_label(:degraded), do: dgettext("world", ".status_degraded")
+  defp city_status_label(:offline), do: dgettext("world", ".status_offline")
+  defp city_status_label("online"), do: dgettext("world", ".status_online")
+  defp city_status_label("degraded"), do: dgettext("world", ".status_degraded")
+  defp city_status_label("offline"), do: dgettext("world", ".status_offline")
+  defp city_status_label(_status), do: dgettext("world", ".status_online")
+
+  defp lemming_status_tone(:running), do: "success"
+  defp lemming_status_tone(:thinking), do: "warning"
+  defp lemming_status_tone(:error), do: "danger"
+  defp lemming_status_tone("running"), do: "success"
+  defp lemming_status_tone("thinking"), do: "warning"
+  defp lemming_status_tone("error"), do: "danger"
+  defp lemming_status_tone(_status), do: "default"
+
+  defp lemming_status_label(:running), do: dgettext("lemmings", ".status_running")
+  defp lemming_status_label(:thinking), do: dgettext("lemmings", ".status_thinking")
+  defp lemming_status_label(:error), do: dgettext("lemmings", ".status_error")
+  defp lemming_status_label(:idle), do: dgettext("lemmings", ".status_idle")
+  defp lemming_status_label("running"), do: dgettext("lemmings", ".status_running")
+  defp lemming_status_label("thinking"), do: dgettext("lemmings", ".status_thinking")
+  defp lemming_status_label("error"), do: dgettext("lemmings", ".status_error")
+  defp lemming_status_label("idle"), do: dgettext("lemmings", ".status_idle")
+
+  defp lemming_status_label(status) when is_atom(status) do
+    status |> Atom.to_string() |> String.upcase()
+  end
+
+  defp lemming_status_label(status) when is_binary(status), do: String.upcase(status)
+
+  defp issue_status_tone("error"), do: "danger"
+  defp issue_status_tone("warning"), do: "warning"
+  defp issue_status_tone("info"), do: "info"
+  defp issue_status_tone(:error), do: "danger"
+  defp issue_status_tone(:warning), do: "warning"
+  defp issue_status_tone(:info), do: "info"
+  defp issue_status_tone(_severity), do: "default"
+
+  defp issue_status_label("error"), do: dgettext("errors", ".issue_severity_error")
+  defp issue_status_label("warning"), do: dgettext("errors", ".issue_severity_warning")
+  defp issue_status_label("info"), do: dgettext("errors", ".issue_severity_info")
+  defp issue_status_label(:error), do: dgettext("errors", ".issue_severity_error")
+  defp issue_status_label(:warning), do: dgettext("errors", ".issue_severity_warning")
+  defp issue_status_label(:info), do: dgettext("errors", ".issue_severity_info")
+
+  defp issue_status_label(severity) when is_atom(severity) do
+    severity |> Atom.to_string() |> String.upcase()
+  end
+
+  defp issue_status_label(severity) when is_binary(severity), do: String.upcase(severity)
+
+  defp status_value(value) when is_atom(value), do: Atom.to_string(value)
+  defp status_value(value) when is_binary(value), do: value
+  defp status_value(value), do: to_string(value)
 
   defp grid_variant("default"), do: nil
   defp grid_variant("two"), do: "md:grid-cols-2"
