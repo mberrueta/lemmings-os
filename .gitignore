@@ -1,2 +1,5 @@
 /deps/
 _build
+/priv/static/assets/
+/.claude/
+/priv/mocks/

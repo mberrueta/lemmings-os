@@ -89,7 +89,17 @@ defmodule LemmingsOsWeb do
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
-      alias LemmingsOsWeb.Layouts
+
+      alias LemmingsOsWeb.{
+        CityMapComponents,
+        HomeComponents,
+        Layouts,
+        LemmingComponents,
+        MapComponents,
+        SidebarComponents,
+        SystemComponents,
+        WorldComponents
+      }
 
       # Routes generation with the ~p sigil
       unquote(verified_routes())

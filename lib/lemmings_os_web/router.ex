@@ -17,7 +17,15 @@ defmodule LemmingsOsWeb.Router do
   scope "/", LemmingsOsWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", HomeLive, :index
+    live "/world", WorldLive, :index
+    live "/cities", CitiesLive, :index
+    live "/departments", DepartmentsLive, :index
+    live "/lemmings", LemmingsLive, :index
+    live "/lemmings/new", CreateLemmingLive, :index
+    live "/tools", ToolsLive, :index
+    live "/logs", LogsLive, :index
+    live "/settings", SettingsLive, :index
   end
 
   # Other scopes may use custom stacks.

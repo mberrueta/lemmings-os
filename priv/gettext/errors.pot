@@ -107,3 +107,24 @@ msgstr ""
 
 msgid "must be equal to %{number}"
 msgstr ""
+
+#: lib/lemmings_os_web/components/core_components.ex:43
+#, elixir-autogen
+msgid ".aria_close"
+msgstr ""
+
+#: lib/lemmings_os_web/components/layouts.ex:117
+#, elixir-autogen
+msgid ".error_no_internet"
+msgstr ""
+
+#: lib/lemmings_os_web/components/layouts.ex:122
+#: lib/lemmings_os_web/components/layouts.ex:134
+#, elixir-autogen
+msgid ".error_attempting_reconnect"
+msgstr ""
+
+#: lib/lemmings_os_web/components/layouts.ex:129
+#, elixir-autogen
+msgid ".error_something_went_wrong"
+msgstr ""
