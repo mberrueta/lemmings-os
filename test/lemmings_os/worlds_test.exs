@@ -68,6 +68,7 @@ defmodule LemmingsOs.WorldsTest do
     test "returns the default world when one exists" do
       Repo.delete_all(World)
       world = insert(:world)
+      LemmingsOs.WorldCache.invalidate_all()
 
       assert {:ok, default_world} = Worlds.get_default_world()
       assert default_world.id == world.id

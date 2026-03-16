@@ -12,6 +12,7 @@ defmodule LemmingsOs.Application do
     children = [
       LemmingsOsWeb.Telemetry,
       LemmingsOs.Repo,
+      {LemmingsOs.WorldCache, []},
       {DNSCluster, query: Application.get_env(:lemmings_os, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LemmingsOs.PubSub},
       # Start a worker by calling: LemmingsOs.Worker.start_link(arg)

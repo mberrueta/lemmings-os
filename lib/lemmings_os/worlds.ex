@@ -9,6 +9,7 @@ defmodule LemmingsOs.Worlds do
   import Ecto.Query, warn: false
 
   alias LemmingsOs.{Repo, World}
+  alias LemmingsOs.WorldCache
 
   @doc """
   Returns the world for the given persisted ID.
@@ -21,7 +22,12 @@ defmodule LemmingsOs.Worlds do
       true
   """
   @spec get_world!(Ecto.UUID.t()) :: World.t()
-  def get_world!(id), do: Repo.get!(World, id)
+  def get_world!(id) do
+    case fetch_world(id) do
+      {:ok, world} -> world
+      {:error, :not_found} -> raise Ecto.NoResultsError, queryable: World
+    end
+  end
 
   @doc """
   Fetches a world by persisted ID.
@@ -37,7 +43,11 @@ defmodule LemmingsOs.Worlds do
       {:error, :not_found}
   """
   @spec fetch_world(Ecto.UUID.t()) :: {:ok, World.t()} | {:error, :not_found}
-  def fetch_world(id), do: fetch_world_result(Repo.get(World, id))
+  def fetch_world(id) do
+    WorldCache.fetch_world(id, fn ->
+      fetch_world_result(Repo.get(World, id))
+    end)
+  end
 
   @doc """
   Returns the default world for the current node.
@@ -48,6 +58,7 @@ defmodule LemmingsOs.Worlds do
   ## Examples
 
       iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
+      iex> LemmingsOs.WorldCache.invalidate_all()
       iex> world = LemmingsOs.Factory.insert(:world)
       iex> {:ok, default_world} = LemmingsOs.Worlds.get_default_world()
       iex> default_world.id == world.id
@@ -55,14 +66,16 @@ defmodule LemmingsOs.Worlds do
   """
   @spec get_default_world() :: {:ok, World.t()} | {:error, :not_found}
   def get_default_world do
-    query =
-      World
-      |> order_by([world], asc: world.inserted_at, asc: world.id)
-      |> limit(1)
+    WorldCache.fetch_default_world(fn ->
+      query =
+        World
+        |> order_by([world], asc: world.inserted_at, asc: world.id)
+        |> limit(1)
 
-    query
-    |> Repo.one()
-    |> fetch_world_result()
+      query
+      |> Repo.one()
+      |> fetch_world_result()
+    end)
   end
 
   @doc """
@@ -96,6 +109,7 @@ defmodule LemmingsOs.Worlds do
     |> bootstrap_lookup_target()
     |> World.changeset(attrs)
     |> Repo.insert_or_update()
+    |> invalidate_cached_reads()
   end
 
   @doc """
@@ -112,6 +126,14 @@ defmodule LemmingsOs.Worlds do
   def upsert_bootstrap_world(attrs), do: upsert_world(attrs)
 
   defp bootstrap_lookup_target(attrs), do: lookup_world(attrs) || %World{}
+
+  defp invalidate_cached_reads({:ok, %World{id: id} = world}) do
+    WorldCache.invalidate_world(id)
+    WorldCache.invalidate_default_world()
+    {:ok, world}
+  end
+
+  defp invalidate_cached_reads({:error, _changeset} = error), do: error
 
   defp fetch_world_result(%World{} = world), do: {:ok, world}
   defp fetch_world_result(nil), do: {:error, :not_found}

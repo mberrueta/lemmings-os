@@ -8,6 +8,7 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
   """
 
   alias LemmingsOs.World
+  alias LemmingsOs.WorldCache
   alias LemmingsOs.WorldBootstrap.Loader
   alias LemmingsOs.WorldBootstrap.ShapeValidator
   alias LemmingsOs.Worlds
@@ -39,6 +40,8 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
   """
   @spec sync_default_world(keyword()) :: {:ok, sync_result()} | {:error, sync_result()}
   def sync_default_world(opts \\ []) do
+    WorldCache.invalidate_all()
+
     case Loader.load(opts) do
       {:ok, load_result} -> sync_loaded_result(load_result)
       {:error, load_error} -> sync_failed_load(load_error)
