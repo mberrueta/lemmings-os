@@ -20,7 +20,11 @@ defmodule LemmingsOsWeb.WorldComponents do
 
     ~H"""
     <.content_container>
-      <.content_grid id="world-overview-grid" columns="two" class="content-grid--world-overview">
+      <.content_grid
+        id="world-overview-grid"
+        columns="default"
+        class="lg:grid-cols-[minmax(0,5fr)_minmax(11rem,1fr)] lg:items-start"
+      >
         <.panel id="world-map-panel">
           <:title>{dgettext("world", ".title_network_map")}</:title>
           <:subtitle>{dgettext("world", ".subtitle_network_map")}</:subtitle>

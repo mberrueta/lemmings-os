@@ -18,24 +18,28 @@ msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:187
 #: lib/lemmings_os_web/components/lemming_components.ex:419
+#: lib/lemmings_os_web/components/world_components.ex:393
 #, elixir-autogen
 msgid ".status_running"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:188
 #: lib/lemmings_os_web/components/lemming_components.ex:420
+#: lib/lemmings_os_web/components/world_components.ex:394
 #, elixir-autogen
 msgid ".status_thinking"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:189
 #: lib/lemmings_os_web/components/lemming_components.ex:421
+#: lib/lemmings_os_web/components/world_components.ex:395
 #, elixir-autogen
 msgid ".status_error"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:190
 #: lib/lemmings_os_web/components/lemming_components.ex:422
+#: lib/lemmings_os_web/components/world_components.ex:396
 #, elixir-autogen
 msgid ".status_idle"
 msgstr ""
@@ -215,7 +219,7 @@ msgstr ""
 msgid ".page_title_create_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/live/create_lemming_live.ex:45
+#: lib/lemmings_os_web/live/create_lemming_live.ex:49
 #, elixir-autogen
 msgid ".flash_deploy_mock"
 msgstr ""

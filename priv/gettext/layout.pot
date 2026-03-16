@@ -6,122 +6,123 @@
 ## Run `mix gettext.extract` to bring this file up to
 ## date. Leave `msgstr`s empty as changing them here has no
 ## effect: edit them in PO (`.po`) files instead.
-#: lib/lemmings_os_web/components/layouts.ex:56
+#: lib/lemmings_os_web/components/layouts.ex:60
 #, elixir-autogen
 msgid ".aria_open_navigation"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:61
+#: lib/lemmings_os_web/components/layouts.ex:66
 #: lib/lemmings_os_web/components/layouts/root.html.heex:8
 #, elixir-autogen
 msgid ".brand_name"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:69
+#: lib/lemmings_os_web/components/layouts.ex:77
 #, elixir-autogen
 msgid ".terminal_mem"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:70
+#: lib/lemmings_os_web/components/layouts.ex:78
 #, elixir-autogen
 msgid ".terminal_tick"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:71
+#: lib/lemmings_os_web/components/layouts.ex:79
 #, elixir-autogen
 msgid ".terminal_agents"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:22
+#: lib/lemmings_os_web/components/sidebar_components.ex:34
 #, elixir-autogen
 msgid ".sidebar_eyebrow"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:109
+#: lib/lemmings_os_web/components/sidebar_components.ex:139
 #, elixir-autogen
 msgid ".nav_section_overview"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:139
+#: lib/lemmings_os_web/components/sidebar_components.ex:169
 #, elixir-autogen
 msgid ".nav_section_operations"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:111
+#: lib/lemmings_os_web/components/sidebar_components.ex:141
 #, elixir-autogen
 msgid ".nav_home"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:114
+#: lib/lemmings_os_web/components/sidebar_components.ex:144
 #, elixir-autogen
 msgid ".nav_world"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:46
-#: lib/lemmings_os_web/components/sidebar_components.ex:120
+#: lib/lemmings_os_web/components/sidebar_components.ex:150
 #, elixir-autogen
 msgid ".nav_cities"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:49
-#: lib/lemmings_os_web/components/sidebar_components.ex:126
+#: lib/lemmings_os_web/components/sidebar_components.ex:156
+#: lib/lemmings_os_web/components/world_components.ex:248
 #, elixir-autogen
 msgid ".nav_departments"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:52
-#: lib/lemmings_os_web/components/sidebar_components.ex:132
+#: lib/lemmings_os_web/components/sidebar_components.ex:162
 #, elixir-autogen
 msgid ".nav_lemmings"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:55
-#: lib/lemmings_os_web/components/sidebar_components.ex:143
+#: lib/lemmings_os_web/components/sidebar_components.ex:173
 #, elixir-autogen
 msgid ".nav_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:149
+#: lib/lemmings_os_web/components/sidebar_components.ex:179
 #, elixir-autogen
 msgid ".nav_logs"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:155
+#: lib/lemmings_os_web/components/sidebar_components.ex:185
 #, elixir-autogen
 msgid ".nav_settings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:52
+#: lib/lemmings_os_web/components/sidebar_components.ex:68
 #, elixir-autogen
 msgid ".button_new_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:59
+#: lib/lemmings_os_web/components/sidebar_components.ex:75
 #, elixir-autogen
 msgid ".aria_toggle_sidebar"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:67
+#: lib/lemmings_os_web/components/sidebar_components.ex:84
 #, elixir-autogen
 msgid ".footer_agents"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:73
+#: lib/lemmings_os_web/components/sidebar_components.ex:92
 #, elixir-autogen
 msgid ".footer_nodes"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:79
+#: lib/lemmings_os_web/components/sidebar_components.ex:100
 #, elixir-autogen
 msgid ".footer_cpu"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:83
+#: lib/lemmings_os_web/components/sidebar_components.ex:108
 #, elixir-autogen
 msgid ".footer_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:89
+#: lib/lemmings_os_web/components/sidebar_components.ex:119
 #, elixir-autogen
 msgid ".footer_cluster_online"
 msgstr ""
@@ -311,12 +312,12 @@ msgstr ""
 msgid ".page_title_lemmings"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:11
+#: lib/lemmings_os_web/live/cities_live.ex:13
 #, elixir-autogen
 msgid ".page_title_cities"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:11
+#: lib/lemmings_os_web/live/departments_live.ex:13
 #, elixir-autogen
 msgid ".page_title_departments"
 msgstr ""

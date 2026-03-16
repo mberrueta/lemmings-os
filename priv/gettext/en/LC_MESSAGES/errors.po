@@ -116,18 +116,18 @@ msgstr ""
 msgid ".aria_close"
 msgstr "close"
 
-#: lib/lemmings_os_web/components/layouts.ex:107
+#: lib/lemmings_os_web/components/layouts.ex:115
 #, elixir-autogen
 msgid ".error_no_internet"
 msgstr "We can't find the internet"
 
-#: lib/lemmings_os_web/components/layouts.ex:112
-#: lib/lemmings_os_web/components/layouts.ex:124
+#: lib/lemmings_os_web/components/layouts.ex:120
+#: lib/lemmings_os_web/components/layouts.ex:132
 #, elixir-autogen
 msgid ".error_attempting_reconnect"
 msgstr "Attempting to reconnect"
 
-#: lib/lemmings_os_web/components/layouts.ex:119
+#: lib/lemmings_os_web/components/layouts.ex:127
 #, elixir-autogen
 msgid ".error_something_went_wrong"
 msgstr "Something went wrong!"

@@ -64,6 +64,8 @@
 .world-map-canvas {
   position: relative;
   width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
   aspect-ratio: 1.9 / 1;
   overflow: hidden;
   border: 2px solid var(--border);

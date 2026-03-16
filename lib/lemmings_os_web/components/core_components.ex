@@ -223,15 +223,30 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def panel(assigns) do
     ~H"""
-    <section id={@id} class={["pixel-panel", panel_tone(@tone), @class]}>
-      <div :if={@title != [] || @subtitle != [] || @actions != []} class="pixel-panel__header">
-        <div class="pixel-panel__heading">
-          <h2 :if={@title != []} class="pixel-panel__title">{render_slot(@title)}</h2>
-          <p :if={@subtitle != []} class="pixel-panel__subtitle">{render_slot(@subtitle)}</p>
+    <section id={@id} class={panel_classes(@tone, @class)}>
+      <div
+        :if={@title != [] || @subtitle != [] || @actions != []}
+        class="pixel-panel__header flex flex-col gap-[0.8rem] border-b-[3px] border-[var(--border-soft)] p-4"
+      >
+        <div class="pixel-panel__heading flex min-w-0 flex-col gap-1">
+          <h2
+            :if={@title != []}
+            class="pixel-panel__title font-[var(--font-display)] text-[0.95rem] leading-[1.5] text-[var(--accent)]"
+          >
+            {render_slot(@title)}
+          </h2>
+          <p
+            :if={@subtitle != []}
+            class="pixel-panel__subtitle text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]"
+          >
+            {render_slot(@subtitle)}
+          </p>
         </div>
-        <div :if={@actions != []} class="pixel-panel__actions">{render_slot(@actions)}</div>
+        <div :if={@actions != []} class="pixel-panel__actions flex flex-wrap gap-[0.6rem]">
+          {render_slot(@actions)}
+        </div>
       </div>
-      <div class="pixel-panel__body">{render_slot(@inner_block)}</div>
+      <div class="pixel-panel__body flex flex-col gap-4">{render_slot(@inner_block)}</div>
     </section>
     """
   end
@@ -241,18 +256,18 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def content_container(assigns) do
     ~H"""
-    <div class={["page-stack", @class]}>{render_slot(@inner_block)}</div>
+    <div class={["page-stack flex flex-col gap-4", @class]}>{render_slot(@inner_block)}</div>
     """
   end
 
   attr :id, :string, default: nil
-  attr :columns, :string, default: "two", values: ~w(two three sidebar)
+  attr :columns, :string, default: "two", values: ~w(default two three sidebar)
   attr :class, :string, default: nil
   slot :inner_block, required: true
 
   def content_grid(assigns) do
     ~H"""
-    <div id={@id} class={["content-grid", grid_variant(@columns), @class]}>
+    <div id={@id} class={["content-grid grid gap-4", grid_variant(@columns), @class]}>
       {render_slot(@inner_block)}
     </div>
     """
@@ -310,17 +325,23 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def terminal_bar(assigns) do
     ~H"""
-    <div id={@id} class="terminal-bar">
-      <div class="terminal-bar__path">
-        <span class="terminal-bar__prompt-user">{@shell_user}</span><span>@</span><span class="terminal-bar__prompt-host">{@shell_host}</span><span>:</span><span class="terminal-bar__prompt-root">/</span><span :if={
+    <div
+      id={@id}
+      class="terminal-bar flex flex-col gap-3 border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(12,22,15,0.98),rgba(16,25,18,0.98))] px-4 py-[0.85rem] shadow-[7px_7px_0_0_var(--shadow)]"
+    >
+      <div class="terminal-bar__path flex flex-wrap items-center gap-3 gap-x-0 text-[0.86rem] text-[var(--accent)]">
+        <span class="terminal-bar__prompt-user text-[var(--accent)]">{@shell_user}</span><span>@</span><span class="terminal-bar__prompt-host text-[var(--accent-2)]">{@shell_host}</span><span>:</span><span class="terminal-bar__prompt-root text-[var(--muted)]">/</span><span :if={
           @breadcrumb == []
         }>~</span><span :for={{segment, index} <- Enum.with_index(@breadcrumb)}><span
           :if={index > 0}
-          class="terminal-bar__separator"
-        >/</span><.link navigate={segment.to} class="terminal-bar__crumb">{segment.label}</.link></span><span>$</span><span class="terminal-bar__cursor">█</span>
+          class="terminal-bar__separator text-[var(--muted)]"
+        >/</span><.link
+          navigate={segment.to}
+          class="terminal-bar__crumb text-[var(--accent)] transition-colors hover:text-[var(--accent-2)]"
+        >{segment.label}</.link></span><span>$</span><span class="terminal-bar__cursor">█</span>
       </div>
-      <div class="terminal-bar__meta">
-        <span class="terminal-bar__title">{@title}</span>
+      <div class="terminal-bar__meta flex flex-wrap items-center gap-3 text-[0.86rem] text-[var(--muted)]">
+        <span class="terminal-bar__title text-[var(--text)]">{@title}</span>
         <span :for={metric <- @metrics}>{metric}</span>
       </div>
     </div>
@@ -374,12 +395,21 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp button_variant("quiet"), do: "ui-button--quiet"
 
   defp panel_tone("default"), do: nil
-  defp panel_tone("accent"), do: "pixel-panel--accent"
-  defp panel_tone("info"), do: "pixel-panel--info"
-  defp panel_tone("warning"), do: "pixel-panel--warning"
-  defp panel_tone("danger"), do: "pixel-panel--danger"
+  defp panel_tone("accent"), do: "pixel-panel--accent border-[var(--accent)]"
+  defp panel_tone("info"), do: "pixel-panel--info border-[var(--accent-2)]"
+  defp panel_tone("warning"), do: "pixel-panel--warning border-[var(--accent-3)]"
+  defp panel_tone("danger"), do: "pixel-panel--danger border-[var(--danger)]"
 
-  defp grid_variant("two"), do: "content-grid--two"
-  defp grid_variant("three"), do: "content-grid--three"
-  defp grid_variant("sidebar"), do: "content-grid--sidebar"
+  defp panel_classes(tone, class) do
+    [
+      "pixel-panel relative min-w-0 border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(24,40,29,0.96),rgba(14,24,17,0.98))] shadow-[7px_7px_0_0_var(--shadow)]",
+      panel_tone(tone),
+      class
+    ]
+  end
+
+  defp grid_variant("default"), do: nil
+  defp grid_variant("two"), do: "md:grid-cols-2"
+  defp grid_variant("three"), do: "md:grid-cols-3"
+  defp grid_variant("sidebar"), do: "lg:grid-cols-[minmax(0,1.4fr)_minmax(19rem,0.95fr)]"
 end

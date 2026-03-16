@@ -43,22 +43,28 @@ defmodule LemmingsOsWeb.Layouts do
     assigns = assign_new(assigns, :summary, fn -> LemmingsOs.MockData.summary() end)
 
     ~H"""
-    <div class="app-shell">
+    <div class="app-shell grid min-h-screen grid-cols-1 gap-4 p-4 md:grid-cols-[5.5rem_minmax(0,1fr)] md:items-start lg:grid-cols-[18.5rem_minmax(0,1fr)]">
       <SidebarComponents.sidebar active_page={@page_key} summary={@summary} />
 
-      <div id="mobile-backdrop" class="mobile-backdrop" phx-click={toggle_mobile_nav()} />
+      <div
+        id="mobile-backdrop"
+        class="mobile-backdrop fixed inset-0 z-[99] cursor-pointer bg-black/65 opacity-0 pointer-events-none transition-opacity duration-[220ms]"
+        phx-click={close_mobile_nav()}
+      />
 
-      <div class="app-main">
-        <div class="mobile-header">
+      <div class="app-main min-w-0 flex flex-col gap-4">
+        <div class="mobile-header flex items-center justify-between gap-3 border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(12,22,15,0.98),rgba(16,25,18,0.98))] px-[0.85rem] py-[0.65rem] shadow-[7px_7px_0_0_var(--shadow)] md:hidden">
           <button
-            class="mobile-burger"
+            class="mobile-burger inline-flex items-center justify-center border border-[var(--border-soft)] bg-transparent p-[0.35rem] text-[var(--text)] transition duration-150 hover:border-[var(--accent)] hover:text-[var(--accent)]"
             phx-click={toggle_mobile_nav()}
             aria-label={dgettext("layout", ".aria_open_navigation")}
             aria-controls="app-sidebar"
           >
             <.icon name="hero-bars-3" class="size-5" />
           </button>
-          <span class="mobile-header__brand">{dgettext("layout", ".brand_name")}</span>
+          <span class="mobile-header__brand font-[var(--font-display)] text-[0.78rem] uppercase tracking-[0.08em] text-[var(--accent)]">
+            {dgettext("layout", ".brand_name")}
+          </span>
         </div>
 
         <.terminal_bar
@@ -77,7 +83,7 @@ defmodule LemmingsOsWeb.Layouts do
           ]}
         />
 
-        <main class="app-content">
+        <main class="app-content min-w-0">
           {render_slot(@inner_block)}
         </main>
       </div>
@@ -133,5 +139,10 @@ defmodule LemmingsOsWeb.Layouts do
   defp toggle_mobile_nav do
     JS.toggle_class("mobile-open", to: "#app-sidebar")
     |> JS.toggle_class("mobile-open", to: "#mobile-backdrop")
+  end
+
+  defp close_mobile_nav do
+    JS.remove_class("mobile-open", to: "#app-sidebar")
+    |> JS.remove_class("mobile-open", to: "#mobile-backdrop")
   end
 end

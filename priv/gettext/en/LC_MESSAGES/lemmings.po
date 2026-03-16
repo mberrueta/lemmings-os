@@ -22,24 +22,28 @@ msgstr "Use the detailed roster view for full mock records."
 
 #: lib/lemmings_os_web/components/home_components.ex:187
 #: lib/lemmings_os_web/components/lemming_components.ex:419
+#: lib/lemmings_os_web/components/world_components.ex:393
 #, elixir-autogen
 msgid ".status_running"
 msgstr "RUNNING"
 
 #: lib/lemmings_os_web/components/home_components.ex:188
 #: lib/lemmings_os_web/components/lemming_components.ex:420
+#: lib/lemmings_os_web/components/world_components.ex:394
 #, elixir-autogen
 msgid ".status_thinking"
 msgstr "THINKING"
 
 #: lib/lemmings_os_web/components/home_components.ex:189
 #: lib/lemmings_os_web/components/lemming_components.ex:421
+#: lib/lemmings_os_web/components/world_components.ex:395
 #, elixir-autogen
 msgid ".status_error"
 msgstr "ERROR"
 
 #: lib/lemmings_os_web/components/home_components.ex:190
 #: lib/lemmings_os_web/components/lemming_components.ex:422
+#: lib/lemmings_os_web/components/world_components.ex:396
 #, elixir-autogen
 msgid ".status_idle"
 msgstr "IDLE"
@@ -219,7 +223,7 @@ msgstr "This submit path is intentionally mocked. It exercises the LiveView form
 msgid ".page_title_create_lemming"
 msgstr "Create Lemming"
 
-#: lib/lemmings_os_web/live/create_lemming_live.ex:45
+#: lib/lemmings_os_web/live/create_lemming_live.ex:49
 #, elixir-autogen
 msgid ".flash_deploy_mock"
 msgstr "Lemming deployment is mocked in this branch."

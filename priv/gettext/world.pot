@@ -36,135 +36,131 @@ msgstr ""
 msgid ".metric_agents"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:25
+#: lib/lemmings_os_web/components/world_components.ex:29
 #, elixir-autogen
 msgid ".title_network_map"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:26
+#: lib/lemmings_os_web/components/world_components.ex:30
 #, elixir-autogen
 msgid ".subtitle_network_map"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:31
+#: lib/lemmings_os_web/components/world_components.ex:35
 #, elixir-autogen
 msgid ".title_node_summary"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:79
-#: lib/lemmings_os_web/components/world_components.ex:119
-#: lib/lemmings_os_web/components/world_components.ex:156
-#: lib/lemmings_os_web/components/world_components.ex:233
+#: lib/lemmings_os_web/components/world_components.ex:93
+#: lib/lemmings_os_web/components/world_components.ex:166
+#: lib/lemmings_os_web/components/world_components.ex:219
+#: lib/lemmings_os_web/components/world_components.ex:260
+#: lib/lemmings_os_web/components/world_components.ex:346
 #, elixir-autogen
 msgid ".count_agents"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:50
+#: lib/lemmings_os_web/components/world_components.ex:63
 #, elixir-autogen
 msgid ".title_all_cities"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:51
+#: lib/lemmings_os_web/components/world_components.ex:64
 #, elixir-autogen
 msgid ".subtitle_all_cities"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:69
+#: lib/lemmings_os_web/components/world_components.ex:80
+#: lib/lemmings_os_web/components/world_components.ex:147
 #, elixir-autogen
 msgid ".title_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:70
-#, elixir-autogen
-msgid ".subtitle_departments"
-msgstr ""
-
-#: lib/lemmings_os_web/components/world_components.ex:84
-#, elixir-autogen
-msgid ".button_inspect"
-msgstr ""
-
-#: lib/lemmings_os_web/components/world_components.ex:118
+#: lib/lemmings_os_web/components/world_components.ex:218
 #, elixir-autogen
 msgid ".count_depts"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:144
-#, elixir-autogen
-msgid ".button_all_cities"
-msgstr ""
-
-#: lib/lemmings_os_web/components/world_components.ex:155
+#: lib/lemmings_os_web/components/world_components.ex:164
+#: lib/lemmings_os_web/components/world_components.ex:259
 #, elixir-autogen
 msgid ".count_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:172
+#: lib/lemmings_os_web/components/world_components.ex:187
 #, elixir-autogen
 msgid ".empty_no_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:173
+#: lib/lemmings_os_web/components/world_components.ex:188
 #, elixir-autogen
 msgid ".empty_no_departments_copy"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:190
+#: lib/lemmings_os_web/components/world_components.ex:299
 #, elixir-autogen
 msgid ".button_open_dept"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:204
+#: lib/lemmings_os_web/components/world_components.ex:313
 #, elixir-autogen
 msgid ".label_queue"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:205
+#: lib/lemmings_os_web/components/world_components.ex:314
 #, elixir-autogen
 msgid ".label_empty"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:228
+#: lib/lemmings_os_web/components/world_components.ex:341
 #, elixir-autogen
 msgid ".button_all_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:232
+#: lib/lemmings_os_web/components/world_components.ex:345
 #, elixir-autogen
 msgid ".label_node"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:235
+#: lib/lemmings_os_web/components/world_components.ex:348
 #, elixir-autogen
 msgid ".count_queued_tasks"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:242
+#: lib/lemmings_os_web/components/world_components.ex:103
+#: lib/lemmings_os_web/components/world_components.ex:355
 #, elixir-autogen
 msgid ".title_assigned_agents"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:254
+#: lib/lemmings_os_web/components/world_components.ex:367
 #, elixir-autogen
 msgid ".title_task_queue"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:273
+#: lib/lemmings_os_web/components/city_map_components.ex:183
+#: lib/lemmings_os_web/components/city_map_components.ex:186
+#: lib/lemmings_os_web/components/city_map_components.ex:189
+#: lib/lemmings_os_web/components/world_components.ex:386
 #, elixir-autogen
 msgid ".status_online"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:274
+#: lib/lemmings_os_web/components/city_map_components.ex:184
+#: lib/lemmings_os_web/components/city_map_components.ex:187
+#: lib/lemmings_os_web/components/world_components.ex:387
 #, elixir-autogen
 msgid ".status_degraded"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:275
+#: lib/lemmings_os_web/components/city_map_components.ex:185
+#: lib/lemmings_os_web/components/city_map_components.ex:188
+#: lib/lemmings_os_web/components/world_components.ex:388
 #, elixir-autogen
 msgid ".status_offline"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:159
+#: lib/lemmings_os_web/components/world_components.ex:263
 #, elixir-autogen
 msgid ".copy_city_detail_hero"
 msgstr ""
