@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   use LemmingsOsWeb, :html
 
+  alias LemmingsOs.Helpers
   alias LemmingsOs.MockData
 
   @map_cols 45
@@ -99,7 +100,9 @@ defmodule LemmingsOsWeb.WorldComponents do
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <div class="mini-card__title">{dgettext("world", ".label_last_sync")}</div>
-              <p class="mini-card__meta">{format_datetime(@snapshot.last_sync.imported_at)}</p>
+              <p class="mini-card__meta">
+                {Helpers.format_datetime(@snapshot.last_sync.imported_at)}
+              </p>
             </div>
             <.status id="world-last-sync-status" kind={:world} value={@snapshot.last_sync.status} />
           </div>
@@ -109,7 +112,7 @@ defmodule LemmingsOsWeb.WorldComponents do
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <div class="mini-card__title">{dgettext("world", ".title_bootstrap_config")}</div>
-              <p class="mini-card__meta">{display_value(@snapshot.bootstrap.source)}</p>
+              <p class="mini-card__meta">{Helpers.display_value(@snapshot.bootstrap.source)}</p>
             </div>
             <.status id="world-bootstrap-status" kind={:world} value={@snapshot.bootstrap.status} />
           </div>
@@ -211,11 +214,11 @@ defmodule LemmingsOsWeb.WorldComponents do
           <div class="grid gap-3">
             <.stat_item
               label={dgettext("world", ".label_last_imported_at")}
-              value={format_datetime(@snapshot.last_sync.imported_at)}
+              value={Helpers.format_datetime(@snapshot.last_sync.imported_at)}
             />
             <.stat_item
               label={dgettext("world", ".label_last_bootstrap_hash")}
-              value={truncate_value(@snapshot.last_sync.bootstrap_hash)}
+              value={Helpers.truncate_value(@snapshot.last_sync.bootstrap_hash)}
               detail={@snapshot.last_sync.bootstrap_hash}
             />
           </div>
@@ -253,20 +256,20 @@ defmodule LemmingsOsWeb.WorldComponents do
           <div class="grid gap-3 md:grid-cols-2">
             <.stat_item
               label={dgettext("world", ".label_bootstrap_source")}
-              value={display_value(@snapshot.bootstrap.source)}
+              value={Helpers.display_value(@snapshot.bootstrap.source)}
             />
             <.stat_item
               label={dgettext("world", ".label_bootstrap_path")}
-              value={truncate_value(@snapshot.bootstrap.path)}
+              value={Helpers.truncate_value(@snapshot.bootstrap.path)}
               detail={@snapshot.bootstrap.path}
             />
             <.stat_item
               label={runtime_check_label("postgres_connection")}
-              value={display_value(declared_postgres_url_env(@snapshot))}
+              value={Helpers.display_value(declared_postgres_url_env(@snapshot))}
             />
             <.stat_item
               label={dgettext("world", ".title_world_identity")}
-              value={display_value(bootstrap_world_name(@snapshot))}
+              value={Helpers.display_value(bootstrap_world_name(@snapshot))}
               detail={bootstrap_identity_detail(@snapshot)}
             />
           </div>
@@ -312,17 +315,17 @@ defmodule LemmingsOsWeb.WorldComponents do
           <div class="grid gap-3 md:grid-cols-2">
             <.stat_item
               label={dgettext("world", ".label_limits")}
-              value={display_value(Map.get(@declared_limits, :max_cities))}
+              value={Helpers.display_value(Map.get(@declared_limits, :max_cities))}
               detail={limits_detail(@declared_limits)}
             />
             <.stat_item
               label={dgettext("world", ".label_budgets")}
-              value={display_value(Map.get(@declared_budget, :monthly_usd))}
+              value={Helpers.display_value(Map.get(@declared_budget, :monthly_usd))}
               detail={budget_detail(@declared_budget)}
             />
             <.stat_item
               label={dgettext("world", ".label_runtime_defaults")}
-              value={display_value(Map.get(@declared_runtime, :idle_ttl_seconds))}
+              value={Helpers.display_value(Map.get(@declared_runtime, :idle_ttl_seconds))}
               detail={runtime_detail(@declared_runtime)}
             />
             <.stat_item
@@ -828,24 +831,6 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   defp snapshot_placeholders(_snapshot), do: nil
 
-  defp display_value(nil), do: dgettext("world", ".label_not_available")
-  defp display_value(""), do: dgettext("world", ".label_not_available")
-  defp display_value(value) when is_boolean(value), do: if(value, do: "true", else: "false")
-  defp display_value(value), do: to_string(value)
-
-  defp truncate_value(nil), do: dgettext("world", ".label_not_available")
-
-  defp truncate_value(value) when is_binary(value) and byte_size(value) > 24 do
-    "#{String.slice(value, 0, 24)}..."
-  end
-
-  defp truncate_value(value), do: display_value(value)
-
-  defp format_datetime(nil), do: dgettext("world", ".label_not_imported")
-
-  defp format_datetime(%DateTime{} = datetime),
-    do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S UTC")
-
   defp provider_enabled_label(true), do: dgettext("world", ".label_provider_enabled")
   defp provider_enabled_label(false), do: dgettext("world", ".label_provider_disabled")
   defp provider_enabled_label(_value), do: dgettext("world", ".label_not_available")
@@ -860,18 +845,18 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   defp limits_detail(limits) do
     [
-      "#{display_value(Map.get(limits, :max_departments_per_city))} #{dgettext("world", ".label_departments_short")}",
-      "#{display_value(Map.get(limits, :max_lemmings_per_department))} #{dgettext("world", ".label_lemmings_short")}"
+      "#{Helpers.display_value(Map.get(limits, :max_departments_per_city))} #{dgettext("world", ".label_departments_short")}",
+      "#{Helpers.display_value(Map.get(limits, :max_lemmings_per_department))} #{dgettext("world", ".label_lemmings_short")}"
     ]
     |> Enum.join(" / ")
   end
 
   defp budget_detail(budget) do
-    "#{display_value(Map.get(budget, :daily_tokens))} #{dgettext("world", ".label_daily_tokens")}"
+    "#{Helpers.display_value(Map.get(budget, :daily_tokens))} #{dgettext("world", ".label_daily_tokens")}"
   end
 
   defp runtime_detail(runtime) do
-    "#{display_value(Map.get(runtime, :cross_city_communication))} #{dgettext("world", ".label_cross_city_communication")}"
+    "#{Helpers.display_value(Map.get(runtime, :cross_city_communication))} #{dgettext("world", ".label_cross_city_communication")}"
   end
 
   defp placeholder_value(placeholders) do
@@ -889,8 +874,8 @@ defmodule LemmingsOsWeb.WorldComponents do
          bootstrap: %{declared_config: %{world: %{bootstrap_id: bootstrap_id, slug: slug}}}
        }) do
     [
-      "#{dgettext("world", ".label_world_id")}: #{display_value(bootstrap_id)}",
-      "#{dgettext("world", ".label_world_slug")}: #{display_value(slug)}"
+      "#{dgettext("world", ".label_world_id")}: #{Helpers.display_value(bootstrap_id)}",
+      "#{dgettext("world", ".label_world_slug")}: #{Helpers.display_value(slug)}"
     ]
     |> Enum.join(" / ")
   end

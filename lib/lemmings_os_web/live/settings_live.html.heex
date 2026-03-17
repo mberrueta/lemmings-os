@@ -8,5 +8,106 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <SystemComponents.settings_page form={@form} />
+  <.content_container>
+    <.panel id="settings-page" tone="accent">
+      <:title>{dgettext("layout", ".title_settings")}</:title>
+      <:subtitle>{dgettext("layout", ".subtitle_settings")}</:subtitle>
+      <div class="grid gap-3 md:grid-cols-2">
+        <div id="settings-instance-card" class="mini-card">
+          <div class="mini-card__title">{dgettext("layout", ".settings_instance_title")}</div>
+          <p class="mini-card__meta">
+            {dgettext("layout", ".settings_app_version_label")}{" "}
+            {Helpers.display_value(@snapshot.instance.app_version)}
+          </p>
+          <div class="mt-3 grid gap-3">
+            <.stat_item
+              label={dgettext("layout", ".settings_node_label")}
+              value={Helpers.display_value(@snapshot.instance.node_name)}
+            />
+            <.stat_item
+              label={dgettext("layout", ".settings_host_label")}
+              value={Helpers.display_value(@snapshot.instance.host_name)}
+            />
+            <.stat_item
+              label={dgettext("layout", ".settings_elixir_label")}
+              value={Helpers.display_value(@snapshot.instance.elixir_version)}
+            />
+            <.stat_item
+              label={dgettext("layout", ".settings_otp_label")}
+              value={Helpers.display_value(@snapshot.instance.otp_release)}
+            />
+          </div>
+        </div>
+
+        <div id="settings-world-card" class="mini-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">
+                {dgettext("layout", ".settings_current_world_title")}
+              </div>
+              <p class="mini-card__meta">{Helpers.display_value(@snapshot.world.name)}</p>
+            </div>
+            <.status kind={:world} value={@snapshot.world.status} />
+          </div>
+          <div class="mt-3 grid gap-3">
+            <.stat_item label="Slug" value={Helpers.display_value(@snapshot.world.slug)} />
+            <.stat_item
+              label={dgettext("world", ".label_last_sync")}
+              value={status_label(@snapshot.sync.status)}
+            />
+          </div>
+        </div>
+      </div>
+    </.panel>
+
+    <.content_grid columns="sidebar">
+      <.panel id="settings-bootstrap-panel">
+        <:title>{dgettext("world", ".title_bootstrap_config")}</:title>
+        <div class="page-stack">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 p-2">
+              <p class="text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+                {dgettext("layout", ".settings_validation_summary_title")}
+              </p>
+              <p class="mini-card__meta">
+                {validation_detail(@snapshot.bootstrap.issue_count)}
+              </p>
+            </div>
+            <.status kind={:world} class="mt-3 mr-2" value={@snapshot.bootstrap.status} />
+          </div>
+
+          <div class="grid gap-3">
+            <.stat_item
+              label={dgettext("world", ".label_bootstrap_path")}
+              value={Helpers.truncate_value(@snapshot.bootstrap.path, max_length: 48)}
+              detail={@snapshot.bootstrap.path}
+            />
+            <.stat_item
+              label={dgettext("world", ".label_last_imported_at")}
+              value={Helpers.format_datetime(@snapshot.sync.imported_at)}
+            />
+          </div>
+        </div>
+      </.panel>
+
+      <.panel id="settings-help-panel">
+        <:title>{dgettext("layout", ".title_environment_notes")}</:title>
+        <div class="page-stack">
+          <p class="text-sm text-[var(--muted)]">
+            {dgettext("layout", ".settings_read_only_copy")}
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <.button
+              :for={link <- @snapshot.help_links}
+              id={"settings-help-link-#{link.id}"}
+              navigate={link.to}
+              variant="ghost"
+            >
+              {help_link_label(link.id)}
+            </.button>
+          </div>
+        </div>
+      </.panel>
+    </.content_grid>
+  </.content_container>
 </Layouts.app>

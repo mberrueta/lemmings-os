@@ -82,7 +82,7 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
 
     assert has_element?(tools_view, "#tools-page")
     assert has_element?(logs_view, "#logs-page")
-    assert has_element?(settings_view, "#settings-form")
+    assert has_element?(settings_view, "#settings-page")
     assert has_element?(create_view, "#create-lemming-form")
   end
 

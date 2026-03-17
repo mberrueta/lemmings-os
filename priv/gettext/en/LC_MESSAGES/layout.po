@@ -72,7 +72,7 @@ msgstr "Cities"
 
 #: lib/lemmings_os_web/components/home_components.ex:49
 #: lib/lemmings_os_web/components/sidebar_components.ex:157
-#: lib/lemmings_os_web/components/world_components.ex:652
+#: lib/lemmings_os_web/components/world_components.ex:655
 #: lib/lemmings_os_web/live/mock_shell.ex:45
 #, elixir-autogen
 msgid ".nav_departments"
@@ -264,55 +264,21 @@ msgstr "Global event timeline from the mock management environment."
 msgid ".logs_waiting_for_events"
 msgstr "Waiting for events..."
 
-#: lib/lemmings_os_web/components/system_components.ex:72
+#: lib/lemmings_os_web/live/settings_live.html.heex:13
 #, elixir-autogen
 msgid ".title_settings"
 msgstr "Settings"
 
-#: lib/lemmings_os_web/components/system_components.ex:73
+#: lib/lemmings_os_web/live/settings_live.html.heex:14
 #, elixir-autogen
 msgid ".subtitle_settings"
 msgstr "Visual-only controls using the final shell primitives."
 
-#: lib/lemmings_os_web/components/system_components.ex:76
-#, elixir-autogen
-msgid ".label_world_name"
-msgstr "World Name"
-
-#: lib/lemmings_os_web/components/system_components.ex:80
-#, elixir-autogen
-msgid ".label_max_agents"
-msgstr "Max Agents"
-
-#: lib/lemmings_os_web/components/system_components.ex:85
-#, elixir-autogen
-msgid ".label_default_model"
-msgstr "Default Model"
-
-#: lib/lemmings_os_web/components/system_components.ex:95
-#, elixir-autogen
-msgid ".label_log_level"
-msgstr "Log Level"
-
-#: lib/lemmings_os_web/components/system_components.ex:103
-#, elixir-autogen
-msgid ".button_save_config"
-msgstr "Save Config"
-
-#: lib/lemmings_os_web/components/system_components.ex:109
+#: lib/lemmings_os_web/live/settings_live.ex:27
+#: lib/lemmings_os_web/live/settings_live.html.heex:94
 #, elixir-autogen
 msgid ".title_environment_notes"
 msgstr "Environment Notes"
-
-#: lib/lemmings_os_web/components/system_components.ex:111
-#, elixir-autogen
-msgid ".badge_visual_mock_only"
-msgstr "Visual mock only"
-
-#: lib/lemmings_os_web/components/system_components.ex:113
-#, elixir-autogen
-msgid ".copy_settings_mock_note"
-msgstr "These controls now behave like Phoenix forms and use the shared component primitives, but they do not persist changes yet. The next tickets can connect them to real LiveView-backed state safely."
 
 #: lib/lemmings_os_web/live/home_live.ex:11
 #, elixir-autogen
@@ -349,15 +315,85 @@ msgstr "Tools"
 msgid ".page_title_logs"
 msgstr "Logs"
 
-#: lib/lemmings_os_web/live/settings_live.ex:9
+#: lib/lemmings_os_web/live/settings_live.ex:12
 #, elixir-autogen
 msgid ".page_title_settings"
 msgstr "Settings"
 
-#: lib/lemmings_os_web/live/settings_live.ex:21
+#: lib/lemmings_os_web/live/settings_live.ex:16
 #, elixir-autogen
-msgid ".flash_settings_mock"
-msgstr "Settings are mocked in this branch and were not persisted."
+msgid ".settings_validation_summary_zero"
+msgstr "No issues detected"
+
+#: lib/lemmings_os_web/live/settings_live.ex:17
+#, elixir-autogen
+msgid ".settings_validation_summary_one"
+msgstr "1 issue detected"
+
+#: lib/lemmings_os_web/live/settings_live.ex:20
+#, elixir-autogen
+msgid ".settings_validation_summary_many"
+msgstr "%{count} issues detected"
+
+#: lib/lemmings_os_web/live/settings_live.ex:24
+#, elixir-autogen
+msgid ".settings_help_link_world"
+msgstr "Open World"
+
+#: lib/lemmings_os_web/live/settings_live.ex:25
+#, elixir-autogen
+msgid ".settings_help_link_logs"
+msgstr "View Logs"
+
+#: lib/lemmings_os_web/live/settings_live.ex:26
+#, elixir-autogen
+msgid ".settings_help_link_tools"
+msgstr "Inspect Tools"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:17
+#, elixir-autogen
+msgid ".settings_instance_title"
+msgstr "Instance"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:19
+#, elixir-autogen
+msgid ".settings_app_version_label"
+msgstr "Version"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:24
+#, elixir-autogen
+msgid ".settings_node_label"
+msgstr "Node"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:28
+#, elixir-autogen
+msgid ".settings_host_label"
+msgstr "Host"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:32
+#, elixir-autogen
+msgid ".settings_elixir_label"
+msgstr "Elixir"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:36
+#, elixir-autogen
+msgid ".settings_otp_label"
+msgstr "OTP"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:46
+#, elixir-autogen
+msgid ".settings_current_world_title"
+msgstr "Current World"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:70
+#, elixir-autogen
+msgid ".settings_validation_summary_title"
+msgstr "Validation Summary"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:97
+#, elixir-autogen
+msgid ".settings_read_only_copy"
+msgstr "Settings is read-only in this slice. Use these pages to inspect world/bootstrap/runtime state."
 
 #: lib/lemmings_os_web/components/layouts/root.html.heex:9
 #, elixir-autogen
