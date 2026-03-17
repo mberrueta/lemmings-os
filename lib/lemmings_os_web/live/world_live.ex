@@ -12,7 +12,6 @@ defmodule LemmingsOsWeb.WorldLive do
      socket
      |> assign_shell(:world, dgettext("layout", ".page_title_world"))
      |> assign(:active_tab, "overview")
-     |> assign(:map_cities, [])
      |> assign(:snapshot, nil)
      |> assign(:last_import_result, nil)
      |> load_snapshot()}
@@ -34,14 +33,14 @@ defmodule LemmingsOsWeb.WorldLive do
   defp load_snapshot(socket, import_result \\ nil) do
     case WorldPageSnapshot.build(snapshot_opts(import_result)) do
       {:ok, snapshot} ->
+        snapshot = put_mock_world_cities(snapshot)
+
         socket
-        |> assign(:map_cities, world_map_cities())
         |> assign(:snapshot, snapshot)
         |> assign(:last_import_result, normalize_import_result(import_result))
 
       {:error, :not_found} ->
         socket
-        |> assign(:map_cities, [])
         |> assign(:snapshot, nil)
         |> assign(:last_import_result, normalize_import_result(import_result))
     end
@@ -67,10 +66,14 @@ defmodule LemmingsOsWeb.WorldLive do
   defp normalize_tab("runtime"), do: "runtime"
   defp normalize_tab(_tab), do: "overview"
 
-  # TODO(task 07 follow-up): replace this mock city topology once the Cities slice
-  # provides real world-scoped data. World identity/bootstrap/runtime already come
-  # from the persisted snapshot; only the city topology remains mocked for now.
-  defp world_map_cities do
+  # TODO(task 07 follow-up): replace `world.cities` with real world-scoped city
+  # topology once the Cities slice exists. This mock data is attached explicitly
+  # to the World snapshot so the remaining fake authority is visible in code.
+  defp put_mock_world_cities(snapshot) do
+    %{snapshot | world: Map.put(snapshot.world, :cities, mock_world_cities())}
+  end
+
+  defp mock_world_cities do
     MockData.cities()
     |> Enum.map(&to_world_map_city/1)
   end

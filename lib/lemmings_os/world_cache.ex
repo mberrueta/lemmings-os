@@ -82,8 +82,16 @@ defmodule LemmingsOs.WorldCache do
 
   defp fetch(key, loader) do
     case Cachex.get(@cache_name, key) do
-      {:ok, nil} -> put_and_return(key, loader.())
-      {:ok, value} -> value
+      {:ok, nil} ->
+        result = loader.()
+
+        case result do
+          {:ok, _} -> put_and_return(key, result)
+          _ -> result
+        end
+
+      {:ok, value} ->
+        value
     end
   end
 

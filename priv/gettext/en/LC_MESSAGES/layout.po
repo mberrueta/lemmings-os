@@ -10,28 +10,28 @@ msgid ""
 msgstr ""
 "Language: en\n"
 
-#: lib/lemmings_os_web/components/layouts.ex:61
+#: lib/lemmings_os_web/components/layouts.ex:59
 #, elixir-autogen
 msgid ".aria_open_navigation"
 msgstr "Open navigation"
 
-#: lib/lemmings_os_web/components/layouts.ex:68
+#: lib/lemmings_os_web/components/layouts.ex:66
 #: lib/lemmings_os_web/components/layouts/root.html.heex:8
 #, elixir-autogen
 msgid ".brand_name"
 msgstr "LemmingsOS"
 
-#: lib/lemmings_os_web/components/layouts.ex:79
+#: lib/lemmings_os_web/components/layouts.ex:77
 #, elixir-autogen
 msgid ".terminal_mem"
 msgstr "MEM: %{value}"
 
-#: lib/lemmings_os_web/components/layouts.ex:80
+#: lib/lemmings_os_web/components/layouts.ex:78
 #, elixir-autogen
 msgid ".terminal_tick"
 msgstr "TICK: %{value}"
 
-#: lib/lemmings_os_web/components/layouts.ex:81
+#: lib/lemmings_os_web/components/layouts.ex:79
 #, elixir-autogen
 msgid ".terminal_agents"
 msgstr "AGENTS: %{current}/%{max}"
@@ -72,7 +72,7 @@ msgid ".nav_cities"
 msgstr "Cities"
 
 #: lib/lemmings_os_web/components/sidebar_components.ex:157
-#: lib/lemmings_os_web/components/world_components.ex:671
+#: lib/lemmings_os_web/components/world_components.ex:668
 #: lib/lemmings_os_web/live/mock_shell.ex:45
 #, elixir-autogen
 msgid ".nav_departments"

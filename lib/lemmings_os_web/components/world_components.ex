@@ -13,7 +13,6 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   attr :snapshot, :map, default: nil
   attr :import_result, :map, default: nil
-  attr :map_cities, :list, default: []
   attr :active_tab, :string, default: "overview"
 
   def world_page(assigns) do
@@ -34,7 +33,6 @@ defmodule LemmingsOsWeb.WorldComponents do
       <.world_snapshot
         :if={@snapshot}
         active_tab={@active_tab}
-        map_cities={@map_cities}
         snapshot={@snapshot}
         bootstrap_issues={@bootstrap_issues}
         import_issues={@import_issues}
@@ -51,7 +49,6 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   attr :snapshot, :map, required: true
   attr :active_tab, :string, required: true
-  attr :map_cities, :list, required: true
   attr :bootstrap_issues, :list, required: true
   attr :import_issues, :list, required: true
   attr :runtime_checks, :list, required: true
@@ -169,7 +166,7 @@ defmodule LemmingsOsWeb.WorldComponents do
       <.panel id="world-map-panel" tone="accent">
         <%!-- TODO(task 07 follow-up): the world topology still uses mock city data
           until the Cities slice exposes real world-scoped topology. --%>
-        <MapComponents.world_map id="world-map" cities={@map_cities} />
+        <MapComponents.world_map id="world-map" cities={Map.get(@snapshot.world, :cities, [])} />
       </.panel>
     </div>
 

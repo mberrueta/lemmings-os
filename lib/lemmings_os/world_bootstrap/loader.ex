@@ -8,7 +8,7 @@ defmodule LemmingsOs.WorldBootstrap.Loader do
   """
 
   alias LemmingsOs.WorldBootstrap.PathResolver
-  alias LemmingsOsWeb.Gettext, as: AppGettext
+  alias LemmingsOs.Gettext, as: AppGettext
 
   @type issue :: %{
           severity: String.t(),

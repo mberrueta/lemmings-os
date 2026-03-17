@@ -17,6 +17,10 @@ defmodule LemmingsOs.World do
 
   @statuses ~w(ok degraded unavailable invalid unknown)
 
+  @required ~w(slug name status last_import_status)a
+  @optional ~w(bootstrap_source bootstrap_path last_bootstrap_hash
+               last_imported_at limits_config runtime_config costs_config models_config)a
+
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
           slug: String.t() | nil,
@@ -58,21 +62,8 @@ defmodule LemmingsOs.World do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(world, attrs) do
     world
-    |> cast(attrs, [
-      :slug,
-      :name,
-      :status,
-      :bootstrap_source,
-      :bootstrap_path,
-      :last_bootstrap_hash,
-      :last_import_status,
-      :last_imported_at,
-      :limits_config,
-      :runtime_config,
-      :costs_config,
-      :models_config
-    ])
-    |> validate_required([:slug, :name, :status, :last_import_status])
+    |> cast(attrs, @required ++ @optional)
+    |> validate_required(@required)
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:last_import_status, @statuses)
     |> unique_constraint(:slug)
@@ -92,22 +83,22 @@ defmodule LemmingsOs.World do
   def translate_status(%__MODULE__{} = world), do: translate_status(world.status)
 
   def translate_status("ok"),
-    do: Gettext.dgettext(LemmingsOsWeb.Gettext, "world", ".world_status_ok")
+    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_ok")
 
   def translate_status("degraded"),
-    do: Gettext.dgettext(LemmingsOsWeb.Gettext, "world", ".world_status_degraded")
+    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_degraded")
 
   def translate_status("unavailable"),
-    do: Gettext.dgettext(LemmingsOsWeb.Gettext, "world", ".world_status_unavailable")
+    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_unavailable")
 
   def translate_status("invalid"),
-    do: Gettext.dgettext(LemmingsOsWeb.Gettext, "world", ".world_status_invalid")
+    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_invalid")
 
   def translate_status("unknown"),
-    do: Gettext.dgettext(LemmingsOsWeb.Gettext, "world", ".world_status_unknown")
+    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_unknown")
 
   def translate_status(nil),
-    do: Gettext.dgettext(LemmingsOsWeb.Gettext, "world", ".world_status_unknown")
+    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_unknown")
 
   @doc """
   Returns world status options suitable for form selects and filters.

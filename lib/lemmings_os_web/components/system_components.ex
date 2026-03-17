@@ -20,7 +20,7 @@ defmodule LemmingsOsWeb.SystemComponents do
           </div>
           <p class="mini-card__meta">
             {Helpers.display_value(@tool.description,
-              default: dgettext("layout", ".tools_description_unavailable")
+              unavailable_label: dgettext("layout", ".tools_description_unavailable")
             )}
           </p>
         </div>

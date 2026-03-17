@@ -84,6 +84,36 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
     assert has_element?(view, "#tool-policy-status-git[data-status='unknown']")
   end
 
+  test "renders the explicit unavailable description label for tools without description", %{
+    conn: conn
+  } do
+    put_tools_fetchers(
+      runtime_fetcher: fn ->
+        {:ok,
+         [
+           %{
+             id: "terminal",
+             name: "Terminal",
+             description: nil,
+             icon: "hero-command-line",
+             category: "operations",
+             risk: "high",
+             usage_count: 3
+           }
+         ]}
+      end,
+      policy_fetcher: fn -> :deferred end
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/tools")
+
+    assert has_element?(
+             view,
+             "#tool-card-terminal .mini-card__meta",
+             "No runtime description available."
+           )
+  end
+
   defp put_tools_fetchers(opts) do
     runtime_fetcher = Keyword.get(opts, :runtime_fetcher, fn -> {:ok, runtime_tools()} end)
     policy_fetcher = Keyword.fetch!(opts, :policy_fetcher)

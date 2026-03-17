@@ -3,7 +3,7 @@ defmodule LemmingsOs.Helpers do
   Shared formatting and presence helpers used across the application.
   """
 
-  use Gettext, backend: LemmingsOsWeb.Gettext
+  use Gettext, backend: LemmingsOs.Gettext
 
   @doc """
   Returns true when the value should be treated as blank.
