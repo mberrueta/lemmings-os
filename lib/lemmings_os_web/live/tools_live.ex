@@ -35,11 +35,19 @@ defmodule LemmingsOsWeb.ToolsLive do
   end
 
   defp runtime_fetcher do
-    Application.get_env(:lemmings_os, :tools_runtime_fetcher, fn -> {:error, :not_implemented} end)
+    Application.get_env(
+      :lemmings_os,
+      :tools_runtime_fetcher,
+      LemmingsOs.Tools.DefaultRuntimeFetcher
+    )
   end
 
   defp policy_fetcher do
-    Application.get_env(:lemmings_os, :tools_policy_fetcher, fn -> :deferred end)
+    Application.get_env(
+      :lemmings_os,
+      :tools_policy_fetcher,
+      LemmingsOs.Tools.DefaultPolicyFetcher
+    )
   end
 
   defp build_filter_form(query), do: to_form(%{"query" => query}, as: :filter)

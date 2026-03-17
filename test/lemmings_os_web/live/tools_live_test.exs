@@ -1,17 +1,17 @@
 defmodule LemmingsOsWeb.ToolsLiveTest do
-  use LemmingsOsWeb.ConnCase
+  use LemmingsOsWeb.ConnCase, async: true
 
+  import Mox
   import Phoenix.LiveViewTest
 
+  alias LemmingsOs.Tools.MockPolicyFetcher
+  alias LemmingsOs.Tools.MockRuntimeFetcher
+
+  setup :verify_on_exit!
+
   setup do
-    Application.delete_env(:lemmings_os, :tools_runtime_fetcher)
-    Application.delete_env(:lemmings_os, :tools_policy_fetcher)
-
-    on_exit(fn ->
-      Application.delete_env(:lemmings_os, :tools_runtime_fetcher)
-      Application.delete_env(:lemmings_os, :tools_policy_fetcher)
-    end)
-
+    stub(MockRuntimeFetcher, :fetch, fn -> {:error, :not_implemented} end)
+    stub(MockPolicyFetcher, :fetch, fn -> :deferred end)
     :ok
   end
 
@@ -29,7 +29,7 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
   end
 
   test "renders runtime tools with deferred policy reconciliation", %{conn: conn} do
-    put_tools_fetchers(policy_fetcher: fn -> :deferred end)
+    stub(MockRuntimeFetcher, :fetch, fn -> {:ok, runtime_tools()} end)
 
     {:ok, view, _html} = live(conn, ~p"/tools")
 
@@ -45,10 +45,7 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
   test "renders unavailable runtime state explicitly when the runtime source times out", %{
     conn: conn
   } do
-    put_tools_fetchers(
-      runtime_fetcher: fn -> {:error, :timeout} end,
-      policy_fetcher: fn -> :deferred end
-    )
+    stub(MockRuntimeFetcher, :fetch, fn -> {:error, :timeout} end)
 
     {:ok, view, _html} = live(conn, ~p"/tools")
 
@@ -60,7 +57,7 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
   end
 
   test "filters runtime tools locally without reloading the page", %{conn: conn} do
-    put_tools_fetchers(policy_fetcher: fn -> :deferred end)
+    stub(MockRuntimeFetcher, :fetch, fn -> {:ok, runtime_tools()} end)
 
     {:ok, view, _html} = live(conn, ~p"/tools")
 
@@ -73,7 +70,8 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
   end
 
   test "renders partial policy reconciliation explicitly", %{conn: conn} do
-    put_tools_fetchers(policy_fetcher: fn -> {:ok, %{"terminal" => "ok"}} end)
+    stub(MockRuntimeFetcher, :fetch, fn -> {:ok, runtime_tools()} end)
+    stub(MockPolicyFetcher, :fetch, fn -> {:ok, %{"terminal" => "ok"}} end)
 
     {:ok, view, _html} = live(conn, ~p"/tools")
 
@@ -87,23 +85,20 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
   test "renders the explicit unavailable description label for tools without description", %{
     conn: conn
   } do
-    put_tools_fetchers(
-      runtime_fetcher: fn ->
-        {:ok,
-         [
-           %{
-             id: "terminal",
-             name: "Terminal",
-             description: nil,
-             icon: "hero-command-line",
-             category: "operations",
-             risk: "high",
-             usage_count: 3
-           }
-         ]}
-      end,
-      policy_fetcher: fn -> :deferred end
-    )
+    stub(MockRuntimeFetcher, :fetch, fn ->
+      {:ok,
+       [
+         %{
+           id: "terminal",
+           name: "Terminal",
+           description: nil,
+           icon: "hero-command-line",
+           category: "operations",
+           risk: "high",
+           usage_count: 3
+         }
+       ]}
+    end)
 
     {:ok, view, _html} = live(conn, ~p"/tools")
 
@@ -112,14 +107,6 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
              "#tool-card-terminal .mini-card__meta",
              "No runtime description available."
            )
-  end
-
-  defp put_tools_fetchers(opts) do
-    runtime_fetcher = Keyword.get(opts, :runtime_fetcher, fn -> {:ok, runtime_tools()} end)
-    policy_fetcher = Keyword.fetch!(opts, :policy_fetcher)
-
-    Application.put_env(:lemmings_os, :tools_runtime_fetcher, runtime_fetcher)
-    Application.put_env(:lemmings_os, :tools_policy_fetcher, policy_fetcher)
   end
 
   defp runtime_tools do

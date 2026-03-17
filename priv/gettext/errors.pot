@@ -37,6 +37,81 @@ msgstr ""
 msgid ".bootstrap_input_not_configured_empty_path_detail"
 msgstr ""
 
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:51
+#, elixir-autogen
+msgid ".shape_invalid_root_type_summary"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:52
+#, elixir-autogen
+msgid ".shape_invalid_root_type_detail"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:54
+#, elixir-autogen
+msgid ".shape_invalid_root_type_action_hint"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:306
+#, elixir-autogen
+msgid ".shape_missing_required_section_summary"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:307
+#, elixir-autogen
+msgid ".shape_missing_required_section_detail"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:309
+#, elixir-autogen
+msgid ".shape_missing_required_section_action_hint"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:316
+#, elixir-autogen
+msgid ".shape_missing_required_value_summary"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:317
+#, elixir-autogen
+msgid ".shape_missing_required_value_detail"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:319
+#, elixir-autogen
+msgid ".shape_missing_required_value_action_hint"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:326
+#, elixir-autogen
+msgid ".shape_invalid_value_type_summary"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:327
+#, elixir-autogen
+msgid ".shape_invalid_value_type_detail"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:332
+#, elixir-autogen
+msgid ".shape_invalid_value_type_action_hint"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:342
+#, elixir-autogen
+msgid ".shape_unknown_key_summary"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:343
+#, elixir-autogen
+msgid ".shape_unknown_key_detail"
+msgstr ""
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:346
+#, elixir-autogen
+msgid ".shape_unknown_key_action_hint"
+msgstr ""
+
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"
 msgstr ""
@@ -136,43 +211,4 @@ msgid "must be greater than or equal to %{number}"
 msgstr ""
 
 msgid "must be equal to %{number}"
-msgstr ""
-
-#: lib/lemmings_os_web/components/core_components.ex:44
-#, elixir-autogen
-msgid ".aria_close"
-msgstr ""
-
-#: lib/lemmings_os_web/components/layouts.ex:115
-#, elixir-autogen
-msgid ".error_no_internet"
-msgstr ""
-
-#: lib/lemmings_os_web/components/layouts.ex:120
-#: lib/lemmings_os_web/components/layouts.ex:132
-#, elixir-autogen
-msgid ".error_attempting_reconnect"
-msgstr ""
-
-#: lib/lemmings_os_web/components/layouts.ex:127
-#, elixir-autogen
-msgid ".error_something_went_wrong"
-msgstr ""
-
-#: lib/lemmings_os_web/components/core_components.ex:523
-#: lib/lemmings_os_web/components/core_components.ex:526
-#, elixir-autogen, elixir-format
-msgid ".issue_severity_error"
-msgstr ""
-
-#: lib/lemmings_os_web/components/core_components.ex:525
-#: lib/lemmings_os_web/components/core_components.ex:528
-#, elixir-autogen, elixir-format
-msgid ".issue_severity_info"
-msgstr ""
-
-#: lib/lemmings_os_web/components/core_components.ex:524
-#: lib/lemmings_os_web/components/core_components.ex:527
-#, elixir-autogen, elixir-format
-msgid ".issue_severity_warning"
 msgstr ""

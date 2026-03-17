@@ -33,16 +33,16 @@ defmodule LemmingsOs.WorldBootstrap.Loader do
       iex> result.path == path
       true
   """
+  @spec load(keyword() | PathResolver.resolved_path()) ::
+          {:ok, load_success()} | {:error, load_error()}
   def load(input \\ [])
 
-  @spec load(keyword()) :: {:ok, load_success()} | {:error, load_error()}
   def load(opts) when is_list(opts) do
     opts
     |> resolved_path()
     |> load()
   end
 
-  @spec load(PathResolver.resolved_path()) :: {:ok, load_success()} | {:error, load_error()}
   def load(%{path: path, source: source} = resolved_path)
       when is_binary(path) and is_binary(source) do
     case YamlElixir.read_from_file(path) do

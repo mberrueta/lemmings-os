@@ -356,34 +356,34 @@ msgstr "Usage"
 msgid ".tools_description_unavailable"
 msgstr "No runtime description available."
 
-#: lib/lemmings_os_web/live/tools_live.ex:99
+#: lib/lemmings_os_web/live/tools_live.ex:107
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_copy"
 msgstr "The runtime capability source is available but returned no tool entries."
 
-#: lib/lemmings_os_web/live/tools_live.ex:100
+#: lib/lemmings_os_web/live/tools_live.ex:108
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_filtered_copy"
 msgstr "Adjust the local filter to inspect the current runtime capability set."
 
-#: lib/lemmings_os_web/live/tools_live.ex:95
+#: lib/lemmings_os_web/live/tools_live.ex:103
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_filtered_title"
 msgstr "No tools match this filter"
 
-#: lib/lemmings_os_web/live/tools_live.ex:97
-#: lib/lemmings_os_web/live/tools_live.ex:98
+#: lib/lemmings_os_web/live/tools_live.ex:105
+#: lib/lemmings_os_web/live/tools_live.ex:106
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_runtime_copy"
 msgstr "The runtime capability source is unavailable, so no tool entries can be shown yet."
 
-#: lib/lemmings_os_web/live/tools_live.ex:92
-#: lib/lemmings_os_web/live/tools_live.ex:93
+#: lib/lemmings_os_web/live/tools_live.ex:100
+#: lib/lemmings_os_web/live/tools_live.ex:101
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_runtime_title"
 msgstr "Runtime capability unavailable"
 
-#: lib/lemmings_os_web/live/tools_live.ex:94
+#: lib/lemmings_os_web/live/tools_live.ex:102
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_title"
 msgstr "No runtime tools registered"
@@ -403,57 +403,57 @@ msgstr "Search by name, category, or risk"
 msgid ".tools_health_title"
 msgstr "Page Health"
 
-#: lib/lemmings_os_web/live/tools_live.ex:135
+#: lib/lemmings_os_web/live/tools_live.ex:143
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_partial_action"
 msgstr "Treat policy state as partial until reconciliation is implemented."
 
-#: lib/lemmings_os_web/live/tools_live.ex:121
+#: lib/lemmings_os_web/live/tools_live.ex:129
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_partial_detail"
 msgstr "%{count} runtime tools still have deferred policy reconciliation."
 
-#: lib/lemmings_os_web/live/tools_live.ex:110
+#: lib/lemmings_os_web/live/tools_live.ex:118
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_partial_summary"
 msgstr "Policy reconciliation is partial"
 
-#: lib/lemmings_os_web/live/tools_live.ex:138
+#: lib/lemmings_os_web/live/tools_live.ex:146
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_unavailable_action"
 msgstr "Use runtime capability facts as primary until policy state is available."
 
-#: lib/lemmings_os_web/live/tools_live.ex:127
+#: lib/lemmings_os_web/live/tools_live.ex:135
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_unavailable_detail"
 msgstr "The runtime tool set is available, but policy reconciliation could not be loaded."
 
-#: lib/lemmings_os_web/live/tools_live.ex:113
+#: lib/lemmings_os_web/live/tools_live.ex:121
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_unavailable_summary"
 msgstr "Policy state unavailable"
 
-#: lib/lemmings_os_web/live/tools_live.ex:132
+#: lib/lemmings_os_web/live/tools_live.ex:140
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_runtime_source_unavailable_action"
 msgstr "Verify the runtime capability source before relying on tool availability."
 
-#: lib/lemmings_os_web/live/tools_live.ex:118
+#: lib/lemmings_os_web/live/tools_live.ex:126
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_runtime_source_unavailable_detail"
 msgstr "The page could not obtain runtime capability data from the current source."
 
-#: lib/lemmings_os_web/live/tools_live.ex:107
+#: lib/lemmings_os_web/live/tools_live.ex:115
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_runtime_source_unavailable_summary"
 msgstr "Runtime capability source unavailable"
 
-#: lib/lemmings_os_web/live/tools_live.ex:104
+#: lib/lemmings_os_web/live/tools_live.ex:112
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_many"
 msgstr "%{count} issues detected"
 
-#: lib/lemmings_os_web/live/tools_live.ex:103
+#: lib/lemmings_os_web/live/tools_live.ex:111
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_one"
 msgstr "1 issue detected"
@@ -468,7 +468,7 @@ msgstr "Unknown and degraded states are listed explicitly."
 msgid ".tools_issues_panel_title"
 msgstr "Issues"
 
-#: lib/lemmings_os_web/live/tools_live.ex:102
+#: lib/lemmings_os_web/live/tools_live.ex:110
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_zero"
 msgstr "No issues detected"
@@ -478,22 +478,22 @@ msgstr "No issues detected"
 msgid ".tools_no_issues"
 msgstr "No issues detected."
 
-#: lib/lemmings_os_web/live/tools_live.ex:70
+#: lib/lemmings_os_web/live/tools_live.ex:78
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_deferred"
 msgstr "Policy reconciliation is still deferred."
 
-#: lib/lemmings_os_web/live/tools_live.ex:75
+#: lib/lemmings_os_web/live/tools_live.ex:83
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_known"
 msgstr "Runtime and policy facts are aligned."
 
-#: lib/lemmings_os_web/live/tools_live.ex:73
+#: lib/lemmings_os_web/live/tools_live.ex:81
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_partial"
 msgstr "Some runtime tools still have partial policy state."
 
-#: lib/lemmings_os_web/live/tools_live.ex:76
+#: lib/lemmings_os_web/live/tools_live.ex:84
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_unknown"
 msgstr "Policy state is not yet available."
@@ -521,23 +521,23 @@ msgstr "Partial"
 msgid ".tools_policy_title"
 msgstr "Policy Reconciliation"
 
-#: lib/lemmings_os_web/live/tools_live.ex:82
+#: lib/lemmings_os_web/live/tools_live.ex:90
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_many"
 msgstr "%{count} runtime tools observed"
 
-#: lib/lemmings_os_web/live/tools_live.ex:88
+#: lib/lemmings_os_web/live/tools_live.ex:96
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_unavailable"
 msgstr "Runtime source unavailable"
 
-#: lib/lemmings_os_web/live/tools_live.ex:85
-#: lib/lemmings_os_web/live/tools_live.ex:90
+#: lib/lemmings_os_web/live/tools_live.ex:93
+#: lib/lemmings_os_web/live/tools_live.ex:98
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_unknown"
 msgstr "Runtime source not implemented"
 
-#: lib/lemmings_os_web/live/tools_live.ex:79
+#: lib/lemmings_os_web/live/tools_live.ex:87
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_zero"
 msgstr "Runtime source available with no tools"

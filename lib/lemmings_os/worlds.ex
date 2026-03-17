@@ -12,6 +12,35 @@ defmodule LemmingsOs.Worlds do
   alias LemmingsOs.WorldCache
 
   @doc """
+  Returns all persisted worlds.
+
+  Accepts an optional keyword list for filtering.
+
+  ## Examples
+
+      iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
+      iex> LemmingsOs.Factory.insert(:world, status: "ok")
+      iex> LemmingsOs.Factory.insert(:world, status: "degraded")
+      iex> worlds = LemmingsOs.Worlds.list_worlds()
+      iex> length(worlds)
+      2
+
+      iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
+      iex> LemmingsOs.Factory.insert(:world, status: "ok")
+      iex> LemmingsOs.Factory.insert(:world, status: "degraded")
+      iex> worlds = LemmingsOs.Worlds.list_worlds(status: "ok")
+      iex> Enum.all?(worlds, &(&1.status == "ok"))
+      true
+  """
+  @spec list_worlds(keyword()) :: [World.t()]
+  def list_worlds(opts \\ []) do
+    World
+    |> filter_query(opts)
+    |> order_by([w], asc: w.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
   Returns the world for the given persisted ID.
 
   ## Examples
@@ -125,6 +154,41 @@ defmodule LemmingsOs.Worlds do
   @spec upsert_bootstrap_world(map()) :: {:ok, World.t()} | {:error, Ecto.Changeset.t()}
   def upsert_bootstrap_world(attrs), do: upsert_world(attrs)
 
+  @doc """
+  Updates an existing world located by the bootstrap lookup chain.
+
+  Unlike `upsert_world/1`, this function never inserts a new record. It is
+  intended for failure-path bootstrap sync where the YAML file is missing or
+  invalid and no slug or name is available to create a valid world row. If no
+  existing world can be found via the lookup chain, `{:error, :not_found}` is
+  returned and no write is attempted.
+
+  ## Examples
+
+      iex> world = LemmingsOs.Factory.insert(:world)
+      iex> attrs = %{slug: world.slug, status: "unavailable", last_import_status: "unavailable"}
+      iex> {:ok, updated} = LemmingsOs.Worlds.update_existing_world(attrs)
+      iex> updated.status
+      "unavailable"
+
+      iex> LemmingsOs.Worlds.update_existing_world(%{slug: "does-not-exist"})
+      {:error, :not_found}
+  """
+  @spec update_existing_world(map()) ::
+          {:ok, World.t()} | {:error, :not_found} | {:error, Ecto.Changeset.t()}
+  def update_existing_world(attrs) when is_map(attrs) do
+    case lookup_world(attrs) do
+      nil ->
+        {:error, :not_found}
+
+      existing_world ->
+        existing_world
+        |> World.changeset(attrs)
+        |> Repo.update()
+        |> invalidate_cached_reads()
+    end
+  end
+
   defp bootstrap_lookup_target(attrs), do: lookup_world(attrs) || %World{}
 
   defp invalidate_cached_reads({:ok, %World{id: id} = world}) do
@@ -168,4 +232,10 @@ defmodule LemmingsOs.Worlds do
     do: Repo.get_by(World, slug: slug)
 
   defp lookup_world_by_slug_value(_), do: nil
+
+  defp filter_query(query, [{:status, status} | rest]),
+    do: filter_query(from(w in query, where: w.status == ^status), rest)
+
+  defp filter_query(query, [_ | rest]), do: filter_query(query, rest)
+  defp filter_query(query, []), do: query
 end

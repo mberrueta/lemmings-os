@@ -7,6 +7,8 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
   It does not perform import/sync or treat YAML as the system of record.
   """
 
+  use Gettext, backend: LemmingsOs.Gettext
+
   @top_level_keys ~w(world infrastructure cities tools models limits costs runtime)
   @world_keys ~w(id slug name)
   @infrastructure_keys ~w(postgres)
@@ -46,10 +48,10 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
     issues = [
       error_issue(
         "invalid_root_type",
-        "Bootstrap root must be a map",
-        "The parsed bootstrap YAML must produce a map at the document root.",
+        dgettext("errors", ".shape_invalid_root_type_summary"),
+        dgettext("errors", ".shape_invalid_root_type_detail"),
         "$",
-        "Ensure the YAML root is a mapping with the required top-level sections."
+        dgettext("errors", ".shape_invalid_root_type_action_hint")
       )
     ]
 
@@ -301,30 +303,33 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
   defp missing_section_issue(path) do
     error_issue(
       "missing_required_section",
-      "Missing required section",
-      "The bootstrap config is missing the required section `#{path}`.",
+      dgettext("errors", ".shape_missing_required_section_summary"),
+      dgettext("errors", ".shape_missing_required_section_detail", path: path),
       path,
-      "Add the missing section to the bootstrap YAML."
+      dgettext("errors", ".shape_missing_required_section_action_hint")
     )
   end
 
   defp missing_value_issue(path) do
     error_issue(
       "missing_required_value",
-      "Missing required value",
-      "The bootstrap config is missing the required value at `#{path}`.",
+      dgettext("errors", ".shape_missing_required_value_summary"),
+      dgettext("errors", ".shape_missing_required_value_detail", path: path),
       path,
-      "Add the required value to the bootstrap YAML."
+      dgettext("errors", ".shape_missing_required_value_action_hint")
     )
   end
 
   defp invalid_type_issue(path, expected_type) do
     error_issue(
       "invalid_value_type",
-      "Invalid value type",
-      "The bootstrap config value at `#{path}` must be a #{expected_type}.",
+      dgettext("errors", ".shape_invalid_value_type_summary"),
+      dgettext("errors", ".shape_invalid_value_type_detail",
+        path: path,
+        expected_type: expected_type
+      ),
       path,
-      "Correct the value type in the bootstrap YAML."
+      dgettext("errors", ".shape_invalid_value_type_action_hint")
     )
   end
 
@@ -334,11 +339,11 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
     %{
       severity: "warning",
       code: "unknown_key",
-      summary: "Unknown key",
-      detail: "The bootstrap config contains the unknown key `#{issue_path}`.",
+      summary: dgettext("errors", ".shape_unknown_key_summary"),
+      detail: dgettext("errors", ".shape_unknown_key_detail", path: issue_path),
       source: "shape_validation",
       path: issue_path,
-      action_hint: "Remove the key or extend the bootstrap validator if it is intentional."
+      action_hint: dgettext("errors", ".shape_unknown_key_action_hint")
     }
   end
 

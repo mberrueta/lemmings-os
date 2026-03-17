@@ -53,16 +53,21 @@ defmodule LemmingsOsWeb.PageData.ToolsPageSnapshot do
   Builds the Tools page snapshot.
 
   Supported options:
-  - `:runtime_fetcher` - zero-arity function returning `{:ok, tools}` or `{:error, reason}`
-  - `:policy_fetcher` - zero-arity function returning `:deferred`, `{:ok, %{tool_id => status}}`, or `{:error, reason}`
+  - `:runtime_fetcher` - module implementing `LemmingsOs.Tools.RuntimeFetcherBehaviour`
+  - `:policy_fetcher` - module implementing `LemmingsOs.Tools.PolicyFetcherBehaviour`
   """
   @spec build(keyword()) :: t()
   def build(opts \\ []) do
     runtime_result =
-      runtime_snapshot(Keyword.get(opts, :runtime_fetcher, fn -> {:error, :not_implemented} end))
+      runtime_snapshot(
+        Keyword.get(opts, :runtime_fetcher, LemmingsOs.Tools.DefaultRuntimeFetcher)
+      )
 
     policy_result =
-      policy_snapshot(runtime_result, Keyword.get(opts, :policy_fetcher, fn -> :deferred end))
+      policy_snapshot(
+        runtime_result,
+        Keyword.get(opts, :policy_fetcher, LemmingsOs.Tools.DefaultPolicyFetcher)
+      )
 
     tools =
       runtime_result.tools
@@ -85,7 +90,7 @@ defmodule LemmingsOsWeb.PageData.ToolsPageSnapshot do
   end
 
   defp runtime_snapshot(runtime_fetcher) do
-    case runtime_fetcher.() do
+    case runtime_fetcher.fetch() do
       {:ok, tools} when is_list(tools) ->
         %{
           status: "ok",
@@ -121,7 +126,7 @@ defmodule LemmingsOsWeb.PageData.ToolsPageSnapshot do
   end
 
   defp policy_snapshot(runtime_result, policy_fetcher) do
-    case policy_fetcher.() do
+    case policy_fetcher.fetch() do
       :deferred ->
         %{
           status: "unknown",

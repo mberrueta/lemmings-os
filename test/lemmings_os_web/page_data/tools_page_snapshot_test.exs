@@ -1,14 +1,28 @@
 defmodule LemmingsOsWeb.PageData.ToolsPageSnapshotTest do
   use ExUnit.Case, async: true
 
+  import Mox
+
+  alias LemmingsOs.Tools.MockPolicyFetcher
+  alias LemmingsOs.Tools.MockRuntimeFetcher
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
+
+  setup :verify_on_exit!
+
+  setup do
+    stub(MockRuntimeFetcher, :fetch, fn -> {:error, :not_implemented} end)
+    stub(MockPolicyFetcher, :fetch, fn -> :deferred end)
+    :ok
+  end
 
   describe "build/1" do
     test "returns an ok snapshot when runtime source is known but empty" do
+      stub(MockRuntimeFetcher, :fetch, fn -> {:ok, []} end)
+
       snapshot =
         ToolsPageSnapshot.build(
-          runtime_fetcher: fn -> {:ok, []} end,
-          policy_fetcher: fn -> :deferred end
+          runtime_fetcher: MockRuntimeFetcher,
+          policy_fetcher: MockPolicyFetcher
         )
 
       assert snapshot.status == "ok"
@@ -20,21 +34,23 @@ defmodule LemmingsOsWeb.PageData.ToolsPageSnapshotTest do
     end
 
     test "returns runtime-known tools with deferred policy state" do
+      stub(MockRuntimeFetcher, :fetch, fn ->
+        {:ok,
+         [
+           %{
+             id: "terminal",
+             name: "terminal",
+             description: "Execute shell commands",
+             icon: "hero-command-line",
+             usage_count: 3
+           }
+         ]}
+      end)
+
       snapshot =
         ToolsPageSnapshot.build(
-          runtime_fetcher: fn ->
-            {:ok,
-             [
-               %{
-                 id: "terminal",
-                 name: "terminal",
-                 description: "Execute shell commands",
-                 icon: "hero-command-line",
-                 usage_count: 3
-               }
-             ]}
-          end,
-          policy_fetcher: fn -> :deferred end
+          runtime_fetcher: MockRuntimeFetcher,
+          policy_fetcher: MockPolicyFetcher
         )
 
       assert snapshot.status == "ok"
@@ -48,10 +64,12 @@ defmodule LemmingsOsWeb.PageData.ToolsPageSnapshotTest do
     end
 
     test "returns an unavailable snapshot when the runtime source cannot be obtained" do
+      stub(MockRuntimeFetcher, :fetch, fn -> {:error, :timeout} end)
+
       snapshot =
         ToolsPageSnapshot.build(
-          runtime_fetcher: fn -> {:error, :timeout} end,
-          policy_fetcher: fn -> :deferred end
+          runtime_fetcher: MockRuntimeFetcher,
+          policy_fetcher: MockPolicyFetcher
         )
 
       assert snapshot.status == "unavailable"
@@ -61,16 +79,16 @@ defmodule LemmingsOsWeb.PageData.ToolsPageSnapshotTest do
     end
 
     test "returns a degraded snapshot when policy reconciliation is partial" do
+      stub(MockRuntimeFetcher, :fetch, fn ->
+        {:ok, [%{id: "terminal", name: "terminal"}, %{id: "git", name: "git"}]}
+      end)
+
+      stub(MockPolicyFetcher, :fetch, fn -> {:ok, %{"terminal" => "ok"}} end)
+
       snapshot =
         ToolsPageSnapshot.build(
-          runtime_fetcher: fn ->
-            {:ok,
-             [
-               %{id: "terminal", name: "terminal"},
-               %{id: "git", name: "git"}
-             ]}
-          end,
-          policy_fetcher: fn -> {:ok, %{"terminal" => "ok"}} end
+          runtime_fetcher: MockRuntimeFetcher,
+          policy_fetcher: MockPolicyFetcher
         )
 
       assert snapshot.status == "degraded"

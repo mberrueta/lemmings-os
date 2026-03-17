@@ -88,10 +88,15 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
     {:error, sync_result(load_result, "invalid", all_issues, nil)}
   end
 
+  # On failure paths (missing file, parse error, invalid shape), slug and name
+  # are unavailable so a new world row cannot be created. We only update an
+  # existing record if one can be located via the bootstrap lookup chain.
+  # If no existing world is found, we return nil and the sync result carries
+  # world: nil — the operator sees an honest unavailable/invalid state.
   defp persist_failure_metadata(load_result, operation_status) do
     load_result
     |> failure_attrs(operation_status)
-    |> Worlds.upsert_world()
+    |> Worlds.update_existing_world()
     |> persisted_world_or_nil()
   end
 
