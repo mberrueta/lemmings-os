@@ -40,7 +40,7 @@ defmodule LemmingsOsWeb do
     quote do
       use Phoenix.Controller, formats: [:html, :json]
 
-      use Gettext, backend: LemmingsOsWeb.Gettext
+      use Gettext, backend: LemmingsOs.Gettext
 
       import Plug.Conn
 
@@ -80,7 +80,7 @@ defmodule LemmingsOsWeb do
   defp html_helpers do
     quote do
       # Translation
-      use Gettext, backend: LemmingsOsWeb.Gettext
+      use Gettext, backend: LemmingsOs.Gettext
 
       # HTML escaping functionality
       import Phoenix.HTML

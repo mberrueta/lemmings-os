@@ -4,7 +4,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   """
 
   use Phoenix.Component
-  use Gettext, backend: LemmingsOsWeb.Gettext
+  use Gettext, backend: LemmingsOs.Gettext
 
   alias LemmingsOs.World
   alias Phoenix.LiveView.JS
@@ -405,9 +405,9 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def translate_error({msg, opts}) do
     if count = opts[:count] do
-      Gettext.dngettext(LemmingsOsWeb.Gettext, "errors", msg, msg, count, opts)
+      Gettext.dngettext(LemmingsOs.Gettext, "errors", msg, msg, count, opts)
     else
-      Gettext.dgettext(LemmingsOsWeb.Gettext, "errors", msg, opts)
+      Gettext.dgettext(LemmingsOs.Gettext, "errors", msg, opts)
     end
   end
 

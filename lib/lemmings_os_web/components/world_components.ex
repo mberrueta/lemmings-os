@@ -940,7 +940,18 @@ defmodule LemmingsOsWeb.WorldComponents do
   defp tab_button_variant(active_tab, active_tab), do: "secondary"
   defp tab_button_variant(_active_tab, _tab), do: "ghost"
 
-  defp accent_style(color), do: "background-color: #{color};"
+  # Only allow CSS named colors (letters only) to prevent style injection.
+  @safe_css_color ~r/\A[a-zA-Z]{1,32}\z/
+
+  defp accent_style(color) when is_binary(color) do
+    if Regex.match?(@safe_css_color, color) do
+      "background-color: #{color};"
+    else
+      ""
+    end
+  end
+
+  defp accent_style(_), do: ""
 
   defp to_map_city(city) do
     %{

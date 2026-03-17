@@ -115,6 +115,45 @@ msgstr "La configuracion bootstrap contiene la clave desconocida `%{path}`."
 msgid ".shape_unknown_key_action_hint"
 msgstr "Elimina la clave o extiende el validador bootstrap si es intencional."
 
+#: lib/lemmings_os_web/components/core_components.ex:44
+#, elixir-autogen
+msgid ".aria_close"
+msgstr "cerrar"
+
+#: lib/lemmings_os_web/components/layouts.ex:115
+#, elixir-autogen
+msgid ".error_no_internet"
+msgstr "No encontramos internet"
+
+#: lib/lemmings_os_web/components/layouts.ex:120
+#: lib/lemmings_os_web/components/layouts.ex:132
+#, elixir-autogen
+msgid ".error_attempting_reconnect"
+msgstr "Intentando reconectar"
+
+#: lib/lemmings_os_web/components/layouts.ex:127
+#, elixir-autogen
+msgid ".error_something_went_wrong"
+msgstr "Algo salio mal!"
+
+#: lib/lemmings_os_web/components/core_components.ex:523
+#: lib/lemmings_os_web/components/core_components.ex:526
+#, elixir-autogen
+msgid ".issue_severity_error"
+msgstr "Error"
+
+#: lib/lemmings_os_web/components/core_components.ex:525
+#: lib/lemmings_os_web/components/core_components.ex:528
+#, elixir-autogen
+msgid ".issue_severity_info"
+msgstr "Info"
+
+#: lib/lemmings_os_web/components/core_components.ex:524
+#: lib/lemmings_os_web/components/core_components.ex:527
+#, elixir-autogen
+msgid ".issue_severity_warning"
+msgstr "Advertencia"
+
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"
 msgstr ""

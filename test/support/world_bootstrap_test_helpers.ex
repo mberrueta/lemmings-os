@@ -106,6 +106,7 @@ defmodule LemmingsOs.WorldBootstrapTestHelpers do
       )
 
     File.write!(path, contents)
+    ExUnit.Callbacks.on_exit(fn -> File.rm(path) end)
     path
   end
 end

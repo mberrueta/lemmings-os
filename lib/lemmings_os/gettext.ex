@@ -1,11 +1,12 @@
 defmodule LemmingsOs.Gettext do
   @moduledoc """
-  Domain-level Gettext backend for LemmingsOS.
+  Single Gettext backend for the entire LemmingsOS application.
 
-  Domain modules under `LemmingsOs.*` use this backend directly so that the
-  core application layer does not depend on `LemmingsOsWeb.*`. Web modules
-  may continue to use `LemmingsOsWeb.Gettext`, which shares the same
-  `priv/gettext` translation files compiled under the `:lemmings_os` OTP app.
+  Both domain modules (`LemmingsOs.*`) and web modules (`LemmingsOsWeb.*`)
+  use this backend. This ensures `mix gettext.extract` only runs once and
+  all translations live in a single `priv/gettext` tree.
+
+      use Gettext, backend: LemmingsOs.Gettext
   """
   use Gettext.Backend, otp_app: :lemmings_os
 end

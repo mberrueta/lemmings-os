@@ -13,7 +13,7 @@ defmodule LemmingsOsWeb.PageData.WorldPageSnapshot do
   alias LemmingsOs.WorldBootstrap.Loader
   alias LemmingsOs.WorldBootstrap.ShapeValidator
   alias LemmingsOs.Worlds
-  alias LemmingsOsWeb.Gettext, as: AppGettext
+  alias LemmingsOs.Gettext, as: AppGettext
 
   @type issue :: map()
 

@@ -41,7 +41,11 @@ defmodule LemmingsOs.Worlds do
   end
 
   @doc """
-  Returns the world for the given persisted ID.
+  Returns the world for the given persisted ID. Raises `Ecto.NoResultsError` if not found.
+
+  Results are served from the `WorldCache`. The cache is invalidated automatically
+  on upsert, so callers may receive a cached value until the next write or explicit
+  `WorldCache.invalidate_world/1` call.
 
   ## Examples
 

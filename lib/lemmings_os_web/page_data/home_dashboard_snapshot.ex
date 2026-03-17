@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
   honestly unavailable.
   """
 
-  use Gettext, backend: LemmingsOsWeb.Gettext
+  use Gettext, backend: LemmingsOs.Gettext
 
   alias LemmingsOs.World
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
