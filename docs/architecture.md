@@ -226,19 +226,57 @@ at every state transition across the lifecycle.
 
 ## Data Model (High Level)
 
+### World Persistence And Bootstrap Model
+
+The `World` row is the durable system-of-record identity. Bootstrap YAML is
+ingestion input, not the long-term persisted source of truth, and runtime checks
+remain ephemeral read-model data.
+
+Current `worlds` shape:
+
+```text
+worlds
+  id
+  slug
+  name
+  status
+  bootstrap_source
+  bootstrap_path
+  last_bootstrap_hash
+  last_import_status
+  last_imported_at
+  limits_config
+  runtime_config
+  costs_config
+  models_config
+  inserted_at
+  updated_at
+```
+
+This is an intentional departure from the older single-column `config_jsonb`
+concept. The architecture keeps:
+
+- persisted World identity and operational linkage metadata on normal columns
+- world-level declarative config split across scoped JSONB columns
+- bootstrap file contents as ingestion input, not persisted wholesale
+- runtime-derived status in read models such as `WorldPageSnapshot`,
+  `SettingsPageSnapshot`, `ToolsPageSnapshot`, and `HomeDashboardSnapshot`
+
+### Target relational hierarchy
+
 ```
 worlds
-  id, name, config, inserted_at
+  id, name, slug, status, inserted_at
 
 cities
   id, world_id, node_name, status, inserted_at
 
 departments
-  id, city_id, world_id, name, config, inserted_at
+  id, city_id, world_id, name, inserted_at
 
 lemmings
   id, department_id, city_id, world_id,
-  status, agent_module, config,
+  status, agent_module,
   started_at, stopped_at, inserted_at
 ```
 

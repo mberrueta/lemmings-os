@@ -24,6 +24,10 @@ Multiple Cities form a **World cluster**.
 
 The container includes the compiled OTP release and runtime configuration but relies on **external PostgreSQL storage**.
 
+The release also ships with a default bootstrap file at
+`priv/default.world.yaml`. Operators may override that path with
+`LEMMINGS_WORLD_BOOTSTRAP_PATH`.
+
 Docker is the **reference container runtime**, but any OCI-compatible runtime (such as **Podman**) is supported.
 
 Running a Mix Release directly on the host system is also technically possible, but container packaging is the **canonical operational model**.
@@ -123,7 +127,11 @@ Processes running inside the container include:
 - Lemming execution engine
 - tool runtime
 - telemetry emitters
-- configuration resolver
+- bootstrap importer
+- world cache
+
+Startup runs a World bootstrap import that syncs persisted `worlds` state from
+the bootstrap YAML.
 
 Persistent storage is externalized.
 
@@ -172,6 +180,8 @@ This runs:
 - Phoenix server
 - runtime supervisors
 - local PostgreSQL database
+- startup World bootstrap import against `priv/default.world.yaml` unless
+  `LEMMINGS_WORLD_BOOTSTRAP_PATH` overrides it
 
 This mode prioritizes fast feedback during development.
 
@@ -463,4 +473,3 @@ Kubernetes can still be supported later as an optional deployment target.
 - Kubernetes deployment model and Helm chart.
 - Multi-world gateway nodes.
 - Autoscaling strategies for City containers.
-

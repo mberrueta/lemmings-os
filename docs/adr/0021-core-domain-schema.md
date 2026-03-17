@@ -95,6 +95,11 @@ This separation is intentional:
 - type definitions must exist independently from currently running instances
 - policy must be attachable to scope and capability definitions without overloading runtime rows
 
+For `worlds`, the schema intentionally uses split World-scoped JSONB columns
+instead of a single `config_jsonb` field. This keeps World-level limits,
+runtime defaults, cost/budget declarations, and model/provider declarations as
+separate persisted concerns.
+
 ---
 
 # Domain Model Diagram
@@ -153,7 +158,15 @@ erDiagram
         string name
         string slug
         string status
-        jsonb config_jsonb
+        string bootstrap_source
+        string bootstrap_path
+        string last_bootstrap_hash
+        string last_import_status
+        timestamp last_imported_at
+        jsonb limits_config
+        jsonb runtime_config
+        jsonb costs_config
+        jsonb models_config
     }
 
     CITIES {
@@ -236,6 +249,9 @@ Actual database migrations may include additional operational columns such as:
 - operational metadata
 
 However, the entities and relationships defined in the diagram form the **stable domain contract** used by the rest of the system.
+
+For `worlds`, those operational columns are part of the actual persisted
+contract for bootstrap linkage and World-scoped declarative configuration.
 
 ---
 
@@ -775,4 +791,3 @@ A developer should be able to begin implementation directly from this ADR by cre
 5. context modules that expose CRUD and lookup operations aligned to the hierarchy
 
 This ADR intentionally defines the domain model at the level needed to start those tasks without architectural guesswork.
-

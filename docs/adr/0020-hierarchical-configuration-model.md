@@ -177,6 +177,32 @@ Chosen. See section 4 and rationale for full justification.
 
 LemmingsOS uses a **hierarchical configuration model with dual merge semantics**.
 
+Bootstrap YAML is ingestion input, not the persisted source of truth. At the
+World scope, durable declarative configuration is stored in scoped JSONB columns
+instead of a single `config_jsonb` blob.
+
+World-scoped declarative storage is split into:
+
+- `limits_config`
+- `runtime_config`
+- `costs_config`
+- `models_config`
+
+This replaces the earlier single-column `worlds.config_jsonb` concept.
+
+### Why split JSONB on `worlds` is preferred over a single `config_jsonb`
+
+The split-column design is preferred because it:
+
+- keeps ownership boundaries explicit between limits, runtime defaults, costs,
+  and model/provider declarations
+- makes future operator editing and validation narrower and safer than editing a
+  catch-all world blob
+- avoids treating bootstrap ingestion artifacts as the long-term persisted source
+  of truth
+- preserves a clean distinction between persisted domain state, declared
+  bootstrap config, and runtime-derived status in the operator UI
+
 Configuration is stored as partial JSONB documents at each hierarchy scope.
 Effective configuration is resolved through a single deterministic pipeline that
 applies two merge strategies in sequence:
@@ -211,6 +237,33 @@ cities        → config_jsonb
 departments   → config_jsonb
 lemming_types → config_jsonb
 ```
+
+At the World scope, configuration is intentionally stored with split JSONB
+columns instead of a single `config_jsonb` field:
+
+```text
+worlds
+  → limits_config
+  → runtime_config
+  → costs_config
+  → models_config
+```
+
+Normal columns on `worlds` hold the bootstrap linkage and import metadata:
+
+```text
+bootstrap_source
+bootstrap_path
+last_bootstrap_hash
+last_import_status
+last_imported_at
+```
+
+This preserves the distinction between:
+
+- persisted domain state
+- bootstrap ingestion metadata
+- runtime health and reconciliation state
 
 Configuration is partial by design. The World document typically contains the
 authoritative defaults. City, Department, and Lemming Type documents contain only
