@@ -171,9 +171,7 @@ defmodule LemmingsOsWeb.CityMapComponents do
           <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_lemmings")}</span>
           <span class="city-map-canvas__stat-value">{@total_lemmings}</span>
           <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_status")}</span>
-          <span class={"city-map-canvas__status city-map-canvas__status--#{@city.status}"}>
-            {status_label(@city.status)}
-          </span>
+          <.status kind={:city} value={@city.status} class="city-map-canvas__status" />
         </span>
       </div>
 
@@ -188,14 +186,6 @@ defmodule LemmingsOsWeb.CityMapComponents do
       count + length(Map.get(department, :lemmings, []))
     end)
   end
-
-  defp status_label(:online), do: dgettext("world", ".status_online")
-  defp status_label(:degraded), do: dgettext("world", ".status_degraded")
-  defp status_label(:offline), do: dgettext("world", ".status_offline")
-  defp status_label("online"), do: dgettext("world", ".status_online")
-  defp status_label("degraded"), do: dgettext("world", ".status_degraded")
-  defp status_label("offline"), do: dgettext("world", ".status_offline")
-  defp status_label(_status), do: dgettext("world", ".status_online")
 
   defp department_color(department),
     do: Map.get(department, :color) || Map.get(department, :accent, "#49f28e")

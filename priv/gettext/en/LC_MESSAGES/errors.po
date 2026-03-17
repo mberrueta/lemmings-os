@@ -10,6 +10,150 @@ msgid ""
 msgstr ""
 "Language: en\n"
 
+msgid ".bootstrap_file_not_found_summary"
+msgstr "Bootstrap file not found"
+
+msgid ".bootstrap_file_not_found_action_hint"
+msgstr "Create the file or update LEMMINGS_WORLD_BOOTSTRAP_PATH."
+
+msgid ".bootstrap_yaml_parse_error_summary"
+msgstr "Bootstrap YAML could not be parsed"
+
+msgid ".bootstrap_yaml_parse_error_action_hint"
+msgstr "Fix the YAML syntax and try the bootstrap load again."
+
+msgid ".bootstrap_persistence_failed_summary"
+msgstr "Bootstrap world sync failed"
+
+msgid ".bootstrap_persistence_failed_action_hint"
+msgstr "Fix the persisted World data contract and retry the bootstrap sync."
+
+msgid ".bootstrap_input_not_configured_summary"
+msgstr "Bootstrap input is not configured"
+
+msgid ".bootstrap_input_not_configured_action_hint"
+msgstr "Set bootstrap_path on the persisted World or run the bootstrap sync first."
+
+msgid ".bootstrap_input_not_configured_missing_path_detail"
+msgstr "Persisted World has no bootstrap_path configured."
+
+msgid ".bootstrap_input_not_configured_empty_path_detail"
+msgstr "Persisted World has an empty bootstrap_path value."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:51
+#, elixir-autogen
+msgid ".shape_invalid_root_type_summary"
+msgstr "Bootstrap root must be a map"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:52
+#, elixir-autogen
+msgid ".shape_invalid_root_type_detail"
+msgstr "The parsed bootstrap YAML must produce a map at the document root."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:54
+#, elixir-autogen
+msgid ".shape_invalid_root_type_action_hint"
+msgstr "Ensure the YAML root is a mapping with the required top-level sections."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:306
+#, elixir-autogen
+msgid ".shape_missing_required_section_summary"
+msgstr "Missing required section"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:307
+#, elixir-autogen
+msgid ".shape_missing_required_section_detail"
+msgstr "The bootstrap config is missing the required section `%{path}`."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:309
+#, elixir-autogen
+msgid ".shape_missing_required_section_action_hint"
+msgstr "Add the missing section to the bootstrap YAML."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:316
+#, elixir-autogen
+msgid ".shape_missing_required_value_summary"
+msgstr "Missing required value"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:317
+#, elixir-autogen
+msgid ".shape_missing_required_value_detail"
+msgstr "The bootstrap config is missing the required value at `%{path}`."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:319
+#, elixir-autogen
+msgid ".shape_missing_required_value_action_hint"
+msgstr "Add the required value to the bootstrap YAML."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:326
+#, elixir-autogen
+msgid ".shape_invalid_value_type_summary"
+msgstr "Invalid value type"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:327
+#, elixir-autogen
+msgid ".shape_invalid_value_type_detail"
+msgstr "The bootstrap config value at `%{path}` must be a %{expected_type}."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:332
+#, elixir-autogen
+msgid ".shape_invalid_value_type_action_hint"
+msgstr "Correct the value type in the bootstrap YAML."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:342
+#, elixir-autogen
+msgid ".shape_unknown_key_summary"
+msgstr "Unknown key"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:343
+#, elixir-autogen
+msgid ".shape_unknown_key_detail"
+msgstr "The bootstrap config contains the unknown key `%{path}`."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:346
+#, elixir-autogen
+msgid ".shape_unknown_key_action_hint"
+msgstr "Remove the key or extend the bootstrap validator if it is intentional."
+
+#: lib/lemmings_os_web/components/core_components.ex:44
+#, elixir-autogen
+msgid ".aria_close"
+msgstr "close"
+
+#: lib/lemmings_os_web/components/layouts.ex:115
+#, elixir-autogen
+msgid ".error_no_internet"
+msgstr "We can't find the internet"
+
+#: lib/lemmings_os_web/components/layouts.ex:120
+#: lib/lemmings_os_web/components/layouts.ex:132
+#, elixir-autogen
+msgid ".error_attempting_reconnect"
+msgstr "Attempting to reconnect"
+
+#: lib/lemmings_os_web/components/layouts.ex:127
+#, elixir-autogen
+msgid ".error_something_went_wrong"
+msgstr "Something went wrong!"
+
+#: lib/lemmings_os_web/components/core_components.ex:523
+#: lib/lemmings_os_web/components/core_components.ex:526
+#, elixir-autogen
+msgid ".issue_severity_error"
+msgstr "Error"
+
+#: lib/lemmings_os_web/components/core_components.ex:525
+#: lib/lemmings_os_web/components/core_components.ex:528
+#, elixir-autogen
+msgid ".issue_severity_info"
+msgstr "Info"
+
+#: lib/lemmings_os_web/components/core_components.ex:524
+#: lib/lemmings_os_web/components/core_components.ex:527
+#, elixir-autogen
+msgid ".issue_severity_warning"
+msgstr "Warning"
+
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"
 msgstr ""
@@ -110,24 +254,3 @@ msgstr ""
 
 msgid "must be equal to %{number}"
 msgstr ""
-
-#: lib/lemmings_os_web/components/core_components.ex:43
-#, elixir-autogen
-msgid ".aria_close"
-msgstr "close"
-
-#: lib/lemmings_os_web/components/layouts.ex:117
-#, elixir-autogen
-msgid ".error_no_internet"
-msgstr "We can't find the internet"
-
-#: lib/lemmings_os_web/components/layouts.ex:122
-#: lib/lemmings_os_web/components/layouts.ex:134
-#, elixir-autogen
-msgid ".error_attempting_reconnect"
-msgstr "Attempting to reconnect"
-
-#: lib/lemmings_os_web/components/layouts.ex:129
-#, elixir-autogen
-msgid ".error_something_went_wrong"
-msgstr "Something went wrong!"

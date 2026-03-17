@@ -1,39 +1,79 @@
 defmodule LemmingsOsWeb.SystemComponents do
   @moduledoc """
-  Components for tools, logs, and settings pages.
+  Small components for tools and logs pages.
   """
 
   use LemmingsOsWeb, :html
 
-  attr :tools, :list, required: true
+  alias LemmingsOs.Helpers
 
-  def tools_page(assigns) do
+  attr :tool, :map, required: true
+
+  def tool_runtime_card(assigns) do
     ~H"""
-    <.content_container>
-      <.panel id="tools-page" tone="accent">
-        <:title>{dgettext("layout", ".title_tools_registry")}</:title>
-        <:subtitle>{dgettext("layout", ".subtitle_tools_registry")}</:subtitle>
-      </.panel>
-
-      <.panel id="tools-grid-panel">
-        <div class="card-grid">
-          <div :for={tool <- @tools} class="mini-card">
-            <div class="mini-card__title">
-              <.icon name={tool.icon} class="size-5" />
-              {tool.name}
-            </div>
-            <p class="mini-card__meta">{tool.description}</p>
-            <div class="mini-card__footer">
-              <.badge tone="warning">
-                {dgettext("layout", ".badge_agents_count", count: tool.agents)}
-              </.badge>
-            </div>
+    <article id={"tool-card-#{@tool.id}"} class="mini-card h-full">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="mini-card__title">
+            <.icon name={@tool.icon || "hero-wrench-screwdriver"} class="size-5" />
+            {@tool.name}
           </div>
+          <p class="mini-card__meta">
+            {Helpers.display_value(@tool.description,
+              unavailable_label: dgettext("layout", ".tools_description_unavailable")
+            )}
+          </p>
         </div>
-      </.panel>
-    </.content_container>
+
+        <div class="flex shrink-0 flex-col items-end gap-2">
+          <.status
+            id={"tool-runtime-status-#{@tool.id}"}
+            kind={:world}
+            value={@tool.runtime.status}
+          />
+          <.status
+            id={"tool-policy-status-#{@tool.id}"}
+            kind={:world}
+            value={@tool.policy.status}
+          />
+        </div>
+      </div>
+
+      <div class="mt-3 grid gap-3 md:grid-cols-2">
+        <.stat_item
+          label={dgettext("layout", ".tools_card_category_label")}
+          value={Helpers.display_value(@tool.category)}
+        />
+        <.stat_item
+          label={dgettext("layout", ".tools_card_risk_label")}
+          value={Helpers.display_value(@tool.risk)}
+        />
+        <.stat_item
+          label={dgettext("layout", ".tools_card_usage_label")}
+          value={tool_usage_value(@tool.usage_count)}
+        />
+        <.stat_item
+          label={dgettext("layout", ".tools_card_policy_mode_label")}
+          value={tool_policy_mode_label(@tool.policy.mode)}
+        />
+      </div>
+    </article>
     """
   end
+
+  defp tool_usage_value(nil), do: dgettext("layout", ".tools_usage_unknown")
+  defp tool_usage_value(value), do: to_string(value)
+
+  defp tool_policy_mode_label("deferred"),
+    do: dgettext("layout", ".tools_policy_mode_deferred")
+
+  defp tool_policy_mode_label("partial"),
+    do: dgettext("layout", ".tools_policy_mode_partial")
+
+  defp tool_policy_mode_label("known"),
+    do: dgettext("layout", ".tools_policy_mode_known")
+
+  defp tool_policy_mode_label(_mode), do: Helpers.display_value(nil)
 
   attr :activity_log, :list, required: true
 
@@ -58,63 +98,6 @@ defmodule LemmingsOsWeb.SystemComponents do
           </div>
         </div>
       </.panel>
-    </.content_container>
-    """
-  end
-
-  attr :form, :any, required: true
-
-  def settings_page(assigns) do
-    ~H"""
-    <.content_container>
-      <.content_grid columns="sidebar">
-        <.panel id="settings-page" tone="accent">
-          <:title>{dgettext("layout", ".title_settings")}</:title>
-          <:subtitle>{dgettext("layout", ".subtitle_settings")}</:subtitle>
-          <.form for={@form} id="settings-form" phx-change="validate" phx-submit="save">
-            <div class="page-stack">
-              <.input field={@form[:world_name]} label={dgettext("layout", ".label_world_name")} />
-              <.input
-                field={@form[:max_agents]}
-                type="number"
-                label={dgettext("layout", ".label_max_agents")}
-              />
-              <.input
-                field={@form[:default_model]}
-                type="select"
-                label={dgettext("layout", ".label_default_model")}
-                options={[
-                  {"gpt-4o", "gpt-4o"},
-                  {"gpt-4o-mini", "gpt-4o-mini"},
-                  {"claude-3.5", "claude-3.5"}
-                ]}
-              />
-              <.input
-                field={@form[:log_level]}
-                type="select"
-                label={dgettext("layout", ".label_log_level")}
-                options={[
-                  {"verbose", "verbose"},
-                  {"info", "info"},
-                  {"warn", "warn"},
-                  {"error", "error"}
-                ]}
-              />
-              <.button type="submit">{dgettext("layout", ".button_save_config")}</.button>
-            </div>
-          </.form>
-        </.panel>
-
-        <.panel id="settings-info-panel">
-          <:title>{dgettext("layout", ".title_environment_notes")}</:title>
-          <div class="page-stack">
-            <.badge tone="warning">{dgettext("layout", ".badge_visual_mock_only")}</.badge>
-            <p>
-              {dgettext("layout", ".copy_settings_mock_note")}
-            </p>
-          </div>
-        </.panel>
-      </.content_grid>
     </.content_container>
     """
   end

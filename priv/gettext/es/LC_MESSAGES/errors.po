@@ -1,0 +1,256 @@
+## `msgid`s in this file come from POT (.pot) files.
+##
+## Do not add, change, or remove `msgid`s manually here as
+## they're tied to the ones in the corresponding POT file
+## (with the same domain).
+##
+## Use `mix gettext.extract --merge` or `mix gettext.merge`
+## to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: es\n"
+
+msgid ".bootstrap_file_not_found_summary"
+msgstr "No se encontro el archivo bootstrap"
+
+msgid ".bootstrap_file_not_found_action_hint"
+msgstr "Crea el archivo o actualiza LEMMINGS_WORLD_BOOTSTRAP_PATH."
+
+msgid ".bootstrap_yaml_parse_error_summary"
+msgstr "No se pudo parsear el YAML bootstrap"
+
+msgid ".bootstrap_yaml_parse_error_action_hint"
+msgstr "Corrige la sintaxis YAML e intenta cargar el bootstrap de nuevo."
+
+msgid ".bootstrap_persistence_failed_summary"
+msgstr "Fallo la sincronizacion del mundo bootstrap"
+
+msgid ".bootstrap_persistence_failed_action_hint"
+msgstr "Corrige el contrato persistido de World y reintenta la sincronizacion bootstrap."
+
+msgid ".bootstrap_input_not_configured_summary"
+msgstr "La entrada bootstrap no esta configurada"
+
+msgid ".bootstrap_input_not_configured_action_hint"
+msgstr "Configura bootstrap_path en el World persistido o ejecuta primero la sincronizacion bootstrap."
+
+msgid ".bootstrap_input_not_configured_missing_path_detail"
+msgstr "El World persistido no tiene bootstrap_path configurado."
+
+msgid ".bootstrap_input_not_configured_empty_path_detail"
+msgstr "El World persistido tiene bootstrap_path vacio."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:51
+#, elixir-autogen
+msgid ".shape_invalid_root_type_summary"
+msgstr "La raiz del bootstrap debe ser un mapa"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:52
+#, elixir-autogen
+msgid ".shape_invalid_root_type_detail"
+msgstr "El YAML bootstrap parseado debe producir un mapa en la raiz del documento."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:54
+#, elixir-autogen
+msgid ".shape_invalid_root_type_action_hint"
+msgstr "Asegurate de que la raiz del YAML sea un mapping con las secciones requeridas."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:306
+#, elixir-autogen
+msgid ".shape_missing_required_section_summary"
+msgstr "Falta la seccion requerida"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:307
+#, elixir-autogen
+msgid ".shape_missing_required_section_detail"
+msgstr "La configuracion bootstrap no tiene la seccion requerida `%{path}`."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:309
+#, elixir-autogen
+msgid ".shape_missing_required_section_action_hint"
+msgstr "Agrega la seccion faltante al YAML bootstrap."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:316
+#, elixir-autogen
+msgid ".shape_missing_required_value_summary"
+msgstr "Falta el valor requerido"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:317
+#, elixir-autogen
+msgid ".shape_missing_required_value_detail"
+msgstr "La configuracion bootstrap no tiene el valor requerido en `%{path}`."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:319
+#, elixir-autogen
+msgid ".shape_missing_required_value_action_hint"
+msgstr "Agrega el valor requerido al YAML bootstrap."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:326
+#, elixir-autogen
+msgid ".shape_invalid_value_type_summary"
+msgstr "Tipo de valor invalido"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:327
+#, elixir-autogen
+msgid ".shape_invalid_value_type_detail"
+msgstr "El valor en `%{path}` debe ser de tipo %{expected_type}."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:332
+#, elixir-autogen
+msgid ".shape_invalid_value_type_action_hint"
+msgstr "Corrige el tipo de valor en el YAML bootstrap."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:342
+#, elixir-autogen
+msgid ".shape_unknown_key_summary"
+msgstr "Clave desconocida"
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:343
+#, elixir-autogen
+msgid ".shape_unknown_key_detail"
+msgstr "La configuracion bootstrap contiene la clave desconocida `%{path}`."
+
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:346
+#, elixir-autogen
+msgid ".shape_unknown_key_action_hint"
+msgstr "Elimina la clave o extiende el validador bootstrap si es intencional."
+
+#: lib/lemmings_os_web/components/core_components.ex:44
+#, elixir-autogen
+msgid ".aria_close"
+msgstr "cerrar"
+
+#: lib/lemmings_os_web/components/layouts.ex:115
+#, elixir-autogen
+msgid ".error_no_internet"
+msgstr "No encontramos internet"
+
+#: lib/lemmings_os_web/components/layouts.ex:120
+#: lib/lemmings_os_web/components/layouts.ex:132
+#, elixir-autogen
+msgid ".error_attempting_reconnect"
+msgstr "Intentando reconectar"
+
+#: lib/lemmings_os_web/components/layouts.ex:127
+#, elixir-autogen
+msgid ".error_something_went_wrong"
+msgstr "Algo salio mal!"
+
+#: lib/lemmings_os_web/components/core_components.ex:523
+#: lib/lemmings_os_web/components/core_components.ex:526
+#, elixir-autogen
+msgid ".issue_severity_error"
+msgstr "Error"
+
+#: lib/lemmings_os_web/components/core_components.ex:525
+#: lib/lemmings_os_web/components/core_components.ex:528
+#, elixir-autogen
+msgid ".issue_severity_info"
+msgstr "Info"
+
+#: lib/lemmings_os_web/components/core_components.ex:524
+#: lib/lemmings_os_web/components/core_components.ex:527
+#, elixir-autogen
+msgid ".issue_severity_warning"
+msgstr "Advertencia"
+
+## From Ecto.Changeset.cast/4
+msgid "can't be blank"
+msgstr ""
+
+## From Ecto.Changeset.unique_constraint/3
+msgid "has already been taken"
+msgstr ""
+
+## From Ecto.Changeset.put_change/3
+msgid "is invalid"
+msgstr ""
+
+## From Ecto.Changeset.validate_acceptance/3
+msgid "must be accepted"
+msgstr ""
+
+## From Ecto.Changeset.validate_format/3
+msgid "has invalid format"
+msgstr ""
+
+## From Ecto.Changeset.validate_subset/3
+msgid "has an invalid entry"
+msgstr ""
+
+## From Ecto.Changeset.validate_exclusion/3
+msgid "is reserved"
+msgstr ""
+
+## From Ecto.Changeset.validate_confirmation/3
+msgid "does not match confirmation"
+msgstr ""
+
+## From Ecto.Changeset.no_assoc_constraint/3
+msgid "is still associated with this entry"
+msgstr ""
+
+msgid "are still associated with this entry"
+msgstr ""
+
+## From Ecto.Changeset.validate_length/3
+msgid "should have %{count} item(s)"
+msgid_plural "should have %{count} item(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should be %{count} character(s)"
+msgid_plural "should be %{count} character(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should be %{count} byte(s)"
+msgid_plural "should be %{count} byte(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should have at least %{count} item(s)"
+msgid_plural "should have at least %{count} item(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should be at least %{count} character(s)"
+msgid_plural "should be at least %{count} character(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should be at least %{count} byte(s)"
+msgid_plural "should be at least %{count} byte(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should have at most %{count} item(s)"
+msgid_plural "should have at most %{count} item(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should be at most %{count} character(s)"
+msgid_plural "should be at most %{count} character(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "should be at most %{count} byte(s)"
+msgid_plural "should be at most %{count} byte(s)"
+msgstr[0] ""
+msgstr[1] ""
+
+## From Ecto.Changeset.validate_number/3
+msgid "must be less than %{number}"
+msgstr ""
+
+msgid "must be greater than %{number}"
+msgstr ""
+
+msgid "must be less than or equal to %{number}"
+msgstr ""
+
+msgid "must be greater than or equal to %{number}"
+msgstr ""
+
+msgid "must be equal to %{number}"
+msgstr ""

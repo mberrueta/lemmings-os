@@ -8,11 +8,107 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <HomeComponents.home_page
-    summary={@summary}
-    cities={@cities}
-    departments={@departments}
-    lemmings={@lemmings}
-    activity_log={@activity_log}
-  />
+  <.content_container>
+    <section id="home-page" class="page-stack">
+      <.panel id="home-hero" tone="accent">
+        <:title>{dgettext("layout", ".home_title_operations_overview")}</:title>
+        <:subtitle>{dgettext("layout", ".home_subtitle_operations_overview")}</:subtitle>
+
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.85fr)]">
+          <div class="page-stack">
+            <div id="home-world-summary-card" class="mini-card">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+                    {dgettext("layout", ".home_current_world_label")}
+                  </p>
+                  <div class="mini-card__title">
+                    {LemmingsOs.Helpers.display_value(@snapshot.world.name,
+                      unavailable_label: dgettext("layout", ".home_card_world_name_missing")
+                    )}
+                  </div>
+                  <p class="mini-card__meta">
+                    {LemmingsOs.Helpers.display_value(@snapshot.world.slug)}
+                  </p>
+                </div>
+                <.status id="home-world-status" kind={:world} value={@snapshot.world.status} />
+              </div>
+            </div>
+
+            <p class="hero-copy p-4">{dgettext("layout", ".home_hero_copy")}</p>
+          </div>
+
+          <div class="page-stack">
+            <.stat_item
+              label={dgettext("layout", ".home_page_status_label")}
+              value={LemmingsOs.Helpers.display_value(@snapshot.status_label)}
+              tone="accent"
+            />
+            <.stat_item
+              label={dgettext("layout", ".home_cards_label")}
+              value={to_string(length(@snapshot.cards))}
+              detail={dgettext("layout", ".home_cards_detail")}
+              tone="info"
+            />
+            <.stat_item
+              label={dgettext("layout", ".home_alerts_label")}
+              value={to_string(length(@snapshot.alerts))}
+              detail={dgettext("layout", ".home_alerts_detail")}
+              tone="warning"
+            />
+          </div>
+        </div>
+      </.panel>
+
+      <.content_grid id="home-overview-grid" columns="sidebar">
+        <.panel id="home-signals-panel">
+          <:title>{dgettext("layout", ".home_signals_title")}</:title>
+          <:subtitle>{dgettext("layout", ".home_signals_subtitle")}</:subtitle>
+          <div class="card-grid">
+            <HomeComponents.dashboard_card :for={card <- @snapshot.cards} card={card} />
+          </div>
+        </.panel>
+
+        <.panel id="home-alerts-panel">
+          <:title>{dgettext("layout", ".home_alerts_title")}</:title>
+          <:subtitle>{dgettext("layout", ".home_alerts_subtitle")}</:subtitle>
+
+          <div
+            :if={@snapshot.alerts == []}
+            id="home-alerts-empty-state"
+            class="flex min-h-[16rem] items-center justify-center px-6 py-8 text-center"
+          >
+            <p class="mini-card__meta">{dgettext("layout", ".home_alerts_zero")}</p>
+          </div>
+
+          <div :if={@snapshot.alerts != []} class="page-stack">
+            <HomeComponents.dashboard_alert :for={alert <- @snapshot.alerts} alert={alert} />
+          </div>
+        </.panel>
+      </.content_grid>
+
+      <.content_grid id="home-support-grid" columns="two">
+        <.panel id="home-quick-links-panel">
+          <:title>{dgettext("layout", ".home_quick_links_title")}</:title>
+          <div class="flex flex-wrap gap-2">
+            <HomeComponents.navigation_action
+              :for={action <- @snapshot.actions}
+              action={action}
+            />
+          </div>
+        </.panel>
+
+        <.panel id="home-omitted-panel">
+          <:title>{dgettext("layout", ".home_omitted_title")}</:title>
+          <:subtitle>{dgettext("layout", ".home_omitted_subtitle")}</:subtitle>
+          <div class="stack-list">
+            <HomeComponents.omitted_section
+              :for={section_id <- @snapshot.omitted_sections}
+              section_id={section_id}
+            />
+          </div>
+        </.panel>
+      </.content_grid>
+    </section>
+  </.content_container>
 </Layouts.app>

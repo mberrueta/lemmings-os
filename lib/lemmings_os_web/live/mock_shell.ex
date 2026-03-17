@@ -2,7 +2,7 @@ defmodule LemmingsOsWeb.MockShell do
   @moduledoc false
 
   import Phoenix.Component
-  use Gettext, backend: LemmingsOsWeb.Gettext
+  use Gettext, backend: LemmingsOs.Gettext
 
   alias LemmingsOs.MockData
 

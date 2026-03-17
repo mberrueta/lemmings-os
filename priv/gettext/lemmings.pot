@@ -1,47 +1,25 @@
-## This is a PO Template file.
-##
-## `msgid`s here are often extracted from source code.
-## Add new translations manually only if they're dynamic
-## translations that can't be statically extracted.
-## Run `mix gettext.extract` to bring this file up to
-## date. Leave `msgstr`s empty as changing them here has no
-## effect: edit them in PO (`.po`) files instead.
-#: lib/lemmings_os_web/components/home_components.ex:121
-#, elixir-autogen
-msgid ".title_active_lemmings"
-msgstr ""
-
-#: lib/lemmings_os_web/components/home_components.ex:122
-#, elixir-autogen
-msgid ".subtitle_active_lemmings"
-msgstr ""
-
-#: lib/lemmings_os_web/components/city_map_components.ex:241
-#: lib/lemmings_os_web/components/home_components.ex:187
-#: lib/lemmings_os_web/components/lemming_components.ex:419
-#: lib/lemmings_os_web/components/world_components.ex:419
+#: lib/lemmings_os_web/components/city_map_components.ex:231
+#: lib/lemmings_os_web/components/core_components.ex:500
+#: lib/lemmings_os_web/components/core_components.ex:504
 #, elixir-autogen
 msgid ".status_running"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:188
-#: lib/lemmings_os_web/components/lemming_components.ex:420
-#: lib/lemmings_os_web/components/world_components.ex:420
+#: lib/lemmings_os_web/components/core_components.ex:501
+#: lib/lemmings_os_web/components/core_components.ex:505
 #, elixir-autogen
 msgid ".status_thinking"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:189
-#: lib/lemmings_os_web/components/lemming_components.ex:421
-#: lib/lemmings_os_web/components/world_components.ex:421
+#: lib/lemmings_os_web/components/core_components.ex:502
+#: lib/lemmings_os_web/components/core_components.ex:506
 #, elixir-autogen
 msgid ".status_error"
 msgstr ""
 
-#: lib/lemmings_os_web/components/city_map_components.ex:242
-#: lib/lemmings_os_web/components/home_components.ex:190
-#: lib/lemmings_os_web/components/lemming_components.ex:422
-#: lib/lemmings_os_web/components/world_components.ex:422
+#: lib/lemmings_os_web/components/city_map_components.ex:232
+#: lib/lemmings_os_web/components/core_components.ex:503
+#: lib/lemmings_os_web/components/core_components.ex:507
 #, elixir-autogen
 msgid ".status_idle"
 msgstr ""

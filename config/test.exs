@@ -20,6 +20,11 @@ config :lemmings_os, LemmingsOsWeb.Endpoint,
   secret_key_base: "CGExhyMoul9DcsNJN+Ta6z04ZJ2wIHo1/VuILb0ZggDKm0ioAt9vkWQkAAvPFYZQ",
   server: false
 
+config :lemmings_os, :world_bootstrap_import_on_startup, false
+
+config :lemmings_os, :tools_runtime_fetcher, LemmingsOs.Tools.MockRuntimeFetcher
+config :lemmings_os, :tools_policy_fetcher, LemmingsOs.Tools.MockPolicyFetcher
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

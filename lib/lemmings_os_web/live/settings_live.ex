@@ -1,34 +1,28 @@
 defmodule LemmingsOsWeb.SettingsLive do
   use LemmingsOsWeb, :live_view
 
+  alias LemmingsOs.Helpers
+  alias LemmingsOs.World
   import LemmingsOsWeb.MockShell
+  alias LemmingsOsWeb.PageData.SettingsPageSnapshot
 
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign_shell(:settings, dgettext("layout", ".page_title_settings"))
-     |> assign(:form, build_form(default_params()))}
+     |> assign(:snapshot, SettingsPageSnapshot.build())}
   end
 
-  def handle_event("validate", %{"settings" => params}, socket) do
-    {:noreply, assign(socket, :form, build_form(params))}
-  end
+  defp validation_detail(0), do: dgettext("layout", ".settings_validation_summary_zero")
+  defp validation_detail(1), do: dgettext("layout", ".settings_validation_summary_one")
 
-  def handle_event("save", %{"settings" => params}, socket) do
-    {:noreply,
-     socket
-     |> assign(:form, build_form(params))
-     |> put_flash(:info, dgettext("layout", ".flash_settings_mock"))}
-  end
+  defp validation_detail(issue_count),
+    do: dgettext("layout", ".settings_validation_summary_many", count: issue_count)
 
-  defp build_form(params), do: to_form(params, as: :settings)
+  defp status_label(status), do: World.translate_status(status)
 
-  defp default_params do
-    %{
-      "default_model" => "gpt-4o",
-      "log_level" => "verbose",
-      "max_agents" => "16",
-      "world_name" => "Lemmings HQ"
-    }
-  end
+  defp help_link_label("world"), do: dgettext("layout", ".settings_help_link_world")
+  defp help_link_label("logs"), do: dgettext("layout", ".settings_help_link_logs")
+  defp help_link_label("tools"), do: dgettext("layout", ".settings_help_link_tools")
+  defp help_link_label(_link_id), do: dgettext("layout", ".title_environment_notes")
 end

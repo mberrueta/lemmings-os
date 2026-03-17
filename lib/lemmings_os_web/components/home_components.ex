@@ -1,192 +1,260 @@
 defmodule LemmingsOsWeb.HomeComponents do
   @moduledoc """
-  Composed sections for the home dashboard.
+  Small components for the Home dashboard.
   """
 
   use LemmingsOsWeb, :html
 
-  attr :summary, :map, required: true
-  attr :cities, :list, required: true
-  attr :departments, :list, required: true
-  attr :lemmings, :list, required: true
-  attr :activity_log, :list, required: true
+  alias LemmingsOs.Helpers
 
-  def home_page(assigns) do
-    active_lemmings = Enum.filter(assigns.lemmings, &(&1.status in [:running, :thinking]))
-    city_snapshot = Enum.take(assigns.cities, 3)
-    department_snapshot = Enum.take(assigns.departments, 3)
+  @doc """
+  Renders a trustworthy dashboard card from the Home snapshot.
+  """
+  attr :card, :map, required: true
 
-    assigns =
-      assigns
-      |> assign(:active_lemmings, active_lemmings)
-      |> assign(:city_snapshot, city_snapshot)
-      |> assign(:department_snapshot, department_snapshot)
+  def dashboard_card(assigns) do
+    assigns = assign(assigns, :display, card_display(assigns.card))
 
     ~H"""
-    <.content_container>
-      <.content_grid id="home-top-grid" columns="sidebar">
-        <.panel id="home-hero" tone="accent">
-          <:title>{dgettext("layout", ".home_title_operations_overview")}</:title>
-          <:subtitle>
-            {dgettext("layout", ".home_subtitle_operations_overview")}
-          </:subtitle>
-          <:actions>
-            <.button navigate={~p"/world"} variant="secondary">
-              {dgettext("layout", ".button_explore_world")}
-            </.button>
-          </:actions>
-
-          <div class="hero-copy">
-            <p>
-              {dgettext("layout", ".home_hero_copy")}
-            </p>
-
-            <div class="quick-links">
-              <.button navigate={~p"/cities"} variant="ghost">
-                {dgettext("layout", ".nav_cities")}
-              </.button>
-              <.button navigate={~p"/departments"} variant="ghost">
-                {dgettext("layout", ".nav_departments")}
-              </.button>
-              <.button navigate={~p"/lemmings"} variant="ghost">
-                {dgettext("layout", ".nav_lemmings")}
-              </.button>
-              <.button navigate={~p"/tools"} variant="ghost">
-                {dgettext("layout", ".nav_tools")}
-              </.button>
-            </div>
-          </div>
-        </.panel>
-
-        <div class="page-stack">
-          <.content_grid columns="two">
-            <.stat_item
-              label={dgettext("layout", ".stat_active_agents")}
-              value={to_string(@summary.active_agents_count)}
-              detail={dgettext("layout", ".stat_active_agents_detail")}
-              tone="accent"
-            />
-            <.stat_item
-              label={dgettext("layout", ".stat_online_nodes")}
-              value={to_string(@summary.online_cities_count)}
-              detail={dgettext("layout", ".stat_online_nodes_detail")}
-              tone="info"
-            />
-            <.stat_item
-              label={dgettext("layout", ".stat_departments")}
-              value={to_string(@summary.departments_count)}
-              detail={dgettext("layout", ".stat_departments_detail")}
-              tone="warning"
-            />
-            <.stat_item
-              label={dgettext("layout", ".stat_tool_registry")}
-              value={to_string(@summary.tools_count)}
-              detail={dgettext("layout", ".stat_tool_registry_detail")}
-              tone="default"
-            />
-          </.content_grid>
-
-          <.panel id="home-system-strip">
-            <:title>{dgettext("layout", ".home_title_cluster_signals")}</:title>
-            <div class="inline-metrics">
-              <span>{dgettext("layout", ".metric_cpu")} {@summary.cpu}</span>
-              <span>{dgettext("layout", ".metric_memory")} {@summary.mem}</span>
-              <span>{dgettext("layout", ".metric_tick")} {@summary.tick}</span>
-            </div>
-          </.panel>
+    <article id={"home-card-#{@card.id}"} class="mini-card h-full" data-status={@card.status}>
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="mini-card__title">{@display.title}</div>
+          <p class="mini-card__meta">{@display.subtitle}</p>
         </div>
-      </.content_grid>
+        <.status kind={:world} value={@card.status} />
+      </div>
 
-      <.content_grid id="home-middle-grid" columns="two">
-        <.panel id="home-network-snapshot">
-          <:title>{dgettext("layout", ".home_title_network_snapshot")}</:title>
-          <:subtitle>{dgettext("layout", ".home_subtitle_network_snapshot")}</:subtitle>
-          <div class="card-grid">
-            <.link
-              :for={city <- @city_snapshot}
-              navigate={~p"/cities?#{%{city: city.id}}"}
-              class="mini-card"
-            >
-              <div class="mini-card__title">
-                <span class="accent-dot" style={accent_style(city.accent)}></span>
-                {city.name}
-              </div>
-              <p class="mini-card__meta">{city.region}</p>
-              <p class="mini-card__meta">{city.description}</p>
-            </.link>
-          </div>
-        </.panel>
-
-        <.panel id="home-active-lemmings">
-          <:title>{dgettext("lemmings", ".title_active_lemmings")}</:title>
-          <:subtitle>{dgettext("lemmings", ".subtitle_active_lemmings")}</:subtitle>
-          <div class="stack-list">
-            <.link
-              :for={lemming <- Enum.take(@active_lemmings, 4)}
-              navigate={~p"/lemmings?#{%{lemming: lemming.id}}"}
-              class="list-row-card"
-            >
-              <div>
-                <p class="list-row-card__title">{lemming.name}</p>
-                <p class="list-row-card__meta">{lemming.role}</p>
-              </div>
-              <div class="list-row-card__aside">
-                <.badge tone={status_tone(lemming.status)}>{status_label(lemming.status)}</.badge>
-                <span>{lemming.current_task}</span>
-              </div>
-            </.link>
-          </div>
-        </.panel>
-      </.content_grid>
-
-      <.content_grid id="home-bottom-grid" columns="two">
-        <.panel id="home-department-queues">
-          <:title>{dgettext("world", ".title_department_queues")}</:title>
-          <div class="stack-list">
-            <.link
-              :for={department <- @department_snapshot}
-              navigate={~p"/departments?#{%{dept: department.id}}"}
-              class="list-row-card"
-            >
-              <div>
-                <p class="list-row-card__title">{department.name}</p>
-                <p class="list-row-card__meta">{department.description}</p>
-              </div>
-              <div class="list-row-card__aside">
-                <span>{dgettext("world", ".label_next")}</span>
-                <span>{List.first(department.tasks_queue)}</span>
-              </div>
-            </.link>
-          </div>
-        </.panel>
-
-        <.panel id="home-activity-feed">
-          <:title>{dgettext("layout", ".home_title_recent_activity")}</:title>
-          <div class="activity-feed">
-            <div :for={item <- Enum.take(@activity_log, 6)} class="activity-feed__row">
-              <span class="activity-feed__time">[{item.time}]</span>
-              <span class={["activity-feed__agent", activity_class(item.type)]}>{item.agent}</span>
-              <span>{item.action}</span>
-            </div>
-          </div>
-        </.panel>
-      </.content_grid>
-    </.content_container>
+      <div class="mt-3 grid gap-3 md:grid-cols-2">
+        <.stat_item
+          :for={item <- @display.items}
+          label={item.label}
+          value={item.value}
+          detail={item[:detail]}
+        />
+      </div>
+    </article>
     """
   end
 
-  defp activity_class(:error), do: "activity-feed__agent--danger"
-  defp activity_class(:system), do: "activity-feed__agent--warning"
-  defp activity_class(_), do: "activity-feed__agent--accent"
+  @doc """
+  Renders a localized Home alert.
+  """
+  attr :alert, :map, required: true
 
-  defp accent_style(color), do: "background-color: #{color};"
-  defp status_tone(:running), do: "success"
-  defp status_tone(:thinking), do: "warning"
-  defp status_tone(:error), do: "danger"
-  defp status_tone(_), do: "default"
-  defp status_label(:running), do: dgettext("lemmings", ".status_running")
-  defp status_label(:thinking), do: dgettext("lemmings", ".status_thinking")
-  defp status_label(:error), do: dgettext("lemmings", ".status_error")
-  defp status_label(:idle), do: dgettext("lemmings", ".status_idle")
-  defp status_label(status), do: status |> Atom.to_string() |> String.upcase()
+  def dashboard_alert(assigns) do
+    assigns =
+      assign(assigns,
+        summary: alert_summary(assigns.alert),
+        detail: alert_detail(assigns.alert),
+        action: alert_action(assigns.alert)
+      )
+
+    ~H"""
+    <article id={"home-alert-#{@alert.code}"} class="mini-card">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="mini-card__title">{@summary}</div>
+          <p class="mini-card__meta">{@detail}</p>
+        </div>
+        <.status kind={:issue} value={@alert.severity} />
+      </div>
+      <p :if={@action} class="mt-3 text-sm text-[var(--muted)]">{@action}</p>
+    </article>
+    """
+  end
+
+  @doc """
+  Renders a navigation action for the Home dashboard.
+  """
+  attr :action, :map, required: true
+
+  def navigation_action(assigns) do
+    ~H"""
+    <.button
+      id={"home-link-#{@action.id}"}
+      navigate={@action.to}
+      variant="ghost"
+    >
+      {navigation_action_label(@action.id)}
+    </.button>
+    """
+  end
+
+  @doc """
+  Renders an intentionally omitted Home section entry.
+  """
+  attr :section_id, :string, required: true
+
+  def omitted_section(assigns) do
+    ~H"""
+    <div id={"home-omitted-#{@section_id}"} class="list-row-card">
+      <div>
+        <p class="list-row-card__title">{omitted_section_title(@section_id)}</p>
+        <p class="list-row-card__meta">{dgettext("layout", ".home_omitted_item_copy")}</p>
+      </div>
+    </div>
+    """
+  end
+
+  defp card_display(%{id: "world_identity", source: "persisted_world", meta: meta}) do
+    %{
+      title: dgettext("layout", ".home_card_world_identity_title"),
+      subtitle: source_label("persisted_world"),
+      items: [
+        %{
+          label: dgettext("layout", ".home_card_world_name_label"),
+          value:
+            Helpers.display_value(meta.name,
+              unavailable_label: dgettext("layout", ".home_card_world_name_missing")
+            )
+        },
+        %{
+          label: dgettext("layout", ".home_card_world_slug_label"),
+          value: Helpers.display_value(meta.slug)
+        }
+      ]
+    }
+  end
+
+  defp card_display(%{id: "bootstrap_health", source: "bootstrap_config", meta: meta}) do
+    %{
+      title: dgettext("layout", ".home_card_bootstrap_health_title"),
+      subtitle: source_label("bootstrap_config"),
+      items: [
+        %{
+          label: dgettext("layout", ".home_card_bootstrap_path_label"),
+          value: Helpers.truncate_value(meta.path, max_length: 36)
+        },
+        %{
+          label: dgettext("layout", ".home_card_bootstrap_issues_label"),
+          value: to_string(meta.issue_count)
+        }
+      ]
+    }
+  end
+
+  defp card_display(%{id: "runtime_health", source: "runtime_checks", meta: meta}) do
+    %{
+      title: dgettext("layout", ".home_card_runtime_health_title"),
+      subtitle: source_label("runtime_checks"),
+      items: [
+        %{
+          label: dgettext("layout", ".home_card_runtime_checks_label"),
+          value: to_string(meta.check_count)
+        },
+        %{
+          label: dgettext("layout", ".home_card_runtime_deferred_label"),
+          value: to_string(length(meta.deferred_sources))
+        }
+      ]
+    }
+  end
+
+  defp card_display(%{id: "tools_health", source: "tools_snapshot", meta: meta}) do
+    %{
+      title: dgettext("layout", ".home_card_tools_health_title"),
+      subtitle: source_label("tools_snapshot"),
+      items: [
+        %{
+          label: dgettext("layout", ".home_card_tools_count_label"),
+          value: to_string(meta.tool_count)
+        },
+        %{
+          label: dgettext("layout", ".home_card_tools_policy_mode_label"),
+          value: policy_mode_label(meta.policy_mode)
+        },
+        %{
+          label: dgettext("layout", ".home_card_tools_issues_label"),
+          value: to_string(meta.issue_count)
+        }
+      ]
+    }
+  end
+
+  defp source_label("persisted_world"), do: dgettext("layout", ".home_source_persisted_world")
+  defp source_label("bootstrap_config"), do: dgettext("layout", ".home_source_bootstrap_config")
+  defp source_label("runtime_checks"), do: dgettext("layout", ".home_source_runtime_checks")
+  defp source_label("tools_snapshot"), do: dgettext("layout", ".home_source_tools_snapshot")
+  defp source_label(_source), do: dgettext("layout", ".home_source_runtime_checks")
+
+  defp navigation_action_label("world"), do: dgettext("layout", ".nav_world")
+  defp navigation_action_label("tools"), do: dgettext("layout", ".nav_tools")
+  defp navigation_action_label("logs"), do: dgettext("layout", ".nav_logs")
+  defp navigation_action_label("settings"), do: dgettext("layout", ".nav_settings")
+  defp navigation_action_label(_action_id), do: dgettext("layout", ".nav_world")
+
+  defp policy_mode_label("deferred"), do: dgettext("layout", ".tools_policy_mode_deferred")
+  defp policy_mode_label("partial"), do: dgettext("layout", ".tools_policy_mode_partial")
+  defp policy_mode_label("known"), do: dgettext("layout", ".tools_policy_mode_known")
+  defp policy_mode_label(_policy_mode), do: Helpers.display_value(nil)
+
+  defp alert_summary(%{code: "home_world_unavailable"}),
+    do: dgettext("layout", ".home_world_unavailable_summary")
+
+  defp alert_summary(%{code: "tools_policy_partial"}),
+    do: dgettext("layout", ".home_alert_tools_policy_partial_summary")
+
+  defp alert_summary(%{code: "tools_policy_unavailable"}),
+    do: dgettext("layout", ".home_alert_tools_policy_unavailable_summary")
+
+  defp alert_summary(%{code: "tools_runtime_source_unavailable"}),
+    do: dgettext("layout", ".home_alert_tools_runtime_source_unavailable_summary")
+
+  defp alert_summary(alert), do: alert.summary
+
+  defp alert_detail(%{code: "home_world_unavailable"}),
+    do: dgettext("layout", ".home_world_unavailable_detail")
+
+  defp alert_detail(%{code: "tools_policy_partial"}),
+    do: dgettext("layout", ".home_alert_tools_policy_partial_detail")
+
+  defp alert_detail(%{code: "tools_policy_unavailable"}),
+    do: dgettext("layout", ".home_alert_tools_policy_unavailable_detail")
+
+  defp alert_detail(%{code: "tools_runtime_source_unavailable"}),
+    do: dgettext("layout", ".home_alert_tools_runtime_source_unavailable_detail")
+
+  defp alert_detail(alert), do: alert.detail
+
+  defp alert_action(%{code: "home_world_unavailable"}),
+    do: dgettext("layout", ".home_world_unavailable_action")
+
+  defp alert_action(%{code: "tools_policy_partial"}),
+    do: dgettext("layout", ".home_alert_tools_policy_partial_action")
+
+  defp alert_action(%{code: "tools_policy_unavailable"}),
+    do: dgettext("layout", ".home_alert_tools_policy_unavailable_action")
+
+  defp alert_action(%{code: "tools_runtime_source_unavailable"}),
+    do: dgettext("layout", ".home_alert_tools_runtime_source_unavailable_action")
+
+  defp alert_action(alert), do: alert.action_hint
+
+  defp omitted_section_title("hierarchy_counts"),
+    do: dgettext("layout", ".home_omitted_hierarchy_counts_title")
+
+  defp omitted_section_title("city_network"),
+    do: dgettext("layout", ".home_omitted_city_network_title")
+
+  defp omitted_section_title("department_queues"),
+    do: dgettext("layout", ".home_omitted_department_queues_title")
+
+  defp omitted_section_title("active_lemmings"),
+    do: dgettext("layout", ".home_omitted_active_lemmings_title")
+
+  defp omitted_section_title("recent_activity"),
+    do: dgettext("layout", ".home_omitted_recent_activity_title")
+
+  defp omitted_section_title("bootstrap_health"),
+    do: dgettext("layout", ".home_card_bootstrap_health_title")
+
+  defp omitted_section_title("runtime_health"),
+    do: dgettext("layout", ".home_card_runtime_health_title")
+
+  defp omitted_section_title("tools_health"),
+    do: dgettext("layout", ".home_card_tools_health_title")
+
+  defp omitted_section_title(_section_id),
+    do: dgettext("layout", ".home_omitted_hierarchy_counts_title")
 end
