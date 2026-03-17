@@ -65,47 +65,64 @@ defmodule LemmingsOsWeb.WorldComponents do
     <.panel id="world-status-panel" tone="accent">
       <:title>{dgettext("world", ".title_world_status")}</:title>
       <:actions>
-        <.button id="world-refresh-button" phx-click="refresh_status" variant="ghost">
+        <.button id="world-refresh-button" phx-click="refresh_status" variant="ghost" class="ml-auto">
           {dgettext("world", ".button_refresh_world")}
-        </.button>
-        <.button id="world-import-button" phx-click="import_bootstrap" variant="secondary">
-          {dgettext("world", ".button_import_bootstrap")}
         </.button>
       </:actions>
 
       <div id="world-status-strip" class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <div class="mini-card">
-          <div class="mini-card__title">{dgettext("world", ".title_world_identity")}</div>
-          <p class="mini-card__meta">{@snapshot.world.name}</p>
-          <.status id="world-persisted-status" kind={:world} value={@snapshot.world.status} />
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("world", ".title_world_identity")}</div>
+              <p class="mini-card__meta">{@snapshot.world.name}</p>
+            </div>
+            <.status id="world-persisted-status" kind={:world} value={@snapshot.world.status} />
+          </div>
         </div>
 
         <div class="mini-card">
-          <div class="mini-card__title">{dgettext("world", ".label_immediate_import")}</div>
-          <p class="mini-card__meta">{dgettext("world", ".title_import_state")}</p>
-          <.status
-            id="world-immediate-import-status"
-            kind={:world}
-            value={@snapshot.immediate_import.status}
-          />
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("world", ".label_immediate_import")}</div>
+              <p class="mini-card__meta">{dgettext("world", ".title_import_state")}</p>
+            </div>
+            <.status
+              id="world-immediate-import-status"
+              kind={:world}
+              value={@snapshot.immediate_import.status}
+            />
+          </div>
         </div>
 
         <div class="mini-card">
-          <div class="mini-card__title">{dgettext("world", ".label_last_sync")}</div>
-          <p class="mini-card__meta">{format_datetime(@snapshot.last_sync.imported_at)}</p>
-          <.status id="world-last-sync-status" kind={:world} value={@snapshot.last_sync.status} />
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("world", ".label_last_sync")}</div>
+              <p class="mini-card__meta">{format_datetime(@snapshot.last_sync.imported_at)}</p>
+            </div>
+            <.status id="world-last-sync-status" kind={:world} value={@snapshot.last_sync.status} />
+          </div>
         </div>
 
         <div class="mini-card">
-          <div class="mini-card__title">{dgettext("world", ".title_bootstrap_config")}</div>
-          <p class="mini-card__meta">{display_value(@snapshot.bootstrap.source)}</p>
-          <.status id="world-bootstrap-status" kind={:world} value={@snapshot.bootstrap.status} />
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("world", ".title_bootstrap_config")}</div>
+              <p class="mini-card__meta">{display_value(@snapshot.bootstrap.source)}</p>
+            </div>
+            <.status id="world-bootstrap-status" kind={:world} value={@snapshot.bootstrap.status} />
+          </div>
         </div>
 
         <div class="mini-card">
-          <div class="mini-card__title">{dgettext("world", ".title_runtime_checks")}</div>
-          <p class="mini-card__meta">{to_string(length(@runtime_checks))}</p>
-          <.status id="world-runtime-status" kind={:world} value={@snapshot.runtime.status} />
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("world", ".title_runtime_checks")}</div>
+              <p class="mini-card__meta">{to_string(length(@runtime_checks))}</p>
+            </div>
+            <.status id="world-runtime-status" kind={:world} value={@snapshot.runtime.status} />
+          </div>
         </div>
       </div>
     </.panel>
@@ -147,6 +164,8 @@ defmodule LemmingsOsWeb.WorldComponents do
 
     <div :if={@active_tab == "overview"} id="world-overview-tab" class="page-stack">
       <.panel id="world-map-panel" tone="accent">
+        <%!-- TODO(task 07 follow-up): the world topology still uses mock city data
+          until the Cities slice exposes real world-scoped topology. --%>
         <MapComponents.world_map id="world-map" cities={@map_cities} />
       </.panel>
     </div>
@@ -154,19 +173,39 @@ defmodule LemmingsOsWeb.WorldComponents do
     <.content_grid :if={@active_tab == "import"} id="world-import-grid" columns="two">
       <.panel id="world-import-panel">
         <:title>{dgettext("world", ".title_import_state")}</:title>
+        <:actions>
+          <.button
+            id="world-import-button"
+            phx-click="import_bootstrap"
+            variant="secondary"
+            class="ml-auto"
+          >
+            {dgettext("world", ".button_import_bootstrap")}
+          </.button>
+        </:actions>
         <div class="space-y-4">
-          <div id="world-immediate-import" class="space-y-2">
-            <p class="text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
-              {dgettext("world", ".label_immediate_import")}
-            </p>
-            <.status kind={:world} value={@snapshot.immediate_import.status} />
+          <div
+            id="world-immediate-import"
+            class="rounded-[var(--radius-sm)] border border-[var(--border-soft)] p-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+                {dgettext("world", ".label_immediate_import")}
+              </p>
+              <.status kind={:world} value={@snapshot.immediate_import.status} />
+            </div>
           </div>
 
-          <div id="world-last-sync" class="space-y-2">
-            <p class="text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
-              {dgettext("world", ".label_last_sync")}
-            </p>
-            <.status kind={:world} value={@snapshot.last_sync.status} />
+          <div
+            id="world-last-sync"
+            class="rounded-[var(--radius-sm)] border border-[var(--border-soft)] p-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+                {dgettext("world", ".label_last_sync")}
+              </p>
+              <.status kind={:world} value={@snapshot.last_sync.status} />
+            </div>
           </div>
 
           <div class="grid gap-3">
@@ -185,7 +224,10 @@ defmodule LemmingsOsWeb.WorldComponents do
 
       <.panel id="world-issues-panel">
         <:title>{dgettext("world", ".title_world_issues")}</:title>
-        <div :if={@bootstrap_issues == [] and @import_issues == []} class="page-stack">
+        <div
+          :if={@bootstrap_issues == [] and @import_issues == []}
+          class="flex min-h-[12rem] items-center justify-center p-6 text-center"
+        >
           <.badge tone="success">{dgettext("world", ".label_no_world_issues")}</.badge>
         </div>
         <div :if={@bootstrap_issues != [] or @import_issues != []} class="stack-list">
@@ -217,6 +259,15 @@ defmodule LemmingsOsWeb.WorldComponents do
               label={dgettext("world", ".label_bootstrap_path")}
               value={truncate_value(@snapshot.bootstrap.path)}
               detail={@snapshot.bootstrap.path}
+            />
+            <.stat_item
+              label={runtime_check_label("postgres_connection")}
+              value={display_value(declared_postgres_url_env(@snapshot))}
+            />
+            <.stat_item
+              label={dgettext("world", ".title_world_identity")}
+              value={display_value(bootstrap_world_name(@snapshot))}
+              detail={bootstrap_identity_detail(@snapshot)}
             />
           </div>
 
@@ -341,7 +392,7 @@ defmodule LemmingsOsWeb.WorldComponents do
     <.panel id="world-empty-panel" tone="warning">
       <:title>{dgettext("world", ".title_world_identity")}</:title>
       <:actions>
-        <.button id="world-refresh-button" phx-click="refresh_status" variant="ghost">
+        <.button id="world-refresh-button" phx-click="refresh_status" variant="ghost" class="ml-auto">
           {dgettext("world", ".button_refresh_world")}
         </.button>
         <.button id="world-import-button" phx-click="import_bootstrap" variant="secondary">
@@ -742,6 +793,13 @@ defmodule LemmingsOsWeb.WorldComponents do
   defp runtime_checks(nil), do: []
   defp runtime_checks(snapshot), do: snapshot.runtime.checks
 
+  defp declared_postgres_url_env(%{
+         bootstrap: %{declared_config: %{infrastructure: %{postgres: %{url_env: url_env}}}}
+       }),
+       do: url_env
+
+  defp declared_postgres_url_env(_snapshot), do: nil
+
   defp providers(nil), do: []
 
   defp providers(%{bootstrap: %{declared_config: %{models: %{providers: providers}}}}),
@@ -823,6 +881,21 @@ defmodule LemmingsOsWeb.WorldComponents do
       dgettext("world", ".label_not_available")
     end
   end
+
+  defp bootstrap_world_name(%{bootstrap: %{declared_config: %{world: %{name: name}}}}), do: name
+  defp bootstrap_world_name(_snapshot), do: nil
+
+  defp bootstrap_identity_detail(%{
+         bootstrap: %{declared_config: %{world: %{bootstrap_id: bootstrap_id, slug: slug}}}
+       }) do
+    [
+      "#{dgettext("world", ".label_world_id")}: #{display_value(bootstrap_id)}",
+      "#{dgettext("world", ".label_world_slug")}: #{display_value(slug)}"
+    ]
+    |> Enum.join(" / ")
+  end
+
+  defp bootstrap_identity_detail(_snapshot), do: dgettext("world", ".label_not_available")
 
   defp runtime_check_label("bootstrap_file"),
     do: dgettext("world", ".runtime_check_bootstrap_file")

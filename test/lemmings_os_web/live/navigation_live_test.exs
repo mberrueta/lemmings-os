@@ -21,7 +21,7 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
     assert has_element?(view, "#sidebar-nav-home")
   end
 
-  test "world page renders the world map", %{conn: conn} do
+  test "world page renders the world empty state", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/world")
 
     assert has_element?(view, "#world-page-empty-state")

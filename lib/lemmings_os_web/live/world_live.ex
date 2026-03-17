@@ -67,6 +67,9 @@ defmodule LemmingsOsWeb.WorldLive do
   defp normalize_tab("runtime"), do: "runtime"
   defp normalize_tab(_tab), do: "overview"
 
+  # TODO(task 07 follow-up): replace this mock city topology once the Cities slice
+  # provides real world-scoped data. World identity/bootstrap/runtime already come
+  # from the persisted snapshot; only the city topology remains mocked for now.
   defp world_map_cities do
     MockData.cities()
     |> Enum.map(&to_world_map_city/1)

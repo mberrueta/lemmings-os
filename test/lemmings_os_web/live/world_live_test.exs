@@ -43,6 +43,7 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     refute has_element?(view, "#world-cities-placeholder-panel")
     refute has_element?(view, "#world-tools-placeholder-panel")
     assert has_element?(view, "#world-bootstrap-status[data-status='ok']")
+    assert has_element?(view, "#world-status-panel")
   end
 
   test "switches world tabs without losing the status strip", %{conn: conn} do

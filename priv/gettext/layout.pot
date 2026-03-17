@@ -68,7 +68,7 @@ msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:49
 #: lib/lemmings_os_web/components/sidebar_components.ex:157
-#: lib/lemmings_os_web/components/world_components.ex:615
+#: lib/lemmings_os_web/components/world_components.ex:652
 #: lib/lemmings_os_web/live/mock_shell.ex:45
 #, elixir-autogen
 msgid ".nav_departments"
