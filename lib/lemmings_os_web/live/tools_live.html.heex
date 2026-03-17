@@ -8,5 +8,106 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <SystemComponents.tools_page tools={@tools} />
+  <.content_container>
+    <.panel id="tools-page" tone="accent">
+      <:title>{dgettext("layout", ".title_tools_registry")}</:title>
+      <:subtitle>{dgettext("layout", ".subtitle_tools_registry")}</:subtitle>
+      <div class="grid gap-3 md:grid-cols-3">
+        <div id="tools-runtime-status-card" class="mini-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("layout", ".tools_runtime_title")}</div>
+              <p class="mini-card__meta">{runtime_count_label(@snapshot.runtime)}</p>
+            </div>
+            <.status id="tools-runtime-status" kind={:world} value={@snapshot.runtime.status} />
+          </div>
+        </div>
+
+        <div id="tools-policy-status-card" class="mini-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("layout", ".tools_policy_title")}</div>
+              <p class="mini-card__meta">{policy_status_copy(@snapshot.policy)}</p>
+            </div>
+            <.status id="tools-policy-status" kind={:world} value={@snapshot.policy.status} />
+          </div>
+        </div>
+
+        <div id="tools-page-status-card" class="mini-card">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">{dgettext("layout", ".tools_health_title")}</div>
+              <p class="mini-card__meta">{page_status_copy(@snapshot)}</p>
+            </div>
+            <.status id="tools-page-status" kind={:world} value={@snapshot.status} />
+          </div>
+        </div>
+      </div>
+    </.panel>
+
+    <.content_grid id="tools-content-grid" columns="sidebar">
+      <.panel id="tools-grid-panel">
+        <:title>{dgettext("layout", ".tools_capability_panel_title")}</:title>
+        <:subtitle>{dgettext("layout", ".tools_capability_panel_subtitle")}</:subtitle>
+        <:actions>
+          <.form
+            for={@filter_form}
+            id="tools-filter-form"
+            class="ml-auto w-full sm:max-w-sm"
+            phx-change="filter_tools"
+          >
+            <.input
+              field={@filter_form[:query]}
+              id="tools-filter-input"
+              type="search"
+              label={dgettext("layout", ".tools_filter_label")}
+              placeholder={dgettext("layout", ".tools_filter_placeholder")}
+              phx-debounce={250}
+            />
+          </.form>
+        </:actions>
+
+        <div :if={@filtered_tools == []} class="flex min-h-[18rem] items-center justify-center">
+          <.empty_state
+            id="tools-empty-state"
+            title={empty_state_title(@filter, @snapshot.runtime.status)}
+            copy={empty_state_copy(@filter, @snapshot.runtime.status)}
+          />
+        </div>
+
+        <div :if={@filtered_tools != []} class="card-grid">
+          <SystemComponents.tool_runtime_card :for={tool <- @filtered_tools} tool={tool} />
+        </div>
+      </.panel>
+
+      <.panel id="tools-issues-panel">
+        <:title>{dgettext("layout", ".tools_issues_panel_title")}</:title>
+        <:subtitle>{dgettext("layout", ".tools_issues_panel_subtitle")}</:subtitle>
+
+        <div
+          :if={@snapshot.issues == []}
+          class="flex min-h-[18rem] items-center justify-center px-6 py-8 text-center"
+        >
+          <p class="mini-card__meta">{dgettext("layout", ".tools_no_issues")}</p>
+        </div>
+
+        <div :if={@snapshot.issues != []} class="page-stack">
+          <article
+            :for={issue <- @snapshot.issues}
+            id={"tools-issue-#{issue.code}"}
+            class="mini-card"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="mini-card__title">{issue_summary(issue)}</div>
+                <p class="mini-card__meta">{issue_detail(issue, @snapshot)}</p>
+              </div>
+              <.status kind={:issue} value={issue.severity} />
+            </div>
+            <p class="mt-3 text-sm text-[var(--muted)]">{issue_action(issue)}</p>
+          </article>
+        </div>
+      </.panel>
+    </.content_grid>
+  </.content_container>
 </Layouts.app>

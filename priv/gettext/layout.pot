@@ -230,32 +230,27 @@ msgstr ""
 msgid ".home_title_recent_activity"
 msgstr ""
 
-#: lib/lemmings_os_web/components/system_components.ex:14
+#: lib/lemmings_os_web/live/tools_live.html.heex:13
 #, elixir-autogen
 msgid ".title_tools_registry"
 msgstr ""
 
-#: lib/lemmings_os_web/components/system_components.ex:15
+#: lib/lemmings_os_web/live/tools_live.html.heex:14
 #, elixir-autogen
 msgid ".subtitle_tools_registry"
 msgstr ""
 
-#: lib/lemmings_os_web/components/system_components.ex:28
-#, elixir-autogen
-msgid ".badge_agents_count"
-msgstr ""
-
-#: lib/lemmings_os_web/components/system_components.ex:44
+#: lib/lemmings_os_web/components/system_components.ex:84
 #, elixir-autogen
 msgid ".title_activity_logs"
 msgstr ""
 
-#: lib/lemmings_os_web/components/system_components.ex:45
+#: lib/lemmings_os_web/components/system_components.ex:85
 #, elixir-autogen
 msgid ".subtitle_activity_logs"
 msgstr ""
 
-#: lib/lemmings_os_web/components/system_components.ex:57
+#: lib/lemmings_os_web/components/system_components.ex:97
 #, elixir-autogen
 msgid ".logs_waiting_for_events"
 msgstr ""
@@ -301,7 +296,7 @@ msgstr ""
 msgid ".page_title_world"
 msgstr ""
 
-#: lib/lemmings_os_web/live/tools_live.ex:11
+#: lib/lemmings_os_web/live/tools_live.ex:13
 #, elixir-autogen
 msgid ".page_title_tools"
 msgstr ""
@@ -399,4 +394,232 @@ msgstr ""
 #: lib/lemmings_os_web/live/mock_shell.ex:52
 #, elixir-autogen, elixir-format
 msgid ".breadcrumb_new"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:51
+#, elixir-autogen, elixir-format
+msgid ".tools_capability_panel_subtitle"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:50
+#, elixir-autogen, elixir-format
+msgid ".tools_capability_panel_title"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:44
+#, elixir-autogen, elixir-format
+msgid ".tools_card_category_label"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:56
+#, elixir-autogen, elixir-format
+msgid ".tools_card_policy_mode_label"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:48
+#, elixir-autogen, elixir-format
+msgid ".tools_card_risk_label"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:52
+#, elixir-autogen, elixir-format
+msgid ".tools_card_usage_label"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:23
+#, elixir-autogen, elixir-format
+msgid ".tools_description_unavailable"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:99
+#, elixir-autogen, elixir-format
+msgid ".tools_empty_copy"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:100
+#, elixir-autogen, elixir-format
+msgid ".tools_empty_filtered_copy"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:95
+#, elixir-autogen, elixir-format
+msgid ".tools_empty_filtered_title"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:97
+#: lib/lemmings_os_web/live/tools_live.ex:98
+#, elixir-autogen, elixir-format
+msgid ".tools_empty_runtime_copy"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:92
+#: lib/lemmings_os_web/live/tools_live.ex:93
+#, elixir-autogen, elixir-format
+msgid ".tools_empty_runtime_title"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:94
+#, elixir-autogen, elixir-format
+msgid ".tools_empty_title"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:63
+#, elixir-autogen, elixir-format
+msgid ".tools_filter_label"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:64
+#, elixir-autogen, elixir-format
+msgid ".tools_filter_placeholder"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid ".tools_health_title"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:135
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_policy_partial_action"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:121
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_policy_partial_detail"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:110
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_policy_partial_summary"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:138
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_policy_unavailable_action"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:127
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_policy_unavailable_detail"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:113
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_policy_unavailable_summary"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:132
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_runtime_source_unavailable_action"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:118
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_runtime_source_unavailable_detail"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:107
+#, elixir-autogen, elixir-format
+msgid ".tools_issue_runtime_source_unavailable_summary"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:104
+#, elixir-autogen, elixir-format
+msgid ".tools_issues_many"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:103
+#, elixir-autogen, elixir-format
+msgid ".tools_issues_one"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:85
+#, elixir-autogen, elixir-format
+msgid ".tools_issues_panel_subtitle"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:84
+#, elixir-autogen, elixir-format
+msgid ".tools_issues_panel_title"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:102
+#, elixir-autogen, elixir-format
+msgid ".tools_issues_zero"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:91
+#, elixir-autogen, elixir-format
+msgid ".tools_no_issues"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:70
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_copy_deferred"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:75
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_copy_known"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:73
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_copy_partial"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:76
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_copy_unknown"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:68
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_mode_deferred"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:74
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_mode_known"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:71
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_mode_partial"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid ".tools_policy_title"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:82
+#, elixir-autogen, elixir-format
+msgid ".tools_runtime_count_many"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:88
+#, elixir-autogen, elixir-format
+msgid ".tools_runtime_count_unavailable"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:85
+#: lib/lemmings_os_web/live/tools_live.ex:90
+#, elixir-autogen, elixir-format
+msgid ".tools_runtime_count_unknown"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:79
+#, elixir-autogen, elixir-format
+msgid ".tools_runtime_count_zero"
+msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.html.heex:19
+#, elixir-autogen, elixir-format
+msgid ".tools_runtime_title"
+msgstr ""
+
+#: lib/lemmings_os_web/components/system_components.ex:64
+#, elixir-autogen, elixir-format
+msgid ".tools_usage_unknown"
 msgstr ""
