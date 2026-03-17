@@ -12,27 +12,27 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: lib/lemmings_os_web/components/city_map_components.ex:231
-#: lib/lemmings_os_web/components/core_components.ex:499
-#: lib/lemmings_os_web/components/core_components.ex:503
-#, elixir-autogen
-msgid ".status_running"
-msgstr ""
-
 #: lib/lemmings_os_web/components/core_components.ex:500
 #: lib/lemmings_os_web/components/core_components.ex:504
 #, elixir-autogen
-msgid ".status_thinking"
+msgid ".status_running"
 msgstr ""
 
 #: lib/lemmings_os_web/components/core_components.ex:501
 #: lib/lemmings_os_web/components/core_components.ex:505
 #, elixir-autogen
+msgid ".status_thinking"
+msgstr ""
+
+#: lib/lemmings_os_web/components/core_components.ex:502
+#: lib/lemmings_os_web/components/core_components.ex:506
+#, elixir-autogen
 msgid ".status_error"
 msgstr ""
 
 #: lib/lemmings_os_web/components/city_map_components.ex:232
-#: lib/lemmings_os_web/components/core_components.ex:502
-#: lib/lemmings_os_web/components/core_components.ex:506
+#: lib/lemmings_os_web/components/core_components.ex:503
+#: lib/lemmings_os_web/components/core_components.ex:507
 #, elixir-autogen
 msgid ".status_idle"
 msgstr ""

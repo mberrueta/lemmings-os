@@ -42,6 +42,23 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
     assert has_element?(view, "#tool-policy-status-git[data-status='unknown']")
   end
 
+  test "renders unavailable runtime state explicitly when the runtime source times out", %{
+    conn: conn
+  } do
+    put_tools_fetchers(
+      runtime_fetcher: fn -> {:error, :timeout} end,
+      policy_fetcher: fn -> :deferred end
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/tools")
+
+    assert has_element?(view, "#tools-runtime-status[data-status='unavailable']")
+    assert has_element?(view, "#tools-page-status[data-status='unavailable']")
+    assert has_element?(view, "#tools-issue-tools_runtime_source_unavailable")
+    assert has_element?(view, "#tools-empty-state")
+    refute has_element?(view, "#tool-card-terminal")
+  end
+
   test "filters runtime tools locally without reloading the page", %{conn: conn} do
     put_tools_fetchers(policy_fetcher: fn -> :deferred end)
 

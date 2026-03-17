@@ -66,4 +66,26 @@ defmodule LemmingsOsWeb.HomeLiveTest do
     refute has_element?(view, "#home-department-queues")
     refute has_element?(view, "#home-activity-feed")
   end
+
+  test "renders degraded bootstrap health when the bootstrap emits warnings", %{conn: conn} do
+    warned_yaml =
+      WorldBootstrapTestHelpers.valid_bootstrap_yaml()
+      |> String.replace("runtime:\n", "unexpected_root: true\nruntime:\n")
+
+    path = WorldBootstrapTestHelpers.write_temp_file!(warned_yaml)
+
+    insert(:world,
+      slug: "local",
+      name: "Local World",
+      status: "ok",
+      bootstrap_path: path,
+      bootstrap_source: "direct",
+      last_import_status: "ok"
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#home-card-bootstrap_health[data-status='degraded']")
+    refute has_element?(view, "#home-network-snapshot")
+  end
 end

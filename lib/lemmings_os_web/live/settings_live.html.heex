@@ -21,18 +21,22 @@
           </p>
           <div class="mt-3 grid gap-3">
             <.stat_item
+              id="settings-node-name"
               label={dgettext("layout", ".settings_node_label")}
               value={Helpers.display_value(@snapshot.instance.node_name)}
             />
             <.stat_item
+              id="settings-host-name"
               label={dgettext("layout", ".settings_host_label")}
               value={Helpers.display_value(@snapshot.instance.host_name)}
             />
             <.stat_item
+              id="settings-elixir-version"
               label={dgettext("layout", ".settings_elixir_label")}
               value={Helpers.display_value(@snapshot.instance.elixir_version)}
             />
             <.stat_item
+              id="settings-otp-release"
               label={dgettext("layout", ".settings_otp_label")}
               value={Helpers.display_value(@snapshot.instance.otp_release)}
             />
@@ -47,11 +51,16 @@
               </div>
               <p class="mini-card__meta">{Helpers.display_value(@snapshot.world.name)}</p>
             </div>
-            <.status kind={:world} value={@snapshot.world.status} />
+            <.status id="settings-world-status" kind={:world} value={@snapshot.world.status} />
           </div>
           <div class="mt-3 grid gap-3">
-            <.stat_item label="Slug" value={Helpers.display_value(@snapshot.world.slug)} />
             <.stat_item
+              id="settings-world-slug"
+              label={dgettext("world", ".label_world_slug")}
+              value={Helpers.display_value(@snapshot.world.slug)}
+            />
+            <.stat_item
+              id="settings-world-last-sync"
               label={dgettext("world", ".label_last_sync")}
               value={status_label(@snapshot.sync.status)}
             />
@@ -73,16 +82,23 @@
                 {validation_detail(@snapshot.bootstrap.issue_count)}
               </p>
             </div>
-            <.status kind={:world} class="mt-3 mr-2" value={@snapshot.bootstrap.status} />
+            <.status
+              id="settings-bootstrap-status"
+              kind={:world}
+              class="mt-3 mr-2"
+              value={@snapshot.bootstrap.status}
+            />
           </div>
 
           <div class="grid gap-3">
             <.stat_item
+              id="settings-bootstrap-path"
               label={dgettext("world", ".label_bootstrap_path")}
               value={Helpers.truncate_value(@snapshot.bootstrap.path, max_length: 48)}
               detail={@snapshot.bootstrap.path}
             />
             <.stat_item
+              id="settings-last-imported-at"
               label={dgettext("world", ".label_last_imported_at")}
               value={Helpers.format_datetime(@snapshot.sync.imported_at)}
             />

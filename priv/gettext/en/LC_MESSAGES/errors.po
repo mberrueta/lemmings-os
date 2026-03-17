@@ -162,20 +162,20 @@ msgstr "Attempting to reconnect"
 msgid ".error_something_went_wrong"
 msgstr "Something went wrong!"
 
-#: lib/lemmings_os_web/components/core_components.ex:522
-#: lib/lemmings_os_web/components/core_components.ex:525
+#: lib/lemmings_os_web/components/core_components.ex:523
+#: lib/lemmings_os_web/components/core_components.ex:526
 #, elixir-autogen, elixir-format
 msgid ".issue_severity_error"
 msgstr "Error"
 
-#: lib/lemmings_os_web/components/core_components.ex:524
-#: lib/lemmings_os_web/components/core_components.ex:527
+#: lib/lemmings_os_web/components/core_components.ex:525
+#: lib/lemmings_os_web/components/core_components.ex:528
 #, elixir-autogen, elixir-format
 msgid ".issue_severity_info"
 msgstr "Info"
 
-#: lib/lemmings_os_web/components/core_components.ex:523
-#: lib/lemmings_os_web/components/core_components.ex:526
+#: lib/lemmings_os_web/components/core_components.ex:524
+#: lib/lemmings_os_web/components/core_components.ex:527
 #, elixir-autogen, elixir-format
 msgid ".issue_severity_warning"
 msgstr "Warning"

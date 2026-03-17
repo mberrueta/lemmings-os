@@ -274,6 +274,7 @@ defmodule LemmingsOsWeb.CoreComponents do
     """
   end
 
+  attr :id, :string, default: nil
   attr :label, :string, required: true
   attr :value, :string, required: true
   attr :detail, :string, default: nil
@@ -281,7 +282,7 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def stat_item(assigns) do
     ~H"""
-    <div class={["stat-tile", "stat-tile--#{@tone}"]}>
+    <div id={@id} class={["stat-tile", "stat-tile--#{@tone}"]}>
       <p class="stat-tile__label">{@label}</p>
       <p class="stat-tile__value">{@value}</p>
       <p :if={@detail} class="stat-tile__detail">{@detail}</p>

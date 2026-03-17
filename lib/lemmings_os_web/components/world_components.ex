@@ -234,7 +234,11 @@ defmodule LemmingsOsWeb.WorldComponents do
           <.badge tone="success">{dgettext("world", ".label_no_world_issues")}</.badge>
         </div>
         <div :if={@bootstrap_issues != [] or @import_issues != []} class="stack-list">
-          <div :for={issue <- @bootstrap_issues ++ @import_issues} class="list-row-card">
+          <div
+            :for={{issue, index} <- Enum.with_index(@bootstrap_issues ++ @import_issues)}
+            id={"world-issue-#{issue.code}-#{index}"}
+            class="list-row-card"
+          >
             <div>
               <p class="list-row-card__title">{issue.summary}</p>
               <p class="list-row-card__meta">{issue.detail}</p>
@@ -255,19 +259,23 @@ defmodule LemmingsOsWeb.WorldComponents do
         <div class="page-stack">
           <div class="grid gap-3 md:grid-cols-2">
             <.stat_item
+              id="world-bootstrap-source-field"
               label={dgettext("world", ".label_bootstrap_source")}
               value={Helpers.display_value(@snapshot.bootstrap.source)}
             />
             <.stat_item
+              id="world-bootstrap-path-field"
               label={dgettext("world", ".label_bootstrap_path")}
               value={Helpers.truncate_value(@snapshot.bootstrap.path)}
               detail={@snapshot.bootstrap.path}
             />
             <.stat_item
+              id="world-bootstrap-postgres-env-field"
               label={runtime_check_label("postgres_connection")}
               value={Helpers.display_value(declared_postgres_url_env(@snapshot))}
             />
             <.stat_item
+              id="world-bootstrap-world-field"
               label={dgettext("world", ".title_world_identity")}
               value={Helpers.display_value(bootstrap_world_name(@snapshot))}
               detail={bootstrap_identity_detail(@snapshot)}
@@ -279,7 +287,11 @@ defmodule LemmingsOsWeb.WorldComponents do
               {dgettext("world", ".label_providers")}
             </h3>
             <div class="stack-list">
-              <div :for={provider <- @providers} class="list-row-card">
+              <div
+                :for={provider <- @providers}
+                id={"world-provider-#{provider.name}"}
+                class="list-row-card"
+              >
                 <div>
                   <p class="list-row-card__title">{provider.name}</p>
                   <p class="list-row-card__meta">
@@ -300,7 +312,11 @@ defmodule LemmingsOsWeb.WorldComponents do
               {dgettext("world", ".label_profiles")}
             </h3>
             <div class="stack-list">
-              <div :for={profile <- @profiles} class="list-row-card">
+              <div
+                :for={profile <- @profiles}
+                id={"world-profile-#{profile.name}"}
+                class="list-row-card"
+              >
                 <div>
                   <p class="list-row-card__title">{profile.name}</p>
                   <p class="list-row-card__meta">{profile.provider} / {profile.model}</p>
