@@ -21,16 +21,6 @@ msgstr ""
 msgid ".world_status_unknown"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:144
-#, elixir-autogen
-msgid ".title_department_queues"
-msgstr ""
-
-#: lib/lemmings_os_web/components/home_components.ex:156
-#, elixir-autogen
-msgid ".label_next"
-msgstr ""
-
 #: lib/lemmings_os_web/components/map_components.ex:150
 #, elixir-autogen
 msgid ".title_world_map"

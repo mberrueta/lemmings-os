@@ -3,15 +3,12 @@ defmodule LemmingsOsWeb.HomeLive do
 
   import LemmingsOsWeb.MockShell
 
-  alias LemmingsOs.MockData
+  alias LemmingsOsWeb.PageData.HomeDashboardSnapshot
 
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign_shell(:home, dgettext("layout", ".page_title_home"))
-     |> assign(:cities, MockData.cities())
-     |> assign(:departments, MockData.departments())
-     |> assign(:lemmings, MockData.lemmings())
-     |> assign(:activity_log, MockData.recent_activity(6))}
+     |> assign(:snapshot, HomeDashboardSnapshot.build())}
   end
 end

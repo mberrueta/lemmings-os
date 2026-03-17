@@ -10,16 +10,6 @@ msgid ""
 msgstr ""
 "Language: en\n"
 
-#: lib/lemmings_os_web/components/home_components.ex:121
-#, elixir-autogen
-msgid ".title_active_lemmings"
-msgstr "Active Lemmings"
-
-#: lib/lemmings_os_web/components/home_components.ex:122
-#, elixir-autogen
-msgid ".subtitle_active_lemmings"
-msgstr "Use the detailed roster view for full mock records."
-
 #: lib/lemmings_os_web/components/city_map_components.ex:231
 #: lib/lemmings_os_web/components/core_components.ex:499
 #: lib/lemmings_os_web/components/core_components.ex:503
