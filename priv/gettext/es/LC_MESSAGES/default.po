@@ -10,3 +10,15 @@ msgid ""
 msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid ".city_status_active"
+msgstr "Activo"
+
+msgid ".city_status_disabled"
+msgstr "Deshabilitado"
+
+msgid ".city_status_draining"
+msgstr "Drenando"
+
+msgid ".city_status_unknown"
+msgstr "Desconocido"

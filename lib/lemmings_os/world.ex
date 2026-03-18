@@ -12,14 +12,18 @@ defmodule LemmingsOs.World do
 
   import Ecto.Changeset
 
+  alias LemmingsOs.Config.CostsConfig
+  alias LemmingsOs.Config.LimitsConfig
+  alias LemmingsOs.Config.ModelsConfig
+  alias LemmingsOs.Config.RuntimeConfig
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
   @statuses ~w(ok degraded unavailable invalid unknown)
 
   @required ~w(slug name status last_import_status)a
-  @optional ~w(bootstrap_source bootstrap_path last_bootstrap_hash
-               last_imported_at limits_config runtime_config costs_config models_config)a
+  @optional ~w(bootstrap_source bootstrap_path last_bootstrap_hash last_imported_at)a
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -31,10 +35,10 @@ defmodule LemmingsOs.World do
           last_bootstrap_hash: String.t() | nil,
           last_import_status: String.t() | nil,
           last_imported_at: DateTime.t() | nil,
-          limits_config: map(),
-          runtime_config: map(),
-          costs_config: map(),
-          models_config: map(),
+          limits_config: LimitsConfig.t() | nil,
+          runtime_config: RuntimeConfig.t() | nil,
+          costs_config: CostsConfig.t() | nil,
+          models_config: ModelsConfig.t() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -48,10 +52,10 @@ defmodule LemmingsOs.World do
     field :last_bootstrap_hash, :string
     field :last_import_status, :string, default: "unknown"
     field :last_imported_at, :utc_datetime
-    field :limits_config, :map, default: %{}
-    field :runtime_config, :map, default: %{}
-    field :costs_config, :map, default: %{}
-    field :models_config, :map, default: %{}
+    embeds_one :limits_config, LimitsConfig, on_replace: :update, defaults_to_struct: true
+    embeds_one :runtime_config, RuntimeConfig, on_replace: :update, defaults_to_struct: true
+    embeds_one :costs_config, CostsConfig, on_replace: :update, defaults_to_struct: true
+    embeds_one :models_config, ModelsConfig, on_replace: :update, defaults_to_struct: true
 
     timestamps(type: :utc_datetime)
   end
@@ -64,6 +68,10 @@ defmodule LemmingsOs.World do
     world
     |> cast(attrs, @required ++ @optional)
     |> validate_required(@required)
+    |> cast_embed(:limits_config, with: &LimitsConfig.changeset/2)
+    |> cast_embed(:runtime_config, with: &RuntimeConfig.changeset/2)
+    |> cast_embed(:costs_config, with: &CostsConfig.changeset/2)
+    |> cast_embed(:models_config, with: &ModelsConfig.changeset/2)
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:last_import_status, @statuses)
     |> unique_constraint(:slug)

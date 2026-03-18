@@ -2,6 +2,11 @@ defmodule LemmingsOs.WorldsTest do
   use LemmingsOs.DataCase, async: false
 
   alias Ecto.NoResultsError
+  alias LemmingsOs.Config.CostsConfig
+  alias LemmingsOs.Config.CostsConfig.Budgets
+  alias LemmingsOs.Config.LimitsConfig
+  alias LemmingsOs.Config.ModelsConfig
+  alias LemmingsOs.Config.RuntimeConfig
   alias LemmingsOs.World
   alias LemmingsOs.Worlds
 
@@ -111,10 +116,10 @@ defmodule LemmingsOs.WorldsTest do
       assert world.name == "Local World #{unique_value}"
       assert world.status == "unknown"
       assert world.last_import_status == "unknown"
-      assert world.limits_config == %{}
-      assert world.runtime_config == %{}
-      assert world.costs_config == %{}
-      assert world.models_config == %{}
+      assert world.limits_config == %LimitsConfig{}
+      assert world.runtime_config == %RuntimeConfig{}
+      assert world.costs_config == %CostsConfig{budgets: %Budgets{}}
+      assert world.models_config == %ModelsConfig{}
     end
 
     test "updates the existing world instead of inserting a duplicate" do
@@ -142,7 +147,7 @@ defmodule LemmingsOs.WorldsTest do
       assert updated_world.id == world.id
       assert updated_world.name == "Renamed Local World"
       assert updated_world.status == "degraded"
-      assert updated_world.models_config == %{"providers" => %{"ollama" => %{"enabled" => true}}}
+      assert updated_world.models_config.providers == %{"ollama" => %{"enabled" => true}}
 
       assert Repo.aggregate(World, :count) == 1
     end

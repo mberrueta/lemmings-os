@@ -10,3 +10,15 @@
 #
 msgid ""
 msgstr ""
+
+msgid ".city_status_active"
+msgstr ""
+
+msgid ".city_status_disabled"
+msgstr ""
+
+msgid ".city_status_draining"
+msgstr ""
+
+msgid ".city_status_unknown"
+msgstr ""

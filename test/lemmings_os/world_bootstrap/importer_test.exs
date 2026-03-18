@@ -30,7 +30,7 @@ defmodule LemmingsOs.WorldBootstrap.ImporterTest do
       assert result.world.status == "ok"
       assert result.world.last_bootstrap_hash
 
-      assert result.world.models_config["providers"]["ollama"]["allowed_models"] == [
+      assert result.world.models_config.providers["ollama"]["allowed_models"] == [
                "llama3.2",
                "qwen2.5:7b"
              ]
@@ -59,7 +59,7 @@ defmodule LemmingsOs.WorldBootstrap.ImporterTest do
       assert second_result.world.id == first_result.world.id
       assert second_result.world.name == "Renamed Local World"
 
-      assert second_result.world.models_config["providers"]["ollama"]["allowed_models"] == [
+      assert second_result.world.models_config.providers["ollama"]["allowed_models"] == [
                "phi4-mini",
                "qwen2.5:7b"
              ]
