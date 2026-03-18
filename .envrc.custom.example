@@ -1,0 +1,3 @@
+# Machine-local overrides and secrets for LemmingsOS.
+# Copy this file to .envrc.custom and adjust values for your machine.
+# NEVER commit or upload `.envrc.custom`.

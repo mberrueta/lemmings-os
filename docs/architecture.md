@@ -298,7 +298,7 @@ See ADR 0003 for isolation semantics.
 ## Operational Model
 
 * `mix setup` bootstraps the database and dependencies.
-* `mix phx.server` runs the full runtime locally on `localhost:4000`.
+* `mix phx.server` runs the full runtime locally on `localhost:4000` by default, or the port from `PORT` / `MIX_PORT`.
 * The Phoenix LiveView UI provides a real-time dashboard of the hierarchy.
 * All agent lifecycle events are logged with structured metadata.
 

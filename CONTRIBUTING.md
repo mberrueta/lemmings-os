@@ -94,7 +94,7 @@ mix ecto.setup
 mix phx.server
 ```
 
-Open: [http://localhost:4000](http://localhost:4000)
+Open: [http://localhost:4000](http://localhost:4000) by default, or the port from `PORT` / `MIX_PORT`.
 
 ### Docker
 
@@ -102,7 +102,7 @@ Open: [http://localhost:4000](http://localhost:4000)
 docker compose up --build
 ```
 
-Open: [http://localhost:4000](http://localhost:4000)
+Open: [http://localhost:4000](http://localhost:4000) by default, or the port from `PORT` / `MIX_PORT`.
 
 ---
 

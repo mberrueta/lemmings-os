@@ -76,6 +76,7 @@ defmodule LemmingsOs.MixProject do
       {:bandit, "~> 1.5"},
 
       # Dev tooling
+      {:tidewave, "~> 0.4", only: :dev},
       {:sobelow, "~> 0.8", only: [:dev, :test]},
       {:ex_doc, "~> 0.27", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
@@ -100,6 +101,8 @@ defmodule LemmingsOs.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
+      tidewave:
+        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: String.to_integer(System.get_env(\"TIDEWAVE_PORT\") || \"4001\")) end)'",
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],

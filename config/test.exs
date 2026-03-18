@@ -1,5 +1,7 @@
 import Config
 
+test_port = System.get_env("TEST_PORT") || System.get_env("LIVE_DEBUGGER_PORT") || "4002"
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used
@@ -16,7 +18,7 @@ config :lemmings_os, LemmingsOs.Repo,
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :lemmings_os, LemmingsOsWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(test_port)],
   secret_key_base: "CGExhyMoul9DcsNJN+Ta6z04ZJ2wIHo1/VuILb0ZggDKm0ioAt9vkWQkAAvPFYZQ",
   server: false
 
