@@ -1,15 +1,22 @@
 defmodule LemmingsOsWeb.NavigationLiveTest do
   use LemmingsOsWeb.ConnCase
 
+  import Mox
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Repo
+  alias LemmingsOs.Tools.MockPolicyFetcher
+  alias LemmingsOs.Tools.MockRuntimeFetcher
   alias LemmingsOs.World
   alias LemmingsOs.WorldCache
+
+  setup :verify_on_exit!
 
   setup do
     Repo.delete_all(World)
     WorldCache.invalidate_all()
+    stub(MockRuntimeFetcher, :fetch, fn -> {:error, :not_implemented} end)
+    stub(MockPolicyFetcher, :fetch, fn -> :deferred end)
     :ok
   end
 

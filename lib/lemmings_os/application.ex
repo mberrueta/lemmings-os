@@ -26,6 +26,7 @@ defmodule LemmingsOs.Application do
     case Supervisor.start_link(children, opts) do
       {:ok, _supervisor} = result ->
         maybe_run_world_bootstrap_import()
+        maybe_sync_runtime_city()
         result
 
       error ->
@@ -51,6 +52,12 @@ defmodule LemmingsOs.Application do
     case LemmingsOs.WorldBootstrap.Importer.sync_default_world() do
       {:ok, result} -> log_bootstrap_result(result, :info, "world bootstrap sync completed")
       {:error, result} -> log_bootstrap_result(result, :error, "world bootstrap sync failed")
+    end
+  end
+
+  defp maybe_sync_runtime_city do
+    if Application.get_env(:lemmings_os, :runtime_city_registration_on_startup, true) do
+      LemmingsOs.RuntimeCity.sync_runtime_city!()
     end
   end
 
