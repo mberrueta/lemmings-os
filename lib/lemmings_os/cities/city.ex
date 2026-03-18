@@ -1,4 +1,4 @@
-defmodule LemmingsOs.City do
+defmodule LemmingsOs.Cities.City do
   @moduledoc """
   Persisted City schema.
 
@@ -14,13 +14,14 @@ defmodule LemmingsOs.City do
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
   @node_name_regex ~r/^[^@\s]+@[^@\s]+$/u
   @statuses ~w(active disabled draining)
+  @livenesses ~w(alive stale unknown)
 
   @required ~w(slug name node_name status)a
   @optional ~w(host distribution_port epmd_port last_seen_at)a
@@ -116,4 +117,42 @@ defmodule LemmingsOs.City do
   def status_options do
     Enum.map(@statuses, &{&1, translate_status(&1)})
   end
+
+  @doc """
+  Derived runtime liveness for the City based on heartbeat freshness.
+  """
+  @spec liveness(t(), pos_integer()) :: String.t()
+  def liveness(%__MODULE__{} = city, freshness_threshold_seconds)
+      when is_integer(freshness_threshold_seconds) and freshness_threshold_seconds > 0 do
+    liveness(city, DateTime.utc_now(), freshness_threshold_seconds)
+  end
+
+  @doc """
+  Derived runtime liveness for the City using an explicit reference time.
+  """
+  @spec liveness(t(), DateTime.t(), pos_integer()) :: String.t()
+  def liveness(%__MODULE__{last_seen_at: nil}, %DateTime{}, freshness_threshold_seconds)
+      when is_integer(freshness_threshold_seconds) and freshness_threshold_seconds > 0,
+      do: "unknown"
+
+  def liveness(
+        %__MODULE__{last_seen_at: last_seen_at},
+        %DateTime{} = now,
+        freshness_threshold_seconds
+      )
+      when is_integer(freshness_threshold_seconds) and freshness_threshold_seconds > 0 do
+    stale_before = DateTime.add(now, -freshness_threshold_seconds, :second)
+
+    case DateTime.compare(last_seen_at, stale_before) do
+      :lt -> "stale"
+      :eq -> "alive"
+      :gt -> "alive"
+    end
+  end
+
+  @doc """
+  Canonical derived liveness values for runtime freshness.
+  """
+  @spec livenesses() :: [String.t()]
+  def livenesses, do: @livenesses
 end

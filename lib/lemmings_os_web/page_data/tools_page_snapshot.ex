@@ -6,7 +6,7 @@ defmodule LemmingsOsWeb.PageData.ToolsPageSnapshot do
   reconciliation explicitly partial or deferred.
   """
 
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
 
   @type issue :: %{
           severity: String.t(),

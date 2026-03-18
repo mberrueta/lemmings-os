@@ -8,9 +8,9 @@ defmodule LemmingsOs.Cities do
 
   import Ecto.Query, warn: false
 
-  alias LemmingsOs.City
+  alias LemmingsOs.Cities.City
   alias LemmingsOs.Repo
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
 
   @doc """
   Returns persisted cities for the given World scope.

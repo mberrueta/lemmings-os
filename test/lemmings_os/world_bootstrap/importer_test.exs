@@ -1,7 +1,7 @@
 defmodule LemmingsOs.WorldBootstrap.ImporterTest do
   use LemmingsOs.DataCase, async: false
 
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
   alias LemmingsOs.WorldBootstrap.Importer
   alias LemmingsOs.WorldBootstrapTestHelpers
 

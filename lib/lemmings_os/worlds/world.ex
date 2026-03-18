@@ -1,4 +1,4 @@
-defmodule LemmingsOs.World do
+defmodule LemmingsOs.Worlds.World do
   @moduledoc """
   Persisted World schema.
 

@@ -7,14 +7,14 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
   alias LemmingsOs.Repo
   alias LemmingsOs.Tools.MockPolicyFetcher
   alias LemmingsOs.Tools.MockRuntimeFetcher
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Worlds.World
+  alias LemmingsOs.Worlds.Cache
 
   setup :verify_on_exit!
 
   setup do
     Repo.delete_all(World)
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
     stub(MockRuntimeFetcher, :fetch, fn -> {:error, :not_implemented} end)
     stub(MockPolicyFetcher, :fetch, fn -> :deferred end)
     :ok

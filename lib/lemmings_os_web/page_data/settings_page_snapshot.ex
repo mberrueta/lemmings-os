@@ -3,7 +3,7 @@ defmodule LemmingsOsWeb.PageData.SettingsPageSnapshot do
   Read-only runtime and world/bootstrap summary for the Settings page.
   """
 
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
 
   @type t :: %{

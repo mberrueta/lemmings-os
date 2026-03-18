@@ -8,8 +8,9 @@ defmodule LemmingsOs.Worlds do
 
   import Ecto.Query, warn: false
 
-  alias LemmingsOs.{Repo, World}
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Repo
+  alias LemmingsOs.Worlds.Cache
+  alias LemmingsOs.Worlds.World
 
   @doc """
   Returns all persisted worlds.
@@ -18,14 +19,14 @@ defmodule LemmingsOs.Worlds do
 
   ## Examples
 
-      iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
+      iex> LemmingsOs.Repo.delete_all(LemmingsOs.Worlds.World)
       iex> LemmingsOs.Factory.insert(:world, status: "ok")
       iex> LemmingsOs.Factory.insert(:world, status: "degraded")
       iex> worlds = LemmingsOs.Worlds.list_worlds()
       iex> length(worlds)
       2
 
-      iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
+      iex> LemmingsOs.Repo.delete_all(LemmingsOs.Worlds.World)
       iex> LemmingsOs.Factory.insert(:world, status: "ok")
       iex> LemmingsOs.Factory.insert(:world, status: "degraded")
       iex> worlds = LemmingsOs.Worlds.list_worlds(status: "ok")
@@ -43,9 +44,9 @@ defmodule LemmingsOs.Worlds do
   @doc """
   Returns the world for the given persisted ID. Raises `Ecto.NoResultsError` if not found.
 
-  Results are served from the `WorldCache`. The cache is invalidated automatically
+  Results are served from the `Worlds.Cache`. The cache is invalidated automatically
   on upsert, so callers may receive a cached value until the next write or explicit
-  `WorldCache.invalidate_world/1` call.
+  `Worlds.Cache.invalidate_world/1` call.
 
   ## Examples
 
@@ -77,7 +78,7 @@ defmodule LemmingsOs.Worlds do
   """
   @spec fetch_world(Ecto.UUID.t()) :: {:ok, World.t()} | {:error, :not_found}
   def fetch_world(id) do
-    WorldCache.fetch_world(id, fn ->
+    Cache.fetch_world(id, fn ->
       fetch_world_result(Repo.get(World, id))
     end)
   end
@@ -90,8 +91,8 @@ defmodule LemmingsOs.Worlds do
 
   ## Examples
 
-      iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
-      iex> LemmingsOs.WorldCache.invalidate_all()
+      iex> LemmingsOs.Repo.delete_all(LemmingsOs.Worlds.World)
+      iex> LemmingsOs.Worlds.Cache.invalidate_all()
       iex> world = LemmingsOs.Factory.insert(:world)
       iex> {:ok, default_world} = LemmingsOs.Worlds.get_default_world()
       iex> default_world.id == world.id
@@ -99,7 +100,7 @@ defmodule LemmingsOs.Worlds do
   """
   @spec get_default_world() :: {:ok, World.t()} | {:error, :not_found}
   def get_default_world do
-    WorldCache.fetch_default_world(fn ->
+    Cache.fetch_default_world(fn ->
       query =
         World
         |> order_by([world], asc: world.inserted_at, asc: world.id)
@@ -196,8 +197,8 @@ defmodule LemmingsOs.Worlds do
   defp bootstrap_lookup_target(attrs), do: lookup_world(attrs) || %World{}
 
   defp invalidate_cached_reads({:ok, %World{id: id} = world}) do
-    WorldCache.invalidate_world(id)
-    WorldCache.invalidate_default_world()
+    Cache.invalidate_world(id)
+    Cache.invalidate_default_world()
     {:ok, world}
   end
 

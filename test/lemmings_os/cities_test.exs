@@ -95,7 +95,7 @@ defmodule LemmingsOs.CitiesTest do
 
       assert {:ok, deleted_city} = Cities.delete_city(city)
       assert deleted_city.id == city.id
-      assert Repo.get(LemmingsOs.City, city.id) == nil
+      assert Repo.get(LemmingsOs.Cities.City, city.id) == nil
     end
   end
 
@@ -128,7 +128,7 @@ defmodule LemmingsOs.CitiesTest do
 
       assert updated_city.id == city.id
       assert updated_city.name == "After"
-      assert Repo.aggregate(LemmingsOs.City, :count) == 1
+      assert Repo.aggregate(LemmingsOs.Cities.City, :count) == 1
     end
   end
 

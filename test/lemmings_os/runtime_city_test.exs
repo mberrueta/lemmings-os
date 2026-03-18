@@ -1,9 +1,10 @@
-defmodule LemmingsOs.RuntimeCityTest do
+defmodule LemmingsOs.Cities.RuntimeTest do
   use LemmingsOs.DataCase, async: false
 
-  alias LemmingsOs.RuntimeCity
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Cities.City
+  alias LemmingsOs.Cities.Runtime
+  alias LemmingsOs.Worlds.Cache
+  alias LemmingsOs.Worlds.World
 
   setup do
     previous_config = Application.get_env(:lemmings_os, :runtime_city)
@@ -12,15 +13,15 @@ defmodule LemmingsOs.RuntimeCityTest do
       Application.put_env(:lemmings_os, :runtime_city, previous_config)
     end)
 
-    Repo.delete_all(LemmingsOs.City)
+    Repo.delete_all(City)
     Repo.delete_all(World)
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
     :ok
   end
 
   describe "runtime_city_attrs/1" do
     test "derives slug, name, and host from node_name when not configured" do
-      attrs = RuntimeCity.runtime_city_attrs(config: %{node_name: "city-main@example.local"})
+      attrs = Runtime.runtime_city_attrs(config: %{node_name: "city-main@example.local"})
 
       assert attrs == %{
                slug: "city-main",
@@ -35,7 +36,7 @@ defmodule LemmingsOs.RuntimeCityTest do
 
     test "honors explicit runtime city overrides" do
       attrs =
-        RuntimeCity.runtime_city_attrs(
+        Runtime.runtime_city_attrs(
           config: %{
             node_name: "beam@cluster.local",
             slug: "ops-west",
@@ -59,7 +60,7 @@ defmodule LemmingsOs.RuntimeCityTest do
       world = insert(:world)
 
       assert {:ok, city} =
-               RuntimeCity.sync_runtime_city(
+               Runtime.sync_runtime_city(
                  config: %{
                    node_name: "primary@localhost",
                    slug: "primary",
@@ -79,7 +80,7 @@ defmodule LemmingsOs.RuntimeCityTest do
       city = insert(:city, world: world, node_name: "primary@localhost", name: "Before")
 
       assert {:ok, updated_city} =
-               RuntimeCity.sync_runtime_city(
+               Runtime.sync_runtime_city(
                  config: %{
                    node_name: "primary@localhost",
                    slug: city.slug,
@@ -89,11 +90,11 @@ defmodule LemmingsOs.RuntimeCityTest do
 
       assert updated_city.id == city.id
       assert updated_city.name == "After"
-      assert Repo.aggregate(LemmingsOs.City, :count) == 1
+      assert Repo.aggregate(LemmingsOs.Cities.City, :count) == 1
     end
 
     test "returns an honest error when no default world can be resolved" do
-      assert {:error, :default_world_not_found} = RuntimeCity.sync_runtime_city()
+      assert {:error, :default_world_not_found} = Runtime.sync_runtime_city()
     end
   end
 end

@@ -1,15 +1,15 @@
-defmodule LemmingsOs.WorldCacheTest do
+defmodule LemmingsOs.Worlds.CacheTest do
   use LemmingsOs.DataCase, async: false
 
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Worlds.World
+  alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.Worlds
 
-  doctest LemmingsOs.WorldCache
+  doctest LemmingsOs.Worlds.Cache
 
   setup do
     Repo.delete_all(World)
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
     :ok
   end
 

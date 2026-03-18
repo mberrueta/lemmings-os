@@ -3,13 +3,13 @@ defmodule LemmingsOs.Factory do
 
   use ExMachina.Ecto, repo: LemmingsOs.Repo
 
-  alias LemmingsOs.City
+  alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.CostsConfig
   alias LemmingsOs.Config.CostsConfig.Budgets
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
 
   def world_factory do
     unique_value = sequence(:world_unique, & &1)

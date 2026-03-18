@@ -7,8 +7,8 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
   with create-or-update semantics for this implementation slice.
   """
 
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Worlds.World
+  alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.WorldBootstrap.Loader
   alias LemmingsOs.WorldBootstrap.ShapeValidator
   alias LemmingsOs.Worlds
@@ -30,7 +30,7 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
 
   ## Examples
 
-      iex> LemmingsOs.Repo.delete_all(LemmingsOs.World)
+      iex> LemmingsOs.Repo.delete_all(LemmingsOs.Worlds.World)
       iex> path = LemmingsOs.WorldBootstrapTestHelpers.write_temp_file!(
       ...>   LemmingsOs.WorldBootstrapTestHelpers.valid_bootstrap_yaml()
       ...> )
@@ -40,7 +40,7 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
   """
   @spec sync_default_world(keyword()) :: {:ok, sync_result()} | {:error, sync_result()}
   def sync_default_world(opts \\ []) do
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
 
     case Loader.load(opts) do
       {:ok, load_result} -> sync_loaded_result(load_result)

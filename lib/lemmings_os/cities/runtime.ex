@@ -1,4 +1,4 @@
-defmodule LemmingsOs.RuntimeCity do
+defmodule LemmingsOs.Cities.Runtime do
   @moduledoc """
   Resolves and attaches the local runtime City identity at startup.
 
@@ -15,8 +15,8 @@ defmodule LemmingsOs.RuntimeCity do
 
   alias Ecto.Changeset
   alias LemmingsOs.Cities
-  alias LemmingsOs.City
-  alias LemmingsOs.World
+  alias LemmingsOs.Cities.City
+  alias LemmingsOs.Worlds.World
   alias LemmingsOs.Worlds
 
   @type runtime_city_attrs :: %{
@@ -90,6 +90,28 @@ defmodule LemmingsOs.RuntimeCity do
 
       {:error, %Changeset{} = changeset} ->
         raise "runtime city startup failed: #{inspect(changeset.errors)}"
+    end
+  end
+
+  @doc """
+  Fetches the persisted local runtime City row for the default World.
+
+  Lookup is read-only and matches by the configured runtime `node_name`.
+  """
+  @spec fetch_runtime_city(keyword()) ::
+          {:ok, City.t()} | {:error, :default_world_not_found | :runtime_city_not_found}
+  def fetch_runtime_city(opts \\ []) do
+    runtime_city_attrs = runtime_city_attrs(opts)
+
+    case Worlds.get_default_world() do
+      {:ok, %World{} = world} ->
+        case Cities.list_cities(world, node_name: runtime_city_attrs.node_name) do
+          [%City{} = city] -> {:ok, city}
+          [] -> {:error, :runtime_city_not_found}
+        end
+
+      {:error, :not_found} ->
+        {:error, :default_world_not_found}
     end
   end
 

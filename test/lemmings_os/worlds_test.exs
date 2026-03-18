@@ -1,4 +1,4 @@
-defmodule LemmingsOs.WorldsTest do
+defmodule LemmingsOs.Worlds.WorldsTest do
   use LemmingsOs.DataCase, async: false
 
   alias Ecto.NoResultsError
@@ -7,7 +7,7 @@ defmodule LemmingsOs.WorldsTest do
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
   alias LemmingsOs.Worlds
 
   doctest LemmingsOs.Worlds
@@ -83,7 +83,7 @@ defmodule LemmingsOs.WorldsTest do
     test "returns the default world when one exists" do
       Repo.delete_all(World)
       world = insert(:world)
-      LemmingsOs.WorldCache.invalidate_all()
+      LemmingsOs.Worlds.Cache.invalidate_all()
 
       assert {:ok, default_world} = Worlds.get_default_world()
       assert default_world.id == world.id
@@ -91,7 +91,7 @@ defmodule LemmingsOs.WorldsTest do
 
     test "returns an error tuple when no world exists" do
       Repo.delete_all(World)
-      LemmingsOs.WorldCache.invalidate_all()
+      LemmingsOs.Worlds.Cache.invalidate_all()
       assert {:error, reason} = Worlds.get_default_world()
       assert reason in [:not_found, :world_not_found, :default_world_not_found]
     end

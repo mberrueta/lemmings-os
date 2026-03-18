@@ -6,7 +6,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: LemmingsOs.Gettext
 
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
   alias Phoenix.LiveView.JS
 
   attr :id, :string, doc: "the optional id of flash container"

@@ -1,7 +1,7 @@
-defmodule LemmingsOs.CityTest do
+defmodule LemmingsOs.Cities.CityTest do
   use LemmingsOs.DataCase, async: false
 
-  alias LemmingsOs.City
+  alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.CostsConfig
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
@@ -104,6 +104,27 @@ defmodule LemmingsOs.CityTest do
                {"disabled", "Disabled"},
                {"draining", "Draining"}
              ]
+    end
+  end
+
+  describe "liveness/2" do
+    test "returns unknown when no heartbeat has been observed" do
+      city = build(:city, last_seen_at: nil)
+
+      assert City.liveness(city, ~U[2026-03-18 18:00:00Z], 90) == "unknown"
+      assert City.livenesses() == ~w(alive stale unknown)
+    end
+
+    test "returns alive when the heartbeat is within the freshness threshold" do
+      city = build(:city, last_seen_at: ~U[2026-03-18 17:59:30Z])
+
+      assert City.liveness(city, ~U[2026-03-18 18:00:00Z], 90) == "alive"
+    end
+
+    test "returns stale when the heartbeat is older than the freshness threshold" do
+      city = build(:city, last_seen_at: ~U[2026-03-18 17:58:29Z])
+
+      assert City.liveness(city, ~U[2026-03-18 18:00:00Z], 90) == "stale"
     end
   end
 

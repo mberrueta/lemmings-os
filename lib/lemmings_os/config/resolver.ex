@@ -6,13 +6,13 @@ defmodule LemmingsOs.Config.Resolver do
   required parent chain, such as `%City{world: %World{}}`, before calling it.
   """
 
-  alias LemmingsOs.City
+  alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.CostsConfig
   alias LemmingsOs.Config.CostsConfig.Budgets
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
 
   @type resolved_config :: %{
           limits_config: LimitsConfig.t(),

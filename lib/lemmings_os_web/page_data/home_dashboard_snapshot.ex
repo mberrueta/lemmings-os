@@ -10,7 +10,7 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
 
   use Gettext, backend: LemmingsOs.Gettext
 
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
 

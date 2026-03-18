@@ -9,7 +9,7 @@ defmodule LemmingsOsWeb.PageData.WorldPageSnapshot do
   """
 
   alias LemmingsOs.Repo
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
   alias LemmingsOs.WorldBootstrap.Loader
   alias LemmingsOs.WorldBootstrap.ShapeValidator
   alias LemmingsOs.Worlds

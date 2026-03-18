@@ -1,4 +1,4 @@
-defmodule LemmingsOs.WorldCache do
+defmodule LemmingsOs.Worlds.Cache do
   @moduledoc """
   Narrow Cachex-backed cache for persisted World reads.
 
@@ -33,9 +33,9 @@ defmodule LemmingsOs.WorldCache do
   ## Examples
 
       iex> world = LemmingsOs.Factory.insert(:world)
-      iex> LemmingsOs.WorldCache.invalidate_all()
+      iex> LemmingsOs.Worlds.Cache.invalidate_all()
       iex> {:ok, fetched_world} =
-      ...>   LemmingsOs.WorldCache.fetch_world(world.id, fn -> {:ok, world} end)
+      ...>   LemmingsOs.Worlds.Cache.fetch_world(world.id, fn -> {:ok, world} end)
       iex> fetched_world.id == world.id
       true
   """
@@ -50,9 +50,9 @@ defmodule LemmingsOs.WorldCache do
   ## Examples
 
       iex> world = LemmingsOs.Factory.insert(:world)
-      iex> LemmingsOs.WorldCache.invalidate_all()
+      iex> LemmingsOs.Worlds.Cache.invalidate_all()
       iex> {:ok, default_world} =
-      ...>   LemmingsOs.WorldCache.fetch_default_world(fn -> {:ok, world} end)
+      ...>   LemmingsOs.Worlds.Cache.fetch_default_world(fn -> {:ok, world} end)
       iex> default_world.id == world.id
       true
   """
