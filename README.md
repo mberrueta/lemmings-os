@@ -199,6 +199,41 @@ mix phx.server
 
 Open: [http://localhost:4000](http://localhost:4000)
 
+## Development
+
+### Environment setup (`direnv`)
+
+```bash
+cp .envrc.custom.example .envrc.custom
+direnv allow
+```
+
+`.envrc` ships with open-source defaults and `.envrc.custom` is for machine-local overrides.
+
+Default ports in `.envrc`:
+- `MIX_PORT=4000`
+- `TIDEWAVE_PORT=4001`
+- `LIVE_DEBUGGER_PORT=4002`
+- `TEST_PORT=${LIVE_DEBUGGER_PORT}`
+
+Your local `.envrc.custom` can override them. This repo also supports reading `PORT`, `MIX_PORT`, and `TEST_PORT` from the environment, with those defaults as fallback.
+
+### Tmux helper
+
+```bash
+./tmux_proj.sh
+```
+
+The script runs from the repository directory, reads ports from the current shell environment, keeps `MAIN` empty for ad hoc work, starts Phoenix and Tidewave side by side in `SERVER`, opens `iex -S mix` in `IEX`, and leaves `LLM` as an extra shell window.
+
+If you want to launch it from anywhere, add a shell alias pointing at the script path:
+
+```bash
+alias open_lemmings="/path/to/lemmings-os/tmux_proj.sh"
+```
+
+Then you can run `open_lemmings` from any directory and it will attach to the project tmux session.
+
 ---
 
 ## CI / Quality Gates

@@ -3,3 +3,6 @@ _build
 /priv/static/assets/
 /.claude/
 /priv/mocks/
+.envrc.custom
+.envrc_custom
+/doc/
