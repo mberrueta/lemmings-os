@@ -199,6 +199,38 @@ mix phx.server
 
 Open: [http://localhost:4000](http://localhost:4000)
 
+## Multi-City Demo (Docker Compose)
+
+Runs one world/control-plane node + two city nodes over a shared Postgres instance.
+Stopping a city container causes it to go stale in the UI after the heartbeat threshold (default 90s).
+
+### Option A — you already have Postgres running
+
+```bash
+cp .env.example .env
+# edit .env: set SECRET_KEY_BASE and DATABASE_URL pointing at your instance
+docker compose up --build
+```
+
+The `db` container is **not started** — it is gated behind the `db` profile and only runs when explicitly requested.
+
+### Option B — let Docker manage Postgres
+
+```bash
+cp .env.example .env
+# edit .env: set SECRET_KEY_BASE only
+docker compose --profile db up --build
+```
+
+### Stale city demo
+
+```bash
+docker compose stop city_a   # heartbeat stops → city_a goes stale after ~90s
+docker compose start city_a  # heartbeat resumes → city_a becomes alive again
+```
+
+The world UI is available at `http://localhost:${PHX_PORT:-4000}`.
+
 ## Development
 
 ### Environment setup (`direnv`)

@@ -6,3 +6,6 @@ _build
 .envrc.custom
 .envrc_custom
 /doc/
+
+# Docker compose env file (contains secrets)
+.env

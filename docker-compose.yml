@@ -1,0 +1,87 @@
+# docker-compose.yml -- Local multi-city demo for LemmingsOS
+#
+# Starts one world/control-plane node (with web UI) and two city nodes.
+#
+# Option A — managed Postgres (default, spins up a db container):
+#   cp .env.example .env   # fill in SECRET_KEY_BASE
+#   docker compose --profile db up --build
+#
+# Option B — external Postgres (you already have PG running):
+#   cp .env.example .env   # fill in SECRET_KEY_BASE + DATABASE_URL
+#   docker compose up --build
+#
+# The world node runs migrations on startup, then starts the Phoenix server.
+# City nodes just start the app with their own CITY_* identity env vars.
+# Stopping a city container causes its heartbeat to stop, making it stale
+# in the UI after the configured freshness threshold (default 90s).
+
+services:
+  db:
+    profiles: [db]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-lemmings_os_prod}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  world:
+    build: .
+    network_mode: host
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-ecto://postgres:postgres@localhost/lemmings_os_prod}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      PHX_HOST: ${PHX_HOST:-localhost}
+      PORT: "${PHX_PORT:-4000}"
+      PHX_SERVER: "true"
+      LEMMINGS_CITY_NODE_NAME: "world@world"
+      LEMMINGS_CITY_SLUG: "world"
+      LEMMINGS_CITY_NAME: "World Node"
+      LEMMINGS_CITY_HOST: "world"
+      RELEASE_DISTRIBUTION: "none"
+    entrypoint: >
+      /bin/sh -c '
+        /app/bin/lemmings_os eval "LemmingsOs.Release.create_and_migrate()" &&
+        /app/bin/lemmings_os start
+      '
+
+  city_a:
+    build: .
+    network_mode: host
+    depends_on:
+      - world
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-ecto://postgres:postgres@localhost/lemmings_os_prod}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      PHX_HOST: "localhost"
+      LEMMINGS_CITY_NODE_NAME: "city_a@city_a"
+      LEMMINGS_CITY_SLUG: "city-a"
+      LEMMINGS_CITY_NAME: "City A"
+      LEMMINGS_CITY_HOST: "city_a"
+      RELEASE_DISTRIBUTION: "none"
+
+  city_b:
+    build: .
+    network_mode: host
+    depends_on:
+      - world
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-ecto://postgres:postgres@localhost/lemmings_os_prod}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      PHX_HOST: "localhost"
+      LEMMINGS_CITY_NODE_NAME: "city_b@city_b"
+      LEMMINGS_CITY_SLUG: "city-b"
+      LEMMINGS_CITY_NAME: "City B"
+      LEMMINGS_CITY_HOST: "city_b"
+      RELEASE_DISTRIBUTION: "none"
+
+volumes:
+  pgdata:
