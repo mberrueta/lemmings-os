@@ -379,7 +379,7 @@ msgstr ""
 msgid ".status_online"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:23
+#: lib/lemmings_os_web/live/cities_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid ".subtitle_all_cities"
 msgstr "Cities registered in this world"
@@ -404,7 +404,7 @@ msgstr ""
 msgid ".tab_runtime"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:22
+#: lib/lemmings_os_web/live/cities_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid ".title_all_cities"
 msgstr "All Cities"
@@ -507,53 +507,53 @@ msgstr "Persisted cities registered to this world."
 msgid ".empty_world_cities"
 msgstr "No cities registered yet. Bootstrap or create a city row to see it listed here."
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:26
+#: lib/lemmings_os_web/live/cities_live.html.heex:126
 #, elixir-autogen
 msgid ".count_cities"
 msgstr "%{count} cities"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:16
-#: lib/lemmings_os_web/live/cities_live.html.heex:33
-#: lib/lemmings_os_web/live/cities_live.html.heex:54
+#: lib/lemmings_os_web/live/cities_live.html.heex:116
+#: lib/lemmings_os_web/live/cities_live.html.heex:141
+#: lib/lemmings_os_web/live/cities_live.html.heex:162
 #, elixir-autogen
 msgid ".empty_no_cities"
 msgstr "No cities yet"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:17
-#: lib/lemmings_os_web/live/cities_live.html.heex:34
-#: lib/lemmings_os_web/live/cities_live.html.heex:55
+#: lib/lemmings_os_web/live/cities_live.html.heex:117
+#: lib/lemmings_os_web/live/cities_live.html.heex:142
+#: lib/lemmings_os_web/live/cities_live.html.heex:163
 #, elixir-autogen
 msgid ".empty_no_cities_copy"
 msgstr "This page now reads the real city table. Create or bootstrap a city to see it listed here."
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:90
+#: lib/lemmings_os_web/live/cities_live.html.heex:225
 #, elixir-autogen
 msgid ".label_city_distribution_port"
 msgstr "Distribution port"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:95
+#: lib/lemmings_os_web/live/cities_live.html.heex:230
 #, elixir-autogen
 msgid ".label_city_epmd_port"
 msgstr "EPMD port"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:85
+#: lib/lemmings_os_web/live/cities_live.html.heex:220
 #, elixir-autogen
 msgid ".label_city_host"
 msgstr "Host"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:100
+#: lib/lemmings_os_web/live/cities_live.html.heex:235
 #: lib/lemmings_os_web/live/settings_live.html.heex:109
 #, elixir-autogen
 msgid ".label_city_last_seen_at"
 msgstr "Last heartbeat"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:80
+#: lib/lemmings_os_web/live/cities_live.html.heex:215
 #: lib/lemmings_os_web/live/settings_live.html.heex:104
 #, elixir-autogen
 msgid ".label_city_node_name"
 msgstr "BEAM node"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:75
+#: lib/lemmings_os_web/live/cities_live.html.heex:210
 #: lib/lemmings_os_web/live/settings_live.html.heex:99
 #, elixir-autogen
 msgid ".label_city_slug"
@@ -566,3 +566,140 @@ msgstr "Mock-backed preview"
 #, elixir-autogen
 msgid ".title_city_effective_config"
 msgstr "Effective city config"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:134
+#, elixir-autogen
+msgid ".button_new_city"
+msgstr "New city"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:193
+#, elixir-autogen
+msgid ".button_edit_city"
+msgstr "Edit"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:203
+#, elixir-autogen
+msgid ".button_delete_city"
+msgstr "Delete"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:201
+#, elixir-autogen
+msgid ".confirm_delete_city"
+msgstr "Are you sure you want to delete this city? This cannot be undone."
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:18
+#, elixir-autogen
+msgid ".title_city_form_new"
+msgstr "New city"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:19
+#, elixir-autogen
+msgid ".title_city_form_edit"
+msgstr "Edit city"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:28
+#, elixir-autogen
+msgid ".button_city_form_cancel"
+msgstr "Cancel"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:43
+#, elixir-autogen
+msgid ".city_form_name_label"
+msgstr "Name"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:44
+#, elixir-autogen
+msgid ".city_form_name_placeholder"
+msgstr "e.g. Production Node"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:51
+#, elixir-autogen
+msgid ".city_form_slug_label"
+msgstr "Slug"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:52
+#, elixir-autogen
+msgid ".city_form_slug_placeholder"
+msgstr "e.g. prod-node"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:59
+#, elixir-autogen
+msgid ".city_form_node_name_label"
+msgstr "BEAM node name"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:60
+#, elixir-autogen
+msgid ".city_form_node_name_placeholder"
+msgstr "e.g. app@hostname"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:67
+#, elixir-autogen
+msgid ".city_form_status_label"
+msgstr "Status"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:71
+#, elixir-autogen
+msgid ".city_form_status_prompt"
+msgstr "Select a status"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:77
+#, elixir-autogen
+msgid ".city_form_host_label"
+msgstr "Host"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:78
+#, elixir-autogen
+msgid ".city_form_host_placeholder"
+msgstr "e.g. 10.0.0.1"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:85
+#, elixir-autogen
+msgid ".city_form_distribution_port_label"
+msgstr "Distribution port"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:92
+#, elixir-autogen
+msgid ".city_form_epmd_port_label"
+msgstr "EPMD port"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:105
+#, elixir-autogen
+msgid ".city_form_submit_create"
+msgstr "Create city"
+
+#: lib/lemmings_os_web/live/cities_live.html.heex:106
+#, elixir-autogen
+msgid ".city_form_submit_update"
+msgstr "Save changes"
+
+#: lib/lemmings_os_web/live/cities_live.ex:174
+#, elixir-autogen
+msgid ".flash_city_created"
+msgstr "City created."
+
+#: lib/lemmings_os_web/live/cities_live.ex:200
+#, elixir-autogen
+msgid ".flash_city_updated"
+msgstr "City updated."
+
+#: lib/lemmings_os_web/live/cities_live.ex:109
+#, elixir-autogen
+msgid ".flash_city_deleted"
+msgstr "City deleted."
+
+#: lib/lemmings_os_web/live/cities_live.ex:71
+#: lib/lemmings_os_web/live/cities_live.ex:118
+#, elixir-autogen
+msgid ".flash_city_not_found"
+msgstr "City not found."
+
+#: lib/lemmings_os_web/live/cities_live.ex:184
+#: lib/lemmings_os_web/live/cities_live.ex:210
+#, elixir-autogen
+msgid ".flash_city_save_error"
+msgstr "Could not save city. Check the form for errors."
+
+#: lib/lemmings_os_web/live/cities_live.ex:115
+#, elixir-autogen
+msgid ".flash_city_delete_error"
+msgstr "Could not delete city."

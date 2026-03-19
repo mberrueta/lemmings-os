@@ -10,6 +10,106 @@
 >
   <.content_container>
     <div id="cities-page">
+      <%!-- City form modal overlay (create / edit) --%>
+      <div :if={@form} id="city-form-overlay" class="cities-form-overlay">
+        <.panel id="city-form-panel" tone="accent">
+          <:title>
+            {if @form_mode == :new,
+              do: dgettext("world", ".title_city_form_new"),
+              else: dgettext("world", ".title_city_form_edit")}
+          </:title>
+          <:actions>
+            <.button
+              id="city-form-cancel-button"
+              type="button"
+              variant="ghost"
+              phx-click="cancel_form"
+            >
+              {dgettext("world", ".button_city_form_cancel")}
+            </.button>
+          </:actions>
+
+          <.form
+            id="city-form"
+            for={@form}
+            phx-change="validate_city"
+            phx-submit="save_city"
+          >
+            <div class="grid gap-4 sm:grid-cols-2">
+              <.input
+                id="city-form-name"
+                field={@form[:name]}
+                type="text"
+                label={dgettext("world", ".city_form_name_label")}
+                placeholder={dgettext("world", ".city_form_name_placeholder")}
+                required
+              />
+              <.input
+                id="city-form-slug"
+                field={@form[:slug]}
+                type="text"
+                label={dgettext("world", ".city_form_slug_label")}
+                placeholder={dgettext("world", ".city_form_slug_placeholder")}
+                required
+              />
+              <.input
+                id="city-form-node-name"
+                field={@form[:node_name]}
+                type="text"
+                label={dgettext("world", ".city_form_node_name_label")}
+                placeholder={dgettext("world", ".city_form_node_name_placeholder")}
+                required
+              />
+              <.input
+                id="city-form-status"
+                field={@form[:status]}
+                type="select"
+                label={dgettext("world", ".city_form_status_label")}
+                options={
+                  Enum.map(LemmingsOs.Cities.City.status_options(), fn {v, l} -> {l, v} end)
+                }
+                prompt={dgettext("world", ".city_form_status_prompt")}
+              />
+              <.input
+                id="city-form-host"
+                field={@form[:host]}
+                type="text"
+                label={dgettext("world", ".city_form_host_label")}
+                placeholder={dgettext("world", ".city_form_host_placeholder")}
+              />
+              <div class="grid grid-cols-2 gap-3">
+                <.input
+                  id="city-form-distribution-port"
+                  field={@form[:distribution_port]}
+                  type="number"
+                  label={dgettext("world", ".city_form_distribution_port_label")}
+                  placeholder="9000"
+                />
+                <.input
+                  id="city-form-epmd-port"
+                  field={@form[:epmd_port]}
+                  type="number"
+                  label={dgettext("world", ".city_form_epmd_port_label")}
+                  placeholder="4369"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+              <.button
+                id="city-form-submit-button"
+                type="submit"
+                variant="primary"
+              >
+                {if @form_mode == :new,
+                  do: dgettext("world", ".city_form_submit_create"),
+                  else: dgettext("world", ".city_form_submit_update")}
+              </.button>
+            </div>
+          </.form>
+        </.panel>
+      </div>
+
       <.empty_state
         :if={is_nil(@snapshot)}
         id="cities-page-empty-state"
@@ -17,7 +117,12 @@
         copy={dgettext("world", ".empty_no_cities_copy")}
       />
 
-      <.content_grid :if={@snapshot} id="cities-dashboard-grid" columns="sidebar">
+      <.content_grid
+        :if={@snapshot}
+        id="cities-dashboard-grid"
+        columns="default"
+        class="lg:grid-cols-[2fr_3fr]"
+      >
         <.panel id="cities-list-panel" tone="accent">
           <:title>{dgettext("world", ".title_all_cities")}</:title>
           <:subtitle>{dgettext("world", ".subtitle_all_cities")}</:subtitle>
@@ -25,6 +130,14 @@
             <.badge tone="info">
               {dgettext("world", ".count_cities", count: @snapshot.world.city_count)}
             </.badge>
+            <.button
+              id="cities-new-button"
+              type="button"
+              variant="secondary"
+              phx-click="new_city"
+            >
+              {dgettext("world", ".button_new_city")}
+            </.button>
           </:actions>
 
           <div :if={@snapshot.empty?} id="cities-list-empty-state">
@@ -56,17 +169,44 @@
           />
 
           <.panel :if={@snapshot.selected_city} id="city-detail-panel" tone="accent">
-            <:title>{@snapshot.selected_city.name}</:title>
+            <:title>
+              <span class="flex items-center gap-2">
+                {@snapshot.selected_city.name}
+                <.status
+                  id="city-admin-status"
+                  kind={:city}
+                  value={@snapshot.selected_city.status}
+                />
+                <.badge
+                  id="city-liveness-status"
+                  tone={@snapshot.selected_city.liveness_tone}
+                  data-status={@snapshot.selected_city.liveness}
+                >
+                  {@snapshot.selected_city.liveness_label}
+                </.badge>
+              </span>
+            </:title>
             <:subtitle>{@snapshot.selected_city.slug}</:subtitle>
             <:actions>
-              <.status id="city-admin-status" kind={:city} value={@snapshot.selected_city.status} />
-              <.badge
-                id="city-liveness-status"
-                tone={@snapshot.selected_city.liveness_tone}
-                data-status={@snapshot.selected_city.liveness}
+              <.button
+                id="city-edit-button"
+                type="button"
+                variant="secondary"
+                phx-click="edit_city"
+                phx-value-id={@snapshot.selected_city.id}
               >
-                {@snapshot.selected_city.liveness_label}
-              </.badge>
+                {dgettext("world", ".button_edit_city")}
+              </.button>
+              <.button
+                id="city-delete-button"
+                type="button"
+                variant="ghost"
+                phx-click="delete_city"
+                phx-value-id={@snapshot.selected_city.id}
+                data-confirm={dgettext("world", ".confirm_delete_city")}
+              >
+                {dgettext("world", ".button_delete_city")}
+              </.button>
             </:actions>
 
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
