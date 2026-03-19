@@ -172,10 +172,24 @@ defmodule LemmingsOsWeb.HomeComponents do
     }
   end
 
+  defp card_display(%{id: "city_health", source: "persisted_cities", meta: meta}) do
+    %{
+      title: dgettext("layout", ".home_card_city_health_title"),
+      subtitle: source_label("persisted_cities"),
+      items: [
+        %{
+          label: dgettext("layout", ".home_card_city_count_label"),
+          value: to_string(meta.city_count)
+        }
+      ]
+    }
+  end
+
   defp source_label("persisted_world"), do: dgettext("layout", ".home_source_persisted_world")
   defp source_label("bootstrap_config"), do: dgettext("layout", ".home_source_bootstrap_config")
   defp source_label("runtime_checks"), do: dgettext("layout", ".home_source_runtime_checks")
   defp source_label("tools_snapshot"), do: dgettext("layout", ".home_source_tools_snapshot")
+  defp source_label("persisted_cities"), do: dgettext("layout", ".home_source_persisted_cities")
   defp source_label(_source), do: dgettext("layout", ".home_source_runtime_checks")
 
   defp navigation_action_label("world"), do: dgettext("layout", ".nav_world")

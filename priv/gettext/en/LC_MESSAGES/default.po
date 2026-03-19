@@ -22,3 +22,12 @@ msgstr "Draining"
 
 msgid ".city_status_unknown"
 msgstr "Unknown"
+
+msgid ".city_liveness_alive"
+msgstr "Alive"
+
+msgid ".city_liveness_stale"
+msgstr "Stale"
+
+msgid ".city_liveness_unknown"
+msgstr "Unknown"

@@ -8,5 +8,110 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <WorldComponents.cities_page cities={@cities} selected_city={@selected_city} />
+  <.content_container>
+    <div id="cities-page">
+      <.empty_state
+        :if={is_nil(@snapshot)}
+        id="cities-page-empty-state"
+        title={dgettext("world", ".empty_no_cities")}
+        copy={dgettext("world", ".empty_no_cities_copy")}
+      />
+
+      <.content_grid :if={@snapshot} id="cities-dashboard-grid" columns="sidebar">
+        <.panel id="cities-list-panel" tone="accent">
+          <:title>{dgettext("world", ".title_all_cities")}</:title>
+          <:subtitle>{dgettext("world", ".subtitle_all_cities")}</:subtitle>
+          <:actions>
+            <.badge tone="info">
+              {dgettext("world", ".count_cities", count: @snapshot.world.city_count)}
+            </.badge>
+          </:actions>
+
+          <div :if={@snapshot.empty?} id="cities-list-empty-state">
+            <.empty_state
+              id="cities-list-empty-state-card"
+              title={dgettext("world", ".empty_no_cities")}
+              copy={dgettext("world", ".empty_no_cities_copy")}
+            />
+          </div>
+
+          <div
+            :if={!@snapshot.empty?}
+            id="cities-list"
+            phx-update="stream"
+            class="flex flex-col gap-3"
+          >
+            <div :for={{dom_id, city} <- @streams.cities} id={dom_id}>
+              <.city_card city={city} />
+            </div>
+          </div>
+        </.panel>
+
+        <div class="flex flex-col gap-4">
+          <.empty_state
+            :if={is_nil(@snapshot.selected_city)}
+            id="cities-empty-state"
+            title={dgettext("world", ".empty_no_cities")}
+            copy={dgettext("world", ".empty_no_cities_copy")}
+          />
+
+          <.panel :if={@snapshot.selected_city} id="city-detail-panel" tone="accent">
+            <:title>{@snapshot.selected_city.name}</:title>
+            <:subtitle>{@snapshot.selected_city.slug}</:subtitle>
+            <:actions>
+              <.status id="city-admin-status" kind={:city} value={@snapshot.selected_city.status} />
+              <.badge
+                id="city-liveness-status"
+                tone={@snapshot.selected_city.liveness_tone}
+                data-status={@snapshot.selected_city.liveness}
+              >
+                {@snapshot.selected_city.liveness_label}
+              </.badge>
+            </:actions>
+
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <.stat_item
+                id="city-slug-field"
+                label={dgettext("world", ".label_city_slug")}
+                value={Helpers.display_value(@snapshot.selected_city.slug)}
+              />
+              <.stat_item
+                id="city-node-name-field"
+                label={dgettext("world", ".label_city_node_name")}
+                value={Helpers.display_value(@snapshot.selected_city.node_name)}
+              />
+              <.stat_item
+                id="city-host-field"
+                label={dgettext("world", ".label_city_host")}
+                value={Helpers.display_value(@snapshot.selected_city.host)}
+              />
+              <.stat_item
+                id="city-distribution-port-field"
+                label={dgettext("world", ".label_city_distribution_port")}
+                value={Helpers.display_value(@snapshot.selected_city.distribution_port)}
+              />
+              <.stat_item
+                id="city-epmd-port-field"
+                label={dgettext("world", ".label_city_epmd_port")}
+                value={Helpers.display_value(@snapshot.selected_city.epmd_port)}
+              />
+              <.stat_item
+                id="city-last-seen-at-field"
+                label={dgettext("world", ".label_city_last_seen_at")}
+                value={Helpers.format_datetime(@snapshot.selected_city.last_seen_at)}
+              />
+            </div>
+          </.panel>
+          <.city_effective_config_panel
+            :if={@snapshot.selected_city}
+            city={@snapshot.selected_city}
+          />
+          <.city_preview_children_panel
+            :if={@snapshot.selected_city}
+            city={@snapshot.selected_city}
+          />
+        </div>
+      </.content_grid>
+    </div>
+  </.content_container>
 </Layouts.app>

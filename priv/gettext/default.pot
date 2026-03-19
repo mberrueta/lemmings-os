@@ -22,3 +22,12 @@ msgstr ""
 
 msgid ".city_status_unknown"
 msgstr ""
+
+msgid ".city_liveness_alive"
+msgstr ""
+
+msgid ".city_liveness_stale"
+msgstr ""
+
+msgid ".city_liveness_unknown"
+msgstr ""

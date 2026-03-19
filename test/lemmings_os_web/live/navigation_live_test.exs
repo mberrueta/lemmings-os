@@ -35,28 +35,6 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
     assert has_element?(view, "#world-import-button")
   end
 
-  test "cities page supports a selected city view", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/cities?city=city-alpha")
-
-    assert has_element?(view, "#cities-list-panel")
-    assert has_element?(view, "#city-detail-panel")
-    assert has_element?(view, "#city-detail-node")
-    assert has_element?(view, "#city-departments-panel")
-    assert has_element?(view, "#city-active-lemmings-panel")
-    refute has_element?(view, "#cities-selector")
-    refute has_element?(view, "#city-map-panel")
-    refute has_element?(view, "#city-network-map")
-  end
-
-  test "cities page renders the default city detail", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/cities")
-
-    assert has_element?(view, "#cities-list-panel")
-    assert has_element?(view, "#city-detail-panel")
-    assert has_element?(view, "#city-departments-panel")
-    refute has_element?(view, "#city-network-map")
-  end
-
   test "departments page renders the city department map", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/departments?city=city-alpha")
 

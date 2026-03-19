@@ -7,11 +7,6 @@ SESSION="${TMUX_SESSION_NAME:-lemmings_os}"
 # Example: running
 # `/path/to/repo/tmux_proj.sh` while your shell is currently in `~/tmp`.
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-MIX_PORT="${MIX_PORT:-4000}"
-TIDEWAVE_PORT="${TIDEWAVE_PORT:-4001}"
-LIVE_DEBUGGER_PORT="${LIVE_DEBUGGER_PORT:-4002}"
-TEST_PORT="${TEST_PORT:-$LIVE_DEBUGGER_PORT}"
-PORT="${PORT:-$MIX_PORT}"
 
 cd "$SCRIPT_DIR" || {
   echo "ERROR: failed to cd to $SCRIPT_DIR"
@@ -35,13 +30,13 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
     tmux split-window -v -p 75 -t "$SESSION:SERVER"
     tmux select-window -t "$SESSION:SERVER"
     tmux select-pane -U
-    tmux send-keys "TIDEWAVE_PORT=${TIDEWAVE_PORT} mix tidewave" C-m
+    tmux send-keys "mix tidewave" C-m
     tmux select-pane -D
   fi
-  tmux send-keys -t "$SESSION:SERVER" "PORT=${PORT} MIX_PORT=${MIX_PORT} mix phx.server" C-m
+  tmux send-keys -t "$SESSION:SERVER" "mix phx.server" C-m
 
   tmux new-window -t "$SESSION" -n IEX -c "$SCRIPT_DIR"
-  tmux send-keys -t "$SESSION:IEX" "PORT=${PORT} MIX_PORT=${MIX_PORT} iex -S mix" C-m
+  tmux send-keys -t "$SESSION:IEX" "iex -S mix" C-m
 
   tmux new-window -t "$SESSION" -n LLM -c "$SCRIPT_DIR"
   tmux select-window -t "$SESSION:MAIN"

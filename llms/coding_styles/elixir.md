@@ -40,9 +40,25 @@ end
 - Add `@moduledoc false` only for trivial modules; otherwise write a short `@moduledoc`.
 - Document public functions with `@doc` and typespecs (`@spec`) when behavior is non-trivial.
 - Pipe for data transformation only. Do **not** pipe into `case`/`with`; return tuples and branch at the end.
-- Prefer pattern matching through function heads and small helpers before reaching for `case`, `if`, or `cond`.
+- **Pattern matching in function heads is the first and default choice.** `if`, `cond`, and `case` are secondary tools for when pattern matching is genuinely insufficient or would be less readable.
 - Avoid `case` branches with only two simple outcomes when pattern matching in separate clauses keeps the flow flatter.
 - Prefer `with` for linear happy-path flows that would otherwise become nested branching.
+- Never use `if list == []` — use a pattern-matched clause for the empty case instead.
+
+```elixir
+# bad — reaches for `if` instead of matching
+defp rotate(list, seed) do
+  if list == [] do
+    a
+  else
+	b
+  end
+end
+
+# good — empty case is a separate clause, logic is flat
+defp rotate([], _seed), do: a
+defp rotate(list, seed) do: b
+```
 
 ```elixir
 # good

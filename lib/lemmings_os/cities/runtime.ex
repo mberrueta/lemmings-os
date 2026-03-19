@@ -116,7 +116,9 @@ defmodule LemmingsOs.Cities.Runtime do
   end
 
   defp runtime_city_config do
-    Application.get_env(:lemmings_os, :runtime_city, %{})
+    :lemmings_os
+    |> Application.get_env(:runtime_city, [])
+    |> Map.new()
   end
 
   defp log_sync_result({:ok, %City{} = city}, %World{} = world) do

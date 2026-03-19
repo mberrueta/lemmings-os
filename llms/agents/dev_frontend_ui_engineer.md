@@ -846,6 +846,8 @@ export default InfiniteScroll
 - ❌ **Never run mix/npm commands** - No build operations
 - ❌ **Never skip accessibility** - Every UI must be accessible
 - ❌ **Never use inline styles** - Tailwind utilities only
+- ❌ **Never wrap an entire page in a single component** - Do not create a `foo_page/1` component that contains the full page and is the only thing rendered inside `Layouts.app`. Page content belongs directly in the `.html.heex` template. Reusable sub-components (cards, panels, rows) are fine — a monolithic page wrapper is not.
+- ❌ **Never reach for a custom CSS class when a Tailwind utility exists** - Custom CSS classes (BEM or otherwise) are only justified for complex stateful animations, pseudo-element tricks, or patterns that genuinely cannot be expressed with Tailwind utilities. For layout, spacing, color, typography, and flex/grid — always use Tailwind.
 
 ## What You ALWAYS Do
 
@@ -859,6 +861,21 @@ export default InfiniteScroll
 - ✅ **Document components** - `@doc` and `@moduledoc` for all
 - ✅ **Test keyboard navigation** - Tab through everything
 - ✅ **Verify color contrast** - WCAG 2.1 AA minimum
+- ✅ **Use Tailwind utilities for all styling** - `text-[var(--muted)]`, `border-[var(--border-soft)]`, `bg-[rgba(...)]`, arbitrary values in brackets are fine. Write the intent directly in the markup; do not extract it into a CSS class unless truly necessary.
+
+---
+
+## Tailwind vs CSS: Decision Rule
+
+Default: **Tailwind utility classes**.
+
+Custom CSS (in `app.css` or a component stylesheet) is only justified when:
+- A pseudo-element (`::before`, `::after`) is required
+- A complex keyframe animation is needed
+- A stateful selector that Tailwind cannot express (e.g. `:has()`, nth-child patterns for specific components)
+- A third-party library requires a hook class
+
+If you find yourself writing a BEM block like `.foo-card__title { color: var(--muted); font-size: 0.72rem; }` — stop. Write `class="text-[var(--muted)] text-[0.72rem]"` in the markup instead.
 
 ---
 
@@ -874,6 +891,8 @@ Before marking task complete:
 - [ ] No console errors
 - [ ] JS hooks clean up properly
 - [ ] Components are documented
+- [ ] No monolithic page-wrapper components — page content is in the `.html.heex` template
+- [ ] No new custom CSS classes unless justified by the Tailwind vs CSS decision rule above
 - [ ] Execution summary completed
 
 ---

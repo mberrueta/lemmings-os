@@ -1,5 +1,6 @@
 defmodule LemmingsOs.Cities.HeartbeatTest do
   use LemmingsOs.DataCase, async: false
+  import ExUnit.CaptureLog
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
@@ -92,7 +93,9 @@ defmodule LemmingsOs.Cities.HeartbeatTest do
            ]}
         )
 
-      assert {:error, :default_world_not_found} = Heartbeat.heartbeat(pid)
+      assert capture_log(fn ->
+               assert {:error, :default_world_not_found} = Heartbeat.heartbeat(pid)
+             end) =~ "runtime city heartbeat failed"
     end
   end
 end

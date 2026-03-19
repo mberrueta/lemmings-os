@@ -6,6 +6,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: LemmingsOs.Gettext
 
+  alias LemmingsOs.Cities.City
   alias LemmingsOs.Worlds.World
   alias Phoenix.LiveView.JS
 
@@ -479,6 +480,9 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp city_status_tone("online"), do: "success"
   defp city_status_tone("degraded"), do: "warning"
   defp city_status_tone("offline"), do: "danger"
+  defp city_status_tone("active"), do: "success"
+  defp city_status_tone("disabled"), do: "danger"
+  defp city_status_tone("draining"), do: "warning"
   defp city_status_tone(_status), do: "default"
 
   defp city_status_label(:online), do: dgettext("world", ".status_online")
@@ -487,7 +491,10 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp city_status_label("online"), do: dgettext("world", ".status_online")
   defp city_status_label("degraded"), do: dgettext("world", ".status_degraded")
   defp city_status_label("offline"), do: dgettext("world", ".status_offline")
-  defp city_status_label(_status), do: dgettext("world", ".status_online")
+  defp city_status_label("active"), do: City.translate_status("active")
+  defp city_status_label("disabled"), do: City.translate_status("disabled")
+  defp city_status_label("draining"), do: City.translate_status("draining")
+  defp city_status_label(_status), do: City.translate_status(nil)
 
   defp lemming_status_tone(:running), do: "success"
   defp lemming_status_tone(:thinking), do: "warning"
