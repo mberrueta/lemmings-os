@@ -135,5 +135,5 @@ Allowed persisted lifecycle values:
 |---|---|---|---|---|
 | 01 | Departments Migration and Indexes | COMPLETE | [x] | None |
 | 02 | Department Schema and Tag Normalization | COMPLETE | [ ] | Task 01 |
-| 03 | Departments Context and Lifecycle APIs | 🔒 BLOCKED | [ ] | Task 02 |
+| 03 | Departments Context and Lifecycle APIs | COMPLETE | [ ] | Task 02 |
 | 04 | Config Resolver Department Extension | 🔒 BLOCKED | [ ] | Task 02 |
