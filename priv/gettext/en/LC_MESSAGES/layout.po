@@ -57,8 +57,8 @@ msgstr "Operations"
 msgid ".nav_home"
 msgstr "Home"
 
-#: lib/lemmings_os_web/components/home_components.ex:181
-#: lib/lemmings_os_web/components/home_components.ex:185
+#: lib/lemmings_os_web/components/home_components.ex:195
+#: lib/lemmings_os_web/components/home_components.ex:199
 #: lib/lemmings_os_web/components/sidebar_components.ex:145
 #: lib/lemmings_os_web/live/mock_shell.ex:41
 #, elixir-autogen
@@ -72,7 +72,6 @@ msgid ".nav_cities"
 msgstr "Cities"
 
 #: lib/lemmings_os_web/components/sidebar_components.ex:157
-#: lib/lemmings_os_web/components/world_components.ex:668
 #: lib/lemmings_os_web/live/mock_shell.ex:45
 #, elixir-autogen
 msgid ".nav_departments"
@@ -84,21 +83,21 @@ msgstr "Departments"
 msgid ".nav_lemmings"
 msgstr "Lemmings"
 
-#: lib/lemmings_os_web/components/home_components.ex:182
+#: lib/lemmings_os_web/components/home_components.ex:196
 #: lib/lemmings_os_web/components/sidebar_components.ex:174
 #: lib/lemmings_os_web/live/mock_shell.ex:48
 #, elixir-autogen
 msgid ".nav_tools"
 msgstr "Tools"
 
-#: lib/lemmings_os_web/components/home_components.ex:183
+#: lib/lemmings_os_web/components/home_components.ex:197
 #: lib/lemmings_os_web/components/sidebar_components.ex:180
 #: lib/lemmings_os_web/live/mock_shell.ex:49
 #, elixir-autogen
 msgid ".nav_logs"
 msgstr "Logs"
 
-#: lib/lemmings_os_web/components/home_components.ex:184
+#: lib/lemmings_os_web/components/home_components.ex:198
 #: lib/lemmings_os_web/components/sidebar_components.ex:186
 #: lib/lemmings_os_web/live/mock_shell.ex:50
 #, elixir-autogen
@@ -191,7 +190,7 @@ msgid ".subtitle_settings"
 msgstr "Visual-only controls using the final shell primitives."
 
 #: lib/lemmings_os_web/live/settings_live.ex:27
-#: lib/lemmings_os_web/live/settings_live.html.heex:110
+#: lib/lemmings_os_web/live/settings_live.html.heex:165
 #, elixir-autogen
 msgid ".title_environment_notes"
 msgstr "Environment Notes"
@@ -206,7 +205,7 @@ msgstr "Home"
 msgid ".page_title_lemmings"
 msgstr "Lemmings"
 
-#: lib/lemmings_os_web/live/cities_live.ex:13
+#: lib/lemmings_os_web/live/cities_live.ex:38
 #, elixir-autogen
 msgid ".page_title_cities"
 msgstr "Cities"
@@ -216,7 +215,7 @@ msgstr "Cities"
 msgid ".page_title_departments"
 msgstr "Departments"
 
-#: lib/lemmings_os_web/live/world_live.ex:13
+#: lib/lemmings_os_web/live/world_live.ex:15
 #, elixir-autogen
 msgid ".page_title_world"
 msgstr "World"
@@ -301,12 +300,12 @@ msgstr "OTP"
 msgid ".settings_current_world_title"
 msgstr "Current World"
 
-#: lib/lemmings_os_web/live/settings_live.html.heex:79
+#: lib/lemmings_os_web/live/settings_live.html.heex:134
 #, elixir-autogen
 msgid ".settings_validation_summary_title"
 msgstr "Validation Summary"
 
-#: lib/lemmings_os_web/live/settings_live.html.heex:113
+#: lib/lemmings_os_web/live/settings_live.html.heex:168
 #, elixir-autogen
 msgid ".settings_read_only_copy"
 msgstr "Settings is read-only in this slice. Use these pages to inspect world/bootstrap/runtime state."
@@ -498,19 +497,19 @@ msgstr "Some runtime tools still have partial policy state."
 msgid ".tools_policy_copy_unknown"
 msgstr "Policy state is not yet available."
 
-#: lib/lemmings_os_web/components/home_components.ex:187
+#: lib/lemmings_os_web/components/home_components.ex:201
 #: lib/lemmings_os_web/components/system_components.ex:68
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_mode_deferred"
 msgstr "Deferred"
 
-#: lib/lemmings_os_web/components/home_components.ex:189
+#: lib/lemmings_os_web/components/home_components.ex:203
 #: lib/lemmings_os_web/components/system_components.ex:74
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_mode_known"
 msgstr "Known"
 
-#: lib/lemmings_os_web/components/home_components.ex:188
+#: lib/lemmings_os_web/components/home_components.ex:202
 #: lib/lemmings_os_web/components/system_components.ex:71
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_mode_partial"
@@ -552,65 +551,65 @@ msgstr "Runtime Capability"
 msgid ".tools_usage_unknown"
 msgstr "Unknown"
 
-#: lib/lemmings_os_web/components/home_components.ex:221
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:222
+#: lib/lemmings_os_web/components/home_components.ex:235
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:254
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_action"
 msgstr "Import or recover the default World before relying on dashboard signals."
 
-#: lib/lemmings_os_web/components/home_components.ex:207
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:219
+#: lib/lemmings_os_web/components/home_components.ex:221
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:251
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_detail"
 msgstr "Home cannot claim hierarchy or runtime coverage until a World is available."
 
-#: lib/lemmings_os_web/components/home_components.ex:193
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:218
+#: lib/lemmings_os_web/components/home_components.ex:207
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:250
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_summary"
 msgstr "No persisted world available"
 
-#: lib/lemmings_os_web/components/home_components.ex:224
+#: lib/lemmings_os_web/components/home_components.ex:238
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_partial_action"
 msgstr "Treat tools policy as partial until reconciliation exists."
 
-#: lib/lemmings_os_web/components/home_components.ex:210
+#: lib/lemmings_os_web/components/home_components.ex:224
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_partial_detail"
 msgstr "Some runtime tools still have partial policy state."
 
-#: lib/lemmings_os_web/components/home_components.ex:196
+#: lib/lemmings_os_web/components/home_components.ex:210
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_partial_summary"
 msgstr "Tools policy reconciliation is partial"
 
-#: lib/lemmings_os_web/components/home_components.ex:227
+#: lib/lemmings_os_web/components/home_components.ex:241
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_unavailable_action"
 msgstr "Use runtime capability facts as primary until policy state is available."
 
-#: lib/lemmings_os_web/components/home_components.ex:213
+#: lib/lemmings_os_web/components/home_components.ex:227
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_unavailable_detail"
 msgstr "Runtime tools are visible, but policy reconciliation could not be loaded."
 
-#: lib/lemmings_os_web/components/home_components.ex:199
+#: lib/lemmings_os_web/components/home_components.ex:213
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_unavailable_summary"
 msgstr "Tools policy state unavailable"
 
-#: lib/lemmings_os_web/components/home_components.ex:230
+#: lib/lemmings_os_web/components/home_components.ex:244
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_runtime_source_unavailable_action"
 msgstr "Verify the runtime capability source before relying on tool availability."
 
-#: lib/lemmings_os_web/components/home_components.ex:216
+#: lib/lemmings_os_web/components/home_components.ex:230
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_runtime_source_unavailable_detail"
 msgstr "The page could not obtain runtime capability data from the current source."
 
-#: lib/lemmings_os_web/components/home_components.ex:202
+#: lib/lemmings_os_web/components/home_components.ex:216
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_runtime_source_unavailable_summary"
 msgstr "Runtime capability source unavailable"
@@ -641,7 +640,7 @@ msgid ".home_alerts_zero"
 msgstr "No alerts."
 
 #: lib/lemmings_os_web/components/home_components.ex:122
-#: lib/lemmings_os_web/components/home_components.ex:250
+#: lib/lemmings_os_web/components/home_components.ex:264
 #, elixir-autogen, elixir-format
 msgid ".home_card_bootstrap_health_title"
 msgstr "Bootstrap Health"
@@ -667,7 +666,7 @@ msgid ".home_card_runtime_deferred_label"
 msgstr "Deferred Sources"
 
 #: lib/lemmings_os_web/components/home_components.ex:139
-#: lib/lemmings_os_web/components/home_components.ex:253
+#: lib/lemmings_os_web/components/home_components.ex:267
 #, elixir-autogen, elixir-format
 msgid ".home_card_runtime_health_title"
 msgstr "Runtime Health"
@@ -678,7 +677,7 @@ msgid ".home_card_tools_count_label"
 msgstr "Tool Count"
 
 #: lib/lemmings_os_web/components/home_components.ex:156
-#: lib/lemmings_os_web/components/home_components.ex:256
+#: lib/lemmings_os_web/components/home_components.ex:270
 #, elixir-autogen, elixir-format
 msgid ".home_card_tools_health_title"
 msgstr "Tools Health"
@@ -729,23 +728,23 @@ msgstr "Cards"
 msgid ".home_current_world_label"
 msgstr "Current World"
 
-#: lib/lemmings_os_web/components/home_components.ex:244
+#: lib/lemmings_os_web/components/home_components.ex:258
 #, elixir-autogen, elixir-format
 msgid ".home_omitted_active_lemmings_title"
 msgstr "Active Lemmings"
 
-#: lib/lemmings_os_web/components/home_components.ex:238
+#: lib/lemmings_os_web/components/home_components.ex:252
 #, elixir-autogen, elixir-format
 msgid ".home_omitted_city_network_title"
 msgstr "City Network"
 
-#: lib/lemmings_os_web/components/home_components.ex:241
+#: lib/lemmings_os_web/components/home_components.ex:255
 #, elixir-autogen, elixir-format
 msgid ".home_omitted_department_queues_title"
 msgstr "Department Queues"
 
-#: lib/lemmings_os_web/components/home_components.ex:235
-#: lib/lemmings_os_web/components/home_components.ex:259
+#: lib/lemmings_os_web/components/home_components.ex:249
+#: lib/lemmings_os_web/components/home_components.ex:273
 #, elixir-autogen, elixir-format
 msgid ".home_omitted_hierarchy_counts_title"
 msgstr "Hierarchy Counts"
@@ -755,7 +754,7 @@ msgstr "Hierarchy Counts"
 msgid ".home_omitted_item_copy"
 msgstr "This section is intentionally omitted until the source exists."
 
-#: lib/lemmings_os_web/components/home_components.ex:247
+#: lib/lemmings_os_web/components/home_components.ex:261
 #, elixir-autogen, elixir-format, fuzzy
 msgid ".home_omitted_recent_activity_title"
 msgstr "Recent Activity"
@@ -790,23 +789,63 @@ msgstr "Core runtime signals, not fake operational breadth."
 msgid ".home_signals_title"
 msgstr "Trusted Signals"
 
-#: lib/lemmings_os_web/components/home_components.ex:176
+#: lib/lemmings_os_web/components/home_components.ex:189
 #, elixir-autogen, elixir-format
 msgid ".home_source_bootstrap_config"
 msgstr "Bootstrap Config"
 
-#: lib/lemmings_os_web/components/home_components.ex:175
+#: lib/lemmings_os_web/components/home_components.ex:188
 #, elixir-autogen, elixir-format
 msgid ".home_source_persisted_world"
 msgstr "Persisted World"
 
-#: lib/lemmings_os_web/components/home_components.ex:177
-#: lib/lemmings_os_web/components/home_components.ex:179
+#: lib/lemmings_os_web/components/home_components.ex:190
+#: lib/lemmings_os_web/components/home_components.ex:193
 #, elixir-autogen, elixir-format
 msgid ".home_source_runtime_checks"
 msgstr "Runtime Checks"
 
-#: lib/lemmings_os_web/components/home_components.ex:178
+#: lib/lemmings_os_web/components/home_components.ex:191
 #, elixir-autogen, elixir-format
 msgid ".home_source_tools_snapshot"
 msgstr "Tools Snapshot"
+
+#: lib/lemmings_os_web/components/home_components.ex:177
+#, elixir-autogen
+msgid ".home_card_city_health_title"
+msgstr "City Health"
+
+#: lib/lemmings_os_web/components/home_components.ex:181
+#, elixir-autogen
+msgid ".home_card_city_count_label"
+msgstr "Cities"
+
+#: lib/lemmings_os_web/components/home_components.ex:192
+#, elixir-autogen
+msgid ".home_source_persisted_cities"
+msgstr "Persisted Cities"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:74
+#, elixir-autogen
+msgid ".settings_local_city_title"
+msgstr "Local Runtime City"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:77
+#, elixir-autogen
+msgid ".settings_local_city_subtitle"
+msgstr "Persisted city row matched to this node's name."
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:87
+#, elixir-autogen
+msgid ".settings_local_city_unregistered"
+msgstr "Unregistered"
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:120
+#, elixir-autogen
+msgid ".settings_local_city_unavailable_copy"
+msgstr "No persisted city row matches this node name. Start the heartbeat worker or bootstrap a city row for this node."
+
+#: lib/lemmings_os_web/live/settings_live.html.heex:94
+#, elixir-autogen
+msgid ".settings_city_name_label"
+msgstr "City"

@@ -9,23 +9,21 @@ defmodule LemmingsOs.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      LemmingsOsWeb.Telemetry,
-      LemmingsOs.Repo,
-      {LemmingsOs.WorldCache, []},
-      {DNSCluster, query: Application.get_env(:lemmings_os, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: LemmingsOs.PubSub},
-      # Start a worker by calling: LemmingsOs.Worker.start_link(arg)
-      # {LemmingsOs.Worker, arg},
-      # Start to serve requests, typically the last entry
-      LemmingsOsWeb.Endpoint
-    ]
+    children =
+      [
+        LemmingsOsWeb.Telemetry,
+        LemmingsOs.Repo,
+        {LemmingsOs.Worlds.Cache, []},
+        {DNSCluster, query: Application.get_env(:lemmings_os, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: LemmingsOs.PubSub}
+      ] ++ runtime_city_heartbeat_child() ++ [LemmingsOsWeb.Endpoint]
 
     opts = [strategy: :one_for_one, name: LemmingsOs.Supervisor]
 
     case Supervisor.start_link(children, opts) do
       {:ok, _supervisor} = result ->
         maybe_run_world_bootstrap_import()
+        maybe_sync_runtime_city()
         result
 
       error ->
@@ -54,6 +52,20 @@ defmodule LemmingsOs.Application do
     end
   end
 
+  defp maybe_sync_runtime_city do
+    if Application.get_env(:lemmings_os, :runtime_city_registration_on_startup, true) do
+      LemmingsOs.Cities.Runtime.sync_runtime_city!()
+    end
+  end
+
+  defp runtime_city_heartbeat_child do
+    if Application.get_env(:lemmings_os, :runtime_city_heartbeat_on_startup, true) do
+      [{LemmingsOs.Cities.Heartbeat, []}]
+    else
+      []
+    end
+  end
+
   defp log_bootstrap_result(result, level, message) do
     Logger.log(level, message,
       event: "world_bootstrap.sync",
@@ -64,6 +76,6 @@ defmodule LemmingsOs.Application do
     )
   end
 
-  defp world_id(%LemmingsOs.World{id: id}), do: id
+  defp world_id(%LemmingsOs.Worlds.World{id: id}), do: id
   defp world_id(nil), do: nil
 end

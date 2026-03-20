@@ -40,7 +40,10 @@ defmodule LemmingsOsWeb.Endpoint do
     cookie_key: "request_logger"
 
   plug Plug.RequestId
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+
+  plug Plug.Telemetry,
+    event_prefix: [:phoenix, :endpoint],
+    log: {__MODULE__, :log_level, []}
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
@@ -51,4 +54,8 @@ defmodule LemmingsOsWeb.Endpoint do
   plug Plug.Head
   plug Plug.Session, @session_options
   plug LemmingsOsWeb.Router
+
+  @doc false
+  def log_level(%Plug.Conn{path_info: ["healthz"]}), do: false
+  def log_level(_conn), do: :info
 end

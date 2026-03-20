@@ -1,8 +1,8 @@
 defmodule LemmingsOsWeb.PageData.WorldPageSnapshotTest do
   use LemmingsOs.DataCase, async: false
 
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Worlds.World
+  alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.WorldBootstrapTestHelpers
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
 
@@ -10,7 +10,7 @@ defmodule LemmingsOsWeb.PageData.WorldPageSnapshotTest do
 
   setup do
     Repo.delete_all(World)
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
     :ok
   end
 

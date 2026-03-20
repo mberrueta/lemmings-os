@@ -1,15 +1,22 @@
 defmodule LemmingsOsWeb.NavigationLiveTest do
   use LemmingsOsWeb.ConnCase
 
+  import Mox
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Repo
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Tools.MockPolicyFetcher
+  alias LemmingsOs.Tools.MockRuntimeFetcher
+  alias LemmingsOs.Worlds.World
+  alias LemmingsOs.Worlds.Cache
+
+  setup :verify_on_exit!
 
   setup do
     Repo.delete_all(World)
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
+    stub(MockRuntimeFetcher, :fetch, fn -> {:error, :not_implemented} end)
+    stub(MockPolicyFetcher, :fetch, fn -> :deferred end)
     :ok
   end
 
@@ -26,28 +33,6 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
 
     assert has_element?(view, "#world-page-empty-state")
     assert has_element?(view, "#world-import-button")
-  end
-
-  test "cities page supports a selected city view", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/cities?city=city-alpha")
-
-    assert has_element?(view, "#cities-list-panel")
-    assert has_element?(view, "#city-detail-panel")
-    assert has_element?(view, "#city-detail-node")
-    assert has_element?(view, "#city-departments-panel")
-    assert has_element?(view, "#city-active-lemmings-panel")
-    refute has_element?(view, "#cities-selector")
-    refute has_element?(view, "#city-map-panel")
-    refute has_element?(view, "#city-network-map")
-  end
-
-  test "cities page renders the default city detail", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/cities")
-
-    assert has_element?(view, "#cities-list-panel")
-    assert has_element?(view, "#city-detail-panel")
-    assert has_element?(view, "#city-departments-panel")
-    refute has_element?(view, "#city-network-map")
   end
 
   test "departments page renders the city department map", %{conn: conn} do

@@ -1,5 +1,32 @@
 import Config
 
+parse_optional_integer = fn env_var ->
+  case System.get_env(env_var) do
+    nil -> nil
+    "" -> nil
+    value -> String.to_integer(value)
+  end
+end
+
+runtime_city_node_name = System.get_env("LEMMINGS_CITY_NODE_NAME") || Atom.to_string(node())
+runtime_city_heartbeat = Application.get_env(:lemmings_os, :runtime_city_heartbeat, [])
+
+config :lemmings_os, :runtime_city,
+  node_name: runtime_city_node_name,
+  slug: System.get_env("LEMMINGS_CITY_SLUG"),
+  name: System.get_env("LEMMINGS_CITY_NAME"),
+  host: System.get_env("LEMMINGS_CITY_HOST"),
+  distribution_port: parse_optional_integer.("LEMMINGS_CITY_DISTRIBUTION_PORT"),
+  epmd_port: parse_optional_integer.("LEMMINGS_CITY_EPMD_PORT")
+
+config :lemmings_os, :runtime_city_heartbeat,
+  interval_ms:
+    parse_optional_integer.("LEMMINGS_CITY_HEARTBEAT_INTERVAL_MS") ||
+      Keyword.get(runtime_city_heartbeat, :interval_ms),
+  freshness_threshold_seconds:
+    parse_optional_integer.("LEMMINGS_CITY_STALE_AFTER_SECONDS") ||
+      Keyword.get(runtime_city_heartbeat, :freshness_threshold_seconds)
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration

@@ -11,6 +11,10 @@ config :lemmings_os,
   ecto_repos: [LemmingsOs.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
+config :lemmings_os, :runtime_city_heartbeat,
+  interval_ms: 30_000,
+  freshness_threshold_seconds: 90
+
 # Configures the endpoint
 config :lemmings_os, LemmingsOsWeb.Endpoint,
   url: [host: "localhost"],
@@ -46,7 +50,17 @@ config :tailwind,
 # Configures Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :event, :status, :bootstrap_path, :issue_count, :world_id]
+  metadata: [
+    :request_id,
+    :event,
+    :status,
+    :reason,
+    :bootstrap_path,
+    :issue_count,
+    :world_id,
+    :city_id,
+    :node_name
+  ]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

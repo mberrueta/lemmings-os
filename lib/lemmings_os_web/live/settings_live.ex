@@ -2,7 +2,7 @@ defmodule LemmingsOsWeb.SettingsLive do
   use LemmingsOsWeb, :live_view
 
   alias LemmingsOs.Helpers
-  alias LemmingsOs.World
+  alias LemmingsOs.Worlds.World
   import LemmingsOsWeb.MockShell
   alias LemmingsOsWeb.PageData.SettingsPageSnapshot
 

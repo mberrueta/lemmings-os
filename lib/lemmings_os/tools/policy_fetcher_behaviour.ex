@@ -4,7 +4,7 @@ defmodule LemmingsOs.Tools.PolicyFetcherBehaviour do
 
   Implement this behaviour to supply policy status per tool ID to the Tools
   page snapshot. The default implementation returns `:deferred`. In tests,
-  use the `LemmingsOs.Tools.MockPolicyFetcher` Mox mock.
+  use the `MockPolicyFetcher` Mox mock defined in `test/support/mocks.ex`.
   """
 
   @callback fetch() :: :deferred | {:ok, %{String.t() => String.t()}} | {:error, atom()}

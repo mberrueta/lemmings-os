@@ -4,13 +4,14 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
 
   This snapshot prefers fewer reliable cards over broader fake operational
   coverage. It surfaces persisted World identity, bootstrap health, runtime
-  health, and tool capability state only when those sources are real or
-  honestly unavailable.
+  health, tool capability state, and real city counts only when those sources
+  are real or honestly unavailable.
   """
 
   use Gettext, backend: LemmingsOs.Gettext
 
-  alias LemmingsOs.World
+  alias LemmingsOs.Cities
+  alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
 
@@ -80,6 +81,18 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
     }
   end
 
+  @doc false
+  def build_city_card_meta(world_id) when is_binary(world_id) do
+    case Ecto.UUID.cast(world_id) do
+      {:ok, valid_id} ->
+        total = valid_id |> Cities.list_cities() |> length()
+        %{city_count: total}
+
+      :error ->
+        %{city_count: 0}
+    end
+  end
+
   defp resolve_world_snapshot(snapshot, _opts) when not is_nil(snapshot), do: {:ok, snapshot}
 
   defp resolve_world_snapshot(nil, opts) do
@@ -138,7 +151,8 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
       world_identity_card(world_snapshot),
       bootstrap_health_card(world_snapshot),
       runtime_health_card(world_snapshot),
-      tools_health_card(tools_snapshot)
+      tools_health_card(tools_snapshot),
+      city_health_card(world_snapshot)
     ]
   end
 
@@ -194,6 +208,24 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
     }
   end
 
+  defp city_health_card(world_snapshot) do
+    meta = build_city_card_meta(world_snapshot.world.id)
+
+    %{
+      id: "city_health",
+      status: city_health_status(meta.city_count),
+      status_label: city_health_status_label(meta.city_count),
+      source: "persisted_cities",
+      meta: meta
+    }
+  end
+
+  defp city_health_status(0), do: "unknown"
+  defp city_health_status(_count), do: "ok"
+
+  defp city_health_status_label(0), do: status_label("unknown")
+  defp city_health_status_label(_count), do: status_label("ok")
+
   defp runtime_breakdown(runtime_snapshot) do
     counts =
       Enum.reduce(runtime_snapshot.checks, status_counts(), fn check, acc ->
@@ -244,7 +276,6 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
   defp omitted_sections({:ok, _world_snapshot}, _tools_snapshot) do
     [
       "hierarchy_counts",
-      "city_network",
       "department_queues",
       "active_lemmings",
       "recent_activity"

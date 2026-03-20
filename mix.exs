@@ -10,6 +10,7 @@ defmodule LemmingsOs.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      releases: releases(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
       test_coverage: [tool: ExCoveralls],
@@ -35,6 +36,15 @@ defmodule LemmingsOs.MixProject do
       preferred_envs: [
         precommit: :test,
         "precommit.full": :test
+      ]
+    ]
+  end
+
+  defp releases do
+    [
+      lemmings_os: [
+        include_executables_for: [:unix],
+        applications: [runtime_tools: :permanent]
       ]
     ]
   end

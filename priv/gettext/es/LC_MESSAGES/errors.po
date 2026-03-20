@@ -115,7 +115,7 @@ msgstr "La configuracion bootstrap contiene la clave desconocida `%{path}`."
 msgid ".shape_unknown_key_action_hint"
 msgstr "Elimina la clave o extiende el validador bootstrap si es intencional."
 
-#: lib/lemmings_os_web/components/core_components.ex:44
+#: lib/lemmings_os_web/components/core_components.ex:45
 #, elixir-autogen
 msgid ".aria_close"
 msgstr "cerrar"
@@ -136,20 +136,20 @@ msgstr "Intentando reconectar"
 msgid ".error_something_went_wrong"
 msgstr "Algo salio mal!"
 
-#: lib/lemmings_os_web/components/core_components.ex:523
-#: lib/lemmings_os_web/components/core_components.ex:526
+#: lib/lemmings_os_web/components/core_components.ex:530
+#: lib/lemmings_os_web/components/core_components.ex:533
 #, elixir-autogen
 msgid ".issue_severity_error"
 msgstr "Error"
 
-#: lib/lemmings_os_web/components/core_components.ex:525
-#: lib/lemmings_os_web/components/core_components.ex:528
+#: lib/lemmings_os_web/components/core_components.ex:532
+#: lib/lemmings_os_web/components/core_components.ex:535
 #, elixir-autogen
 msgid ".issue_severity_info"
 msgstr "Info"
 
-#: lib/lemmings_os_web/components/core_components.ex:524
-#: lib/lemmings_os_web/components/core_components.ex:527
+#: lib/lemmings_os_web/components/core_components.ex:531
+#: lib/lemmings_os_web/components/core_components.ex:534
 #, elixir-autogen
 msgid ".issue_severity_warning"
 msgstr "Advertencia"

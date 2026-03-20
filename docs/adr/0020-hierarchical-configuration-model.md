@@ -1,6 +1,6 @@
 # ADR-0020 — Hierarchical Configuration Model
 
-- Status: Accepted
+- Status: Accepted (narrowed 2026-03-19)
 - Date: 2026-03-14
 - Decision Makers: LemmingsOS maintainers
 
@@ -225,29 +225,29 @@ All other namespaces use override-dominant semantics.
 
 # 5. Configuration Storage
 
-Each hierarchy entity stores a partial configuration document in its `config_jsonb`
-column. A document contains only the keys that scope explicitly configures;
-unset keys are resolved from the parent.
+Each hierarchy entity stores partial configuration. Unset keys are resolved
+from the parent.
 
-Storage schema (abbreviated):
-
-```
-worlds        → config_jsonb
-cities        → config_jsonb
-departments   → config_jsonb
-lemming_types → config_jsonb
-```
-
-At the World scope, configuration is intentionally stored with split JSONB
-columns instead of a single `config_jsonb` field:
+At the World and City scopes, configuration is stored as split JSONB columns
+instead of a single `config_jsonb` field:
 
 ```text
-worlds
+worlds / cities
   → limits_config
   → runtime_config
   → costs_config
   → models_config
 ```
+
+Prior wording in this ADR described a single `config_jsonb` column per entity.
+The shipped implementation uses four split JSONB columns at both the World and
+City level. This keeps ownership boundaries explicit between limits, runtime
+defaults, costs, and model/provider declarations.
+
+Both World and City schemas use shared Ecto embedded schema modules
+(`LemmingsOs.Config.LimitsConfig`, `RuntimeConfig`, `CostsConfig`,
+`ModelsConfig`) for the four buckets, ensuring type consistency across levels.
+City config columns store local overrides only; they default to empty maps.
 
 Normal columns on `worlds` hold the bootstrap linkage and import metadata:
 
@@ -259,15 +259,12 @@ last_import_status
 last_imported_at
 ```
 
-This preserves the distinction between:
-
-- persisted domain state
-- bootstrap ingestion metadata
-- runtime health and reconciliation state
+Department and Lemming Type configuration storage is not yet implemented.
+When those scopes are persisted, they should follow the same split-column
+pattern or justify an alternative in a future ADR.
 
 Configuration is partial by design. The World document typically contains the
-authoritative defaults. City, Department, and Lemming Type documents contain only
-the keys they override or extend.
+authoritative defaults. City documents contain only the keys they override.
 
 Example World configuration:
 
@@ -359,65 +356,69 @@ database access is forbidden.
 LemmingsOs.Config.Resolver
 ```
 
-Interface:
+## 7.1 Shipped resolver interface
+
+The shipped resolver accepts preloaded Ecto structs, not IDs:
 
 ```elixir
-Config.Resolver.effective(world_id)
-Config.Resolver.effective(world_id, city_id)
-Config.Resolver.effective(world_id, city_id, department_id)
-Config.Resolver.effective(world_id, city_id, department_id, lemming_type_id)
+Config.Resolver.resolve(%World{})
+Config.Resolver.resolve(%City{world: %World{}})
 ```
 
-Each call returns an immutable effective configuration map for the given scope.
-
-Resolution algorithm:
+Each call returns an immutable effective configuration map with typed struct
+values:
 
 ```elixir
-def effective(world_id, city_id \\ nil, dept_id \\ nil, lemming_type_id \\ nil) do
-  layers =
-    [
-      load_config(:world, world_id),
-      load_config(:city, city_id),
-      load_config(:department, dept_id),
-      load_config(:lemming_type, lemming_type_id)
-    ]
-    |> Enum.reject(&is_nil/1)
-
-  layers
-  |> Enum.reduce(%{}, &deep_merge(&2, &1))   # step 1: override-dominant
-  |> enforce_deny_dominant(layers)            # step 2: governance constraints
-end
-
-# Union of all ancestor tool deny lists — no ancestor denial can be removed
-defp enforce_deny_dominant(config, layers) do
-  all_tool_denials =
-    layers
-    |> Enum.flat_map(&(get_in(&1, [:tools, :deny]) || []))
-    |> MapSet.new()
-
-  min_budget_cap =
-    layers
-    |> Enum.map(&get_in(&1, [:cost, :budget, :cap_usd]))
-    |> Enum.reject(&is_nil/1)
-    |> case do
-      [] -> nil
-      caps -> Enum.min(caps)
-    end
-
-  config
-  |> put_in_if_present([:tools, :deny], MapSet.to_list(all_tool_denials))
-  |> put_in_if_present([:cost, :budget, :cap_usd], min_budget_cap)
-end
+%{
+  limits_config: %LimitsConfig{},
+  runtime_config: %RuntimeConfig{},
+  costs_config: %CostsConfig{},
+  models_config: %ModelsConfig{}
+}
 ```
 
-The resolver is the only location in the codebase where merge semantics are
-implemented. Subsystems must not re-implement merge logic.
+Prior wording described an `effective/1..4` interface that accepted ID tuples
+and loaded configuration from the database internally. The shipped resolver is
+intentionally **pure and in-memory**: callers must preload the parent chain
+before calling. The resolver performs no DB access.
+
+Merge semantics for the shipped `World -> City` resolution:
+
+- **Child overrides parent** -- non-nil City values replace World values via
+  recursive deep merge.
+- Nil values in the child are pruned before merge, so they do not clobber
+  parent defaults.
+- The resolver returns typed embedded schema structs, not raw maps.
+
+## 7.2 Deferred resolver capabilities
+
+The following capabilities described in this ADR are not yet implemented:
+
+- **Deny-dominant merge** -- tool deny-list union and budget cap minimum
+  semantics are architecturally intended but not yet enforced in the resolver.
+  The shipped resolver uses override-dominant merge only.
+- **Department and Lemming Type resolution** -- these scopes are not yet
+  persisted; the resolver does not accept them.
+- **ID-based interface** -- the resolver does not accept raw UUIDs or perform
+  database lookups. Callers must provide preloaded structs.
+- **ETS caching** -- `Config.Cache` is not yet implemented (see section 8).
+- **Config.Validator** -- validation is handled by Ecto changeset validations
+  on the individual embedded schemas, not by a dedicated validator module.
+
+When Department and Lemming Type persistence ships, the resolver interface
+should be extended to accept those scopes while preserving the pure in-memory
+contract.
+
+The resolver remains the only location in the codebase where merge semantics
+are implemented. Subsystems must not re-implement merge logic.
 
 ---
 
 # 8. Runtime Caching
 
-Resolved configuration is cached per node in ETS.
+**Status: not yet implemented.**
+
+The architectural intent is to cache resolved configuration per node in ETS:
 
 ```
 LemmingsOs.Config.Cache
@@ -425,19 +426,23 @@ LemmingsOs.Config.Cache
 
 Cache key: `{world_id, city_id, department_id, lemming_type_id}`
 
-Properties:
+Properties (planned):
 
 - ETS-backed, read-optimized
 - lazily populated on first resolver call for a given scope tuple
 - invalidated on configuration change events
 - rebuilt lazily on cache miss or node restart
 
-Cluster-wide cache invalidation:
+Cluster-wide cache invalidation (planned):
 
 When a configuration change is persisted, the control plane emits a
 `config.updated` audit event (ADR-0018). All City nodes observe this event and
 drop the affected cache entries. The next resolver call for that scope reloads
 from PostgreSQL and repopulates the cache.
+
+The shipped resolver operates without caching. Each call resolves from the
+preloaded structs provided by the caller. ETS caching will become necessary
+when Lemming execution creates high-frequency config resolution demand.
 
 ---
 

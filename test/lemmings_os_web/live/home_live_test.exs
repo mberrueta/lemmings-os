@@ -5,13 +5,13 @@ defmodule LemmingsOsWeb.HomeLiveTest do
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Repo
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Worlds.World
+  alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.WorldBootstrapTestHelpers
 
   setup do
     Repo.delete_all(World)
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
     Application.delete_env(:lemmings_os, :tools_runtime_fetcher)
     Application.delete_env(:lemmings_os, :tools_policy_fetcher)
 

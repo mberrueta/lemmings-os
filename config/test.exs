@@ -23,6 +23,8 @@ config :lemmings_os, LemmingsOsWeb.Endpoint,
   server: false
 
 config :lemmings_os, :world_bootstrap_import_on_startup, false
+config :lemmings_os, :runtime_city_registration_on_startup, false
+config :lemmings_os, :runtime_city_heartbeat_on_startup, false
 
 config :lemmings_os, :tools_runtime_fetcher, LemmingsOs.Tools.MockRuntimeFetcher
 config :lemmings_os, :tools_policy_fetcher, LemmingsOs.Tools.MockPolicyFetcher

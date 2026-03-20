@@ -5,13 +5,13 @@ defmodule LemmingsOsWeb.WorldLiveTest do
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Repo
-  alias LemmingsOs.World
-  alias LemmingsOs.WorldCache
+  alias LemmingsOs.Worlds.World
+  alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.WorldBootstrapTestHelpers
 
   setup do
     Repo.delete_all(World)
-    WorldCache.invalidate_all()
+    Cache.invalidate_all()
     :ok
   end
 
@@ -34,8 +34,8 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     assert has_element?(view, "#world-tab-import")
     assert has_element?(view, "#world-tab-bootstrap")
     assert has_element?(view, "#world-tab-runtime")
-    assert has_element?(view, "#world-map-panel")
-    assert has_element?(view, "#world-map[phx-update='ignore']")
+    assert has_element?(view, "#world-cities-panel")
+    assert has_element?(view, "#world-overview-tab")
     refute has_element?(view, "#world-import-panel")
     refute has_element?(view, "#world-bootstrap-panel")
     refute has_element?(view, "#world-runtime-panel")
@@ -151,8 +151,8 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     |> render_click()
 
     assert has_element?(view, "#world-status-panel")
-    assert has_element?(view, "#world-map-panel")
-    assert has_element?(view, "#world-map[phx-update='ignore']")
+    assert has_element?(view, "#world-cities-panel")
+    assert has_element?(view, "#world-overview-tab")
     assert has_element?(view, "#world-bootstrap-status[data-status='ok']")
     refute has_element?(view, "#world-page-empty-state")
   end

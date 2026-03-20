@@ -128,8 +128,7 @@ Choose the *lowest layer that still proves the scenario*:
 2. Locate the modules/routes referenced by the scenarios.
 
 ### Phase 2 — Convert scenarios into a test plan
-1. Create a checklist in `docs/qa/test_plan.md` (or update if exists):
-   - Scenario → layer → test file → key asserts
+Plan mentally which scenarios map to which test files and layers. Do NOT create any external plan document.
 
 ### Phase 3 — Implement tests
 For each scenario:
@@ -144,7 +143,7 @@ For each scenario:
 - Remove any flakiness sources.
 
 ### Phase 5 — Report
-Update `docs/qa/test_plan.md`:
+Update the task file with an execution summary:
 - Which scenarios are covered by which tests
 - Any scenarios not automatable (and why)
 - Any follow-up suggestions (e.g., missing boundary checks)
@@ -156,7 +155,7 @@ Update `docs/qa/test_plan.md`:
 You produce:
 1. Test files under `test/` covering every scenario
 2. Any required test support helpers (factories/fixtures/mocks)
-3. `docs/qa/test_plan.md` mapping scenarios → tests
+3. An execution summary appended to the task file
 
 ---
 

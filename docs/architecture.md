@@ -48,7 +48,7 @@ Five pillars guide all architecture decisions:
 Level descriptions:
 
 - **World** — Hard isolation boundary. No cross-World communication without explicit Gateway. One per deployment or tenant.
-- **City** — One Elixir/OTP node. Multiple Cities can form a World cluster. City joins/leaves a World dynamically.
+- **City** — One Elixir/OTP node. Persisted with real identity, heartbeat-backed liveness, and split config buckets. Multiple Cities can exist within a World; clustering is architecturally intended but not yet shipped.
 - **Department** — Named logical group of agents within a City. Defines shared purpose, capabilities, and constraints.
 - **Lemming** — Supervised autonomous agent process. Has stable identity, lifecycle, and mailbox.
 
@@ -58,17 +58,35 @@ See ADR 0002 for the rationale behind this model.
 
 ## Component Overview
 
-### World Registry (`LemmingsOs.World.Registry`)
+### World Context (`LemmingsOs.Worlds`)
 
-* Tracks all active Worlds on the local node.
+* Manages persisted World rows and bootstrap import.
 * Enforces World-scoping: no queries or events cross World boundaries without a Gateway.
-* Provides the authoritative list of Cities in each World.
+* Provides the authoritative World identity used by City registration and config resolution.
 
-### City Supervisor (`LemmingsOs.City.Supervisor`)
+### Config Resolver (`LemmingsOs.Config.Resolver`)
+
+* Resolves effective configuration by merging World and City config buckets.
+* Pure in-memory: callers must preload the parent chain before calling.
+* Child overrides parent; no DB access inside the resolver.
+
+### City Runtime (`LemmingsOs.Cities.Runtime`)
+
+* Resolves and upserts the local runtime City identity at application startup.
+* Registers the local node as a City by upserting a `cities` row keyed by `node_name`.
+* Does not perform discovery, clustering, or remote node management.
+
+### City Heartbeat (`LemmingsOs.Cities.Heartbeat`)
+
+* A GenServer that updates the local City's `last_seen_at` on a fixed 30-second interval.
+* Derived liveness (`alive`, `stale`, `unknown`) is computed from `last_seen_at` freshness.
+* Never mutates the administrative `status` field.
+
+### City Supervisor (planned, `LemmingsOs.City.Supervisor`)
 
 * An OTP `Supervisor` (or `DynamicSupervisor`) managing all Departments within a City.
 * Responsible for Department startup, restart, and shutdown.
-* Reports health to the World Registry.
+* Not yet implemented; depends on Department persistence.
 
 ### Department Manager (`LemmingsOs.Department.Manager`)
 
@@ -192,19 +210,25 @@ City Supervisor (Supervisor, :one_for_one)
 ### City node failure
 
 ```
-City node goes down (network partition, OS crash, deploy)
+City node goes down (container stop, OS crash, deploy)
       │
       ▼
-World Registry (on surviving nodes)
-      │  detects node :DOWN via distributed Erlang monitoring
+Heartbeat stops writing to last_seen_at
       │
-      ├── marks City status → :unreachable in DB
-      ├── does NOT automatically migrate Lemmings (operator decision)
+      ▼
+Other nodes / UI derive liveness from last_seen_at freshness
       │
-      └── emit [:lemmings_os, :city, :unreachable] telemetry event
-               │
-               └── LiveView dashboard reflects updated City status in real time
+      ├── last_seen_at becomes stale after threshold (default 90s)
+      ├── derived liveness changes from "alive" to "stale"
+      ├── admin status is NOT automatically changed
+      │
+      └── LiveView dashboard reflects stale liveness on next poll
 ```
+
+Prior wording described distributed Erlang `:DOWN` monitoring and automatic
+status transitions. The shipped model detects City failure through heartbeat
+staleness only. There is no distributed Erlang monitoring, no automatic
+status mutation, and no Lemming migration.
 
 ### Telemetry contract
 
@@ -262,17 +286,27 @@ concept. The architecture keeps:
 - runtime-derived status in read models such as `WorldPageSnapshot`,
   `SettingsPageSnapshot`, `ToolsPageSnapshot`, and `HomeDashboardSnapshot`
 
-### Target relational hierarchy
+### Persisted relational hierarchy
 
 ```
-worlds
-  id, name, slug, status, inserted_at
+worlds (shipped)
+  id, slug, name, status, bootstrap_source, bootstrap_path,
+  last_bootstrap_hash, last_import_status, last_imported_at,
+  limits_config, runtime_config, costs_config, models_config,
+  inserted_at, updated_at
 
-cities
-  id, world_id, node_name, status, inserted_at
+cities (shipped)
+  id, world_id, slug, name, node_name, host, distribution_port,
+  epmd_port, status, last_seen_at,
+  limits_config, runtime_config, costs_config, models_config,
+  inserted_at, updated_at
+```
 
+### Target relational hierarchy (not yet persisted)
+
+```
 departments
-  id, city_id, world_id, name, inserted_at
+  id, city_id, world_id, name, slug, status, inserted_at
 
 lemmings
   id, department_id, city_id, world_id,
@@ -292,6 +326,10 @@ See ADR 0003 for isolation semantics.
 | License (Apache 2.0) | ADR 0001 |
 | Four-level hierarchy model | ADR 0002 |
 | World as hard isolation boundary | ADR 0003 |
+| City as runtime execution node | ADR 0017 |
+| Hierarchical configuration with split JSONB | ADR 0020 |
+| Core domain schema | ADR 0021 |
+| Deployment and packaging model | ADR 0022 |
 
 ---
 
@@ -307,6 +345,11 @@ See ADR 0003 for isolation semantics.
 ## Future Work (not yet designed)
 
 * `LemmingsOs.Gateway` — explicit cross-World communication bridge
-* Multi-City clustering and City membership protocol
+* Distributed Erlang clustering between City nodes (requires future ADR)
+* Secure remote City attachment and secret distribution (requires dedicated ADR and security design)
+* City membership protocol and automatic discovery
+* Department and Lemming persistence
 * Agent capability declarations and Department-level enforcement
 * Lemming hot-reload and live config updates
+* ETS-backed config cache (`Config.Cache`)
+* Deny-dominant merge semantics in the config resolver

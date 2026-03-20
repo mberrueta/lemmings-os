@@ -1,0 +1,32 @@
+# Dependencies and build artifacts
+/deps/
+/_build/
+/doc/
+
+# Node modules (installed during build)
+/assets/node_modules/
+
+# Generated static assets (rebuilt during build)
+/priv/static/assets/
+
+# Dev/test only
+/.claude/
+/.elixir_ls/
+/cover/
+/.envrc.custom
+/.envrc_custom
+.env
+
+# Git
+.git/
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

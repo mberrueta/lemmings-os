@@ -66,6 +66,61 @@
             />
           </div>
         </div>
+
+        <div id="settings-city-card" class="mini-card md:col-span-2">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="mini-card__title">
+                {dgettext("layout", ".settings_local_city_title")}
+              </div>
+              <p class="mini-card__meta">
+                {dgettext("layout", ".settings_local_city_subtitle")}
+              </p>
+            </div>
+            <.status
+              :if={@snapshot.city.available?}
+              id="settings-city-status-badge"
+              kind={:city}
+              value={@snapshot.city.status}
+            />
+            <.badge :if={!@snapshot.city.available?} tone="default">
+              {dgettext("layout", ".settings_local_city_unregistered")}
+            </.badge>
+          </div>
+
+          <div :if={@snapshot.city.available?} class="mt-3 grid gap-3 sm:grid-cols-2">
+            <.stat_item
+              id="settings-city-name"
+              label={dgettext("layout", ".settings_city_name_label")}
+              value={Helpers.display_value(@snapshot.city.name)}
+            />
+            <.stat_item
+              id="settings-city-slug"
+              label={dgettext("world", ".label_city_slug")}
+              value={Helpers.display_value(@snapshot.city.slug)}
+            />
+            <.stat_item
+              id="settings-city-node-name"
+              label={dgettext("world", ".label_city_node_name")}
+              value={Helpers.display_value(@snapshot.city.node_name)}
+            />
+            <.stat_item
+              id="settings-city-last-seen-at"
+              label={dgettext("world", ".label_city_last_seen_at")}
+              value={@snapshot.city.last_seen_at_label}
+            />
+          </div>
+
+          <div
+            :if={!@snapshot.city.available?}
+            id="settings-city-unavailable"
+            class="mt-3"
+          >
+            <p class="text-sm text-muted">
+              {dgettext("layout", ".settings_local_city_unavailable_copy")}
+            </p>
+          </div>
+        </div>
       </div>
     </.panel>
 
