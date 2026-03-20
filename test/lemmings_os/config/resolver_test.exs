@@ -105,4 +105,110 @@ defmodule LemmingsOs.Config.ResolverTest do
       assert resolved.models_config.providers["ollama"]["enabled"] == true
     end
   end
+
+  describe "resolve/1 for departments" do
+    test "merges department overrides on top of city and world config" do
+      world =
+        build(:world,
+          limits_config: %LimitsConfig{max_cities: 3, max_departments_per_city: 20},
+          runtime_config: %RuntimeConfig{idle_ttl_seconds: 3600, cross_city_communication: false},
+          costs_config: %CostsConfig{
+            budgets: %CostsConfig.Budgets{monthly_usd: 10.0, daily_tokens: 1_000}
+          },
+          models_config: %ModelsConfig{
+            providers: %{
+              "ollama" => %{"enabled" => true, "allowed_models" => ["llama3.2"]}
+            },
+            profiles: %{"default" => %{"provider" => "ollama", "model" => "llama3.2"}}
+          }
+        )
+
+      city =
+        build(:city,
+          world: world,
+          limits_config: %LimitsConfig{max_departments_per_city: 5},
+          runtime_config: %RuntimeConfig{cross_city_communication: true},
+          costs_config: %CostsConfig{
+            budgets: %CostsConfig.Budgets{daily_tokens: 5_000}
+          },
+          models_config: %ModelsConfig{
+            providers: %{
+              "ollama" => %{"allowed_models" => ["qwen2.5:7b"]},
+              "openai" => %{"enabled" => false}
+            },
+            profiles: %{"fast" => %{"provider" => "ollama", "model" => "qwen2.5:7b"}}
+          }
+        )
+
+      department =
+        build(:department,
+          world: world,
+          city: city,
+          limits_config: %LimitsConfig{max_lemmings_per_department: 8},
+          runtime_config: %RuntimeConfig{idle_ttl_seconds: 90},
+          costs_config: %CostsConfig{
+            budgets: %CostsConfig.Budgets{monthly_usd: 25.0}
+          },
+          models_config: %ModelsConfig{
+            providers: %{
+              "ollama" => %{"allowed_models" => ["mistral-small"]},
+              "anthropic" => %{"enabled" => true}
+            },
+            profiles: %{
+              "fast" => %{"provider" => "ollama", "model" => "mistral-small"},
+              "reasoning" => %{"provider" => "anthropic", "model" => "claude-sonnet"}
+            }
+          }
+        )
+
+      resolved = Resolver.resolve(department)
+
+      assert resolved.limits_config.max_cities == 3
+      assert resolved.limits_config.max_departments_per_city == 5
+      assert resolved.limits_config.max_lemmings_per_department == 8
+      assert resolved.runtime_config.idle_ttl_seconds == 90
+      assert resolved.runtime_config.cross_city_communication == true
+      assert resolved.costs_config.budgets.monthly_usd == 25.0
+      assert resolved.costs_config.budgets.daily_tokens == 5_000
+      assert resolved.models_config.providers["ollama"]["enabled"] == true
+      assert resolved.models_config.providers["ollama"]["allowed_models"] == ["mistral-small"]
+      assert resolved.models_config.providers["openai"]["enabled"] == false
+      assert resolved.models_config.providers["anthropic"]["enabled"] == true
+      assert resolved.models_config.profiles["default"]["model"] == "llama3.2"
+      assert resolved.models_config.profiles["fast"]["model"] == "mistral-small"
+      assert resolved.models_config.profiles["reasoning"]["model"] == "claude-sonnet"
+    end
+
+    test "keeps inherited city/world values when the department has empty config buckets" do
+      world =
+        build(:world,
+          limits_config: %LimitsConfig{max_cities: 3},
+          runtime_config: %RuntimeConfig{idle_ttl_seconds: 3600},
+          costs_config: %CostsConfig{
+            budgets: %CostsConfig.Budgets{daily_tokens: 1_000}
+          },
+          models_config: %ModelsConfig{
+            providers: %{"ollama" => %{"enabled" => true}}
+          }
+        )
+
+      city =
+        build(:city,
+          world: world,
+          limits_config: %LimitsConfig{max_departments_per_city: 5},
+          runtime_config: %RuntimeConfig{cross_city_communication: true}
+        )
+
+      department = build(:department, world: world, city: city)
+
+      resolved = Resolver.resolve(department)
+
+      assert resolved.limits_config.max_cities == 3
+      assert resolved.limits_config.max_departments_per_city == 5
+      assert resolved.runtime_config.idle_ttl_seconds == 3600
+      assert resolved.runtime_config.cross_city_communication == true
+      assert resolved.costs_config.budgets.daily_tokens == 1_000
+      assert resolved.models_config.providers["ollama"]["enabled"] == true
+    end
+  end
 end

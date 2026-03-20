@@ -23,6 +23,18 @@ msgstr "Drenando"
 msgid ".city_status_unknown"
 msgstr "Desconocido"
 
+msgid ".department_status_active"
+msgstr "Activo"
+
+msgid ".department_status_disabled"
+msgstr "Deshabilitado"
+
+msgid ".department_status_draining"
+msgstr "Drenando"
+
+msgid ".department_status_unknown"
+msgstr "Desconocido"
+
 msgid ".city_liveness_alive"
 msgstr "Viva"
 

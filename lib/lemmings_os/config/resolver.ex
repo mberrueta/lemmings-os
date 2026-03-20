@@ -1,9 +1,10 @@
 defmodule LemmingsOs.Config.Resolver do
   @moduledoc """
-  Resolves effective configuration for persisted World and City scopes.
+  Resolves effective configuration for persisted World, City, and Department scopes.
 
   The resolver is intentionally pure and in-memory. Callers must provide any
-  required parent chain, such as `%City{world: %World{}}`, before calling it.
+  required parent chain, such as `%City{world: %World{}}` or
+  `%Department{city: %City{world: %World{}}}`, before calling it.
   """
 
   alias LemmingsOs.Cities.City
@@ -12,6 +13,7 @@ defmodule LemmingsOs.Config.Resolver do
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
+  alias LemmingsOs.Departments.Department
   alias LemmingsOs.Worlds.World
 
   @type resolved_config :: %{
@@ -22,13 +24,18 @@ defmodule LemmingsOs.Config.Resolver do
         }
 
   @doc """
-  Returns the effective configuration for a World or City scope.
+  Returns the effective configuration for a World, City, or Department scope.
 
   For `%World{}`, the resolver returns the persisted config buckets as-is.
 
   For `%City{world: %World{}}`, the resolver performs an in-memory
   child-overrides-parent merge. The parent World must already be loaded on the
   City struct; the resolver performs no database access.
+
+  For `%Department{city: %City{world: %World{}}}`, the resolver performs an
+  additive in-memory merge in `World -> City -> Department` order. The full
+  parent chain must already be loaded on the Department struct; the resolver
+  performs no database access.
 
   ## Examples
 
@@ -37,7 +44,7 @@ defmodule LemmingsOs.Config.Resolver do
       iex> match?(%{limits_config: %LemmingsOs.Config.LimitsConfig{}}, resolved)
       true
   """
-  @spec resolve(World.t() | City.t()) :: resolved_config()
+  @spec resolve(World.t() | City.t() | Department.t()) :: resolved_config()
   def resolve(scope)
 
   @spec resolve(World.t()) :: resolved_config()
@@ -60,6 +67,21 @@ defmodule LemmingsOs.Config.Resolver do
         merge_bucket(world_config.runtime_config, city.runtime_config, RuntimeConfig),
       costs_config: merge_bucket(world_config.costs_config, city.costs_config, CostsConfig),
       models_config: merge_bucket(world_config.models_config, city.models_config, ModelsConfig)
+    }
+  end
+
+  @spec resolve(Department.t()) :: resolved_config()
+  def resolve(%Department{city: %City{world: %World{}} = city} = department) do
+    city_config = resolve(city)
+
+    %{
+      limits_config:
+        merge_bucket(city_config.limits_config, department.limits_config, LimitsConfig),
+      runtime_config:
+        merge_bucket(city_config.runtime_config, department.runtime_config, RuntimeConfig),
+      costs_config: merge_bucket(city_config.costs_config, department.costs_config, CostsConfig),
+      models_config:
+        merge_bucket(city_config.models_config, department.models_config, ModelsConfig)
     }
   end
 
