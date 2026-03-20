@@ -14,8 +14,24 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshotTest do
   end
 
   describe "build/1" do
-    test "builds real city cards, derived liveness, effective config, and mock previews" do
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
+    test "S01: returns error when no world can be resolved" do
+      assert {:error, :not_found} = CitiesPageSnapshot.build([])
+    end
+
+    test "S02: builds an empty snapshot when the world has no cities" do
+      world = insert(:world, name: "Empty World", slug: "empty-world", status: "ok")
+
+      assert {:ok, snapshot} = CitiesPageSnapshot.build(world: world)
+
+      assert snapshot.empty? == true
+      assert snapshot.cities == []
+      assert snapshot.selected_city == nil
+      assert snapshot.world.id == world.id
+      assert snapshot.world.city_count == 0
+    end
+
+    test "S03: builds real city cards with derived liveness, effective config, and mock previews" do
+      now = ~U[2026-03-18 18:00:00Z]
 
       world =
         insert(:world,
@@ -87,7 +103,83 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshotTest do
       assert snapshot.selected_city.mock_children.lemmings != []
     end
 
-    test "falls back to the first city when the requested city_id is missing" do
+    test "S04: maps liveness_tone correctly for each liveness state" do
+      now = ~U[2026-03-18 18:00:00Z]
+      world = insert(:world)
+
+      # alive: last_seen_at within threshold
+      alive_city =
+        insert(:city,
+          world: world,
+          last_seen_at: now,
+          status: "active"
+        )
+
+      # stale: last_seen_at beyond threshold
+      stale_city =
+        insert(:city,
+          world: world,
+          last_seen_at: DateTime.add(now, -300, :second),
+          status: "active"
+        )
+
+      # unknown: no heartbeat
+      unknown_city =
+        insert(:city,
+          world: world,
+          last_seen_at: nil,
+          status: "active"
+        )
+
+      assert {:ok, snapshot} =
+               CitiesPageSnapshot.build(
+                 world: world,
+                 now: now,
+                 freshness_threshold_seconds: 90
+               )
+
+      alive_card = Enum.find(snapshot.cities, &(&1.id == alive_city.id))
+      stale_card = Enum.find(snapshot.cities, &(&1.id == stale_city.id))
+      unknown_card = Enum.find(snapshot.cities, &(&1.id == unknown_city.id))
+
+      assert alive_card.liveness == "alive"
+      assert alive_card.liveness_tone == "success"
+      assert alive_card.liveness_label != ""
+
+      assert stale_card.liveness == "stale"
+      assert stale_card.liveness_tone == "warning"
+      assert stale_card.liveness_label != ""
+
+      assert unknown_card.liveness == "unknown"
+      assert unknown_card.liveness_tone == "default"
+      assert unknown_card.liveness_label != ""
+    end
+
+    test "S05: selected_city defaults to first city when no city_id param" do
+      world = insert(:world)
+      insert(:city, world: world, slug: "first")
+      insert(:city, world: world, slug: "second")
+
+      assert {:ok, snapshot} = CitiesPageSnapshot.build(world: world)
+
+      # The selected city should be one of the cities (the first in sort order)
+      assert snapshot.selected_city != nil
+      first_city = hd(snapshot.cities)
+      assert snapshot.selected_city.id == first_city.id
+      assert Enum.find(snapshot.cities, & &1.selected?).id == first_city.id
+    end
+
+    test "S06: selected_city matches the requested city_id" do
+      world = insert(:world)
+      insert(:city, world: world, slug: "first")
+      city_b = insert(:city, world: world, slug: "second")
+
+      assert {:ok, snapshot} = CitiesPageSnapshot.build(world: world, city_id: city_b.id)
+
+      assert snapshot.selected_city.id == city_b.id
+    end
+
+    test "S07: falls back to the first city when the requested city_id is missing" do
       world = insert(:world, name: "Fallback World", slug: "fallback-world", status: "ok")
 
       city =
@@ -101,6 +193,35 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshotTest do
       assert {:ok, snapshot} = CitiesPageSnapshot.build(world: world, city_id: "missing")
       assert snapshot.selected_city.id == city.id
       assert Enum.find(snapshot.cities, & &1.selected?).id == city.id
+    end
+
+    test "S08: resolves world by world_id when no struct is provided" do
+      world = insert(:world)
+      insert(:city, world: world, slug: "test-city")
+
+      assert {:ok, snapshot} = CitiesPageSnapshot.build(world_id: world.id)
+
+      assert snapshot.world.id == world.id
+      assert length(snapshot.cities) == 1
+    end
+
+    test "S09: world snapshot includes status_label from translate_status" do
+      world = insert(:world, status: "ok")
+
+      assert {:ok, snapshot} = CitiesPageSnapshot.build(world: world)
+
+      assert snapshot.world.status == "ok"
+      assert snapshot.world.status_label != ""
+    end
+
+    test "S10: city cards include path for navigation" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+
+      assert {:ok, snapshot} = CitiesPageSnapshot.build(world: world)
+
+      [card] = snapshot.cities
+      assert card.path == "/cities?city=#{city.id}"
     end
   end
 end

@@ -1,7 +1,7 @@
 # ADR-0022 — Deployment and Packaging Model
 
-Status: Accepted  
-Date: 2026-03-14  
+Status: Accepted (narrowed 2026-03-19)
+Date: 2026-03-14
 Decision Makers: LemmingsOS maintainers
 
 ---
@@ -69,7 +69,8 @@ Key properties:
 - Each City executes inside its own container
 - Departments and Lemmings run inside the node supervision tree
 
-Cities join the World cluster using **Erlang distribution**.
+Cities self-register against the shared PostgreSQL database on startup.
+Erlang distribution clustering is not yet enabled (see Clustering Model).
 
 ---
 
@@ -143,23 +144,32 @@ The DETS idle-snapshot store (ADR-0008) writes to the local filesystem and **mus
 
 # Clustering Model
 
-Cities form a **distributed Erlang cluster**.
+Prior wording described Cities forming a distributed Erlang cluster. The
+shipped implementation does **not** use distributed Erlang clustering.
 
 Each runtime node:
 
-- has a unique Erlang node name
-- connects to peer nodes via Erlang distribution
-- participates in cluster membership
+- has a unique BEAM node name (`node_name` in `name@host` form)
+- runs with `RELEASE_DISTRIBUTION=none` (no Erlang distribution)
+- self-registers against the shared PostgreSQL database on startup
+- maintains liveness through local heartbeat writes to `last_seen_at`
 
-Clustering enables:
+There is no inter-node communication, no cluster membership protocol, and no
+distributed Lemming execution.
 
-- inter-city communication
-- distributed Lemming execution
+### Deferred clustering capabilities
+
+The following are architecturally intended but explicitly deferred:
+
+- distributed Erlang clustering between Cities (requires a future ADR)
+- inter-city communication and routing
 - cluster-wide coordination
+- secure remote City attachment and secret distribution (requires a
+  dedicated ADR and security design)
 
-Cities may dynamically join or leave the cluster.
-
-World isolation guarantees that nodes belonging to different Worlds never cluster together.
+World isolation guarantees that nodes belonging to different Worlds never
+share data. This constraint applies regardless of whether clustering is
+eventually enabled.
 
 ---
 
@@ -207,20 +217,33 @@ Suitable for:
 
 ## Multi-City Deployment
 
-Multiple containers form a distributed cluster.
+Multiple containers run the same application image with different identity
+env vars.
 
-Example topology:
+Example topology (shipped compose demo):
 
 ```
 World
- ├─ City A (node)
- ├─ City B (node)
- └─ City C (node)
+ ├─ world  (control-plane + City, runs Phoenix UI and migrations)
+ ├─ city_a (City node, no web UI by default)
+ └─ city_b (City node, no web UI by default)
 ```
 
-Each container runs a single City node.
+Each container runs a single City node. All containers share the same
+PostgreSQL database. City identity is varied through environment variables:
 
-This model allows horizontal scaling of runtime capacity.
+- `LEMMINGS_CITY_NODE_NAME` -- full BEAM identity in `name@host` form
+- `LEMMINGS_CITY_SLUG` -- human-readable slug
+- `LEMMINGS_CITY_NAME` -- display name
+- `LEMMINGS_CITY_HOST` -- host portion of the node identity
+
+The compose demo uses `RELEASE_DISTRIBUTION=none` (no Erlang clustering)
+and `network_mode: host`. Stopping a city container causes its heartbeat
+to stop, making it stale in the UI after the configured freshness threshold
+(default 90 seconds).
+
+This model demonstrates multi-City visibility and stale detection. It does
+not demonstrate work dispatch, clustering, or secure remote attachment.
 
 ---
 
@@ -359,15 +382,18 @@ mix release
 runtime.exs
 ```
 
-The project will also distribute a **reference docker-compose configuration** to simplify self-hosted installations.
+The project distributes a **reference `docker-compose.yml`** at the repo root
+that serves as the canonical local multi-City demo.
 
-Example stack provided by the compose file:
+Shipped compose stack:
 
-- PostgreSQL database
-- LemmingsOS runtime container with DETS persistent volume pre-configured
-- optional supporting services (future telemetry / observability components)
+- PostgreSQL database (optional `db` profile; operators may use an external DB)
+- One world/control-plane container (runs migrations, Phoenix UI, and acts as
+  a City)
+- Two city containers (`city_a`, `city_b`) running the same image with
+  different identity env vars
 
-The compose file is provided **for convenience only**.
+The compose file is provided **for local development and demo purposes**.
 
 Operators may instead use:
 

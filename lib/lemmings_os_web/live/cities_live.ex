@@ -5,12 +5,20 @@ defmodule LemmingsOsWeb.CitiesLive do
   Provides list, detail, create, edit, and delete flows for City metadata
   and local override config. All context calls are World-scoped.
 
+  ## Authorization
+
+  This LiveView does not enforce authentication or per-user authorization.
+  It is intended as an internal operator console, not a public-facing surface.
+  It assumes network-level access control (e.g. internal network, VPN, or
+  reverse proxy auth) is in place before traffic reaches this route.
+
   ## Assigns
 
   - `:snapshot` — `CitiesPageSnapshot.t()` or nil when no world is available
   - `:form` — `Phoenix.HTML.Form.t()` or nil when no form is open
   - `:form_mode` — `:new | :edit` when a form is open, nil otherwise
   - `:form_city_id` — city ID being edited, nil for new city forms
+  - `:editing_city` — `City.t()` struct stashed during edit flow to avoid re-querying on each keystroke
   """
 
   use LemmingsOsWeb, :live_view
@@ -32,6 +40,7 @@ defmodule LemmingsOsWeb.CitiesLive do
      |> assign(:form, nil)
      |> assign(:form_mode, nil)
      |> assign(:form_city_id, nil)
+     |> assign(:editing_city, nil)
      |> load_snapshot(params)}
   end
 
@@ -65,7 +74,8 @@ defmodule LemmingsOsWeb.CitiesLive do
        socket
        |> assign(:form, form)
        |> assign(:form_mode, :edit)
-       |> assign(:form_city_id, city_id)}
+       |> assign(:form_city_id, city_id)
+       |> assign(:editing_city, city)}
     else
       _ ->
         {:noreply, put_flash(socket, :error, dgettext("world", ".flash_city_not_found"))}
@@ -96,7 +106,8 @@ defmodule LemmingsOsWeb.CitiesLive do
      socket
      |> assign(:form, nil)
      |> assign(:form_mode, nil)
-     |> assign(:form_city_id, nil)}
+     |> assign(:form_city_id, nil)
+     |> assign(:editing_city, nil)}
   end
 
   def handle_event("delete_city", %{"id" => city_id}, socket) do
@@ -151,13 +162,8 @@ defmodule LemmingsOsWeb.CitiesLive do
   defp fetch_snapshot_world(_snapshot), do: {:error, :not_found}
 
   defp build_edit_changeset(socket, params) do
-    city_id = socket.assigns.form_city_id
-
-    with %{snapshot: %{} = snapshot} <- socket.assigns,
-         {:ok, world} <- fetch_snapshot_world(snapshot),
-         {:ok, city} <- Cities.fetch_city(world, city_id) do
-      City.changeset(city, params)
-    else
+    case socket.assigns do
+      %{editing_city: %City{} = city} -> City.changeset(city, params)
       _ -> City.changeset(%City{}, params)
     end
   end
@@ -171,6 +177,7 @@ defmodule LemmingsOsWeb.CitiesLive do
         |> assign(:form, nil)
         |> assign(:form_mode, nil)
         |> assign(:form_city_id, nil)
+        |> assign(:editing_city, nil)
         |> put_flash(:info, dgettext("world", ".flash_city_created"))
         |> push_patch(to: ~p"/cities")
 
@@ -186,17 +193,16 @@ defmodule LemmingsOsWeb.CitiesLive do
   end
 
   defp update_city(socket, params) do
-    city_id = socket.assigns.form_city_id
-
     with %{snapshot: %{} = snapshot} <- socket.assigns,
-         {:ok, world} <- fetch_snapshot_world(snapshot),
-         {:ok, city} <- Cities.fetch_city(world, city_id),
+         %{editing_city: %City{} = city} <- socket.assigns,
+         {:ok, _world} <- fetch_snapshot_world(snapshot),
          {:ok, updated_city} <- Cities.update_city(city, params) do
       socket =
         socket
         |> assign(:form, nil)
         |> assign(:form_mode, nil)
         |> assign(:form_city_id, nil)
+        |> assign(:editing_city, nil)
         |> put_flash(:info, dgettext("world", ".flash_city_updated"))
         |> push_patch(to: ~p"/cities?city=#{updated_city.id}")
 

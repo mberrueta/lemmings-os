@@ -17,7 +17,7 @@ defmodule LemmingsOs.Cities.HeartbeatTest do
   end
 
   describe "heartbeat/1" do
-    test "updates only last_seen_at for the local runtime city" do
+    test "S01: updates only last_seen_at for the local runtime city" do
       world = insert(:world)
 
       city =
@@ -47,7 +47,7 @@ defmodule LemmingsOs.Cities.HeartbeatTest do
       assert updated_city.status == "disabled"
     end
 
-    test "creates the runtime city when no local row exists yet" do
+    test "S02: creates the runtime city when no local row exists yet" do
       insert(:world)
 
       previous_config = Application.get_env(:lemmings_os, :runtime_city)
@@ -76,7 +76,7 @@ defmodule LemmingsOs.Cities.HeartbeatTest do
       assert city.last_seen_at == ~U[2026-03-18 18:00:00Z]
     end
 
-    test "returns an honest error when no default world exists" do
+    test "S03: returns an honest error when no default world exists" do
       previous_config = Application.get_env(:lemmings_os, :runtime_city)
       Application.put_env(:lemmings_os, :runtime_city, %{node_name: "primary@localhost"})
 
@@ -96,6 +96,77 @@ defmodule LemmingsOs.Cities.HeartbeatTest do
       assert capture_log(fn ->
                assert {:error, :default_world_not_found} = Heartbeat.heartbeat(pid)
              end) =~ "runtime city heartbeat failed"
+    end
+
+    test "S04: subsequent heartbeats reuse the cached current_city without re-fetching" do
+      world = insert(:world)
+
+      city =
+        insert(:city,
+          world: world,
+          node_name: "cached@localhost",
+          status: "active",
+          last_seen_at: nil
+        )
+
+      t1 = ~U[2026-03-18 18:00:00Z]
+      t2 = ~U[2026-03-18 18:00:30Z]
+      call_count = :counters.new(1, [:atomics])
+
+      now_fun = fn ->
+        :counters.add(call_count, 1, 1)
+
+        case :counters.get(call_count, 1) do
+          1 -> t1
+          _ -> t2
+        end
+      end
+
+      {:ok, pid} =
+        start_supervised(
+          {Heartbeat,
+           [
+             name: :runtime_city_heartbeat_cached_test,
+             interval_ms: :manual,
+             now_fun: now_fun,
+             current_city: city
+           ]}
+        )
+
+      assert :ok = Heartbeat.heartbeat(pid)
+      assert :ok = Heartbeat.heartbeat(pid)
+
+      updated_city = Repo.get!(City, city.id)
+      assert updated_city.last_seen_at == t2
+    end
+
+    test "S05: does not overwrite admin status during heartbeat" do
+      world = insert(:world)
+
+      city =
+        insert(:city,
+          world: world,
+          node_name: "status-test@localhost",
+          status: "draining",
+          last_seen_at: nil
+        )
+
+      {:ok, pid} =
+        start_supervised(
+          {Heartbeat,
+           [
+             name: :runtime_city_heartbeat_status_test,
+             interval_ms: :manual,
+             now_fun: fn -> ~U[2026-03-18 18:00:00Z] end,
+             current_city: city
+           ]}
+        )
+
+      assert :ok = Heartbeat.heartbeat(pid)
+
+      updated_city = Repo.get!(City, city.id)
+      assert updated_city.status == "draining"
+      assert updated_city.last_seen_at == ~U[2026-03-18 18:00:00Z]
     end
   end
 end

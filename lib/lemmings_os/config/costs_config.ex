@@ -12,7 +12,7 @@ defmodule LemmingsOs.Config.CostsConfig do
   @primary_key false
 
   @type t :: %__MODULE__{
-          budgets: Budgets.t() | nil
+          budgets: struct() | nil
         }
 
   embedded_schema do

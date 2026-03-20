@@ -51,7 +51,7 @@ RUN mix release
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update -y && \
-    apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates && \
+    apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates curl && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set the locale

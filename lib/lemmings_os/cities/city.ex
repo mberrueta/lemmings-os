@@ -24,7 +24,7 @@ defmodule LemmingsOs.Cities.City do
   @livenesses ~w(alive stale unknown)
 
   @required ~w(slug name node_name status)a
-  @optional ~w(host distribution_port epmd_port last_seen_at)a
+  @optional ~w(host distribution_port epmd_port)a
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,

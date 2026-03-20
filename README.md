@@ -231,6 +231,8 @@ docker compose start city_a  # heartbeat resumes → city_a becomes alive again
 
 The world UI is available at `http://localhost:${PHX_PORT:-4000}`.
 
+For full details on City lifecycle, heartbeat behavior, environment variables, and operator flows, see [docs/operator/city-management.md](docs/operator/city-management.md).
+
 ## Development
 
 ### Environment setup (`direnv`)
@@ -296,6 +298,8 @@ docs/
   adr/                   architecture decision records
     README.md
     0001-*.md, ...
+  operator/
+    city-management.md   city lifecycle, heartbeat, demo runbook
 
 llms/
   constitution.md        non-negotiable LLM/agent governance rules

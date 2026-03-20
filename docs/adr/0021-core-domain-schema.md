@@ -1,6 +1,6 @@
 # ADR-0021 — Core Domain Schema
 
-- Status: Accepted
+- Status: Accepted (narrowed 2026-03-19)
 - Date: 2026-03-14
 - Decision Makers: LemmingsOS maintainers
 
@@ -95,10 +95,15 @@ This separation is intentional:
 - type definitions must exist independently from currently running instances
 - policy must be attachable to scope and capability definitions without overloading runtime rows
 
-For `worlds`, the schema intentionally uses split World-scoped JSONB columns
-instead of a single `config_jsonb` field. This keeps World-level limits,
-runtime defaults, cost/budget declarations, and model/provider declarations as
-separate persisted concerns.
+For `worlds` and `cities`, the schema uses split JSONB columns instead of a
+single `config_jsonb` field. This keeps limits, runtime defaults, cost/budget
+declarations, and model/provider declarations as separate persisted concerns
+at both levels. Both use shared Ecto embedded schema modules for type
+consistency.
+
+Department and Lemming persistence remain deferred. The `departments`,
+`lemming_types`, and `lemming_instances` tables described below are
+architectural targets, not yet shipped.
 
 ---
 
@@ -172,12 +177,18 @@ erDiagram
     CITIES {
         uuid id
         uuid world_id
-        string name
         string slug
+        string name
         string node_name
+        string host
+        integer distribution_port
+        integer epmd_port
         string status
-        jsonb config_jsonb
-        timestamp last_heartbeat_at
+        timestamp last_seen_at
+        jsonb limits_config
+        jsonb runtime_config
+        jsonb costs_config
+        jsonb models_config
     }
 
     DEPARTMENTS {
@@ -281,11 +292,41 @@ Responsibilities:
 
 - represents an Elixir / OTP node boundary
 - owns local runtime execution locality
-- contains Departments
-- provides placement identity for Lemming instances
+- will contain Departments (not yet persisted)
+- provides placement identity for Lemming instances (not yet persisted)
 - supports node-level liveness and operational status
 
 A City is therefore both a domain entity and an operational entity.
+
+### Shipped schema
+
+The `cities` table is now persisted with the following columns:
+
+- `id` (UUID primary key)
+- `world_id` (FK to `worlds`)
+- `slug`, `name` (human-readable identity)
+- `node_name` (full BEAM node identity in `name@host` form; unique per World)
+- `host`, `distribution_port`, `epmd_port` (optional connectivity hints)
+- `status` (administrative lifecycle: `active`, `disabled`, `draining`)
+- `last_seen_at` (heartbeat timestamp; derived liveness is computed from this)
+- `limits_config`, `runtime_config`, `costs_config`, `models_config` (split
+  JSONB config buckets using shared embedded schemas with World)
+
+Prior wording described a single `config_jsonb` column and a
+`last_heartbeat_at` field. The shipped schema uses four split config columns
+and `last_seen_at` as the heartbeat timestamp name.
+
+### Runtime identity
+
+`node_name` is the canonical persisted runtime identity. It must be the full
+BEAM node name in `name@host` form. It is unique per World and serves as the
+upsert key for startup self-registration.
+
+### Status vs liveness
+
+`status` is an administrative lifecycle field set by operators. It does not
+reflect runtime health. Derived liveness (`alive`, `stale`, `unknown`) is
+computed from `last_seen_at` freshness and is never persisted.
 
 ---
 
@@ -630,17 +671,27 @@ This reduces drift across the event model and the domain model.
 
 # Implementation Notes
 
-Expected Ecto schema modules include:
+Shipped Ecto schema modules:
 
 ```elixir
-LemmingsOs.Schema.World
-LemmingsOs.Schema.City
-LemmingsOs.Schema.Department
-LemmingsOs.Schema.LemmingType
-LemmingsOs.Schema.LemmingInstance
-LemmingsOs.Schema.ToolRegistry
-LemmingsOs.Schema.ToolPolicy
+LemmingsOs.Worlds.World       # persisted
+LemmingsOs.Cities.City        # persisted
 ```
+
+Planned Ecto schema modules (not yet implemented):
+
+```elixir
+LemmingsOs.Departments.Department
+LemmingsOs.LemmingTypes.LemmingType
+LemmingsOs.LemmingInstances.LemmingInstance
+LemmingsOs.ToolRegistry.Tool
+LemmingsOs.ToolPolicies.ToolPolicy
+```
+
+Prior wording listed module paths under `LemmingsOs.Schema.*`. The shipped
+implementation places schemas under their domain context modules (e.g.,
+`LemmingsOs.Worlds.World`, `LemmingsOs.Cities.City`), consistent with the
+project's context-first module naming convention.
 
 Implementation expectations:
 

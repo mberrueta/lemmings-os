@@ -9,3 +9,4 @@ _build
 
 # Docker compose env file (contains secrets)
 .env
+/cover/

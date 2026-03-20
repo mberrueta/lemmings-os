@@ -1,6 +1,6 @@
 # ADR-0017 — Runtime Topology and City Execution Model
 
-- Status: Accepted
+- Status: Accepted (narrowed 2026-03-19)
 - Date: 2026-03-14
 - Decision Makers: Maintainer(s)
 
@@ -217,6 +217,70 @@ This model allows operators to scale the system by **adding additional City node
 
 ---
 
+# 5.1 Shipped City Runtime Model
+
+The initial City implementation ships the following runtime model. Prior
+wording in this ADR implied capabilities (distributed Erlang clustering,
+automatic discovery, remote health polling) that are not yet implemented. This
+section narrows the ADR to match what is actually shipped.
+
+## Startup self-registration
+
+Each runtime node registers itself as a City during application startup:
+
+1. The World bootstrap import runs first, ensuring a persisted default World.
+2. `LemmingsOs.Cities.Runtime.sync_runtime_city/1` upserts a `cities` row for
+   the local node, keyed by `node_name`.
+3. `node_name` is the full BEAM node identity in `name@host` form, resolved
+   from application configuration (`LEMMINGS_CITY_NODE_NAME` env var).
+
+There is no automatic discovery of remote nodes. Each runtime registers only
+itself.
+
+## Heartbeat-backed liveness
+
+`LemmingsOs.Cities.Heartbeat` is a GenServer that updates `last_seen_at` on
+the local City row at a fixed 30-second interval. Derived liveness is computed
+purely from `last_seen_at` freshness:
+
+- **alive** -- `last_seen_at` is within the freshness threshold (default 90s)
+- **stale** -- `last_seen_at` is older than the threshold
+- **unknown** -- no heartbeat has ever been observed (`last_seen_at` is nil)
+
+The heartbeat worker never mutates the administrative `status` field.
+
+## Runtime identity contract
+
+`node_name` is frozen as the canonical persisted runtime identity. It stores
+the full BEAM node name in `name@host` form, not a logical label or short
+name. `host`, `distribution_port`, and `epmd_port` are optional connectivity
+hints and are not authoritative for liveness.
+
+## What is explicitly deferred
+
+The following capabilities are referenced or implied elsewhere in this ADR but
+are **not shipped** and require future ADRs before implementation:
+
+- **Distributed Erlang clustering** -- Cities do not form an Erlang cluster.
+  `RELEASE_DISTRIBUTION=none` is the default. No `:net_kernel` connectivity
+  exists between City nodes.
+- **Automatic discovery** -- There is no mechanism for a City to discover
+  peers. Each node self-registers only.
+- **Remote health polling** -- Liveness is derived from each node's own
+  heartbeat writes. No node polls another node's health.
+- **Failover and migration** -- Lemmings are not migrated between Cities on
+  failure. There is no rescheduling mechanism.
+- **Secure remote city attachment** -- There is no secure onboarding protocol
+  for remote Cities. The compose demo uses shared database credentials and
+  `RELEASE_DISTRIBUTION=none`. Secure remote attachment and encrypted secret
+  distribution are deferred to a later ADR and security design. Future
+  attachment may require persisted encrypted secret material, but that
+  mechanism is not decided.
+- **Erlang cookie management** -- No Erlang cookie is stored in the `cities`
+  table or managed by the runtime.
+
+---
+
 # 6. Isolation Boundary
 
 A **City is the primary runtime isolation boundary** within a World.
@@ -407,17 +471,24 @@ may occur independently for each City.
 
 # 12. Non‑Goals
 
-The following features are explicitly out of scope for version 1:
+The following features are explicitly out of scope for the shipped City
+implementation:
 
 - complex multi‑cluster orchestration
 - cross‑City state replication
 - distributed actor migration
 - global secret storage
 - automatic runtime load balancing between Cities
+- distributed Erlang clustering between City nodes
+- automatic City discovery or membership protocols
+- secure remote City onboarding and secret distribution
+- storing Erlang cookies in the `cities` table
 
-These features introduce significant complexity and are unnecessary for the initial runtime architecture.
+These features introduce significant complexity and are unnecessary for the
+initial City persistence and visibility foundation.
 
-The v1 goal is a **simple, predictable, and secure runtime topology**.
+The current goal is a **simple, predictable, and observable runtime topology**
+based on self-registration and heartbeat-backed liveness.
 
 ---
 
@@ -425,11 +496,14 @@ The v1 goal is a **simple, predictable, and secure runtime topology**.
 
 Possible future improvements include:
 
-- BEAM clustering between Cities
+- BEAM clustering between Cities (requires a future ADR)
 - City auto‑scaling
 - remote tool runners
 - multi‑region World deployments
 - distributed telemetry aggregation
+- secure remote City attachment protocol (requires a dedicated ADR and
+  security design; may involve persisted encrypted secret material)
+- remote health polling and active liveness checks
 
 These extensions may build on the City execution model defined in this ADR without changing the core isolation principle.
 

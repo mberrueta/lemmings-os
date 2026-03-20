@@ -4,7 +4,7 @@ defmodule LemmingsOs.Tools.RuntimeFetcherBehaviour do
 
   Implement this behaviour to provide the runtime tool list to the Tools page
   snapshot. The default implementation returns `{:error, :not_implemented}`.
-  In tests, use the `LemmingsOs.Tools.MockRuntimeFetcher` Mox mock.
+  In tests, use the `MockRuntimeFetcher` Mox mock defined in `test/support/mocks.ex`.
   """
 
   @callback fetch() :: {:ok, [map()]} | {:error, atom()}

@@ -3,9 +3,10 @@ defmodule LemmingsOs.CitiesTest do
 
   alias Ecto.NoResultsError
   alias LemmingsOs.Cities
+  alias LemmingsOs.Cities.City
 
   describe "list_cities/2" do
-    test "returns only cities for the given world" do
+    test "S01: returns only cities for the given world" do
       world = insert(:world)
       other_world = insert(:world)
       city = insert(:city, world: world)
@@ -17,7 +18,7 @@ defmodule LemmingsOs.CitiesTest do
       assert fetched_city.world_id == world.id
     end
 
-    test "applies filters and explicit preloads" do
+    test "S02: applies filters and explicit preloads" do
       world = insert(:world)
       active_city = insert(:city, world: world, status: "active")
       insert(:city, world: world, status: "disabled")
@@ -27,10 +28,73 @@ defmodule LemmingsOs.CitiesTest do
       assert city.id == active_city.id
       assert city.world.id == world.id
     end
+
+    test "S03: returns cities sorted by inserted_at then id" do
+      world = insert(:world)
+      insert(:city, world: world)
+      insert(:city, world: world)
+
+      cities = Cities.list_cities(world)
+
+      assert length(cities) == 2
+
+      # Verify stable ordering: sorted by inserted_at ASC, then id ASC
+      [first, second] = cities
+      assert {first.inserted_at, first.id} <= {second.inserted_at, second.id}
+    end
+
+    test "S04: accepts world_id string instead of World struct" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+
+      [fetched_city] = Cities.list_cities(world.id)
+
+      assert fetched_city.id == city.id
+    end
+
+    test "S05: returns empty list for a world with no cities" do
+      world = insert(:world)
+
+      assert Cities.list_cities(world) == []
+    end
+
+    test "S06: filters by node_name" do
+      world = insert(:world)
+      insert(:city, world: world, node_name: "alpha@localhost")
+      beta = insert(:city, world: world, node_name: "beta@localhost")
+
+      [city] = Cities.list_cities(world, node_name: "beta@localhost")
+
+      assert city.id == beta.id
+    end
+
+    test "S07: filters by ids list" do
+      world = insert(:world)
+      city_a = insert(:city, world: world)
+      insert(:city, world: world)
+
+      [city] = Cities.list_cities(world, ids: [city_a.id])
+
+      assert city.id == city_a.id
+    end
+
+    test "S08: filters by stale_before cutoff" do
+      world = insert(:world)
+      # City seen recently (after cutoff) should NOT be returned
+      insert(:city, world: world, last_seen_at: ~U[2026-03-18 18:01:00Z])
+      # City seen before cutoff should be returned
+      stale = insert(:city, world: world, last_seen_at: ~U[2026-03-18 17:50:00Z])
+
+      cutoff = ~U[2026-03-18 18:00:00Z]
+      cities = Cities.list_cities(world, stale_before: cutoff)
+
+      assert length(cities) == 1
+      assert hd(cities).id == stale.id
+    end
   end
 
   describe "fetch_city/2 and get_city!/2" do
-    test "fetches a city only within the given world" do
+    test "S09: fetches a city only within the given world" do
       world = insert(:world)
       city = insert(:city, world: world)
 
@@ -38,7 +102,13 @@ defmodule LemmingsOs.CitiesTest do
       assert fetched_city.id == city.id
     end
 
-    test "returns not_found when the city is outside the given world" do
+    test "S10: returns not_found when the city does not exist" do
+      world = insert(:world)
+
+      assert {:error, :not_found} = Cities.fetch_city(world, Ecto.UUID.generate())
+    end
+
+    test "S11: returns not_found when the city is outside the given world (cross-world isolation)" do
       world = insert(:world)
       other_world = insert(:world)
       city = insert(:city, world: other_world)
@@ -52,7 +122,7 @@ defmodule LemmingsOs.CitiesTest do
   end
 
   describe "get_city_by_slug/2" do
-    test "returns the city in the given world or nil" do
+    test "S12: returns the city in the given world or nil" do
       world = insert(:world)
       city = insert(:city, world: world, slug: "ops")
 
@@ -63,7 +133,7 @@ defmodule LemmingsOs.CitiesTest do
   end
 
   describe "create_city/2" do
-    test "creates a world-scoped city" do
+    test "S13: creates a world-scoped city with config embeds" do
       world = insert(:world)
 
       assert {:ok, city} =
@@ -78,29 +148,65 @@ defmodule LemmingsOs.CitiesTest do
       assert city.world_id == world.id
       assert city.runtime_config.cross_city_communication == false
     end
+
+    test "S14: returns changeset error when required fields are missing" do
+      world = insert(:world)
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Cities.create_city(world, %{name: "Incomplete"})
+
+      errors = errors_on(changeset)
+      assert "can't be blank" in errors.slug
+      assert "can't be blank" in errors.node_name
+      assert "can't be blank" in errors.status
+    end
+
+    test "S15: returns changeset error on duplicate slug within the same world" do
+      world = insert(:world)
+      insert(:city, world: world, slug: "ops", node_name: "ops-a@localhost")
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Cities.create_city(world, %{
+                 slug: "ops",
+                 name: "Another Ops",
+                 node_name: "ops-b@localhost",
+                 status: "active"
+               })
+
+      assert "has already been taken" in errors_on(changeset).slug
+    end
   end
 
   describe "update_city/2" do
-    test "updates the persisted city" do
+    test "S16: updates the persisted city" do
       city = insert(:city, status: "active")
 
       assert {:ok, updated_city} = Cities.update_city(city, %{status: "disabled"})
       assert updated_city.status == "disabled"
     end
+
+    test "S17: returns changeset error on invalid update" do
+      city = insert(:city, status: "active")
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Cities.update_city(city, %{status: "bogus"})
+
+      assert "is invalid" in errors_on(changeset).status
+    end
   end
 
   describe "delete_city/1" do
-    test "deletes the persisted city" do
+    test "S18: deletes the persisted city and confirms it is gone" do
       city = insert(:city)
 
       assert {:ok, deleted_city} = Cities.delete_city(city)
       assert deleted_city.id == city.id
-      assert Repo.get(LemmingsOs.Cities.City, city.id) == nil
+      assert Repo.get(City, city.id) == nil
     end
   end
 
   describe "upsert_runtime_city/2" do
-    test "creates a city when no runtime row exists" do
+    test "S19: creates a city when no runtime row exists" do
       world = insert(:world)
 
       assert {:ok, city} =
@@ -114,7 +220,7 @@ defmodule LemmingsOs.CitiesTest do
       assert city.world_id == world.id
     end
 
-    test "updates an existing city matched by node_name" do
+    test "S20: updates an existing city matched by node_name" do
       world = insert(:world)
       city = insert(:city, world: world, node_name: "primary@localhost", name: "Before")
 
@@ -128,22 +234,30 @@ defmodule LemmingsOs.CitiesTest do
 
       assert updated_city.id == city.id
       assert updated_city.name == "After"
-      assert Repo.aggregate(LemmingsOs.Cities.City, :count) == 1
+      assert Repo.aggregate(City, :count) == 1
     end
   end
 
   describe "heartbeat_city/2" do
-    test "updates last_seen_at" do
+    test "S21: updates last_seen_at" do
       city = insert(:city, last_seen_at: nil)
       seen_at = DateTime.utc_now() |> DateTime.truncate(:second)
 
       assert {:ok, updated_city} = Cities.heartbeat_city(city, seen_at)
       assert updated_city.last_seen_at == seen_at
     end
+
+    test "S22: truncates last_seen_at to seconds" do
+      city = insert(:city, last_seen_at: nil)
+      seen_at = ~U[2026-03-18 18:00:00.123456Z]
+
+      assert {:ok, updated_city} = Cities.heartbeat_city(city, seen_at)
+      assert updated_city.last_seen_at == ~U[2026-03-18 18:00:00Z]
+    end
   end
 
   describe "stale_cities/2" do
-    test "returns only stale cities for the given world" do
+    test "S23: returns only stale cities for the given world" do
       world = insert(:world)
       cutoff = DateTime.utc_now() |> DateTime.truncate(:second)
       stale_time = DateTime.add(cutoff, -60, :second)
@@ -157,6 +271,14 @@ defmodule LemmingsOs.CitiesTest do
 
       assert fetched_city.id == stale_city.id
       assert fetched_city.world_id == world.id
+    end
+
+    test "S24: excludes cities with nil last_seen_at" do
+      world = insert(:world)
+      cutoff = DateTime.utc_now() |> DateTime.truncate(:second)
+      insert(:city, world: world, last_seen_at: nil)
+
+      assert Cities.stale_cities(world, cutoff) == []
     end
   end
 end

@@ -36,6 +36,10 @@ services:
   world:
     build: .
     network_mode: host
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:-ecto://postgres:postgres@localhost/lemmings_os_prod}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
@@ -47,6 +51,12 @@ services:
       LEMMINGS_CITY_NAME: "World Node"
       LEMMINGS_CITY_HOST: "world"
       RELEASE_DISTRIBUTION: "none"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:$${PORT:-4000}/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     entrypoint: >
       /bin/sh -c '
         /app/bin/lemmings_os eval "LemmingsOs.Release.create_and_migrate()" &&
@@ -57,7 +67,8 @@ services:
     build: .
     network_mode: host
     depends_on:
-      - world
+      world:
+        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-ecto://postgres:postgres@localhost/lemmings_os_prod}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
@@ -72,7 +83,8 @@ services:
     build: .
     network_mode: host
     depends_on:
-      - world
+      world:
+        condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-ecto://postgres:postgres@localhost/lemmings_os_prod}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}

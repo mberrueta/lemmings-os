@@ -14,6 +14,11 @@ defmodule LemmingsOsWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Health probe — no pipeline, no session, no DB. Used by Docker and load balancers.
+  scope "/", LemmingsOsWeb do
+    get "/healthz", HealthController, :check
+  end
+
   scope "/", LemmingsOsWeb do
     pipe_through :browser
 

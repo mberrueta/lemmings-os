@@ -621,7 +621,7 @@ resolver-backed effective config, real city pages, a simple compose demo, and re
 | 08 | World / Home / Settings City Integration | 🔒 BLOCKED | [ ] | Task 06, Task 07 |
 | 09 | Minimal City CRUD / Read Operator Flows | 🔒 BLOCKED | [ ] | Task 07 |
 | 10 | Docker Compose Multi-City Demo | 🔒 BLOCKED | [ ] | Task 04, Task 06 |
-| 11 | Test Scenarios and Coverage Plan | 🔒 BLOCKED | [ ] | Task 07, Task 08, Task 09, Task 10 |
+| 11 | Test Scenarios and Coverage Plan | COMPLETE | [ ] | Task 07, Task 08, Task 09, Task 10 |
 | 12 | Test Implementation | 🔒 BLOCKED | [ ] | Task 11 |
 | 13 | Security and Performance Review | 🔒 BLOCKED | [ ] | Task 12 |
 | 14 | ADR and Architecture Update | 🔒 BLOCKED | [ ] | Task 13 |

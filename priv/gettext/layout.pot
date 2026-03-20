@@ -201,7 +201,7 @@ msgstr ""
 msgid ".page_title_lemmings"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:30
+#: lib/lemmings_os_web/live/cities_live.ex:38
 #, elixir-autogen
 msgid ".page_title_cities"
 msgstr ""
