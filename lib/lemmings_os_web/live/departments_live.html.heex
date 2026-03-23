@@ -136,6 +136,7 @@
                 </p>
                 <p
                   :if={department.notes}
+                  id={"department-notes-preview-#{department.id}"}
                   class="text-xs uppercase tracking-wider text-zinc-400"
                 >
                   {LemmingsOs.Helpers.truncate_value(department.notes, max_length: 96)}

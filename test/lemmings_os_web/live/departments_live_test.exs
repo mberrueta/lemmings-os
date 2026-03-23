@@ -1,6 +1,7 @@
 defmodule LemmingsOsWeb.DepartmentsLiveTest do
   use LemmingsOsWeb.ConnCase
 
+  import Gettext
   import LemmingsOs.Factory
   import Phoenix.LiveViewTest
 
@@ -148,7 +149,15 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
     test "S06: department detail supports tab patching and settings form", %{conn: conn} do
       world = insert(:world)
       city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
-      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      department =
+        insert(:department,
+          world: world,
+          city: city,
+          name: "Support",
+          slug: "support",
+          notes: nil
+        )
 
       {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
 
@@ -165,7 +174,177 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       assert has_element?(view, "#department-settings-local-overrides-panel")
     end
 
-    test "S07: department settings save updates the persisted local overrides", %{conn: conn} do
+    test "S07: overview renders the full department detail context", %{conn: conn} do
+      world = insert(:world, name: "Ops World", slug: "ops-world")
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+
+      department =
+        insert(:department,
+          world: world,
+          city: city,
+          name: "Support",
+          slug: "support",
+          status: "draining",
+          tags: ["customer-care", "tier-2"],
+          notes: "Handles escalations"
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      assert has_element?(view, "#department-detail-panel")
+      assert has_element?(view, "#department-detail-status", "Draining")
+      assert has_element?(view, "#department-detail-city", "Alpha City")
+      assert has_element?(view, "#department-detail-world", "Ops World")
+      assert has_element?(view, "#department-detail-slug", "support")
+      assert has_element?(view, "#department-detail-name", "Support")
+      assert has_element?(view, "#department-detail-tags", "customer-care, tier-2")
+      assert has_element?(view, "#department-detail-notes", "Handles escalations")
+      assert has_element?(view, "#department-action-activate")
+      assert has_element?(view, "#department-action-drain")
+      assert has_element?(view, "#department-action-disable")
+      assert has_element?(view, "#department-action-delete")
+    end
+
+    test "S08: index omits the notes preview when notes are absent", %{conn: conn} do
+      world = insert(:world, name: "Ops World", slug: "ops-world")
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+
+      department =
+        insert(:department,
+          world: world,
+          city: city,
+          name: "Support",
+          slug: "support",
+          notes: nil
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id}}")
+
+      assert has_element?(view, "#department-link-#{department.id}")
+      refute has_element?(view, "#department-notes-preview-#{department.id}")
+    end
+
+    test "S09: lemmings tab is explicitly mock-backed and renders the preview list", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      view |> element("#department-tab-lemmings") |> render_click()
+
+      assert_patch(
+        view,
+        ~p"/departments?#{%{city: city.id, dept: department.id, tab: "lemmings"}}"
+      )
+
+      assert has_element?(view, "#department-lemmings-tab-panel")
+      assert has_element?(view, "#department-lemmings-mock-banner")
+      assert has_element?(view, "#department-lemmings-list")
+      assert has_element?(view, "#department-lemmings-list a[id^='department-lemming-']")
+    end
+
+    test "S10: settings distinguish effective config from local overrides", %{conn: conn} do
+      world = insert(:world)
+
+      city =
+        insert(:city,
+          world: world,
+          runtime_config: %RuntimeConfig{idle_ttl_seconds: 90, cross_city_communication: true},
+          costs_config: %CostsConfig{budgets: %Budgets{daily_tokens: 1_000}}
+        )
+
+      department = insert(:department, world: world, city: city, slug: "support", name: "Support")
+
+      {:ok, view, _html} =
+        live(conn, ~p"/departments?#{%{city: city.id, dept: department.id, tab: "settings"}}")
+
+      assert has_element?(view, "#department-settings-effective-panel")
+      assert has_element?(view, "#department-settings-local-overrides-panel")
+      assert has_element?(view, "#department-effective-idle-ttl", "90")
+      assert has_element?(view, "#department-effective-cross-city", "true")
+      assert has_element?(view, "#department-effective-daily-tokens", "1000")
+
+      assert has_element?(
+               view,
+               "#department-local-idle-ttl",
+               dgettext(LemmingsOs.Gettext, "world", ".label_not_available")
+             )
+
+      assert has_element?(
+               view,
+               "#department-local-cross-city",
+               dgettext(LemmingsOs.Gettext, "world", ".label_not_available")
+             )
+
+      assert has_element?(
+               view,
+               "#department-local-daily-tokens",
+               dgettext(LemmingsOs.Gettext, "world", ".label_not_available")
+             )
+    end
+
+    test "S11: lifecycle actions update status and keep the operator on detail", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      view |> element("#department-action-disable") |> render_click()
+
+      updated = Repo.get!(Department, department.id)
+
+      assert updated.status == "disabled"
+      assert has_element?(view, "#department-detail-status", "Disabled")
+      assert render(view) =~ dgettext(LemmingsOs.Gettext, "world", ".flash_department_disabled")
+    end
+
+    test "S12: delete from an active department shows the not-disabled guard", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      view |> element("#department-action-delete") |> render_click()
+
+      assert Repo.get!(Department, department.id)
+      assert has_element?(view, "#department-detail-panel")
+
+      assert render(view) =~
+               dgettext(LemmingsOs.Gettext, "errors", ".department_delete_denied_not_disabled")
+    end
+
+    test "S13: delete stays honest when hard delete safety cannot be proven", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+
+      department =
+        insert(:department,
+          world: world,
+          city: city,
+          name: "Support",
+          slug: "support",
+          status: "disabled"
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      view |> element("#department-action-delete") |> render_click()
+
+      assert Repo.get!(Department, department.id)
+      assert has_element?(view, "#department-detail-panel")
+
+      assert render(view) =~
+               dgettext(
+                 LemmingsOs.Gettext,
+                 "errors",
+                 ".department_delete_denied_safety_indeterminate"
+               )
+    end
+
+    test "S14: department settings save updates the persisted local overrides", %{conn: conn} do
       world = insert(:world)
 
       city =
