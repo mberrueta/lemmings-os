@@ -16,11 +16,11 @@ defmodule LemmingsOsWeb.HomeComponents do
     assigns = assign(assigns, :display, card_display(assigns.card))
 
     ~H"""
-    <article id={"home-card-#{@card.id}"} class="mini-card h-full" data-status={@card.status}>
+    <article id={"home-card-#{@card.id}"} class={mini_card_class()} data-status={@card.status}>
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <div class="mini-card__title">{@display.title}</div>
-          <p class="mini-card__meta">{@display.subtitle}</p>
+          <div class={mini_card_title_class()}>{@display.title}</div>
+          <p class={mini_card_meta_class()}>{@display.subtitle}</p>
         </div>
         <.status kind={:world} value={@card.status} />
       </div>
@@ -28,6 +28,7 @@ defmodule LemmingsOsWeb.HomeComponents do
       <div class="mt-3 grid gap-3 md:grid-cols-2">
         <.stat_item
           :for={item <- @display.items}
+          id={"home-card-#{@card.id}-#{item.id}"}
           label={item.label}
           value={item.value}
           detail={item[:detail]}
@@ -51,15 +52,15 @@ defmodule LemmingsOsWeb.HomeComponents do
       )
 
     ~H"""
-    <article id={"home-alert-#{@alert.code}"} class="mini-card">
+    <article id={"home-alert-#{@alert.code}"} class={mini_card_class()}>
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <div class="mini-card__title">{@summary}</div>
-          <p class="mini-card__meta">{@detail}</p>
+          <div class={mini_card_title_class()}>{@summary}</div>
+          <p class={mini_card_meta_class()}>{@detail}</p>
         </div>
         <.status kind={:issue} value={@alert.severity} />
       </div>
-      <p :if={@action} class="mt-3 text-sm text-[var(--muted)]">{@action}</p>
+      <p :if={@action} class="mt-3 text-sm text-zinc-400">{@action}</p>
     </article>
     """
   end
@@ -74,27 +75,23 @@ defmodule LemmingsOsWeb.HomeComponents do
     <.button
       id={"home-link-#{@action.id}"}
       navigate={@action.to}
-      variant="ghost"
+      variant="neutral"
     >
       {navigation_action_label(@action.id)}
     </.button>
     """
   end
 
-  @doc """
-  Renders an intentionally omitted Home section entry.
-  """
-  attr :section_id, :string, required: true
+  defp mini_card_class do
+    "h-full border-2 border-zinc-700 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
+  end
 
-  def omitted_section(assigns) do
-    ~H"""
-    <div id={"home-omitted-#{@section_id}"} class="list-row-card">
-      <div>
-        <p class="list-row-card__title">{omitted_section_title(@section_id)}</p>
-        <p class="list-row-card__meta">{dgettext("layout", ".home_omitted_item_copy")}</p>
-      </div>
-    </div>
-    """
+  defp mini_card_title_class do
+    "flex items-center gap-2 text-base font-medium text-zinc-100"
+  end
+
+  defp mini_card_meta_class do
+    "text-xs uppercase tracking-widest text-zinc-400"
   end
 
   defp card_display(%{id: "world_identity", source: "persisted_world", meta: meta}) do
@@ -103,6 +100,7 @@ defmodule LemmingsOsWeb.HomeComponents do
       subtitle: source_label("persisted_world"),
       items: [
         %{
+          id: "world_name",
           label: dgettext("layout", ".home_card_world_name_label"),
           value:
             Helpers.display_value(meta.name,
@@ -110,6 +108,7 @@ defmodule LemmingsOsWeb.HomeComponents do
             )
         },
         %{
+          id: "world_slug",
           label: dgettext("layout", ".home_card_world_slug_label"),
           value: Helpers.display_value(meta.slug)
         }
@@ -123,10 +122,12 @@ defmodule LemmingsOsWeb.HomeComponents do
       subtitle: source_label("bootstrap_config"),
       items: [
         %{
+          id: "bootstrap_path",
           label: dgettext("layout", ".home_card_bootstrap_path_label"),
           value: Helpers.truncate_value(meta.path, max_length: 36)
         },
         %{
+          id: "bootstrap_issues",
           label: dgettext("layout", ".home_card_bootstrap_issues_label"),
           value: to_string(meta.issue_count)
         }
@@ -140,10 +141,12 @@ defmodule LemmingsOsWeb.HomeComponents do
       subtitle: source_label("runtime_checks"),
       items: [
         %{
+          id: "runtime_checks",
           label: dgettext("layout", ".home_card_runtime_checks_label"),
           value: to_string(meta.check_count)
         },
         %{
+          id: "runtime_deferred_sources",
           label: dgettext("layout", ".home_card_runtime_deferred_label"),
           value: to_string(length(meta.deferred_sources))
         }
@@ -157,14 +160,17 @@ defmodule LemmingsOsWeb.HomeComponents do
       subtitle: source_label("tools_snapshot"),
       items: [
         %{
+          id: "tool_count",
           label: dgettext("layout", ".home_card_tools_count_label"),
           value: to_string(meta.tool_count)
         },
         %{
+          id: "policy_mode",
           label: dgettext("layout", ".home_card_tools_policy_mode_label"),
           value: policy_mode_label(meta.policy_mode)
         },
         %{
+          id: "tool_issues",
           label: dgettext("layout", ".home_card_tools_issues_label"),
           value: to_string(meta.issue_count)
         }
@@ -172,14 +178,25 @@ defmodule LemmingsOsWeb.HomeComponents do
     }
   end
 
-  defp card_display(%{id: "city_health", source: "persisted_cities", meta: meta}) do
+  defp card_display(%{id: "topology_summary", source: "persisted_topology", meta: meta}) do
     %{
-      title: dgettext("layout", ".home_card_city_health_title"),
-      subtitle: source_label("persisted_cities"),
+      title: dgettext("layout", ".home_card_topology_summary_title"),
+      subtitle: source_label("persisted_topology"),
       items: [
         %{
-          label: dgettext("layout", ".home_card_city_count_label"),
+          id: "city_count",
+          label: dgettext("layout", ".home_card_topology_city_count_label"),
           value: to_string(meta.city_count)
+        },
+        %{
+          id: "department_count",
+          label: dgettext("layout", ".home_card_topology_department_count_label"),
+          value: to_string(meta.department_count)
+        },
+        %{
+          id: "active_department_count",
+          label: dgettext("layout", ".home_card_topology_active_department_count_label"),
+          value: to_string(meta.active_department_count)
         }
       ]
     }
@@ -189,7 +206,10 @@ defmodule LemmingsOsWeb.HomeComponents do
   defp source_label("bootstrap_config"), do: dgettext("layout", ".home_source_bootstrap_config")
   defp source_label("runtime_checks"), do: dgettext("layout", ".home_source_runtime_checks")
   defp source_label("tools_snapshot"), do: dgettext("layout", ".home_source_tools_snapshot")
-  defp source_label("persisted_cities"), do: dgettext("layout", ".home_source_persisted_cities")
+
+  defp source_label("persisted_topology"),
+    do: dgettext("layout", ".home_source_persisted_topology")
+
   defp source_label(_source), do: dgettext("layout", ".home_source_runtime_checks")
 
   defp navigation_action_label("world"), do: dgettext("layout", ".nav_world")
@@ -244,31 +264,4 @@ defmodule LemmingsOsWeb.HomeComponents do
     do: dgettext("layout", ".home_alert_tools_runtime_source_unavailable_action")
 
   defp alert_action(alert), do: alert.action_hint
-
-  defp omitted_section_title("hierarchy_counts"),
-    do: dgettext("layout", ".home_omitted_hierarchy_counts_title")
-
-  defp omitted_section_title("city_network"),
-    do: dgettext("layout", ".home_omitted_city_network_title")
-
-  defp omitted_section_title("department_queues"),
-    do: dgettext("layout", ".home_omitted_department_queues_title")
-
-  defp omitted_section_title("active_lemmings"),
-    do: dgettext("layout", ".home_omitted_active_lemmings_title")
-
-  defp omitted_section_title("recent_activity"),
-    do: dgettext("layout", ".home_omitted_recent_activity_title")
-
-  defp omitted_section_title("bootstrap_health"),
-    do: dgettext("layout", ".home_card_bootstrap_health_title")
-
-  defp omitted_section_title("runtime_health"),
-    do: dgettext("layout", ".home_card_runtime_health_title")
-
-  defp omitted_section_title("tools_health"),
-    do: dgettext("layout", ".home_card_tools_health_title")
-
-  defp omitted_section_title(_section_id),
-    do: dgettext("layout", ".home_omitted_hierarchy_counts_title")
 end

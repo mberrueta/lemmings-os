@@ -11,8 +11,14 @@ defmodule LemmingsOsWeb.LemmingComponents do
 
   def brand_wordmark(assigns) do
     ~H"""
-    <span class={["brand-wordmark", @class]}>
-      <span class="brand-wordmark__main">Lemmings</span><span class="brand-wordmark__os">OS</span>
+    <span
+      id="brand-wordmark"
+      class={["inline-flex items-baseline gap-0 font-mono text-base font-bold tracking-tight", @class]}
+    >
+      <span id="brand-wordmark-main" class="text-zinc-100">Lemmings</span><span
+        id="brand-wordmark-os"
+        class="text-sky-400"
+      >OS</span>
     </span>
     """
   end
@@ -93,10 +99,9 @@ defmodule LemmingsOsWeb.LemmingComponents do
       </.panel>
 
       <.content_grid id="lemmings-grid" columns="sidebar">
-        <.panel id="lemmings-table-panel">
-          <:title>{dgettext("lemmings", ".title_agent_registry")}</:title>
-          <div class="data-table">
-            <div class="data-table__header">
+        <.panel id="lemmings-table-panel" class="overflow-x-auto">
+          <div class="flex flex-col min-w-[40rem]">
+            <div class="grid grid-cols-[1.2fr_1fr_0.8fr_1.5fr_1fr] gap-4 border-b-2 border-zinc-800 px-4 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500">
               <span>{dgettext("lemmings", ".col_name")}</span>
               <span>{dgettext("lemmings", ".col_role")}</span>
               <span>{dgettext("lemmings", ".col_status")}</span>
@@ -108,18 +113,20 @@ defmodule LemmingsOsWeb.LemmingComponents do
               :for={lemming <- @lemmings}
               id={"lemming-link-#{lemming.id}"}
               patch={~p"/lemmings?#{%{lemming: lemming.id}}"}
+              data-selected={to_string(@selected_lemming && @selected_lemming.id == lemming.id)}
               class={[
-                "data-table__row",
-                @selected_lemming && @selected_lemming.id == lemming.id && "data-table__row--active"
+                "grid grid-cols-[1.2fr_1fr_0.8fr_1.5fr_1fr] items-center gap-4 border-b border-zinc-800/50 bg-zinc-950/40 px-4 py-3 text-sm transition-all hover:bg-zinc-900/60",
+                @selected_lemming && @selected_lemming.id == lemming.id &&
+                  "border-l-2 border-l-emerald-400 bg-emerald-400/5"
               ]}
             >
-              <span>{lemming.name}</span>
-              <span>{lemming.role}</span>
+              <span class="font-medium text-zinc-100">{lemming.name}</span>
+              <span class="text-zinc-400">{lemming.role}</span>
               <span>
                 <.status kind={:lemming} value={lemming.status} />
               </span>
-              <span class="truncate">{lemming.current_task}</span>
-              <span>{lemming.model}</span>
+              <span class="truncate text-zinc-300">{lemming.current_task}</span>
+              <span class="text-zinc-500 font-mono text-xs">{lemming.model}</span>
             </.link>
           </div>
         </.panel>
@@ -154,59 +161,81 @@ defmodule LemmingsOsWeb.LemmingComponents do
     <.panel id="lemming-detail-panel">
       <:title>{@lemming.name}</:title>
       <:subtitle>{@lemming.role}</:subtitle>
-      <div class="page-stack">
-        <div class="detail-hero">
-          <div class="detail-hero__avatar" style={accent_style(@lemming.accent)}></div>
-          <div class="detail-hero__copy">
-            <.status kind={:lemming} value={@lemming.status} />
-            <p>{@lemming.current_task}</p>
-            <small :if={@department && @city}>{@department.name} · {@city.name}</small>
+      <div class="flex flex-col gap-6">
+        <div class="flex items-center gap-4">
+          <div
+            class="size-16 shrink-0 border-2 border-zinc-700 bg-zinc-900"
+            style={accent_style(@lemming.accent)}
+          >
+          </div>
+          <div class="flex flex-col gap-1 min-w-0">
+            <.status kind={:lemming} value={@lemming.status} class="w-fit" />
+            <p class="text-zinc-100 font-medium">{@lemming.current_task}</p>
+            <small
+              :if={@department && @city}
+              class="text-zinc-500 font-mono text-xs uppercase tracking-wider"
+            >
+              {@department.name} · {@city.name}
+            </small>
           </div>
         </div>
 
-        <div class="detail-section">
-          <p class="detail-section__title">{dgettext("lemmings", ".detail_model")}</p>
-          <p>{@lemming.model}</p>
+        <div class="flex flex-col gap-1">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", ".detail_model")}
+          </p>
+          <p class="font-mono text-sm text-zinc-300">{@lemming.model}</p>
         </div>
 
-        <div class="detail-section">
-          <p class="detail-section__title">{dgettext("lemmings", ".detail_system_prompt")}</p>
-          <p>{@lemming.system_prompt}</p>
+        <div class="flex flex-col gap-1">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", ".detail_system_prompt")}
+          </p>
+          <p class="text-sm text-zinc-300 leading-relaxed">{@lemming.system_prompt}</p>
         </div>
 
-        <div class="detail-section">
-          <p class="detail-section__title">{dgettext("lemmings", ".detail_tools")}</p>
-          <div class="tool-badges">
+        <div class="flex flex-col gap-2">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", ".detail_tools")}
+          </p>
+          <div class="flex flex-wrap gap-2">
             <.badge :for={tool <- @lemming.tools} tone="info">{tool}</.badge>
           </div>
         </div>
 
-        <div class="detail-section">
-          <p class="detail-section__title">{dgettext("lemmings", ".detail_recent_messages")}</p>
-          <div class="activity-feed">
-            <div :if={@lemming.recent_messages == []} class="activity-feed__row">
+        <div class="flex flex-col gap-2">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", ".detail_recent_messages")}
+          </p>
+          <div class="flex flex-col gap-3 font-mono">
+            <div :if={@lemming.recent_messages == []} class="text-sm text-zinc-500">
               <span>{dgettext("lemmings", ".empty_no_messages")}</span>
             </div>
 
-            <div :for={message <- @lemming.recent_messages} class="activity-feed__row">
-              <span class="activity-feed__time">[{message.time}]</span>
+            <div
+              :for={message <- @lemming.recent_messages}
+              class="flex flex-wrap items-start gap-3 text-sm"
+            >
+              <span class="text-xs tracking-widest text-zinc-500">[{message.time}]</span>
               <span class={[
-                "activity-feed__agent",
-                message.role == :assistant && "activity-feed__agent--accent"
+                "font-bold",
+                message.role == :assistant && "text-emerald-400"
               ]}>
                 {role_label(message.role)}
               </span>
-              <span>{message.content}</span>
+              <span class="text-zinc-300">{message.content}</span>
             </div>
           </div>
         </div>
 
-        <div class="detail-section">
-          <p class="detail-section__title">{dgettext("lemmings", ".detail_activity_log")}</p>
-          <div class="activity-feed">
-            <div :for={item <- @lemming.activity_log} class="activity-feed__row">
-              <span class="activity-feed__time">[{item.time}]</span>
-              <span>{item.action}</span>
+        <div class="flex flex-col gap-2">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", ".detail_activity_log")}
+          </p>
+          <div class="flex flex-col gap-2 font-mono">
+            <div :for={item <- @lemming.activity_log} class="flex flex-wrap items-start gap-3 text-sm">
+              <span class="text-xs tracking-widest text-zinc-500">[{item.time}]</span>
+              <span class="text-zinc-400">{item.action}</span>
             </div>
           </div>
         </div>
@@ -221,13 +250,37 @@ defmodule LemmingsOsWeb.LemmingComponents do
 
   def lemming_sprite(assigns) do
     ~H"""
-    <.link :if={@path} navigate={@path} class={["sprite-card", sprite_size(@size)]}>
-      <div class="sprite-card__figure" style={accent_style(@lemming.accent)}></div>
-      <span>{@lemming.name}</span>
+    <.link
+      :if={@path}
+      navigate={@path}
+      class={[
+        "inline-flex flex-col items-center gap-2 text-zinc-300 transition-all hover:-translate-y-px hover:text-emerald-400",
+        sprite_size(@size)
+      ]}
+    >
+      <div
+        class={[
+          "shrink-0 border-2 border-zinc-700 bg-zinc-900",
+          if(@size == "md", do: "size-12", else: "size-10")
+        ]}
+        style={accent_style(@lemming.accent)}
+      >
+      </div>
+      <span class="text-xs font-medium">{@lemming.name}</span>
     </.link>
-    <div :if={!@path} class={["sprite-card", sprite_size(@size)]}>
-      <div class="sprite-card__figure" style={accent_style(@lemming.accent)}></div>
-      <span>{@lemming.name}</span>
+    <div
+      :if={!@path}
+      class={["inline-flex flex-col items-center gap-2 text-zinc-300", sprite_size(@size)]}
+    >
+      <div
+        class={[
+          "shrink-0 border-2 border-zinc-700 bg-zinc-900",
+          if(@size == "md", do: "size-12", else: "size-10")
+        ]}
+        style={accent_style(@lemming.accent)}
+      >
+      </div>
+      <span class="text-xs font-medium">{@lemming.name}</span>
     </div>
     """
   end
@@ -244,7 +297,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
           <:title>{dgettext("lemmings", ".title_create_lemming")}</:title>
           <:subtitle>{dgettext("lemmings", ".subtitle_create_lemming")}</:subtitle>
           <.form for={@form} id="create-lemming-form" phx-change="validate" phx-submit="save">
-            <div class="page-stack">
+            <div class="flex flex-col gap-6">
               <.input
                 field={@form[:name]}
                 label={dgettext("lemmings", ".label_name")}
@@ -274,9 +327,11 @@ defmodule LemmingsOsWeb.LemmingComponents do
                 rows="5"
               />
 
-              <div class="detail-section">
-                <p class="detail-section__title">{dgettext("lemmings", ".detail_tools_allowed")}</p>
-                <div class="tool-toggle-grid">
+              <div class="flex flex-col gap-2">
+                <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                  {dgettext("lemmings", ".detail_tools_allowed")}
+                </p>
+                <div class="flex flex-wrap gap-2">
                   <button
                     :for={tool <- @available_tools}
                     id={"tool-toggle-#{tool}"}
@@ -284,8 +339,11 @@ defmodule LemmingsOsWeb.LemmingComponents do
                     phx-click="toggle_tool"
                     phx-value-tool={tool}
                     class={[
-                      "tool-toggle",
-                      tool in @selected_tools && "tool-toggle--active"
+                      "border-2 px-3 py-1.5 text-xs font-medium transition-all duration-150",
+                      tool in @selected_tools &&
+                        "border-emerald-400/60 bg-emerald-400/10 text-emerald-400 shadow-md",
+                      tool not in @selected_tools &&
+                        "border-zinc-700 bg-zinc-950/80 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
                     ]}
                   >
                     {tool}
@@ -293,17 +351,21 @@ defmodule LemmingsOsWeb.LemmingComponents do
                 </div>
               </div>
 
-              <.button type="submit">{dgettext("lemmings", ".button_deploy_lemming")}</.button>
+              <.button type="submit" class="w-full sm:w-fit">
+                {dgettext("lemmings", ".button_deploy_lemming")}
+              </.button>
             </div>
           </.form>
         </.panel>
 
         <.panel id="create-lemming-preview">
           <:title>{dgettext("lemmings", ".title_deployment_preview")}</:title>
-          <div class="page-stack">
-            <div class="detail-section">
-              <p class="detail-section__title">{dgettext("lemmings", ".detail_selected_tooling")}</p>
-              <div class="tool-badges">
+          <div class="flex flex-col gap-6">
+            <div class="flex flex-col gap-2">
+              <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", ".detail_selected_tooling")}
+              </p>
+              <div class="flex flex-wrap gap-2">
                 <.badge :for={tool <- @selected_tools} tone="accent">{tool}</.badge>
                 <.badge :if={@selected_tools == []} tone="default">
                   {dgettext("lemmings", ".empty_no_tools_selected")}
@@ -311,9 +373,11 @@ defmodule LemmingsOsWeb.LemmingComponents do
               </div>
             </div>
 
-            <div class="detail-section">
-              <p class="detail-section__title">{dgettext("lemmings", ".detail_expected_outcome")}</p>
-              <p>
+            <div class="flex flex-col gap-2">
+              <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", ".detail_expected_outcome")}
+              </p>
+              <p class="text-sm text-zinc-400 leading-relaxed">
                 {dgettext("lemmings", ".copy_expected_outcome")}
               </p>
             </div>

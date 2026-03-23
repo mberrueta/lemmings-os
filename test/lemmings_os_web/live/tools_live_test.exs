@@ -104,7 +104,7 @@ defmodule LemmingsOsWeb.ToolsLiveTest do
 
     assert has_element?(
              view,
-             "#tool-card-terminal .mini-card__meta",
+             "#tool-card-description-terminal",
              "No runtime description available."
            )
   end

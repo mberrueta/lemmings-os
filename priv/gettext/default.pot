@@ -11,15 +11,23 @@
 msgid ""
 msgstr ""
 
+#: lib/lemmings_os/cities/city.ex:103
+#, elixir-autogen
 msgid ".city_status_active"
 msgstr ""
 
+#: lib/lemmings_os/cities/city.ex:106
+#, elixir-autogen
 msgid ".city_status_disabled"
 msgstr ""
 
+#: lib/lemmings_os/cities/city.ex:109
+#, elixir-autogen
 msgid ".city_status_draining"
 msgstr ""
 
+#: lib/lemmings_os/cities/city.ex:112
+#, elixir-autogen
 msgid ".city_status_unknown"
 msgstr ""
 
@@ -30,4 +38,24 @@ msgid ".city_liveness_stale"
 msgstr ""
 
 msgid ".city_liveness_unknown"
+msgstr ""
+
+#: lib/lemmings_os/departments/department.ex:110
+#, elixir-autogen, elixir-format
+msgid ".department_status_active"
+msgstr ""
+
+#: lib/lemmings_os/departments/department.ex:113
+#, elixir-autogen, elixir-format
+msgid ".department_status_disabled"
+msgstr ""
+
+#: lib/lemmings_os/departments/department.ex:116
+#, elixir-autogen, elixir-format
+msgid ".department_status_draining"
+msgstr ""
+
+#: lib/lemmings_os/departments/department.ex:119
+#, elixir-autogen, elixir-format
+msgid ".department_status_unknown"
 msgstr ""

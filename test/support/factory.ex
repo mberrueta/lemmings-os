@@ -9,12 +9,14 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
+  alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Helpers
   alias LemmingsOs.Worlds.World
 
   def world_factory do
     unique_value = sequence(:world_unique, & &1)
     name = Faker.Company.name()
-    slug_base = slugify(name)
+    slug_base = Helpers.slugify(name)
 
     %World{
       slug: "#{slug_base}-#{unique_value}",
@@ -32,7 +34,7 @@ defmodule LemmingsOs.Factory do
   def city_factory do
     unique_value = sequence(:city_unique, & &1)
     name = Faker.Address.city()
-    slug_base = slugify(name)
+    slug_base = Helpers.slugify(name)
 
     %City{
       world: build(:world),
@@ -47,10 +49,27 @@ defmodule LemmingsOs.Factory do
     }
   end
 
-  defp slugify(value) do
-    value
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/u, "-")
-    |> String.trim("-")
+  def department_factory do
+    unique_value = sequence(:department_unique, & &1)
+    city = build(:city)
+
+    name =
+      "#{Faker.Company.bs()} #{unique_value}" |> String.replace(~r/\s+/u, " ") |> String.trim()
+
+    slug_base = Helpers.slugify(name)
+
+    %Department{
+      world: city.world,
+      city: city,
+      slug: "#{slug_base}-#{unique_value}",
+      name: name,
+      status: "active",
+      notes: "Department #{unique_value} notes",
+      tags: ["ops", "priority-#{unique_value}"],
+      limits_config: %LimitsConfig{},
+      runtime_config: %RuntimeConfig{},
+      costs_config: %CostsConfig{budgets: %Budgets{}},
+      models_config: %ModelsConfig{}
+    }
   end
 end

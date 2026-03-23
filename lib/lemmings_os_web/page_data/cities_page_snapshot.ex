@@ -3,18 +3,20 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
   Operator-facing Cities page read model.
 
   The top-level city list is built from persisted City rows and derived
-  liveness. Any remaining department or lemming preview stays behind the
-  explicit mock-backed adapter in `CitiesMockChildrenSnapshot`.
+  liveness. The selected city surface exposes compact persisted Department
+  cards only; Department detail ownership stays on the dedicated Departments
+  page.
   """
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.Resolver
+  alias LemmingsOs.Departments
+  alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
   alias LemmingsOs.Gettext, as: AppGettext
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
-  alias LemmingsOsWeb.PageData.CitiesMockChildrenSnapshot
 
   @type city_card :: %{
           id: String.t(),
@@ -35,6 +37,15 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
         }
 
   @type city_detail :: map()
+  @type department_card :: %{
+          id: String.t(),
+          path: String.t(),
+          name: String.t(),
+          status: String.t(),
+          status_label: String.t(),
+          tags: [String.t()],
+          notes_preview: String.t() | nil
+        }
 
   @type t :: %__MODULE__{
           world: %{
@@ -129,10 +140,14 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
   end
 
   defp selected_city_snapshot(%City{} = city, now, freshness_threshold_seconds) do
+    departments = city_departments_snapshot(city)
+
     city
     |> base_city_snapshot(now, freshness_threshold_seconds)
     |> Map.put(:effective_config, Resolver.resolve(city))
-    |> Map.put(:mock_children, CitiesMockChildrenSnapshot.build(city))
+    |> Map.put(:departments, departments)
+    |> Map.put(:department_count, length(departments))
+    |> Map.put(:departments_path, "/departments?city=#{city.id}")
   end
 
   defp base_city_snapshot(%City{} = city, now, freshness_threshold_seconds) do
@@ -155,6 +170,31 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
       last_seen_at_label: Helpers.format_datetime(city.last_seen_at),
       selected?: false
     }
+  end
+
+  defp city_departments_snapshot(%City{} = city) do
+    city.world_id
+    |> Departments.list_departments(city.id)
+    |> Enum.map(&department_card/1)
+  end
+
+  defp department_card(%Department{} = department) do
+    %{
+      id: department.id,
+      path: "/departments?city=#{department.city_id}&dept=#{department.id}",
+      name: department.name,
+      status: department.status,
+      status_label: Department.translate_status(department),
+      tags: department.tags || [],
+      notes_preview: truncate_notes(department.notes)
+    }
+  end
+
+  defp truncate_notes(nil), do: nil
+  defp truncate_notes(""), do: nil
+
+  defp truncate_notes(notes) when is_binary(notes) do
+    Helpers.truncate_value(notes, max_length: 96, unavailable_label: nil)
   end
 
   defp freshness_threshold_seconds(opts) do

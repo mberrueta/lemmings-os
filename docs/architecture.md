@@ -49,7 +49,7 @@ Level descriptions:
 
 - **World** — Hard isolation boundary. No cross-World communication without explicit Gateway. One per deployment or tenant.
 - **City** — One Elixir/OTP node. Persisted with real identity, heartbeat-backed liveness, and split config buckets. Multiple Cities can exist within a World; clustering is architecturally intended but not yet shipped.
-- **Department** — Named logical group of agents within a City. Defines shared purpose, capabilities, and constraints.
+- **Department** — Persisted logical group of agents within a City. Stores operator-facing metadata, lifecycle status, and local config overrides.
 - **Lemming** — Supervised autonomous agent process. Has stable identity, lifecycle, and mailbox.
 
 See ADR 0002 for the rationale behind this model.
@@ -66,7 +66,7 @@ See ADR 0002 for the rationale behind this model.
 
 ### Config Resolver (`LemmingsOs.Config.Resolver`)
 
-* Resolves effective configuration by merging World and City config buckets.
+* Resolves effective configuration by merging World, City, and Department config buckets.
 * Pure in-memory: callers must preload the parent chain before calling.
 * Child overrides parent; no DB access inside the resolver.
 
@@ -86,13 +86,14 @@ See ADR 0002 for the rationale behind this model.
 
 * An OTP `Supervisor` (or `DynamicSupervisor`) managing all Departments within a City.
 * Responsible for Department startup, restart, and shutdown.
-* Not yet implemented; depends on Department persistence.
+* Not yet implemented; Department persistence exists, but Department runtime orchestration is still deferred.
 
 ### Department Manager (`LemmingsOs.Department.Manager`)
 
 * A `GenServer` managing the Lemming pool within a Department.
 * Handles Lemming spawn requests, restarts on crash, and graceful shutdown.
 * Enforces Department-level constraints (capacity limits, capability filters).
+* Not yet implemented; current shipped work is the Department persistence and operator control-plane foundation.
 
 ### Lemming Executor (`LemmingsOs.Lemming.Executor`)
 
@@ -300,14 +301,16 @@ cities (shipped)
   epmd_port, status, last_seen_at,
   limits_config, runtime_config, costs_config, models_config,
   inserted_at, updated_at
+
+departments (shipped)
+  id, world_id, city_id, slug, name, status, notes, tags,
+  limits_config, runtime_config, costs_config, models_config,
+  inserted_at, updated_at
 ```
 
-### Target relational hierarchy (not yet persisted)
+### Target relational hierarchy (still deferred)
 
 ```
-departments
-  id, city_id, world_id, name, slug, status, inserted_at
-
 lemmings
   id, department_id, city_id, world_id,
   status, agent_module,
@@ -348,7 +351,8 @@ See ADR 0003 for isolation semantics.
 * Distributed Erlang clustering between City nodes (requires future ADR)
 * Secure remote City attachment and secret distribution (requires dedicated ADR and security design)
 * City membership protocol and automatic discovery
-* Department and Lemming persistence
+* Department runtime supervisor / manager orchestration
+* Lemming persistence
 * Agent capability declarations and Department-level enforcement
 * Lemming hot-reload and live config updates
 * ETS-backed config cache (`Config.Cache`)

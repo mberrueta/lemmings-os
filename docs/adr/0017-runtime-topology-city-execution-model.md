@@ -270,6 +270,10 @@ are **not shipped** and require future ADRs before implementation:
   heartbeat writes. No node polls another node's health.
 - **Failover and migration** -- Lemmings are not migrated between Cities on
   failure. There is no rescheduling mechanism.
+- **Department runtime supervision** -- persisted `departments` rows now exist,
+  but the City-level supervisor / Department-manager runtime described
+  elsewhere in this ADR is still deferred. Current shipped work is control-
+  plane persistence and operator UI, not Department-hosted Lemming execution.
 - **Secure remote city attachment** -- There is no secure onboarding protocol
   for remote Cities. The compose demo uses shared database credentials and
   `RELEASE_DISTRIBUTION=none`. Secure remote attachment and encrypted secret

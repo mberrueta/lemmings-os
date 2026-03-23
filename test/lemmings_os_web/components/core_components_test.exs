@@ -11,7 +11,7 @@ defmodule LemmingsOsWeb.CoreComponentsTest do
 
     assert html =~ ~s(id="world-status")
     assert html =~ ~s(data-status="ok")
-    assert html =~ "ui-badge--success"
+    assert html =~ ~s(data-tone="success")
     assert html =~ "OK"
   end
 
@@ -19,7 +19,7 @@ defmodule LemmingsOsWeb.CoreComponentsTest do
     html = render_component(&CoreComponents.status/1, %{kind: :lemming, value: :thinking})
 
     assert html =~ ~s(data-status="thinking")
-    assert html =~ "ui-badge--warning"
+    assert html =~ ~s(data-tone="warning")
     assert html =~ "THINKING"
   end
 
@@ -27,7 +27,7 @@ defmodule LemmingsOsWeb.CoreComponentsTest do
     html = render_component(&CoreComponents.status/1, %{kind: :issue, value: "warning"})
 
     assert html =~ ~s(data-status="warning")
-    assert html =~ "ui-badge--warning"
+    assert html =~ ~s(data-tone="warning")
     assert html =~ "Warning"
   end
 end

@@ -12,6 +12,9 @@ This document covers:
 - How to run the multi-city Docker Compose demo
 - How to operate cities through the UI
 
+For Department-specific operator flows, see
+[`docs/operator/department-management.md`](department-management.md).
+
 ---
 
 ## Concepts
@@ -350,7 +353,9 @@ Liveness badges are computed on every page load from `last_seen_at` and the conf
 
 - **Secure remote attachment not implemented.** Any process that can connect to the database can register as a city. Trust is database-access-level only.
 
-- **Department and Lemming persistence not yet implemented.** City rows exist, but the child hierarchy levels below City are not yet persisted.
+- **Department runtime orchestration not yet implemented.** Department rows are
+  now persisted, but City-hosted Department supervisors, Department managers,
+  and Department-backed Lemming execution are still deferred.
 
 - **Liveness is not pushed in real time.** The UI computes liveness on page load. There is no LiveView push or PubSub broadcast when a city goes stale. The operator must refresh or navigate to see updated liveness.
 

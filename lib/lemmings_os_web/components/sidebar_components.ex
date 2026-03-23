@@ -14,7 +14,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
     ~H"""
     <aside
       id="app-sidebar"
-      class="app-sidebar fixed top-0 left-0 z-[100] flex h-[100dvh] w-[min(18.5rem,85vw)] -translate-x-[110%] flex-col gap-5 overflow-y-auto border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(24,40,29,0.96),rgba(14,24,17,0.98))] p-4 shadow-[7px_7px_0_0_var(--shadow)] transition-transform duration-[220ms] md:sticky md:top-4 md:z-auto md:h-auto md:w-auto md:max-h-[calc(100vh-2rem)] md:translate-x-0 md:overflow-hidden lg:max-h-none lg:overflow-visible"
+      class="fixed top-0 left-0 z-[100] flex h-[100dvh] w-[min(18.5rem,85vw)] -translate-x-[110%] flex-col gap-5 overflow-y-auto border-2 border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl transition-transform duration-[220ms] md:sticky md:top-4 md:z-auto md:h-auto md:w-auto md:max-h-[calc(100vh-2rem)] md:translate-x-0 md:overflow-hidden lg:max-h-none lg:overflow-visible"
       phx-click-away={
         JS.remove_class("mobile-open", to: "#app-sidebar")
         |> JS.remove_class("mobile-open", to: "#mobile-backdrop")
@@ -23,99 +23,102 @@ defmodule LemmingsOsWeb.SidebarComponents do
     >
       <.app_version_badge />
 
-      <div class="sidebar-brand border-b-[3px] border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(12,22,15,0.98),rgba(16,25,18,0.98))] pb-4 flex items-start justify-between gap-4">
-        <div class="sidebar-brand__identity flex items-center gap-[0.8rem]">
+      <div class="border-b-2 border-zinc-800 bg-zinc-900/50 pb-4 flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
           <LemmingComponents.lemming_logo
             size={32}
             animation="blink"
-            class="sidebar-brand__mark shrink-0"
+            class="shrink-0"
           />
-          <div>
-            <p class="sidebar-brand__eyebrow text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+          <div class="sidebar-brand__identity">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".sidebar_eyebrow")}
             </p>
-            <h1 class="sidebar-brand__title font-[var(--font-display)] text-[0.95rem] leading-[1.5] text-[var(--accent)]">
+            <h1 class="font-mono text-sm font-medium leading-relaxed text-emerald-400">
               <LemmingComponents.brand_wordmark />
             </h1>
           </div>
         </div>
       </div>
 
-      <div :for={group <- navigation_groups()} class="sidebar-section flex flex-col gap-[0.6rem]">
-        <p class="sidebar-section__title text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+      <div :for={group <- navigation_groups()} class="flex flex-col gap-2">
+        <p class="sidebar-label px-2 text-xs uppercase tracking-widest text-zinc-500 font-bold">
           {group.title}
         </p>
-        <nav class="sidebar-nav flex flex-col gap-2">
+        <nav class="flex flex-col gap-1.5">
           <.link
             :for={item <- group.items}
             id={"sidebar-nav-#{item.key}"}
             navigate={item.path}
             title={item.label}
             class={[
-              "sidebar-nav__item flex items-center gap-[0.65rem] border-2 border-transparent bg-[rgba(19,32,24,0.9)] px-[0.9rem] py-[0.85rem] text-[0.92rem] transition duration-150 hover:border-[var(--accent)] hover:bg-[rgba(73,242,142,0.08)] hover:text-[var(--accent)]",
+              "group flex items-center gap-3 border-2 border-transparent bg-zinc-900/40 px-3 py-2.5 text-sm transition-all duration-150 hover:border-emerald-400/40 hover:bg-emerald-400/5 hover:text-emerald-400",
               @active_page == item.key &&
-                "sidebar-nav__item--active border-[var(--accent)] bg-[rgba(73,242,142,0.08)] text-[var(--accent)]"
+                "border-emerald-400/60 bg-emerald-400/10 text-emerald-400 shadow-md"
             ]}
           >
             <.icon name={item.icon} class="size-4" />
-            <span class="sidebar-label">{item.label}</span>
+            <span class="sidebar-label font-medium">{item.label}</span>
           </.link>
         </nav>
       </div>
 
-      <div class="sidebar-action pt-1">
-        <.button navigate={~p"/lemmings/new"} class="w-full sidebar-action__full">
+      <div class="pt-1">
+        <.button navigate={~p"/lemmings/new"} class="w-full">
           <.icon name="hero-plus-circle" class="size-4" />
-          <span class="sidebar-action__label">{dgettext("layout", ".button_new_lemming")}</span>
+          <span class="sidebar-label">{dgettext("layout", ".button_new_lemming")}</span>
         </.button>
       </div>
 
       <button
-        class="sidebar-collapse-btn mt-auto hidden size-[1.6rem] shrink-0 self-center items-center justify-center border border-[var(--border-soft)] bg-transparent text-[var(--muted)] transition duration-150 hover:border-[var(--accent)] hover:text-[var(--accent)] lg:flex"
+        class="mt-auto hidden size-8 shrink-0 self-center items-center justify-center border border-zinc-800 bg-transparent text-zinc-500 transition duration-150 hover:border-emerald-400 hover:text-emerald-400 lg:flex"
         phx-click={JS.toggle_class("app-sidebar--collapsed", to: "#app-sidebar")}
         aria-label={dgettext("layout", ".aria_toggle_sidebar")}
       >
-        <.icon name="hero-chevron-double-left" class="size-3" />
+        <.icon
+          name="hero-chevron-double-left"
+          class="size-3 transition-transform duration-300 group-[.app-sidebar--collapsed]:rotate-180"
+        />
       </button>
 
-      <div class="sidebar-footer mt-auto flex flex-col gap-[0.8rem] border-t-[3px] border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(12,22,15,0.98),rgba(16,25,18,0.98))] pt-4">
-        <div class="sidebar-footer__grid grid grid-cols-2 gap-3">
+      <div class="sidebar-footer mt-auto flex flex-col gap-3 border-t-2 border-zinc-800 bg-zinc-900/50 pt-4">
+        <div class="grid grid-cols-2 gap-3 px-1">
           <div>
-            <p class="sidebar-footer__label text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_agents")}
             </p>
-            <p class="sidebar-footer__value mt-[0.15rem] text-base text-[var(--text)]">
+            <p class="text-sm font-medium text-zinc-100">
               {@summary.agents_count}/{@summary.max_agents}
             </p>
           </div>
           <div>
-            <p class="sidebar-footer__label text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_nodes")}
             </p>
-            <p class="sidebar-footer__value mt-[0.15rem] text-base text-[var(--text)]">
+            <p class="text-sm font-medium text-zinc-100">
               {@summary.online_cities_count}/{@summary.cities_count}
             </p>
           </div>
           <div>
-            <p class="sidebar-footer__label text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_cpu")}
             </p>
-            <p class="sidebar-footer__value mt-[0.15rem] text-base text-[var(--text)]">
+            <p class="text-sm font-medium text-zinc-100">
               {@summary.cpu}
             </p>
           </div>
           <div>
-            <p class="sidebar-footer__label text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_tools")}
             </p>
-            <p class="sidebar-footer__value mt-[0.15rem] text-base text-[var(--text)]">
+            <p class="text-sm font-medium text-zinc-100">
               {@summary.tools_count}
             </p>
           </div>
         </div>
 
-        <div class="sidebar-footer__status flex items-center gap-[0.55rem] text-[0.86rem] text-[var(--accent)]">
-          <span class="sidebar-footer__dot inline-block size-[0.65rem] bg-[var(--accent)] shadow-[0_0_12px_rgba(73,242,142,0.45)]">
+        <div class="flex items-center gap-2 px-1 text-xs font-medium text-emerald-400">
+          <span class="inline-block size-2 bg-emerald-400 shadow-[0_0_8px_rgba(73,242,142,0.4)] animate-pulse">
           </span>
           {dgettext("layout", ".footer_cluster_online")}
         </div>
@@ -128,7 +131,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
     assigns = assign(assigns, :app_version, @app_version)
 
     ~H"""
-    <span class="app-version-badge absolute bottom-0 right-0 z-10">
+    <span class="app-version-badge absolute bottom-0 right-2 z-10">
       v{@app_version}
     </span>
     """

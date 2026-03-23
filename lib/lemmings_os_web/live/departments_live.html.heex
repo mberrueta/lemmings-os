@@ -8,10 +8,160 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <WorldComponents.departments_page
-    cities={@cities}
-    selected_city={@selected_city}
-    departments={@departments}
-    selected_department={@selected_department}
-  />
+  <.content_container>
+    <.empty_state
+      :if={@cities == []}
+      id="departments-page-empty-state"
+      title={dgettext("world", ".empty_no_cities")}
+      copy={dgettext("world", ".empty_no_cities_copy")}
+    />
+
+    <WorldComponents.department_detail_page
+      :if={@selected_department && @selected_city}
+      department={@selected_department}
+      selected_city={@selected_city}
+      selected_world={@world}
+      active_tab={@selected_department_tab}
+      settings_form={@department_settings_form}
+      effective_config={@department_effective_config}
+      local_overrides={@department_local_overrides}
+      lemming_preview={@department_lemming_preview}
+    />
+
+    <div
+      :if={!@selected_department && @cities != []}
+      id="departments-layout"
+      class="grid gap-4 xl:grid-cols-5"
+    >
+      <.panel :if={@selected_city} id="departments-map-panel" tone="info" class="xl:col-span-3">
+        <:title>{@selected_city.name}</:title>
+        <:subtitle>{dgettext("world", ".title_world_cities")}</:subtitle>
+
+        <div :if={@departments == []} id="departments-map-empty-state">
+          <.empty_state
+            id="departments-map-empty-state-card"
+            title={dgettext("world", ".empty_no_departments")}
+            copy={dgettext("world", ".empty_no_departments_copy")}
+          />
+        </div>
+
+        <CityMapComponents.city_map
+          :if={@departments != []}
+          id="departments-city-map"
+          city={
+            %{
+              id: @selected_city.id,
+              name: @selected_city.name,
+              region: @selected_city.node_name || @selected_city.slug || "local",
+              color: "#49f28e",
+              status: @selected_city.status
+            }
+          }
+          departments={
+            Enum.map(@departments, fn department ->
+              %{
+                id: department.id,
+                name: department.name,
+                color:
+                  case department.status do
+                    "active" -> "#49f28e"
+                    "draining" -> "#f2c94c"
+                    "disabled" -> "#f26d6d"
+                    _ -> "#61e0ff"
+                  end,
+                col: nil,
+                row: nil,
+                lemmings: []
+              }
+            end)
+          }
+        />
+      </.panel>
+
+      <div class="flex flex-col gap-4 xl:col-span-2">
+        <.panel :if={@selected_city} id="departments-city-selector-panel" tone="accent">
+          <:title>{dgettext("world", ".title_selected_city")}</:title>
+          <:subtitle>{dgettext("world", ".copy_selected_city")}</:subtitle>
+          <:actions>
+            <.status
+              id="departments-selected-city-status"
+              kind={:city}
+              value={@selected_city.status}
+            />
+          </:actions>
+
+          <.form
+            for={@city_selector_form}
+            id="departments-city-select-form"
+            phx-change="change_city"
+          >
+            <.input
+              id="departments-city-select"
+              field={@city_selector_form[:city_id]}
+              type="select"
+              label={dgettext("world", ".title_selected_city")}
+              options={Enum.map(@cities, fn city -> {city.name, city.id} end)}
+            />
+          </.form>
+        </.panel>
+
+        <.panel :if={@selected_city} id="departments-list-panel">
+          <:title>{dgettext("world", ".title_departments")}</:title>
+          <:subtitle>{@selected_city.name}</:subtitle>
+          <:actions>
+            <span id="departments-count">
+              {dgettext("world", ".count_departments", count: length(@departments))}
+            </span>
+          </:actions>
+
+          <div :if={@departments == []} id="departments-empty-state">
+            <.empty_state
+              id="departments-empty-state-card"
+              title={dgettext("world", ".empty_no_departments")}
+              copy={dgettext("world", ".empty_no_departments_copy")}
+            />
+          </div>
+
+          <div :if={@departments != []} id="departments-links" class="flex flex-col gap-3">
+            <.link
+              :for={department <- @departments}
+              id={"department-link-#{department.id}"}
+              patch={~p"/departments?#{%{city: @selected_city.id, dept: department.id}}"}
+              class="flex items-center justify-between gap-3 border-2 border-zinc-700
+		bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
+            >
+              <div>
+                <p class="flex items-center gap-2 text-base text-zinc-100">
+                  {department.name}
+                </p>
+                <p
+                  :if={department.notes}
+                  id={"department-notes-preview-#{department.id}"}
+                  class="text-xs uppercase tracking-wider text-zinc-400"
+                >
+                  {LemmingsOs.Helpers.truncate_value(department.notes, max_length: 96)}
+                </p>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <.badge
+                  id={"department-status-#{department.id}"}
+                  tone={
+                    case department.status do
+                      "active" -> "success"
+                      "draining" -> "warning"
+                      "disabled" -> "danger"
+                      _ -> "default"
+                    end
+                  }
+                  data-status={department.status}
+                >
+                  {department.__struct__.translate_status(department)}
+                </.badge>
+              </div>
+            </.link>
+          </div>
+        </.panel>
+      </div>
+    </div>
+  </.content_container>
 </Layouts.app>

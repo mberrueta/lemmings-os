@@ -11,6 +11,7 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
   use Gettext, backend: LemmingsOs.Gettext
 
   alias LemmingsOs.Cities
+  alias LemmingsOs.Departments
   alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
@@ -37,11 +38,10 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
           },
           cards: [card()],
           alerts: [alert()],
-          omitted_sections: [String.t()],
           actions: [%{id: String.t(), to: String.t()}]
         }
 
-  defstruct [:status, :status_label, :world, :cards, :alerts, :omitted_sections, :actions]
+  defstruct [:status, :status_label, :world, :cards, :alerts, :actions]
 
   @doc """
   Builds the Home dashboard snapshot.
@@ -76,20 +76,30 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
       world: world_section(world_snapshot_result),
       cards: cards,
       alerts: alerts,
-      omitted_sections: omitted_sections(world_snapshot_result, tools_snapshot),
       actions: actions()
     }
   end
 
   @doc false
-  def build_city_card_meta(world_id) when is_binary(world_id) do
+  def build_topology_card_meta(world_id) when is_binary(world_id) do
     case Ecto.UUID.cast(world_id) do
       {:ok, valid_id} ->
-        total = valid_id |> Cities.list_cities() |> length()
-        %{city_count: total}
+        city_count =
+          valid_id
+          |> Cities.list_cities()
+          |> length()
+
+        %{department_count: department_count, active_department_count: active_department_count} =
+          Departments.topology_summary(valid_id)
+
+        %{
+          city_count: city_count,
+          department_count: department_count,
+          active_department_count: active_department_count
+        }
 
       :error ->
-        %{city_count: 0}
+        %{city_count: 0, department_count: 0, active_department_count: 0}
     end
   end
 
@@ -152,7 +162,7 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
       bootstrap_health_card(world_snapshot),
       runtime_health_card(world_snapshot),
       tools_health_card(tools_snapshot),
-      city_health_card(world_snapshot)
+      topology_summary_card(world_snapshot)
     ]
   end
 
@@ -208,39 +218,25 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
     }
   end
 
-  defp city_health_card(world_snapshot) do
-    meta = build_city_card_meta(world_snapshot.world.id)
+  defp topology_summary_card(world_snapshot) do
+    meta = build_topology_card_meta(world_snapshot.world.id)
 
     %{
-      id: "city_health",
-      status: city_health_status(meta.city_count),
-      status_label: city_health_status_label(meta.city_count),
-      source: "persisted_cities",
+      id: "topology_summary",
+      status: topology_summary_status(meta),
+      status_label: topology_summary_status_label(meta),
+      source: "persisted_topology",
       meta: meta
     }
   end
 
-  defp city_health_status(0), do: "unknown"
-  defp city_health_status(_count), do: "ok"
+  defp topology_summary_status(%{city_count: 0, department_count: 0}), do: "unknown"
+  defp topology_summary_status(_meta), do: "ok"
 
-  defp city_health_status_label(0), do: status_label("unknown")
-  defp city_health_status_label(_count), do: status_label("ok")
+  defp topology_summary_status_label(%{city_count: 0, department_count: 0}),
+    do: status_label("unknown")
 
-  defp runtime_breakdown(runtime_snapshot) do
-    counts =
-      Enum.reduce(runtime_snapshot.checks, status_counts(), fn check, acc ->
-        Map.update!(acc, check.status, &(&1 + 1))
-      end)
-
-    Map.merge(counts, %{
-      check_count: length(runtime_snapshot.checks),
-      deferred_sources: runtime_snapshot.deferred_sources
-    })
-  end
-
-  defp status_counts do
-    %{"ok" => 0, "degraded" => 0, "unavailable" => 0, "invalid" => 0, "unknown" => 0}
-  end
+  defp topology_summary_status_label(_meta), do: status_label("ok")
 
   defp build_alerts({:error, :not_found}, _tools_snapshot) do
     [
@@ -260,26 +256,20 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
     world_snapshot.bootstrap.issues ++ tools_snapshot.issues
   end
 
-  defp omitted_sections({:error, :not_found}, _tools_snapshot) do
-    [
-      "bootstrap_health",
-      "runtime_health",
-      "tools_health",
-      "hierarchy_counts",
-      "city_network",
-      "department_queues",
-      "active_lemmings",
-      "recent_activity"
-    ]
+  defp runtime_breakdown(runtime_snapshot) do
+    counts =
+      Enum.reduce(runtime_snapshot.checks, status_counts(), fn check, acc ->
+        Map.update!(acc, check.status, &(&1 + 1))
+      end)
+
+    Map.merge(counts, %{
+      check_count: length(runtime_snapshot.checks),
+      deferred_sources: runtime_snapshot.deferred_sources
+    })
   end
 
-  defp omitted_sections({:ok, _world_snapshot}, _tools_snapshot) do
-    [
-      "hierarchy_counts",
-      "department_queues",
-      "active_lemmings",
-      "recent_activity"
-    ]
+  defp status_counts do
+    %{"ok" => 0, "degraded" => 0, "unavailable" => 0, "invalid" => 0, "unknown" => 0}
   end
 
   defp aggregate_status(cards) do

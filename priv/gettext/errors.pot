@@ -112,7 +112,7 @@ msgstr ""
 msgid ".shape_unknown_key_action_hint"
 msgstr ""
 
-#: lib/lemmings_os_web/components/core_components.ex:45
+#: lib/lemmings_os_web/components/core_components.ex:49
 #, elixir-autogen
 msgid ".aria_close"
 msgstr ""
@@ -133,20 +133,20 @@ msgstr ""
 msgid ".error_something_went_wrong"
 msgstr ""
 
-#: lib/lemmings_os_web/components/core_components.ex:530
-#: lib/lemmings_os_web/components/core_components.ex:533
+#: lib/lemmings_os_web/components/core_components.ex:614
+#: lib/lemmings_os_web/components/core_components.ex:617
 #, elixir-autogen
 msgid ".issue_severity_error"
 msgstr ""
 
-#: lib/lemmings_os_web/components/core_components.ex:532
-#: lib/lemmings_os_web/components/core_components.ex:535
+#: lib/lemmings_os_web/components/core_components.ex:616
+#: lib/lemmings_os_web/components/core_components.ex:619
 #, elixir-autogen
 msgid ".issue_severity_info"
 msgstr ""
 
-#: lib/lemmings_os_web/components/core_components.ex:531
-#: lib/lemmings_os_web/components/core_components.ex:534
+#: lib/lemmings_os_web/components/core_components.ex:615
+#: lib/lemmings_os_web/components/core_components.ex:618
 #, elixir-autogen
 msgid ".issue_severity_warning"
 msgstr ""
@@ -250,4 +250,14 @@ msgid "must be greater than or equal to %{number}"
 msgstr ""
 
 msgid "must be equal to %{number}"
+msgstr ""
+
+#: lib/lemmings_os/departments/delete_denied_error.ex:20
+#, elixir-autogen, elixir-format
+msgid ".department_delete_denied_not_disabled"
+msgstr ""
+
+#: lib/lemmings_os/departments/delete_denied_error.ex:24
+#, elixir-autogen, elixir-format
+msgid ".department_delete_denied_safety_indeterminate"
 msgstr ""

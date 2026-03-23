@@ -13,9 +13,11 @@
       <:title>{dgettext("layout", ".title_settings")}</:title>
       <:subtitle>{dgettext("layout", ".subtitle_settings")}</:subtitle>
       <div class="grid gap-3 md:grid-cols-2">
-        <div id="settings-instance-card" class="mini-card">
-          <div class="mini-card__title">{dgettext("layout", ".settings_instance_title")}</div>
-          <p class="mini-card__meta">
+        <div id="settings-instance-card" class={mini_card_class()}>
+          <div class={mini_card_title_class()}>
+            {dgettext("layout", ".settings_instance_title")}
+          </div>
+          <p class={mini_card_meta_class()}>
             {dgettext("layout", ".settings_app_version_label")}{" "}
             {Helpers.display_value(@snapshot.instance.app_version)}
           </p>
@@ -43,13 +45,13 @@
           </div>
         </div>
 
-        <div id="settings-world-card" class="mini-card">
+        <div id="settings-world-card" class={mini_card_class()}>
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <div class="mini-card__title">
+              <div class={mini_card_title_class()}>
                 {dgettext("layout", ".settings_current_world_title")}
               </div>
-              <p class="mini-card__meta">{Helpers.display_value(@snapshot.world.name)}</p>
+              <p class={mini_card_meta_class()}>{Helpers.display_value(@snapshot.world.name)}</p>
             </div>
             <.status id="settings-world-status" kind={:world} value={@snapshot.world.status} />
           </div>
@@ -67,13 +69,13 @@
           </div>
         </div>
 
-        <div id="settings-city-card" class="mini-card md:col-span-2">
+        <div id="settings-city-card" class={mini_card_class() <> " md:col-span-2"}>
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <div class="mini-card__title">
+              <div class={mini_card_title_class()}>
                 {dgettext("layout", ".settings_local_city_title")}
               </div>
-              <p class="mini-card__meta">
+              <p class={mini_card_meta_class()}>
                 {dgettext("layout", ".settings_local_city_subtitle")}
               </p>
             </div>
@@ -116,7 +118,7 @@
             id="settings-city-unavailable"
             class="mt-3"
           >
-            <p class="text-sm text-muted">
+            <p class="text-sm text-zinc-400">
               {dgettext("layout", ".settings_local_city_unavailable_copy")}
             </p>
           </div>
@@ -127,13 +129,13 @@
     <.content_grid columns="sidebar">
       <.panel id="settings-bootstrap-panel">
         <:title>{dgettext("world", ".title_bootstrap_config")}</:title>
-        <div class="page-stack">
+        <div class="flex flex-col gap-4">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 p-2">
-              <p class="text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]">
+              <p class="text-xs uppercase tracking-widest text-zinc-400">
                 {dgettext("layout", ".settings_validation_summary_title")}
               </p>
-              <p class="mini-card__meta">
+              <p class={mini_card_meta_class()}>
                 {validation_detail(@snapshot.bootstrap.issue_count)}
               </p>
             </div>
@@ -163,8 +165,8 @@
 
       <.panel id="settings-help-panel">
         <:title>{dgettext("layout", ".title_environment_notes")}</:title>
-        <div class="page-stack">
-          <p class="text-sm text-[var(--muted)]">
+        <div class="flex flex-col gap-4">
+          <p class="text-sm text-zinc-400">
             {dgettext("layout", ".settings_read_only_copy")}
           </p>
           <div class="flex flex-wrap gap-2">
@@ -172,7 +174,7 @@
               :for={link <- @snapshot.help_links}
               id={"settings-help-link-#{link.id}"}
               navigate={link.to}
-              variant="ghost"
+              variant="neutral"
             >
               {help_link_label(link.id)}
             </.button>

@@ -11,14 +11,14 @@ defmodule LemmingsOsWeb.SystemComponents do
 
   def tool_runtime_card(assigns) do
     ~H"""
-    <article id={"tool-card-#{@tool.id}"} class="mini-card h-full">
+    <article id={"tool-card-#{@tool.id}"} class={mini_card_class()}>
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <div class="mini-card__title">
+          <div class={mini_card_title_class()}>
             <.icon name={@tool.icon || "hero-wrench-screwdriver"} class="size-5" />
             {@tool.name}
           </div>
-          <p class="mini-card__meta">
+          <p id={"tool-card-description-#{@tool.id}"} class={mini_card_meta_class()}>
             {Helpers.display_value(@tool.description,
               unavailable_label: dgettext("layout", ".tools_description_unavailable")
             )}
@@ -61,6 +61,18 @@ defmodule LemmingsOsWeb.SystemComponents do
     """
   end
 
+  defp mini_card_class do
+    "h-full border-2 border-zinc-700 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
+  end
+
+  defp mini_card_title_class do
+    "flex items-center gap-2 text-base font-medium text-zinc-100"
+  end
+
+  defp mini_card_meta_class do
+    "text-xs uppercase tracking-widest text-zinc-400"
+  end
+
   defp tool_usage_value(nil), do: dgettext("layout", ".tools_usage_unknown")
   defp tool_usage_value(value), do: to_string(value)
 
@@ -86,15 +98,15 @@ defmodule LemmingsOsWeb.SystemComponents do
       </.panel>
 
       <.panel id="logs-feed-panel">
-        <div class="activity-feed">
-          <div :for={item <- @activity_log} class="activity-feed__row">
-            <span class="activity-feed__time">[{item.time}]</span>
-            <span class={["activity-feed__agent", activity_class(item.type)]}>{item.agent}</span>
-            <span>{item.action}</span>
+        <div class="flex flex-col gap-3 font-mono">
+          <div :for={item <- @activity_log} class="flex flex-wrap items-start gap-3 text-sm">
+            <span class="text-xs tracking-widest text-zinc-400">[{item.time}]</span>
+            <span class={["font-medium", activity_class(item.type)]}>{item.agent}</span>
+            <span class="text-zinc-200">{item.action}</span>
           </div>
-          <div class="activity-feed__row">
-            <span class="terminal-bar__cursor">█</span>
-            <span>{dgettext("layout", ".logs_waiting_for_events")}</span>
+          <div class="flex flex-wrap items-start gap-3 text-sm">
+            <span class="animate-pulse">█</span>
+            <span class="text-zinc-400">{dgettext("layout", ".logs_waiting_for_events")}</span>
           </div>
         </div>
       </.panel>
@@ -102,7 +114,7 @@ defmodule LemmingsOsWeb.SystemComponents do
     """
   end
 
-  defp activity_class(:error), do: "activity-feed__agent--danger"
-  defp activity_class(:system), do: "activity-feed__agent--warning"
-  defp activity_class(_), do: "activity-feed__agent--accent"
+  defp activity_class(:error), do: "text-red-400"
+  defp activity_class(:system), do: "text-amber-400"
+  defp activity_class(_), do: "text-emerald-400"
 end
