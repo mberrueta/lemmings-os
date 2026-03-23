@@ -2,9 +2,9 @@
 
 ## Status
 
-- **Status**: 🔒 BLOCKED
-- **Approved**: [ ] Human sign-off
-- **Blocked by**: Task 03
+- **Status**: ✅ COMPLETE
+- **Approved**: [x] Human sign-off
+- **Blocked by**: None
 - **Blocks**: Task 09
 - **Estimated Effort**: S
 
@@ -78,37 +78,42 @@ lib/lemmings_os_web/live/home_live.html.heex
 
 ### Work Performed
 
--
+- Replaced the old city-only Home signal with a single snapshot-driven topology summary backed by persisted Cities and Departments.
+- Removed the omitted-sections panel so Home no longer advertises deferred or fake operational breadth.
+- Added stable stat IDs and refreshed Home tests to assert real topology counts in both the snapshot and the rendered LiveView.
 
 ### Outputs Created
 
--
+- `topology_summary` card in `HomeDashboardSnapshot`
+- simplified Home support grid without the omitted panel
+- focused test coverage for persisted city and department counts
 
 ### Assumptions Made
 
 | Assumption | Rationale |
 |------------|-----------|
-| | |
+| Counting Departments by traversing persisted Cities is acceptable for Home | Home remains a small overview read model and there is no existing world-level Department aggregate API yet |
 
 ### Decisions Made
 
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| | | |
+| Replace `city_health` with a single `topology_summary` card | Adding separate Department cards or broadening Home into a Department dashboard | A single card keeps Home high-level while surfacing the new hierarchy truthfully |
+| Remove the omitted sections panel entirely | Keeping the panel or replacing it with new placeholders | The panel conflicted with the simplified and truthful Home direction |
 
 ### Blockers Encountered
 
--
+- None
 
 ### Questions for Human
 
-1.
+1. None.
 
 ### Ready for Next Task
 
-- [ ] All outputs complete
-- [ ] Summary documented
-- [ ] Questions listed (if any)
+- [x] All outputs complete
+- [x] Summary documented
+- [x] Questions listed (if any)
 
 ---
 

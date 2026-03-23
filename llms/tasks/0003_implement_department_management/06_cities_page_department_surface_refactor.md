@@ -2,9 +2,9 @@
 
 ## Status
 
-- **Status**: 🔒 BLOCKED
+- **Status**: ✅ COMPLETE
 - **Approved**: [ ] Human sign-off
-- **Blocked by**: Task 03, Task 04
+- **Blocked by**: None
 - **Blocks**: Task 09
 - **Estimated Effort**: M
 
@@ -87,37 +87,42 @@ lib/lemmings_os_web/components/world_components.ex
 
 ### Work Performed
 
--
+- Replaced the selected-city mock child surface with persisted Department cards loaded through `CitiesPageSnapshot`.
+- Removed the Cities page dependency on `mock_children` for department rendering and dropped the active lemmings preview panel from this surface.
+- Added stable navigation contracts from Cities to the Departments list and Department detail routes.
 
 ### Outputs Created
 
--
+- persisted department summaries in `CitiesPageSnapshot`
+- compact department cards on the Cities page
+- focused snapshot and LiveView coverage for the new Cities surface
 
 ### Assumptions Made
 
 | Assumption | Rationale |
 |------------|-----------|
-| | |
+| Department cards can navigate through the existing `/departments?city=...&dept=...` route shape | Task 06 only needs to surface truthful links and should not absorb Department detail ownership from later tasks |
 
 ### Decisions Made
 
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| | | |
+| Keep Department rendering inside `WorldComponents` for now | Creating a new Cities-specific component module | The existing Cities page already imports `WorldComponents`, so this keeps the refactor narrow |
+| Show only name, status, tags, and truncated notes | Reusing mock queue metrics or adding lemming previews | The task explicitly requires compact truthful cards and forbids fake workload metrics |
 
 ### Blockers Encountered
 
--
+- None
 
 ### Questions for Human
 
-1.
+1. None.
 
 ### Ready for Next Task
 
-- [ ] All outputs complete
-- [ ] Summary documented
-- [ ] Questions listed (if any)
+- [x] All outputs complete
+- [x] Summary documented
+- [x] Questions listed (if any)
 
 ---
 

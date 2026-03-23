@@ -128,6 +128,9 @@ Allowed persisted lifecycle values:
 | 02 | `dev-backend-elixir-engineer` | Department schema, changeset rules, tag normalization |
 | 03 | `dev-backend-elixir-engineer` | Departments context and lifecycle APIs |
 | 04 | `dev-backend-elixir-engineer` | `Config.Resolver` extension to Department scope |
+| 05 | `dev-frontend-ui-engineer` | Home topology summary refactor |
+| 06 | `dev-frontend-ui-engineer` | Cities page department surface refactor |
+| 07 | `dev-frontend-ui-engineer` | Departments index desmoke |
 
 ## Task Sequence
 
@@ -137,3 +140,6 @@ Allowed persisted lifecycle values:
 | 02 | Department Schema and Tag Normalization | COMPLETE | [ ] | Task 01 |
 | 03 | Departments Context and Lifecycle APIs | COMPLETE | [ ] | Task 02 |
 | 04 | Config Resolver Department Extension | COMPLETE | [ ] | Task 02 |
+| 05 | Home Topology Summary Refactor | COMPLETE | [ ] | Task 03 |
+| 06 | Cities Page Department Surface Refactor | COMPLETE | [ ] | Task 03, Task 04 |
+| 07 | Departments Index Desmoke | COMPLETE | [ ] | Task 03, Task 04 |

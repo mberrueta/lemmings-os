@@ -5,11 +5,13 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Departments.Department
   alias LemmingsOs.Repo
   alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.Worlds.World
 
   setup do
+    Repo.delete_all(Department)
     Repo.delete_all(City)
     Repo.delete_all(World)
     Cache.invalidate_all()
@@ -41,6 +43,17 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
           last_seen_at: DateTime.add(now, -300, :second)
         )
 
+      department =
+        insert(:department,
+          world: world,
+          city: city_b,
+          name: "Support",
+          slug: "support",
+          status: "active",
+          tags: ["customer-care", "tier-1"],
+          notes: "Handles incoming operator escalations."
+        )
+
       {:ok, view, _html} = live(conn, ~p"/cities?city=#{city_b.id}")
 
       assert has_element?(view, "#cities-page")
@@ -52,7 +65,11 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       assert has_element?(view, "#city-liveness-status[data-status='stale']")
       assert has_element?(view, "#city-effective-config-panel")
       assert has_element?(view, "#city-departments-panel")
-      assert has_element?(view, "#city-active-lemmings-panel")
+      assert has_element?(view, "#city-open-departments-button")
+      assert has_element?(view, "#city-departments-summary-copy", "Beta City")
+      assert has_element?(view, "#city-department-item-#{department.id}")
+      assert has_element?(view, "#city-department-name-#{department.id}", "Support")
+      refute has_element?(view, "#city-active-lemmings-panel")
     end
 
     test "S02: renders the empty state when there is no persisted world", %{conn: conn} do
@@ -71,6 +88,18 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       assert has_element?(view, "#city-detail-panel")
       assert has_element?(view, "#city-admin-status[data-status='disabled']")
     end
+
+    test "S04: renders an empty departments state when the selected city has no departments", %{
+      conn: conn
+    } do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Solo City", status: "active")
+
+      {:ok, view, _html} = live(conn, ~p"/cities?city=#{city.id}")
+
+      assert has_element?(view, "#city-departments-empty-state")
+      refute has_element?(view, "#city-active-lemmings-panel")
+    end
   end
 
   describe "new city form" do
@@ -80,7 +109,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       %{view: view, world: world}
     end
 
-    test "S04: new city button opens the form", %{view: view} do
+    test "S05: new city button opens the form", %{view: view} do
       refute has_element?(view, "#city-form")
 
       view |> element("#cities-new-button") |> render_click()
@@ -92,7 +121,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       assert has_element?(view, "#city-form-status")
     end
 
-    test "S05: cancel closes the form", %{view: view} do
+    test "S06: cancel closes the form", %{view: view} do
       view |> element("#cities-new-button") |> render_click()
       assert has_element?(view, "#city-form")
 
@@ -101,7 +130,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       refute has_element?(view, "#city-form")
     end
 
-    test "S06: successful create adds city to list and closes form", %{view: view} do
+    test "S07: successful create adds city to list and closes form", %{view: view} do
       view |> element("#cities-new-button") |> render_click()
 
       view
@@ -122,7 +151,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       assert Repo.aggregate(City, :count) == 1
     end
 
-    test "S07: validation error keeps form open with errors", %{view: view} do
+    test "S08: validation error keeps form open with errors", %{view: view} do
       view |> element("#cities-new-button") |> render_click()
 
       view
@@ -145,7 +174,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
   end
 
   describe "edit city form" do
-    test "S08: edit loads city data into form", %{conn: conn} do
+    test "S09: edit loads city data into form", %{conn: conn} do
       world = insert(:world)
 
       city =
@@ -163,7 +192,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       assert has_element?(view, "#city-form")
     end
 
-    test "S09: successful update shows updated name in detail panel", %{conn: conn} do
+    test "S10: successful update shows updated name in detail panel", %{conn: conn} do
       world = insert(:world)
 
       city =
@@ -195,7 +224,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
   end
 
   describe "delete city" do
-    test "S10: delete removes city and navigates back to list", %{conn: conn} do
+    test "S11: delete removes city and navigates back to list", %{conn: conn} do
       world = insert(:world)
 
       city =

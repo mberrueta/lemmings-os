@@ -19,14 +19,26 @@
               else: dgettext("world", ".title_city_form_edit")}
           </:title>
           <:actions>
-            <.button
-              id="city-form-cancel-button"
-              type="button"
-              variant="ghost"
-              phx-click="cancel_form"
-            >
-              {dgettext("world", ".button_city_form_cancel")}
-            </.button>
+            <div class="ml-auto flex flex-wrap justify-end gap-3">
+              <.button
+                id="city-form-cancel-button"
+                type="button"
+                variant="neutral"
+                phx-click="cancel_form"
+              >
+                {dgettext("world", ".button_city_form_cancel")}
+              </.button>
+              <.button
+                id="city-form-submit-button"
+                type="submit"
+                form="city-form"
+                variant="secondary"
+              >
+                {if @form_mode == :new,
+                  do: dgettext("world", ".city_form_submit_create"),
+                  else: dgettext("world", ".city_form_submit_update")}
+              </.button>
+            </div>
           </:actions>
 
           <.form
@@ -94,18 +106,6 @@
                 />
               </div>
             </div>
-
-            <div class="flex justify-end gap-3 pt-2">
-              <.button
-                id="city-form-submit-button"
-                type="submit"
-                variant="primary"
-              >
-                {if @form_mode == :new,
-                  do: dgettext("world", ".city_form_submit_create"),
-                  else: dgettext("world", ".city_form_submit_update")}
-              </.button>
-            </div>
           </.form>
         </.panel>
       </div>
@@ -124,20 +124,26 @@
         class="lg:grid-cols-[2fr_3fr]"
       >
         <.panel id="cities-list-panel" tone="accent">
-          <:title>{dgettext("world", ".title_all_cities")}</:title>
+          <:title>
+            <span class="flex items-center gap-2">
+              <span>{dgettext("world", ".title_all_cities")}</span>
+              <.badge id="cities-count-badge" tone="success">
+                {dgettext("world", ".count_cities", count: @snapshot.world.city_count)}
+              </.badge>
+            </span>
+          </:title>
           <:subtitle>{dgettext("world", ".subtitle_all_cities")}</:subtitle>
           <:actions>
-            <.badge tone="info">
-              {dgettext("world", ".count_cities", count: @snapshot.world.city_count)}
-            </.badge>
-            <.button
-              id="cities-new-button"
-              type="button"
-              variant="secondary"
-              phx-click="new_city"
-            >
-              {dgettext("world", ".button_new_city")}
-            </.button>
+            <div class="ml-auto flex justify-end">
+              <.button
+                id="cities-new-button"
+                type="button"
+                variant="secondary"
+                phx-click="new_city"
+              >
+                {dgettext("world", ".button_new_city")}
+              </.button>
+            </div>
           </:actions>
 
           <div :if={@snapshot.empty?} id="cities-list-empty-state">
@@ -152,9 +158,9 @@
             :if={!@snapshot.empty?}
             id="cities-list"
             phx-update="stream"
-            class="flex flex-col gap-3"
+            class="flex flex-col gap-3 pt-2"
           >
-            <div :for={{dom_id, city} <- @streams.cities} id={dom_id}>
+            <div :for={{dom_id, city} <- @streams.cities} id={dom_id} class="px-2">
               <.city_card city={city} />
             </div>
           </div>
@@ -188,25 +194,27 @@
             </:title>
             <:subtitle>{@snapshot.selected_city.slug}</:subtitle>
             <:actions>
-              <.button
-                id="city-edit-button"
-                type="button"
-                variant="secondary"
-                phx-click="edit_city"
-                phx-value-id={@snapshot.selected_city.id}
-              >
-                {dgettext("world", ".button_edit_city")}
-              </.button>
-              <.button
-                id="city-delete-button"
-                type="button"
-                variant="ghost"
-                phx-click="delete_city"
-                phx-value-id={@snapshot.selected_city.id}
-                data-confirm={dgettext("world", ".confirm_delete_city")}
-              >
-                {dgettext("world", ".button_delete_city")}
-              </.button>
+              <div class="ml-auto flex flex-wrap justify-end gap-3">
+                <.button
+                  id="city-edit-button"
+                  type="button"
+                  variant="primary"
+                  phx-click="edit_city"
+                  phx-value-id={@snapshot.selected_city.id}
+                >
+                  {dgettext("world", ".button_edit_city")}
+                </.button>
+                <.button
+                  id="city-delete-button"
+                  type="button"
+                  variant="neutral"
+                  phx-click="delete_city"
+                  phx-value-id={@snapshot.selected_city.id}
+                  data-confirm={dgettext("world", ".confirm_delete_city")}
+                >
+                  {dgettext("world", ".button_delete_city")}
+                </.button>
+              </div>
             </:actions>
 
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -246,7 +254,7 @@
             :if={@snapshot.selected_city}
             city={@snapshot.selected_city}
           />
-          <.city_preview_children_panel
+          <.city_departments_panel
             :if={@snapshot.selected_city}
             city={@snapshot.selected_city}
           />

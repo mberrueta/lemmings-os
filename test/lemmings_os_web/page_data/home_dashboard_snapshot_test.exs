@@ -1,5 +1,5 @@
 defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshotTest do
-  use ExUnit.Case, async: true
+  use LemmingsOs.DataCase, async: true
 
   alias LemmingsOsWeb.PageData.HomeDashboardSnapshot
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
@@ -16,8 +16,7 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshotTest do
       assert Enum.map(snapshot.cards, & &1.id) == ["world_identity"]
       assert hd(snapshot.cards).status == "unavailable"
       assert Enum.any?(snapshot.alerts, &(&1.code == "home_world_unavailable"))
-      assert "hierarchy_counts" in snapshot.omitted_sections
-      assert "tools_health" in snapshot.omitted_sections
+      assert [%{id: _, to: _} | _] = snapshot.actions
     end
 
     test "returns a degraded snapshot when bootstrap health is degraded" do
@@ -33,8 +32,8 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshotTest do
       assert card(snapshot, "bootstrap_health").status == "degraded"
       assert card(snapshot, "runtime_health").status == "ok"
       assert card(snapshot, "tools_health").status == "ok"
+      assert card(snapshot, "topology_summary").status == "unknown"
       assert Enum.any?(snapshot.alerts, &(&1.code == "bootstrap_warning"))
-      refute "tools_health" in snapshot.omitted_sections
     end
 
     test "surfaces partial tools policy without inventing hierarchy cards" do
@@ -48,18 +47,46 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshotTest do
       assert card(snapshot, "tools_health").status == "degraded"
       assert card(snapshot, "tools_health").meta.tool_count == 2
       assert card(snapshot, "tools_health").meta.policy_mode == "partial"
+
+      assert card(snapshot, "topology_summary").meta == %{
+               city_count: 0,
+               department_count: 0,
+               active_department_count: 0
+             }
+
       assert Enum.any?(snapshot.alerts, &(&1.code == "tools_policy_partial"))
-      assert "active_lemmings" in snapshot.omitted_sections
-      assert "recent_activity" in snapshot.omitted_sections
+    end
+
+    test "includes truthful persisted topology counts for cities and departments" do
+      world = insert(:world)
+      city_one = insert(:city, world: world, status: "active")
+      city_two = insert(:city, world: world, status: "active")
+      insert(:department, world: world, city: city_one, status: "active")
+      insert(:department, world: world, city: city_one, status: "draining")
+      insert(:department, world: world, city: city_two, status: "disabled")
+
+      snapshot =
+        HomeDashboardSnapshot.build(
+          world_snapshot: ok_world_snapshot(world.id),
+          tools_snapshot: ok_tools_snapshot()
+        )
+
+      assert card(snapshot, "topology_summary").status == "ok"
+
+      assert card(snapshot, "topology_summary").meta == %{
+               city_count: 2,
+               department_count: 3,
+               active_department_count: 1
+             }
     end
   end
 
   defp card(snapshot, id), do: Enum.find(snapshot.cards, &(&1.id == id))
 
-  defp ok_world_snapshot do
+  defp ok_world_snapshot(world_id \\ "world-1") do
     %{
       world: %{
-        id: "world-1",
+        id: world_id,
         slug: "local",
         name: "Local World",
         status: "ok",

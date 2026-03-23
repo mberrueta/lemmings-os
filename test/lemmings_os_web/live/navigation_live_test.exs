@@ -1,6 +1,7 @@
 defmodule LemmingsOsWeb.NavigationLiveTest do
   use LemmingsOsWeb.ConnCase
 
+  import LemmingsOs.Factory
   import Mox
   import Phoenix.LiveViewTest
 
@@ -24,7 +25,7 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
 
     assert has_element?(view, "#home-hero")
-    assert has_element?(view, ".brand-wordmark__os")
+    assert has_element?(view, "#brand-wordmark-os")
     assert has_element?(view, "#sidebar-nav-home")
   end
 
@@ -36,27 +37,34 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
   end
 
   test "departments page renders the city department map", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/departments?city=city-alpha")
+    world = insert(:world)
+    city = insert(:city, world: world, slug: "city-alpha", name: "City Alpha")
+    department = insert(:department, world: world, city: city, slug: "eng", name: "Engineering")
+
+    {:ok, view, _html} = live(conn, ~p"/departments?city=#{city.id}")
 
     assert has_element?(view, "#departments-links")
-    assert has_element?(view, "#department-link-eng")
-    assert has_element?(view, "#departments-selected-city-node")
+    assert has_element?(view, "#department-link-#{department.id}")
     assert has_element?(view, "#departments-map-panel")
     assert has_element?(view, "#departments-city-map[phx-update='ignore']")
   end
 
   test "departments page supports a selected department view", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/departments?city=city-alpha&dept=eng")
+    world = insert(:world)
+    city = insert(:city, world: world, slug: "city-alpha", name: "City Alpha")
+    department = insert(:department, world: world, city: city, slug: "eng", name: "Engineering")
+
+    {:ok, view, _html} = live(conn, ~p"/departments?city=#{city.id}&dept=#{department.id}")
 
     assert has_element?(view, "#department-detail-panel")
-    assert has_element?(view, "#department-agents-panel")
+    assert has_element?(view, "#department-overview-tab-panel")
   end
 
   test "lemmings page supports a selected detail panel", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/lemmings?lemming=lem-1")
 
     assert has_element?(view, "#lemming-detail-panel")
-    assert has_element?(view, "#lemming-link-lem-1.data-table__row--active")
+    assert has_element?(view, "#lemming-link-lem-1[data-selected='true']")
   end
 
   test "tools, logs, settings, and create lemming pages render", %{conn: conn} do
@@ -72,10 +80,14 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
   end
 
   test "departments live view patches when a department is selected", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/departments?city=city-alpha")
+    world = insert(:world)
+    city = insert(:city, world: world, slug: "city-alpha", name: "City Alpha")
+    insert(:department, world: world, city: city, slug: "eng", name: "Engineering")
+
+    {:ok, view, _html} = live(conn, ~p"/departments?city=#{city.id}")
 
     render_hook(view, "navigate_department", %{"department_id" => "eng"})
 
-    assert_patch(view, ~p"/departments?city=city-alpha&dept=eng")
+    assert_patch(view, ~p"/departments?city=#{city.id}&dept=eng")
   end
 end

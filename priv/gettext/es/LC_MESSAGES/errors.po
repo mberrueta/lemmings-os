@@ -115,7 +115,7 @@ msgstr "La configuracion bootstrap contiene la clave desconocida `%{path}`."
 msgid ".shape_unknown_key_action_hint"
 msgstr "Elimina la clave o extiende el validador bootstrap si es intencional."
 
-#: lib/lemmings_os_web/components/core_components.ex:45
+#: lib/lemmings_os_web/components/core_components.ex:49
 #, elixir-autogen
 msgid ".aria_close"
 msgstr "cerrar"
@@ -136,121 +136,131 @@ msgstr "Intentando reconectar"
 msgid ".error_something_went_wrong"
 msgstr "Algo salio mal!"
 
-#: lib/lemmings_os_web/components/core_components.ex:530
-#: lib/lemmings_os_web/components/core_components.ex:533
+#: lib/lemmings_os_web/components/core_components.ex:614
+#: lib/lemmings_os_web/components/core_components.ex:617
 #, elixir-autogen
 msgid ".issue_severity_error"
 msgstr "Error"
 
-#: lib/lemmings_os_web/components/core_components.ex:532
-#: lib/lemmings_os_web/components/core_components.ex:535
+#: lib/lemmings_os_web/components/core_components.ex:616
+#: lib/lemmings_os_web/components/core_components.ex:619
 #, elixir-autogen
 msgid ".issue_severity_info"
 msgstr "Info"
 
-#: lib/lemmings_os_web/components/core_components.ex:531
-#: lib/lemmings_os_web/components/core_components.ex:534
+#: lib/lemmings_os_web/components/core_components.ex:615
+#: lib/lemmings_os_web/components/core_components.ex:618
 #, elixir-autogen
 msgid ".issue_severity_warning"
 msgstr "Advertencia"
 
 ## From Ecto.Changeset.cast/4
 msgid "can't be blank"
-msgstr ""
+msgstr "no puede estar vacío"
 
 ## From Ecto.Changeset.unique_constraint/3
 msgid "has already been taken"
-msgstr ""
+msgstr "ya ha sido tomado"
 
 ## From Ecto.Changeset.put_change/3
 msgid "is invalid"
-msgstr ""
+msgstr "es inválido"
 
 ## From Ecto.Changeset.validate_acceptance/3
 msgid "must be accepted"
-msgstr ""
+msgstr "debe ser aceptado"
 
 ## From Ecto.Changeset.validate_format/3
 msgid "has invalid format"
-msgstr ""
+msgstr "tiene un formato inválido"
 
 ## From Ecto.Changeset.validate_subset/3
 msgid "has an invalid entry"
-msgstr ""
+msgstr "tiene una entrada inválida"
 
 ## From Ecto.Changeset.validate_exclusion/3
 msgid "is reserved"
-msgstr ""
+msgstr "está reservado"
 
 ## From Ecto.Changeset.validate_confirmation/3
 msgid "does not match confirmation"
-msgstr ""
+msgstr "no coincide con la confirmación"
 
 ## From Ecto.Changeset.no_assoc_constraint/3
 msgid "is still associated with this entry"
-msgstr ""
+msgstr "todavía está asociado con esta entrada"
 
 msgid "are still associated with this entry"
-msgstr ""
+msgstr "todavía están asociados con esta entrada"
 
 ## From Ecto.Changeset.validate_length/3
 msgid "should have %{count} item(s)"
 msgid_plural "should have %{count} item(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener %{count} elemento"
+msgstr[1] "debe tener %{count} elementos"
 
 msgid "should be %{count} character(s)"
 msgid_plural "should be %{count} character(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener %{count} caracter"
+msgstr[1] "debe tener %{count} caracteres"
 
 msgid "should be %{count} byte(s)"
 msgid_plural "should be %{count} byte(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener %{count} byte"
+msgstr[1] "debe tener %{count} bytes"
 
 msgid "should have at least %{count} item(s)"
 msgid_plural "should have at least %{count} item(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener al menos %{count} elemento"
+msgstr[1] "debe tener al menos %{count} elementos"
 
 msgid "should be at least %{count} character(s)"
 msgid_plural "should be at least %{count} character(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener al menos %{count} caracter"
+msgstr[1] "debe tener al menos %{count} caracteres"
 
 msgid "should be at least %{count} byte(s)"
 msgid_plural "should be at least %{count} byte(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener al menos %{count} byte"
+msgstr[1] "debe tener al menos %{count} bytes"
 
 msgid "should have at most %{count} item(s)"
 msgid_plural "should have at most %{count} item(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener como máximo %{count} elemento"
+msgstr[1] "debe tener como máximo %{count} elementos"
 
 msgid "should be at most %{count} character(s)"
 msgid_plural "should be at most %{count} character(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener como máximo %{count} caracter"
+msgstr[1] "debe tener como máximo %{count} caracteres"
 
 msgid "should be at most %{count} byte(s)"
 msgid_plural "should be at most %{count} byte(s)"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "debe tener como máximo %{count} byte"
+msgstr[1] "debe tener como máximo %{count} bytes"
 
 ## From Ecto.Changeset.validate_number/3
 msgid "must be less than %{number}"
-msgstr ""
+msgstr "debe ser menor que %{number}"
 
 msgid "must be greater than %{number}"
-msgstr ""
+msgstr "debe ser mayor que %{number}"
 
 msgid "must be less than or equal to %{number}"
-msgstr ""
+msgstr "debe ser menor o igual que %{number}"
 
 msgid "must be greater than or equal to %{number}"
-msgstr ""
+msgstr "debe ser mayor o igual que %{number}"
 
 msgid "must be equal to %{number}"
+msgstr "debe ser igual a %{number}"
+
+#: lib/lemmings_os/departments/delete_denied_error.ex:20
+#, elixir-autogen, elixir-format
+msgid ".department_delete_denied_not_disabled"
+msgstr ""
+
+#: lib/lemmings_os/departments/delete_denied_error.ex:24
+#, elixir-autogen, elixir-format
+msgid ".department_delete_denied_safety_indeterminate"
 msgstr ""

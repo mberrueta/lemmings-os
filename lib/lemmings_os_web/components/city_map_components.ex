@@ -23,13 +23,16 @@ defmodule LemmingsOsWeb.CityMapComponents do
       )
 
     ~H"""
-    <div class={["dept-node", @class]} style={"--dept-accent: #{department_color(@department)};"}>
+    <div
+      class={["inline-flex flex-col items-center gap-1.5", @class]}
+      style={"--dept-accent: #{department_color(@department)};"}
+    >
       <svg
         width={@size}
         height={@size}
         viewBox="0 0 50 55"
         xmlns="http://www.w3.org/2000/svg"
-        class="dept-node__svg"
+        class="block image-pixelated"
         role="img"
         aria-label={dgettext("world", ".aria_department_node", name: @department.name)}
       >
@@ -124,11 +127,14 @@ defmodule LemmingsOsWeb.CityMapComponents do
         </rect>
       </svg>
 
-      <div :if={@show_label} class="dept-node__label">
-        <span class="dept-node__name" style={"color: #{department_color(@department)};"}>
+      <div :if={@show_label} class="flex flex-col items-center gap-0.5">
+        <span
+          class="font-mono text-[11px] uppercase tracking-wider"
+          style={"color: #{department_color(@department)};"}
+        >
           {@department.name}
         </span>
-        <small class="dept-node__meta">
+        <small class="font-mono text-[9px] uppercase tracking-widest text-zinc-500">
           {dgettext("world", ".count_running_of_total",
             running: @running_count,
             total: @lemming_count
@@ -150,7 +156,10 @@ defmodule LemmingsOsWeb.CityMapComponents do
     ~H"""
     <div
       id={@id}
-      class={["city-map-canvas", @class]}
+      class={[
+        "relative w-full max-w-6xl mx-auto border-2 border-zinc-800 overflow-hidden bg-zinc-950/95",
+        @class
+      ]}
       phx-hook="CityMapHook"
       phx-update="ignore"
       tabindex="0"
@@ -159,24 +168,37 @@ defmodule LemmingsOsWeb.CityMapComponents do
       data-departments={encode_departments(@departments)}
       data-labels={encode_labels()}
     >
-      <canvas id={"#{@id}-canvas"}></canvas>
+      <canvas id={"#{@id}-canvas"} class="block w-full h-auto image-pixelated"></canvas>
 
-      <div class="city-map-canvas__hud">
-        <span class="city-map-canvas__title">
-          {@city.name} <span class="city-map-canvas__region">· {@city.region}</span>
+      <div class="absolute top-0 left-0 right-0 p-3 flex justify-between items-center gap-3 bg-gradient-to-b from-zinc-950/90 to-transparent pointer-events-none z-10">
+        <span class="text-emerald-400 font-mono text-[11px] uppercase tracking-wider">
+          {@city.name} <span class="text-zinc-500">· {@city.region}</span>
         </span>
-        <span class="city-map-canvas__stats">
-          <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_departments")}</span>
-          <span class="city-map-canvas__stat-value">{length(@departments)}</span>
-          <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_lemmings")}</span>
-          <span class="city-map-canvas__stat-value">{@total_lemmings}</span>
-          <span class="city-map-canvas__stat-label">{dgettext("world", ".metric_status")}</span>
-          <.status kind={:city} value={@city.status} class="city-map-canvas__status" />
+        <span class="flex flex-wrap gap-2 justify-end font-mono text-[11px]">
+          <span class="text-zinc-500 uppercase tracking-widest">
+            {dgettext("world", ".metric_departments")}
+          </span>
+          <span class="text-emerald-400 mr-2">{length(@departments)}</span>
+          <span class="text-zinc-500 uppercase tracking-widest">
+            {dgettext("world", ".metric_lemmings")}
+          </span>
+          <span class="text-emerald-400 mr-2">{@total_lemmings}</span>
+          <span class="text-zinc-500 uppercase tracking-widest">
+            {dgettext("world", ".metric_status")}
+          </span>
+          <.status kind={:city} value={@city.status} class="text-[10px]" />
         </span>
       </div>
 
-      <div class="city-map-canvas__hud-bottom">{dgettext("world", ".map_hint_department")}</div>
-      <div id={"#{@id}-tooltip"} class="city-map-canvas__tooltip" hidden></div>
+      <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-zinc-950/90 to-transparent pointer-events-none z-10 text-zinc-600 font-mono text-[9px] uppercase tracking-widest text-center">
+        {dgettext("world", ".map_hint_department")}
+      </div>
+      <div
+        id={"#{@id}-tooltip"}
+        class="absolute bg-zinc-950/95 border border-emerald-400/40 p-2.5 pointer-events-none z-20 font-mono text-[10px] text-emerald-400 uppercase tracking-wider leading-relaxed shadow-2xl"
+        hidden
+      >
+      </div>
     </div>
     """
   end

@@ -7,6 +7,7 @@ defmodule LemmingsOs.Departments.Department do
   """
 
   use Ecto.Schema
+  use Gettext, backend: LemmingsOs.Gettext
 
   import Ecto.Changeset
 
@@ -106,16 +107,16 @@ defmodule LemmingsOs.Departments.Department do
   def translate_status(%__MODULE__{} = department), do: translate_status(department.status)
 
   def translate_status("active"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "default", ".department_status_active")
+    do: dgettext("default", ".department_status_active")
 
   def translate_status("disabled"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "default", ".department_status_disabled")
+    do: dgettext("default", ".department_status_disabled")
 
   def translate_status("draining"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "default", ".department_status_draining")
+    do: dgettext("default", ".department_status_draining")
 
   def translate_status(nil),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "default", ".department_status_unknown")
+    do: dgettext("default", ".department_status_unknown")
 
   @doc """
   Returns the maximum allowed note length for operator-facing Department metadata.

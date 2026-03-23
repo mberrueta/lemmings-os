@@ -11,28 +11,24 @@ msgstr ""
 "Language: en\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: lib/lemmings_os/cities/city.ex:103
+#, elixir-autogen
 msgid ".city_status_active"
 msgstr "Active"
 
+#: lib/lemmings_os/cities/city.ex:106
+#, elixir-autogen
 msgid ".city_status_disabled"
 msgstr "Disabled"
 
+#: lib/lemmings_os/cities/city.ex:109
+#, elixir-autogen
 msgid ".city_status_draining"
 msgstr "Draining"
 
+#: lib/lemmings_os/cities/city.ex:112
+#, elixir-autogen
 msgid ".city_status_unknown"
-msgstr "Unknown"
-
-msgid ".department_status_active"
-msgstr "Active"
-
-msgid ".department_status_disabled"
-msgstr "Disabled"
-
-msgid ".department_status_draining"
-msgstr "Draining"
-
-msgid ".department_status_unknown"
 msgstr "Unknown"
 
 msgid ".city_liveness_alive"
@@ -42,4 +38,24 @@ msgid ".city_liveness_stale"
 msgstr "Stale"
 
 msgid ".city_liveness_unknown"
+msgstr "Unknown"
+
+#: lib/lemmings_os/departments/department.ex:110
+#, elixir-autogen, elixir-format
+msgid ".department_status_active"
+msgstr "Active"
+
+#: lib/lemmings_os/departments/department.ex:113
+#, elixir-autogen, elixir-format
+msgid ".department_status_disabled"
+msgstr "Disabled"
+
+#: lib/lemmings_os/departments/department.ex:116
+#, elixir-autogen, elixir-format
+msgid ".department_status_draining"
+msgstr "Draining"
+
+#: lib/lemmings_os/departments/department.ex:119
+#, elixir-autogen, elixir-format
+msgid ".department_status_unknown"
 msgstr "Unknown"

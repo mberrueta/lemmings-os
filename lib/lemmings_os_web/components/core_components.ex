@@ -28,21 +28,26 @@ defmodule LemmingsOsWeb.CoreComponents do
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class={[
-        "flash-card",
-        @kind == :info && "flash-card--info",
-        @kind == :error && "flash-card--error"
+        "grid min-w-[min(22rem,calc(100vw-2rem))] cursor-pointer grid-cols-[auto_1fr_auto] gap-3 border-2 bg-zinc-950/95 p-4 shadow-xl",
+        @kind == :info && "border-sky-400",
+        @kind == :error && "border-red-400",
+        @kind not in [:info, :error] && "border-zinc-700"
       ]}
       {@rest}
     >
-      <div class="flash-card__icon">
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5" />
-        <.icon :if={@kind == :error} name="hero-exclamation-triangle" class="size-5" />
+      <div class="flex items-start pt-1">
+        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 text-sky-400" />
+        <.icon :if={@kind == :error} name="hero-exclamation-triangle" class="size-5 text-red-400" />
       </div>
-      <div class="flash-card__content">
-        <p :if={@title} class="flash-card__title">{@title}</p>
-        <p>{msg}</p>
+      <div class="flex flex-col gap-1">
+        <p :if={@title} class="font-bold text-zinc-100">{@title}</p>
+        <p class="text-sm text-zinc-200">{msg}</p>
       </div>
-      <button type="button" class="flash-card__close" aria-label={dgettext("errors", ".aria_close")}>
+      <button
+        type="button"
+        class="text-zinc-400 hover:text-zinc-100"
+        aria-label={dgettext("errors", ".aria_close")}
+      >
         <.icon name="hero-x-mark" class="size-4" />
       </button>
     </div>
@@ -50,16 +55,19 @@ defmodule LemmingsOsWeb.CoreComponents do
   end
 
   attr :rest, :global,
-    include: ~w(href navigate patch method download name value disabled type phx-click)
+    include: ~w(href navigate patch method download name value disabled type form phx-click)
 
-  attr :variant, :string, default: "primary", values: ~w(primary secondary ghost quiet)
+  attr :variant, :string,
+    default: "primary",
+    values: ~w(primary secondary accent neutral ghost quiet)
+
   attr :class, :string, default: nil
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
     assigns =
       assign(assigns, :button_class, [
-        "ui-button",
+        "inline-flex min-h-[2.8rem] items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 hover:-translate-y-px hover:brightness-110",
         button_variant(assigns.variant),
         assigns.class
       ])
@@ -122,7 +130,7 @@ defmodule LemmingsOsWeb.CoreComponents do
       end)
 
     ~H"""
-    <label class="ui-checkbox">
+    <label class="inline-flex items-center gap-2.5 cursor-pointer text-zinc-300 hover:text-zinc-100 transition-colors">
       <input type="hidden" name={@name} value="false" disabled={@rest[:disabled]} />
       <input
         type="checkbox"
@@ -130,10 +138,13 @@ defmodule LemmingsOsWeb.CoreComponents do
         name={@name}
         value="true"
         checked={@checked}
-        class={@class || "ui-checkbox__input"}
+        class={
+          @class ||
+            "size-4 border-2 border-zinc-700 bg-zinc-950 text-emerald-400 focus:ring-emerald-400 focus:ring-offset-zinc-950 rounded-none"
+        }
         {@rest}
       />
-      <span>{@label}</span>
+      <span class="text-sm font-medium">{@label}</span>
       <.error :for={msg <- @errors}>{msg}</.error>
     </label>
     """
@@ -141,12 +152,22 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def input(%{type: "select"} = assigns) do
     ~H"""
-    <div class="ui-field">
-      <label :if={@label} for={@id} class="ui-field__label">{@label}</label>
+    <div class="flex flex-col gap-1.5">
+      <label
+        :if={@label}
+        for={@id}
+        class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500"
+      >
+        {@label}
+      </label>
       <select
         id={@id}
         name={@name}
-        class={[@class || "ui-select", @errors != [] && (@error_class || "ui-field--error")]}
+        class={[
+          "w-full border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-emerald-400 transition-all",
+          @class,
+          @errors != [] && (@error_class || "border-red-400 focus:border-red-400")
+        ]}
         multiple={@multiple}
         {@rest}
       >
@@ -160,12 +181,22 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div class="ui-field">
-      <label :if={@label} for={@id} class="ui-field__label">{@label}</label>
+    <div class="flex flex-col gap-1.5">
+      <label
+        :if={@label}
+        for={@id}
+        class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500"
+      >
+        {@label}
+      </label>
       <textarea
         id={@id}
         name={@name}
-        class={[@class || "ui-textarea", @errors != [] && (@error_class || "ui-field--error")]}
+        class={[
+          "w-full min-h-32 border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-emerald-400 transition-all resize-vertical",
+          @class,
+          @errors != [] && (@error_class || "border-red-400 focus:border-red-400")
+        ]}
         {@rest}
       >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       <.error :for={msg <- @errors}>{msg}</.error>
@@ -175,14 +206,24 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def input(assigns) do
     ~H"""
-    <div class="ui-field">
-      <label :if={@label} for={@id} class="ui-field__label">{@label}</label>
+    <div class="flex flex-col gap-1.5">
+      <label
+        :if={@label}
+        for={@id}
+        class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500"
+      >
+        {@label}
+      </label>
       <input
         type={@type}
         name={@name}
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-        class={[@class || "ui-input", @errors != [] && (@error_class || "ui-field--error")]}
+        class={[
+          "w-full border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-emerald-400 transition-all",
+          @class,
+          @errors != [] && (@error_class || "border-red-400 focus:border-red-400")
+        ]}
         {@rest}
       />
       <.error :for={msg <- @errors}>{msg}</.error>
@@ -192,7 +233,7 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   defp error(assigns) do
     ~H"""
-    <p class="ui-field__error">
+    <p class="flex items-center gap-1.5 mt-1 text-xs font-medium text-red-400">
       <.icon name="hero-exclamation-circle" class="size-4" />
       {render_slot(@inner_block)}
     </p>
@@ -228,27 +269,27 @@ defmodule LemmingsOsWeb.CoreComponents do
     <section id={@id} class={panel_classes(@tone, @class)}>
       <div
         :if={@title != [] || @subtitle != [] || @actions != []}
-        class="pixel-panel__header flex flex-col gap-[0.8rem] border-b-[3px] border-[var(--border-soft)] p-4"
+        class="flex flex-col gap-3 border-b-2 border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between"
       >
-        <div class="pixel-panel__heading flex min-w-0 flex-col gap-1">
+        <div class="flex min-w-0 flex-col gap-1">
           <h2
             :if={@title != []}
-            class="pixel-panel__title font-[var(--font-display)] text-[0.95rem] leading-[1.5] text-[var(--accent)]"
+            class="font-mono text-base font-medium leading-relaxed text-emerald-400"
           >
             {render_slot(@title)}
           </h2>
           <p
             :if={@subtitle != []}
-            class="pixel-panel__subtitle text-[0.72rem] uppercase tracking-[0.08em] text-[var(--muted)]"
+            class="text-xs uppercase tracking-widest text-zinc-400"
           >
             {render_slot(@subtitle)}
           </p>
         </div>
-        <div :if={@actions != []} class="pixel-panel__actions flex flex-wrap gap-[0.6rem]">
+        <div :if={@actions != []} class="flex flex-wrap gap-2">
           {render_slot(@actions)}
         </div>
       </div>
-      <div class="pixel-panel__body flex flex-col gap-4">{render_slot(@inner_block)}</div>
+      <div class="flex flex-col gap-4 p-4">{render_slot(@inner_block)}</div>
     </section>
     """
   end
@@ -258,7 +299,7 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def content_container(assigns) do
     ~H"""
-    <div class={["page-stack flex flex-col gap-4", @class]}>{render_slot(@inner_block)}</div>
+    <div class={["flex flex-col gap-4", @class]}>{render_slot(@inner_block)}</div>
     """
   end
 
@@ -283,13 +324,25 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def stat_item(assigns) do
     ~H"""
-    <div id={@id} class={["stat-tile", "stat-tile--#{@tone}"]}>
-      <p class="stat-tile__label">{@label}</p>
-      <p class="stat-tile__value">{@value}</p>
-      <p :if={@detail} class="stat-tile__detail">{@detail}</p>
+    <div
+      id={@id}
+      class={[
+        "border-2 border-zinc-800 bg-zinc-950/70 p-4 transition duration-150 hover:border-zinc-700",
+        stat_item_tone(@tone)
+      ]}
+    >
+      <p class="text-xs uppercase tracking-widest text-zinc-400">{@label}</p>
+      <p class="font-mono text-base font-medium text-zinc-100">{@value}</p>
+      <p :if={@detail} class="mt-1 text-xs text-zinc-500">{@detail}</p>
     </div>
     """
   end
+
+  defp stat_item_tone("default"), do: ""
+  defp stat_item_tone("accent"), do: "border-emerald-400/30"
+  defp stat_item_tone("info"), do: "border-sky-400/30"
+  defp stat_item_tone("warning"), do: "border-amber-400/30"
+  defp stat_item_tone("danger"), do: "border-red-400/30"
 
   attr :id, :string, default: nil
   attr :tone, :string, default: "default", values: ~w(default accent info success warning danger)
@@ -299,11 +352,26 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def badge(assigns) do
     ~H"""
-    <span id={@id} class={["ui-badge", "ui-badge--#{@tone}", @class]} {@rest}>
+    <span
+      id={@id}
+      class={[
+        "inline-flex items-center justify-center min-h-[1.7rem] px-2 py-0.5 border text-[0.68rem] uppercase tracking-widest font-medium bg-zinc-950/80",
+        badge_tone(@tone),
+        @class
+      ]}
+      {@rest}
+    >
       {render_slot(@inner_block)}
     </span>
     """
   end
+
+  defp badge_tone("default"), do: "border-zinc-700 text-zinc-300"
+  defp badge_tone("accent"), do: "border-emerald-400/50 text-emerald-400"
+  defp badge_tone("info"), do: "border-sky-400/50 text-sky-400"
+  defp badge_tone("success"), do: "border-emerald-400/50 text-emerald-400"
+  defp badge_tone("warning"), do: "border-amber-400/50 text-amber-400"
+  defp badge_tone("danger"), do: "border-red-400/50 text-red-400"
 
   attr :id, :string, default: nil
   attr :kind, :atom, required: true, values: [:world, :city, :lemming, :issue]
@@ -320,6 +388,7 @@ defmodule LemmingsOsWeb.CoreComponents do
       tone={@status.tone}
       class={@class}
       data-status={@status.value}
+      data-tone={@status.tone}
       {@rest}
     >
       {@status.label}
@@ -334,11 +403,11 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   def empty_state(assigns) do
     ~H"""
-    <div id={@id} class="empty-state">
-      <.icon name="hero-sparkles" class="size-5" />
-      <p class="empty-state__title">{@title}</p>
-      <p class="empty-state__copy">{@copy}</p>
-      <div :if={@action != []}>{render_slot(@action)}</div>
+    <div id={@id} class="flex flex-col items-center gap-3 p-8 text-center text-zinc-400">
+      <.icon name="hero-sparkles" class="size-6 text-emerald-400/60" />
+      <p class="font-bold text-zinc-100">{@title}</p>
+      <p class="text-sm">{@copy}</p>
+      <div :if={@action != []} class="mt-2">{render_slot(@action)}</div>
     </div>
     """
   end
@@ -354,22 +423,22 @@ defmodule LemmingsOsWeb.CoreComponents do
     ~H"""
     <div
       id={@id}
-      class="terminal-bar flex flex-col gap-3 border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(12,22,15,0.98),rgba(16,25,18,0.98))] px-4 py-[0.85rem] shadow-[7px_7px_0_0_var(--shadow)]"
+      class="flex flex-col gap-3 border-2 border-zinc-800 bg-zinc-950/95 p-4 shadow-xl"
     >
-      <div class="terminal-bar__path flex flex-wrap items-center gap-3 gap-x-0 text-[0.86rem] text-[var(--accent)]">
-        <span class="terminal-bar__prompt-user text-[var(--accent)]">{@shell_user}</span><span>@</span><span class="terminal-bar__prompt-host text-[var(--accent-2)]">{@shell_host}</span><span>:</span><span class="terminal-bar__prompt-root text-[var(--muted)]">/</span><span :if={
+      <div class="flex flex-wrap items-center gap-2 font-mono text-sm text-emerald-400">
+        <span class="text-emerald-400">{@shell_user}</span><span>@</span><span class="text-sky-400">{@shell_host}</span><span class="text-zinc-500">:</span><span class="text-zinc-500">/</span><span :if={
           @breadcrumb == []
         }>~</span><span :for={{segment, index} <- Enum.with_index(@breadcrumb)}><span
           :if={index > 0}
-          class="terminal-bar__separator text-[var(--muted)]"
+          class="text-zinc-600"
         >/</span><.link
           navigate={segment.to}
-          class="terminal-bar__crumb text-[var(--accent)] transition-colors hover:text-[var(--accent-2)]"
-        >{segment.label}</.link></span><span>$</span><span class="terminal-bar__cursor">█</span>
+          class="transition-colors hover:text-sky-400"
+        >{segment.label}</.link></span><span class="text-emerald-400">$</span><span class="animate-pulse">█</span>
       </div>
-      <div class="terminal-bar__meta flex flex-wrap items-center gap-3 text-[0.86rem] text-[var(--muted)]">
-        <span class="terminal-bar__title text-[var(--text)]">{@title}</span>
-        <span :for={metric <- @metrics}>{metric}</span>
+      <div class="flex flex-wrap items-center gap-4 text-sm text-zinc-400">
+        <span class="font-bold text-zinc-100">{@title}</span>
+        <span :for={metric <- @metrics} class="text-zinc-500">{metric}</span>
       </div>
     </div>
     """
@@ -416,20 +485,35 @@ defmodule LemmingsOsWeb.CoreComponents do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
 
-  defp button_variant("primary"), do: "ui-button--primary"
-  defp button_variant("secondary"), do: "ui-button--secondary"
-  defp button_variant("ghost"), do: "ui-button--ghost"
-  defp button_variant("quiet"), do: "ui-button--quiet"
+  defp button_variant("primary"),
+    do:
+      "border-2 border-emerald-400/50 bg-emerald-400/10 text-emerald-400 shadow-lg shadow-emerald-400/10"
 
-  defp panel_tone("default"), do: nil
-  defp panel_tone("accent"), do: "pixel-panel--accent border-[var(--accent)]"
-  defp panel_tone("info"), do: "pixel-panel--info border-[var(--accent-2)]"
-  defp panel_tone("warning"), do: "pixel-panel--warning border-[var(--accent-3)]"
-  defp panel_tone("danger"), do: "pixel-panel--danger border-[var(--danger)]"
+  defp button_variant("secondary"),
+    do: "border-2 border-sky-400/50 bg-sky-400/10 text-sky-400 shadow-lg shadow-sky-400/10"
+
+  defp button_variant("accent"),
+    do: "border-2 border-emerald-400/60 bg-transparent text-emerald-400 shadow-none"
+
+  defp button_variant("neutral"),
+    do: "border-2 border-zinc-700 bg-zinc-950/80 text-zinc-100 shadow-none"
+
+  defp button_variant("ghost"),
+    do: "border-2 border-zinc-700 bg-transparent text-zinc-300 shadow-none"
+
+  defp button_variant("quiet"),
+    do:
+      "border-2 border-transparent bg-transparent text-zinc-400 shadow-none hover:text-zinc-100 hover:border-zinc-800"
+
+  defp panel_tone("default"), do: "border-zinc-800"
+  defp panel_tone("accent"), do: "border-emerald-400/60 shadow-emerald-400/5"
+  defp panel_tone("info"), do: "border-sky-400/60 shadow-sky-400/5"
+  defp panel_tone("warning"), do: "border-amber-400/60 shadow-amber-400/5"
+  defp panel_tone("danger"), do: "border-red-400/60 shadow-red-400/5"
 
   defp panel_classes(tone, class) do
     [
-      "pixel-panel relative min-w-0 border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(24,40,29,0.96),rgba(14,24,17,0.98))] shadow-[7px_7px_0_0_var(--shadow)]",
+      "relative min-w-0 border-2 bg-zinc-950/95 shadow-xl transition-all",
       panel_tone(tone),
       class
     ]

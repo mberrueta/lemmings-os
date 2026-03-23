@@ -9,6 +9,7 @@ defmodule LemmingsOs.Worlds.World do
   """
 
   use Ecto.Schema
+  use Gettext, backend: LemmingsOs.Gettext
 
   import Ecto.Changeset
 
@@ -91,22 +92,22 @@ defmodule LemmingsOs.Worlds.World do
   def translate_status(%__MODULE__{} = world), do: translate_status(world.status)
 
   def translate_status("ok"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_ok")
+    do: dgettext("world", ".world_status_ok")
 
   def translate_status("degraded"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_degraded")
+    do: dgettext("world", ".world_status_degraded")
 
   def translate_status("unavailable"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_unavailable")
+    do: dgettext("world", ".world_status_unavailable")
 
   def translate_status("invalid"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_invalid")
+    do: dgettext("world", ".world_status_invalid")
 
   def translate_status("unknown"),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_unknown")
+    do: dgettext("world", ".world_status_unknown")
 
   def translate_status(nil),
-    do: Gettext.dgettext(LemmingsOs.Gettext, "world", ".world_status_unknown")
+    do: dgettext("world", ".world_status_unknown")
 
   @doc """
   Returns world status options suitable for form selects and filters.

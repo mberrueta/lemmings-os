@@ -30,7 +30,6 @@ defmodule LemmingsOsWeb.HomeLiveTest do
     assert has_element?(view, "#home-world-status[data-status='unavailable']")
     assert has_element?(view, "#home-card-world_identity[data-status='unavailable']")
     assert has_element?(view, "#home-alert-home_world_unavailable")
-    assert has_element?(view, "#home-omitted-panel")
     refute has_element?(view, "#home-card-bootstrap_health")
     refute has_element?(view, "#home-card-tools_health")
     refute has_element?(view, "#home-network-snapshot")
@@ -58,13 +57,42 @@ defmodule LemmingsOsWeb.HomeLiveTest do
     assert has_element?(view, "#home-card-bootstrap_health")
     assert has_element?(view, "#home-card-runtime_health")
     assert has_element?(view, "#home-card-tools_health")
+    assert has_element?(view, "#home-card-topology_summary")
     assert has_element?(view, "#home-quick-links-panel")
     assert has_element?(view, "#home-link-world")
     assert has_element?(view, "#home-link-tools")
+    refute has_element?(view, "#home-omitted-panel")
     refute has_element?(view, "#home-network-snapshot")
     refute has_element?(view, "#home-active-lemmings")
     refute has_element?(view, "#home-department-queues")
     refute has_element?(view, "#home-activity-feed")
+  end
+
+  test "renders truthful topology counts from persisted cities and departments", %{conn: conn} do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    world =
+      insert(:world,
+        slug: "local",
+        name: "Local World",
+        bootstrap_path: path,
+        bootstrap_source: "direct",
+        last_import_status: "ok"
+      )
+
+    city_one = insert(:city, world: world, status: "active")
+    city_two = insert(:city, world: world, status: "active")
+    insert(:department, world: world, city: city_one, status: "active")
+    insert(:department, world: world, city: city_one, status: "draining")
+    insert(:department, world: world, city: city_two, status: "disabled")
+
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#home-card-topology_summary")
+    assert has_element?(view, "#home-card-topology_summary-city_count", "2")
+    assert has_element?(view, "#home-card-topology_summary-department_count", "3")
+    assert has_element?(view, "#home-card-topology_summary-active_department_count", "1")
   end
 
   test "renders degraded bootstrap health when the bootstrap emits warnings", %{conn: conn} do

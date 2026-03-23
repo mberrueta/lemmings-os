@@ -2,9 +2,9 @@
 
 ## Status
 
-- **Status**: 🔒 BLOCKED
-- **Approved**: [ ] Human sign-off
-- **Blocked by**: Task 03, Task 04
+- **Status**: ✅ COMPLETE
+- **Approved**: [X] Human sign-off
+- **Blocked by**: None
 - **Blocks**: Task 08, Task 09
 - **Estimated Effort**: M
 
@@ -87,37 +87,43 @@ lib/lemmings_os_web/components/world_components.ex
 
 ### Work Performed
 
--
+- Replaced the top-level `MockData` Departments index flow with persisted city-scoped loading via `CitiesPageSnapshot` and `LemmingsOs.Departments`.
+- Implemented selector-driven city scoping with default-to-first-city behavior when `?city=` is absent.
+- Refactored the Departments page surface into a city selector, a city-scoped index list, and a matching tile/map panel that only renders departments for the selected city.
+- Reduced `dept=` route handling to a minimal persisted detail handoff panel so Task 08 can own the real detail tabs.
 
 ### Outputs Created
 
--
+- persisted `DepartmentsLive` index flow
+- DepartmentsLive desmoke coverage
+- explicit detail handoff copy and route contract for Task 08
 
 ### Assumptions Made
 
 | Assumption | Rationale |
 |------------|-----------|
-| | |
+| A lightweight detail handoff panel is sufficient for Task 07 | The task explicitly owns index navigation only and should not absorb the Overview/Lemmings/Settings internals planned for Task 08 |
 
 ### Decisions Made
 
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| | | |
+| Reuse `CitiesPageSnapshot` to resolve world and default city selection | Building a new Departments snapshot from scratch in this task | Reusing the existing city read model kept the persisted selection logic narrow and consistent with the Cities surface |
+| Keep the existing city map surface but feed it persisted Department data | Replacing the map with static tiles | The task explicitly owns a map/index presentation, so preserving the canvas while swapping the source of truth avoids a UI regression |
 
 ### Blockers Encountered
 
--
+- None
 
 ### Questions for Human
 
-1.
+1. None.
 
 ### Ready for Next Task
 
-- [ ] All outputs complete
-- [ ] Summary documented
-- [ ] Questions listed (if any)
+- [x] All outputs complete
+- [x] Summary documented
+- [x] Questions listed (if any)
 
 ---
 

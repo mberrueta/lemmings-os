@@ -13,31 +13,37 @@
       <:title>{dgettext("layout", ".title_tools_registry")}</:title>
       <:subtitle>{dgettext("layout", ".subtitle_tools_registry")}</:subtitle>
       <div class="grid gap-3 md:grid-cols-3">
-        <div id="tools-runtime-status-card" class="mini-card">
+        <div id="tools-runtime-status-card" class={mini_card_class()}>
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <div class="mini-card__title">{dgettext("layout", ".tools_runtime_title")}</div>
-              <p class="mini-card__meta">{runtime_count_label(@snapshot.runtime)}</p>
+              <div class={mini_card_title_class()}>
+                {dgettext("layout", ".tools_runtime_title")}
+              </div>
+              <p class={mini_card_meta_class()}>{runtime_count_label(@snapshot.runtime)}</p>
             </div>
             <.status id="tools-runtime-status" kind={:world} value={@snapshot.runtime.status} />
           </div>
         </div>
 
-        <div id="tools-policy-status-card" class="mini-card">
+        <div id="tools-policy-status-card" class={mini_card_class()}>
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <div class="mini-card__title">{dgettext("layout", ".tools_policy_title")}</div>
-              <p class="mini-card__meta">{policy_status_copy(@snapshot.policy)}</p>
+              <div class={mini_card_title_class()}>
+                {dgettext("layout", ".tools_policy_title")}
+              </div>
+              <p class={mini_card_meta_class()}>{policy_status_copy(@snapshot.policy)}</p>
             </div>
             <.status id="tools-policy-status" kind={:world} value={@snapshot.policy.status} />
           </div>
         </div>
 
-        <div id="tools-page-status-card" class="mini-card">
+        <div id="tools-page-status-card" class={mini_card_class()}>
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <div class="mini-card__title">{dgettext("layout", ".tools_health_title")}</div>
-              <p class="mini-card__meta">{page_status_copy(@snapshot)}</p>
+              <div class={mini_card_title_class()}>
+                {dgettext("layout", ".tools_health_title")}
+              </div>
+              <p class={mini_card_meta_class()}>{page_status_copy(@snapshot)}</p>
             </div>
             <.status id="tools-page-status" kind={:world} value={@snapshot.status} />
           </div>
@@ -67,7 +73,7 @@
           </.form>
         </:actions>
 
-        <div :if={@filtered_tools == []} class="flex min-h-[18rem] items-center justify-center">
+        <div :if={@filtered_tools == []} class="flex min-h-72 items-center justify-center">
           <.empty_state
             id="tools-empty-state"
             title={empty_state_title(@filter, @snapshot.runtime.status)}
@@ -75,7 +81,10 @@
           />
         </div>
 
-        <div :if={@filtered_tools != []} class="card-grid">
+        <div
+          :if={@filtered_tools != []}
+          class="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
+        >
           <SystemComponents.tool_runtime_card :for={tool <- @filtered_tools} tool={tool} />
         </div>
       </.panel>
@@ -86,25 +95,25 @@
 
         <div
           :if={@snapshot.issues == []}
-          class="flex min-h-[18rem] items-center justify-center px-6 py-8 text-center"
+          class="flex min-h-72 items-center justify-center px-6 py-8 text-center"
         >
-          <p class="mini-card__meta">{dgettext("layout", ".tools_no_issues")}</p>
+          <p class={mini_card_meta_class()}>{dgettext("layout", ".tools_no_issues")}</p>
         </div>
 
-        <div :if={@snapshot.issues != []} class="page-stack">
+        <div :if={@snapshot.issues != []} class="flex flex-col gap-4">
           <article
             :for={issue <- @snapshot.issues}
             id={"tools-issue-#{issue.code}"}
-            class="mini-card"
+            class={mini_card_class()}
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <div class="mini-card__title">{issue_summary(issue)}</div>
-                <p class="mini-card__meta">{issue_detail(issue, @snapshot)}</p>
+                <div class={mini_card_title_class()}>{issue_summary(issue)}</div>
+                <p class={mini_card_meta_class()}>{issue_detail(issue, @snapshot)}</p>
               </div>
               <.status kind={:issue} value={issue.severity} />
             </div>
-            <p class="mt-3 text-sm text-[var(--muted)]">{issue_action(issue)}</p>
+            <p class="mt-3 text-sm text-zinc-400">{issue_action(issue)}</p>
           </article>
         </div>
       </.panel>

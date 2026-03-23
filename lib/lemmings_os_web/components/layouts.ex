@@ -41,20 +41,20 @@ defmodule LemmingsOsWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="app-shell grid min-h-screen grid-cols-1 gap-4 p-4 md:grid-cols-[5.5rem_minmax(0,1fr)] md:items-start lg:grid-cols-[18.5rem_minmax(0,1fr)]">
+    <div class="grid min-h-screen grid-cols-1 gap-4 p-4 md:grid-cols-[5.5rem_minmax(0,1fr)] md:items-start lg:grid-cols-[18.5rem_minmax(0,1fr)]">
       <SidebarComponents.sidebar active_page={@page_key} summary={@summary} />
 
       <div
         id="mobile-backdrop"
-        class="mobile-backdrop fixed inset-0 z-[99] cursor-pointer bg-black/65 opacity-0 pointer-events-none transition-opacity duration-[220ms]"
+        class="fixed inset-0 z-[99] cursor-pointer bg-black/65 opacity-0 pointer-events-none transition-opacity duration-[220ms] [&.mobile-open]:opacity-100 [&.mobile-open]:pointer-events-auto"
         phx-click={close_mobile_nav()}
       />
 
-      <div class="app-main min-w-0 flex flex-col gap-4">
-        <div class="mobile-header flex items-center justify-between gap-3 border-[3px] border-[var(--border)] bg-[linear-gradient(180deg,rgba(12,22,15,0.98),rgba(16,25,18,0.98))] px-[0.85rem] py-[0.65rem] shadow-[7px_7px_0_0_var(--shadow)] md:hidden">
+      <div class="min-w-0 flex flex-col gap-4">
+        <div class="flex items-center justify-between gap-3 border-2 border-zinc-800 bg-zinc-950/95 p-3 shadow-xl md:hidden">
           <button
             id="mobile-nav-toggle"
-            class="mobile-burger inline-flex items-center justify-center border border-[var(--border-soft)] bg-transparent p-[0.35rem] text-[var(--text)] transition duration-150 hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            class="inline-flex items-center justify-center border border-zinc-800 bg-transparent p-1.5 text-zinc-100 transition duration-150 hover:border-emerald-400 hover:text-emerald-400"
             phx-click={toggle_mobile_nav()}
             aria-label={dgettext("layout", ".aria_open_navigation")}
             aria-controls="app-sidebar"
@@ -62,7 +62,7 @@ defmodule LemmingsOsWeb.Layouts do
           >
             <.icon name="hero-bars-3" class="size-5" />
           </button>
-          <span class="mobile-header__brand font-[var(--font-display)] text-[0.78rem] uppercase tracking-[0.08em] text-[var(--accent)]">
+          <span class="font-mono text-xs font-bold uppercase tracking-widest text-emerald-400">
             {dgettext("layout", ".brand_name")}
           </span>
         </div>
@@ -105,7 +105,7 @@ defmodule LemmingsOsWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} class="flash-stack" aria-live="polite">
+    <div id={@id} class="fixed top-4 right-4 z-[110] flex flex-col gap-3" aria-live="polite">
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 

@@ -3,6 +3,8 @@ defmodule LemmingsOs.Departments.DeleteDeniedError do
   Domain error returned when a Department hard delete is unsafe or indeterminate.
   """
 
+  use Gettext, backend: LemmingsOs.Gettext
+
   @enforce_keys [:department_id, :reason]
   defexception [:department_id, :reason]
 
@@ -15,14 +17,10 @@ defmodule LemmingsOs.Departments.DeleteDeniedError do
 
   @impl true
   def message(%__MODULE__{reason: :not_disabled}) do
-    Gettext.dgettext(LemmingsOs.Gettext, "errors", ".department_delete_denied_not_disabled")
+    dgettext("errors", ".department_delete_denied_not_disabled")
   end
 
   def message(%__MODULE__{reason: :safety_indeterminate}) do
-    Gettext.dgettext(
-      LemmingsOs.Gettext,
-      "errors",
-      ".department_delete_denied_safety_indeterminate"
-    )
+    dgettext("errors", ".department_delete_denied_safety_indeterminate")
   end
 end
