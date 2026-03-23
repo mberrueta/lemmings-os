@@ -30,8 +30,8 @@ defmodule LemmingsOsWeb.SidebarComponents do
             animation="blink"
             class="shrink-0"
           />
-          <div>
-            <p class="text-[0.68rem] uppercase tracking-widest text-zinc-500 font-bold">
+          <div class="sidebar-brand__identity">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".sidebar_eyebrow")}
             </p>
             <h1 class="font-mono text-sm font-medium leading-relaxed text-emerald-400">
@@ -42,7 +42,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
       </div>
 
       <div :for={group <- navigation_groups()} class="flex flex-col gap-2">
-        <p class="px-2 text-[0.68rem] uppercase tracking-widest text-zinc-500 font-bold">
+        <p class="sidebar-label px-2 text-xs uppercase tracking-widest text-zinc-500 font-bold">
           {group.title}
         </p>
         <nav class="flex flex-col gap-1.5">
@@ -58,7 +58,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
             ]}
           >
             <.icon name={item.icon} class="size-4" />
-            <span class="font-medium">{item.label}</span>
+            <span class="sidebar-label font-medium">{item.label}</span>
           </.link>
         </nav>
       </div>
@@ -66,7 +66,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
       <div class="pt-1">
         <.button navigate={~p"/lemmings/new"} class="w-full">
           <.icon name="hero-plus-circle" class="size-4" />
-          <span>{dgettext("layout", ".button_new_lemming")}</span>
+          <span class="sidebar-label">{dgettext("layout", ".button_new_lemming")}</span>
         </.button>
       </div>
 
@@ -81,10 +81,10 @@ defmodule LemmingsOsWeb.SidebarComponents do
         />
       </button>
 
-      <div class="mt-auto flex flex-col gap-3 border-t-2 border-zinc-800 bg-zinc-900/50 pt-4">
+      <div class="sidebar-footer mt-auto flex flex-col gap-3 border-t-2 border-zinc-800 bg-zinc-900/50 pt-4">
         <div class="grid grid-cols-2 gap-3 px-1">
           <div>
-            <p class="text-[0.65rem] uppercase tracking-widest text-zinc-500 font-bold">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_agents")}
             </p>
             <p class="text-sm font-medium text-zinc-100">
@@ -92,7 +92,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
             </p>
           </div>
           <div>
-            <p class="text-[0.65rem] uppercase tracking-widest text-zinc-500 font-bold">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_nodes")}
             </p>
             <p class="text-sm font-medium text-zinc-100">
@@ -100,7 +100,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
             </p>
           </div>
           <div>
-            <p class="text-[0.65rem] uppercase tracking-widest text-zinc-500 font-bold">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_cpu")}
             </p>
             <p class="text-sm font-medium text-zinc-100">
@@ -108,7 +108,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
             </p>
           </div>
           <div>
-            <p class="text-[0.65rem] uppercase tracking-widest text-zinc-500 font-bold">
+            <p class="text-xs uppercase tracking-widest text-zinc-500 font-bold">
               {dgettext("layout", ".footer_tools")}
             </p>
             <p class="text-sm font-medium text-zinc-100">

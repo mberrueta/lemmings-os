@@ -101,7 +101,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
       <.content_grid id="lemmings-grid" columns="sidebar">
         <.panel id="lemmings-table-panel" class="overflow-x-auto">
           <div class="flex flex-col min-w-[40rem]">
-            <div class="grid grid-cols-[1.2fr_1fr_0.8fr_1.5fr_1fr] gap-4 border-b-2 border-zinc-800 px-4 py-3 text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+            <div class="grid grid-cols-[1.2fr_1fr_0.8fr_1.5fr_1fr] gap-4 border-b-2 border-zinc-800 px-4 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500">
               <span>{dgettext("lemmings", ".col_name")}</span>
               <span>{dgettext("lemmings", ".col_role")}</span>
               <span>{dgettext("lemmings", ".col_status")}</span>
@@ -173,7 +173,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
             <p class="text-zinc-100 font-medium">{@lemming.current_task}</p>
             <small
               :if={@department && @city}
-              class="text-zinc-500 font-mono text-[0.7rem] uppercase tracking-wider"
+              class="text-zinc-500 font-mono text-xs uppercase tracking-wider"
             >
               {@department.name} · {@city.name}
             </small>
@@ -181,21 +181,21 @@ defmodule LemmingsOsWeb.LemmingComponents do
         </div>
 
         <div class="flex flex-col gap-1">
-          <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
             {dgettext("lemmings", ".detail_model")}
           </p>
           <p class="font-mono text-sm text-zinc-300">{@lemming.model}</p>
         </div>
 
         <div class="flex flex-col gap-1">
-          <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
             {dgettext("lemmings", ".detail_system_prompt")}
           </p>
           <p class="text-sm text-zinc-300 leading-relaxed">{@lemming.system_prompt}</p>
         </div>
 
         <div class="flex flex-col gap-2">
-          <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
             {dgettext("lemmings", ".detail_tools")}
           </p>
           <div class="flex flex-wrap gap-2">
@@ -204,7 +204,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         </div>
 
         <div class="flex flex-col gap-2">
-          <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
             {dgettext("lemmings", ".detail_recent_messages")}
           </p>
           <div class="flex flex-col gap-3 font-mono">
@@ -229,7 +229,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         </div>
 
         <div class="flex flex-col gap-2">
-          <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
             {dgettext("lemmings", ".detail_activity_log")}
           </p>
           <div class="flex flex-col gap-2 font-mono">
@@ -328,7 +328,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
               />
 
               <div class="flex flex-col gap-2">
-                <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+                <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
                   {dgettext("lemmings", ".detail_tools_allowed")}
                 </p>
                 <div class="flex flex-wrap gap-2">
@@ -362,7 +362,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
           <:title>{dgettext("lemmings", ".title_deployment_preview")}</:title>
           <div class="flex flex-col gap-6">
             <div class="flex flex-col gap-2">
-              <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+              <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
                 {dgettext("lemmings", ".detail_selected_tooling")}
               </p>
               <div class="flex flex-wrap gap-2">
@@ -374,7 +374,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
             </div>
 
             <div class="flex flex-col gap-2">
-              <p class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500">
+              <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
                 {dgettext("lemmings", ".detail_expected_outcome")}
               </p>
               <p class="text-sm text-zinc-400 leading-relaxed">

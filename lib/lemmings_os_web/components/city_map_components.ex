@@ -129,12 +129,12 @@ defmodule LemmingsOsWeb.CityMapComponents do
 
       <div :if={@show_label} class="flex flex-col items-center gap-0.5">
         <span
-          class="font-mono text-[11px] uppercase tracking-wider"
+          class="font-mono text-xs uppercase tracking-wider"
           style={"color: #{department_color(@department)};"}
         >
           {@department.name}
         </span>
-        <small class="font-mono text-[9px] uppercase tracking-widest text-zinc-500">
+        <small class="font-mono text-xs uppercase tracking-widest text-zinc-500">
           {dgettext("world", ".count_running_of_total",
             running: @running_count,
             total: @lemming_count
@@ -171,10 +171,10 @@ defmodule LemmingsOsWeb.CityMapComponents do
       <canvas id={"#{@id}-canvas"} class="block w-full h-auto image-pixelated"></canvas>
 
       <div class="absolute top-0 left-0 right-0 p-3 flex justify-between items-center gap-3 bg-gradient-to-b from-zinc-950/90 to-transparent pointer-events-none z-10">
-        <span class="text-emerald-400 font-mono text-[11px] uppercase tracking-wider">
+        <span class="text-emerald-400 font-mono text-xs uppercase tracking-wider">
           {@city.name} <span class="text-zinc-500">· {@city.region}</span>
         </span>
-        <span class="flex flex-wrap gap-2 justify-end font-mono text-[11px]">
+        <span class="flex flex-wrap gap-2 justify-end font-mono text-xs">
           <span class="text-zinc-500 uppercase tracking-widest">
             {dgettext("world", ".metric_departments")}
           </span>
@@ -186,16 +186,16 @@ defmodule LemmingsOsWeb.CityMapComponents do
           <span class="text-zinc-500 uppercase tracking-widest">
             {dgettext("world", ".metric_status")}
           </span>
-          <.status kind={:city} value={@city.status} class="text-[10px]" />
+          <.status kind={:city} value={@city.status} class="text-xs" />
         </span>
       </div>
 
-      <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-zinc-950/90 to-transparent pointer-events-none z-10 text-zinc-600 font-mono text-[9px] uppercase tracking-widest text-center">
+      <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-zinc-950/90 to-transparent pointer-events-none z-10 text-zinc-600 font-mono text-xs uppercase tracking-widest text-center">
         {dgettext("world", ".map_hint_department")}
       </div>
       <div
         id={"#{@id}-tooltip"}
-        class="absolute bg-zinc-950/95 border border-emerald-400/40 p-2.5 pointer-events-none z-20 font-mono text-[10px] text-emerald-400 uppercase tracking-wider leading-relaxed shadow-2xl"
+        class="absolute bg-zinc-950/95 border border-emerald-400/40 p-2.5 pointer-events-none z-20 font-mono text-xs text-emerald-400 uppercase tracking-wider leading-relaxed shadow-2xl"
         hidden
       >
       </div>

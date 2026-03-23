@@ -156,7 +156,7 @@ defmodule LemmingsOsWeb.CoreComponents do
       <label
         :if={@label}
         for={@id}
-        class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500"
+        class="text-xs font-bold uppercase tracking-widest text-zinc-500"
       >
         {@label}
       </label>
@@ -185,7 +185,7 @@ defmodule LemmingsOsWeb.CoreComponents do
       <label
         :if={@label}
         for={@id}
-        class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500"
+        class="text-xs font-bold uppercase tracking-widest text-zinc-500"
       >
         {@label}
       </label>
@@ -210,7 +210,7 @@ defmodule LemmingsOsWeb.CoreComponents do
       <label
         :if={@label}
         for={@id}
-        class="text-[0.68rem] font-bold uppercase tracking-widest text-zinc-500"
+        class="text-xs font-bold uppercase tracking-widest text-zinc-500"
       >
         {@label}
       </label>
@@ -355,7 +355,7 @@ defmodule LemmingsOsWeb.CoreComponents do
     <span
       id={@id}
       class={[
-        "inline-flex items-center justify-center min-h-[1.7rem] px-2 py-0.5 border text-[0.68rem] uppercase tracking-widest font-medium bg-zinc-950/80",
+        "inline-flex items-center justify-center min-h-[1.7rem] px-2 py-0.5 border text-xs uppercase tracking-widest font-medium bg-zinc-950/80",
         badge_tone(@tone),
         @class
       ]}

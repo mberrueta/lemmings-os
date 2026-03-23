@@ -169,6 +169,11 @@
 }
 
 @media (min-width: 1024px) {
+  #app-sidebar.app-sidebar--collapsed {
+    width: 5.5rem;
+    min-width: 5.5rem;
+  }
+
   .app-shell:has(#app-sidebar.app-sidebar--collapsed) {
     grid-template-columns: 5.5rem minmax(0, 1fr);
   }
