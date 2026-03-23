@@ -3,7 +3,7 @@ defmodule LemmingsOs.Departments do
   Department domain boundary.
 
   This context owns persisted Department retrieval, explicit World/City-scoped
-  CRUD APIs, and lifecycle transitions.
+  collection CRUD APIs, and lifecycle transitions.
   """
 
   import Ecto.Query, warn: false
@@ -36,7 +36,7 @@ defmodule LemmingsOs.Departments do
   end
 
   @doc """
-  Fetches a Department by World/City-scoped persisted ID.
+  Fetches a Department by persisted ID.
 
   ## Examples
 
@@ -44,38 +44,26 @@ defmodule LemmingsOs.Departments do
       iex> city = LemmingsOs.Factory.insert(:city, world: world)
       iex> department = LemmingsOs.Factory.insert(:department, world: world, city: city)
       iex> {:ok, %LemmingsOs.Departments.Department{id: id}} =
-      ...>   LemmingsOs.Departments.fetch_department(world, city, department.id)
+      ...>   LemmingsOs.Departments.fetch_department(department.id)
       iex> id
       department.id
   """
-  @spec fetch_department(World.t() | Ecto.UUID.t(), City.t() | Ecto.UUID.t(), Ecto.UUID.t()) ::
+  @spec fetch_department(Ecto.UUID.t(), keyword()) ::
           {:ok, Department.t()} | {:error, :not_found}
-  def fetch_department(world_or_world_id, city_or_city_id, id)
+  def fetch_department(id, opts \\ [])
 
-  def fetch_department(%World{id: world_id}, %City{id: city_id}, id),
-    do: fetch_department(world_id, city_id, id)
-
-  def fetch_department(%World{id: world_id}, city_id, id) when is_binary(city_id),
-    do: fetch_department(world_id, city_id, id)
-
-  def fetch_department(world_id, %City{id: city_id}, id) when is_binary(world_id),
-    do: fetch_department(world_id, city_id, id)
-
-  def fetch_department(world_id, city_id, id)
-      when is_binary(world_id) and is_binary(city_id) and is_binary(id) do
+  def fetch_department(id, opts) when is_binary(id) and is_list(opts) do
     Department
-    |> where(
-      [department],
-      department.world_id == ^world_id and department.city_id == ^city_id and department.id == ^id
-    )
+    |> where([department], department.id == ^id)
+    |> filter_query(opts)
     |> Repo.one()
     |> fetch_department_result()
   end
 
   @doc """
-  Returns the Department for the given World/City-scoped persisted ID.
+  Returns the Department for the given persisted ID.
 
-  Raises `Ecto.NoResultsError` if no Department exists in that scope.
+  Raises `Ecto.NoResultsError` if no Department exists for the given ID.
 
   ## Examples
 
@@ -83,14 +71,13 @@ defmodule LemmingsOs.Departments do
       iex> city = LemmingsOs.Factory.insert(:city, world: world)
       iex> department = LemmingsOs.Factory.insert(:department, world: world, city: city)
       iex> %LemmingsOs.Departments.Department{id: id} =
-      ...>   LemmingsOs.Departments.get_department!(world, city, department.id)
+      ...>   LemmingsOs.Departments.get_department!(department.id)
       iex> id
       department.id
   """
-  @spec get_department!(World.t() | Ecto.UUID.t(), City.t() | Ecto.UUID.t(), Ecto.UUID.t()) ::
-          Department.t()
-  def get_department!(world_or_world_id, city_or_city_id, id) do
-    case fetch_department(world_or_world_id, city_or_city_id, id) do
+  @spec get_department!(Ecto.UUID.t(), keyword()) :: Department.t()
+  def get_department!(id, opts \\ []) do
+    case fetch_department(id, opts) do
       {:ok, department} -> department
       {:error, :not_found} -> raise Ecto.NoResultsError, queryable: Department
     end
@@ -189,6 +176,40 @@ defmodule LemmingsOs.Departments do
     department
     |> Department.changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Returns aggregate persisted Department counts for a World.
+
+  The summary is intentionally narrow and query-efficient for operator-facing
+  topology cards.
+
+  ## Examples
+
+      iex> world = LemmingsOs.Factory.insert(:world)
+      iex> city = LemmingsOs.Factory.insert(:city, world: world)
+      iex> LemmingsOs.Factory.insert(:department, world: world, city: city, status: "active")
+      iex> summary = LemmingsOs.Departments.topology_summary(world)
+      iex> summary.department_count
+      1
+  """
+  @spec topology_summary(World.t() | Ecto.UUID.t()) :: %{
+          department_count: non_neg_integer(),
+          active_department_count: non_neg_integer()
+        }
+  def topology_summary(%World{id: world_id}) when is_binary(world_id),
+    do: topology_summary(world_id)
+
+  def topology_summary(world_id) when is_binary(world_id) do
+    Department
+    |> where([department], department.world_id == ^world_id)
+    |> select([department], %{
+      department_count: count(department.id),
+      active_department_count:
+        sum(fragment("CASE WHEN ? = 'active' THEN 1 ELSE 0 END", department.status))
+    })
+    |> Repo.one()
+    |> normalize_topology_summary()
   end
 
   @doc """
@@ -326,6 +347,15 @@ defmodule LemmingsOs.Departments do
 
   defp fetch_scoped_city_result(%City{} = city), do: {:ok, city}
   defp fetch_scoped_city_result(nil), do: {:error, :city_not_in_world}
+
+  defp normalize_topology_summary(nil), do: %{department_count: 0, active_department_count: 0}
+
+  defp normalize_topology_summary(summary) do
+    %{
+      department_count: summary.department_count || 0,
+      active_department_count: summary.active_department_count || 0
+    }
+  end
 
   defp ensure_department_disabled_for_delete(%Department{id: _id, status: "disabled"}), do: :ok
 

@@ -49,32 +49,40 @@ defmodule LemmingsOs.DepartmentsTest do
   end
 
   describe "fetch/get APIs" do
-    test "fetch_department/3 returns the scoped department" do
+    test "fetch_department/2 returns the department by id" do
       world = insert(:world)
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
 
-      assert {:ok, fetched_department} = Departments.fetch_department(world, city, department.id)
+      assert {:ok, fetched_department} = Departments.fetch_department(department.id)
       assert fetched_department.id == department.id
     end
 
-    test "fetch_department/3 returns not_found outside the scope" do
-      world = insert(:world)
-      city = insert(:city, world: world)
-      other_world = insert(:world)
-      other_city = insert(:city, world: other_world)
-      department = insert(:department, world: other_world, city: other_city)
+    test "fetch_department/2 returns not_found when the id is missing" do
+      _world = insert(:world)
+      _city = insert(:city)
 
-      assert {:error, :not_found} = Departments.fetch_department(world, city, department.id)
+      assert {:error, :not_found} = Departments.fetch_department(Ecto.UUID.generate())
     end
 
-    test "get_department!/3 raises when missing" do
+    test "get_department!/2 raises when missing" do
+      assert_raise NoResultsError, fn ->
+        Departments.get_department!(Ecto.UUID.generate())
+      end
+    end
+
+    test "fetch_department/2 supports explicit preloads" do
       world = insert(:world)
       city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
 
-      assert_raise NoResultsError, fn ->
-        Departments.get_department!(world, city, Ecto.UUID.generate())
-      end
+      assert {:ok, fetched_department} =
+               Departments.fetch_department(department.id, preload: [:world, :city])
+
+      assert Ecto.assoc_loaded?(fetched_department.world)
+      assert Ecto.assoc_loaded?(fetched_department.city)
+      refute Ecto.assoc_loaded?(fetched_department.city.world)
+      assert fetched_department.city.world_id == world.id
     end
 
     test "fetch/get by slug are city-scoped" do
@@ -181,6 +189,35 @@ defmodule LemmingsOs.DepartmentsTest do
       assert error.department_id == department.id
       assert error.reason == :safety_indeterminate
       assert Repo.get(Department, department.id)
+    end
+  end
+
+  describe "topology_summary/1" do
+    test "returns aggregate department counts for the world without city-by-city enumeration" do
+      world = insert(:world)
+      other_world = insert(:world)
+      city_one = insert(:city, world: world)
+      city_two = insert(:city, world: world)
+      other_city = insert(:city, world: other_world)
+
+      insert(:department, world: world, city: city_one, status: "active")
+      insert(:department, world: world, city: city_one, status: "draining")
+      insert(:department, world: world, city: city_two, status: "disabled")
+      insert(:department, world: other_world, city: other_city, status: "active")
+
+      assert Departments.topology_summary(world) == %{
+               department_count: 3,
+               active_department_count: 1
+             }
+    end
+
+    test "returns zero counts for worlds without departments" do
+      world = insert(:world)
+
+      assert Departments.topology_summary(world.id) == %{
+               department_count: 0,
+               active_department_count: 0
+             }
     end
   end
 end

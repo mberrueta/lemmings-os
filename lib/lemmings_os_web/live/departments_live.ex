@@ -7,7 +7,6 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.MockData
-  alias LemmingsOs.Repo
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
 
   @detail_tabs ~w(overview lemmings settings)
@@ -70,7 +69,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   def handle_event("save_department_settings", %{"department" => params}, socket) do
     case Departments.update_department(socket.assigns.selected_department, params) do
       {:ok, department} ->
-        department = preload_department_detail(department)
+        department = reload_department_detail(department)
 
         {:noreply,
          socket
@@ -94,7 +93,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
          |> push_patch(to: ~p"/departments?#{%{city: deleted_department.city_id}}")}
 
       {:ok, department} ->
-        department = preload_department_detail(department)
+        department = reload_department_detail(department)
 
         {:noreply,
          socket
@@ -143,7 +142,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         selected_department =
           departments
           |> select_department(params["dept"])
-          |> preload_department_detail()
+          |> reload_department_detail()
 
         socket
         |> assign(:world, snapshot.world)
@@ -186,10 +185,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
   defp select_department(_departments, _department_id), do: nil
 
-  defp preload_department_detail(nil), do: nil
+  defp reload_department_detail(nil), do: nil
 
-  defp preload_department_detail(%Department{} = department) do
-    Repo.preload(department, [:world, city: [:world]])
+  defp reload_department_detail(%Department{} = department) do
+    Departments.get_department!(department.id, preload: [:world, :city])
   end
 
   defp assign_department_detail(socket, nil, _requested_tab) do

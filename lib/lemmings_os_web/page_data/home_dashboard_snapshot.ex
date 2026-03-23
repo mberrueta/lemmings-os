@@ -84,18 +84,13 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
   def build_topology_card_meta(world_id) when is_binary(world_id) do
     case Ecto.UUID.cast(world_id) do
       {:ok, valid_id} ->
-        cities = Cities.list_cities(valid_id)
-        city_count = length(cities)
+        city_count =
+          valid_id
+          |> Cities.list_cities()
+          |> length()
 
-        {department_count, active_department_count} =
-          Enum.reduce(cities, {0, 0}, fn city, {department_total, active_total} ->
-            departments = Departments.list_departments(valid_id, city.id)
-
-            {
-              department_total + length(departments),
-              active_total + Enum.count(departments, &(&1.status == "active"))
-            }
-          end)
+        %{department_count: department_count, active_department_count: active_department_count} =
+          Departments.topology_summary(valid_id)
 
         %{
           city_count: city_count,

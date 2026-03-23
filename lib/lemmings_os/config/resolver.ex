@@ -71,6 +71,19 @@ defmodule LemmingsOs.Config.Resolver do
   end
 
   @spec resolve(Department.t()) :: resolved_config()
+  def resolve(
+        %Department{
+          world: %World{} = world,
+          city: %City{world: %Ecto.Association.NotLoaded{}} = city
+        } = department
+      ) do
+    resolve(%{department | city: %{city | world: world}})
+  end
+
+  def resolve(%Department{world: %World{} = world, city: %City{world: nil} = city} = department) do
+    resolve(%{department | city: %{city | world: world}})
+  end
+
   def resolve(%Department{city: %City{world: %World{}} = city} = department) do
     city_config = resolve(city)
 

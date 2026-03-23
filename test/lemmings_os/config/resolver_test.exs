@@ -210,5 +210,40 @@ defmodule LemmingsOs.Config.ResolverTest do
       assert resolved.costs_config.budgets.daily_tokens == 1_000
       assert resolved.models_config.providers["ollama"]["enabled"] == true
     end
+
+    test "uses department.world when city.world is not preloaded" do
+      world =
+        build(:world,
+          limits_config: %LimitsConfig{max_cities: 3, max_departments_per_city: 20},
+          runtime_config: %RuntimeConfig{idle_ttl_seconds: 3600, cross_city_communication: false}
+        )
+
+      city =
+        build(:city,
+          world: nil,
+          limits_config: %LimitsConfig{max_departments_per_city: 5},
+          runtime_config: %RuntimeConfig{cross_city_communication: true}
+        )
+
+      city = %{
+        city
+        | world: %Ecto.Association.NotLoaded{__field__: :world, __owner__: city.__struct__}
+      }
+
+      department =
+        build(:department,
+          world: world,
+          city: city,
+          limits_config: %LimitsConfig{max_lemmings_per_department: 8}
+        )
+
+      resolved = Resolver.resolve(department)
+
+      assert resolved.limits_config.max_cities == 3
+      assert resolved.limits_config.max_departments_per_city == 5
+      assert resolved.limits_config.max_lemmings_per_department == 8
+      assert resolved.runtime_config.idle_ttl_seconds == 3600
+      assert resolved.runtime_config.cross_city_communication == true
+    end
   end
 end

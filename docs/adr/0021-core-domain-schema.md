@@ -101,9 +101,11 @@ declarations, and model/provider declarations as separate persisted concerns
 at both levels. Both use shared Ecto embedded schema modules for type
 consistency.
 
-Department and Lemming persistence remain deferred. The `departments`,
-`lemming_types`, and `lemming_instances` tables described below are
-architectural targets, not yet shipped.
+Department persistence is now shipped. The `departments` table exists with
+explicit `world_id` / `city_id` ownership, operator-facing metadata, and split
+config buckets using the same embedded-schema pattern as World and City.
+Lemming-related persistence (`lemming_types`, `lemming_instances`) remains
+deferred and is still described here as the architectural target.
 
 ---
 
@@ -198,7 +200,12 @@ erDiagram
         string name
         string slug
         string status
-        jsonb config_jsonb
+        text notes
+        string_array tags
+        jsonb limits_config
+        jsonb runtime_config
+        jsonb costs_config
+        jsonb models_config
     }
 
     LEMMING_TYPES {
@@ -292,7 +299,7 @@ Responsibilities:
 
 - represents an Elixir / OTP node boundary
 - owns local runtime execution locality
-- will contain Departments (not yet persisted)
+- contains persisted Departments as control-plane records
 - provides placement identity for Lemming instances (not yet persisted)
 - supports node-level liveness and operational status
 
@@ -342,6 +349,32 @@ Responsibilities:
 - simplifies operational navigation and observability
 
 Departments exist to organize and constrain agent execution below the City level.
+
+### Shipped schema
+
+The `departments` table is now persisted with the following columns:
+
+- `id` (UUID primary key)
+- `world_id` (FK to `worlds`)
+- `city_id` (FK to `cities`)
+- `slug`, `name` (human-readable identity)
+- `status` (administrative lifecycle: `active`, `disabled`, `draining`)
+- `notes` (optional operator-facing metadata)
+- `tags` (normalized operator-facing labels)
+- `limits_config`, `runtime_config`, `costs_config`, `models_config` (split
+  JSONB config buckets storing Department-local overrides only)
+
+The shipped uniqueness contract is city-scoped slug uniqueness via
+`departments(city_id, slug)`.
+
+### What remains deferred
+
+Persisted Department identity and configuration now exist, but Department-hosted
+runtime execution does not. This ADR still defers:
+
+- Department supervisor / manager runtime processes
+- Lemming instance persistence
+- capability-driven scheduling inside a Department
 
 ---
 
@@ -676,12 +709,12 @@ Shipped Ecto schema modules:
 ```elixir
 LemmingsOs.Worlds.World       # persisted
 LemmingsOs.Cities.City        # persisted
+LemmingsOs.Departments.Department
 ```
 
 Planned Ecto schema modules (not yet implemented):
 
 ```elixir
-LemmingsOs.Departments.Department
 LemmingsOs.LemmingTypes.LemmingType
 LemmingsOs.LemmingInstances.LemmingInstance
 LemmingsOs.ToolRegistry.Tool
@@ -690,8 +723,9 @@ LemmingsOs.ToolPolicies.ToolPolicy
 
 Prior wording listed module paths under `LemmingsOs.Schema.*`. The shipped
 implementation places schemas under their domain context modules (e.g.,
-`LemmingsOs.Worlds.World`, `LemmingsOs.Cities.City`), consistent with the
-project's context-first module naming convention.
+`LemmingsOs.Worlds.World`, `LemmingsOs.Cities.City`,
+`LemmingsOs.Departments.Department`), consistent with the project's
+context-first module naming convention.
 
 Implementation expectations:
 

@@ -146,10 +146,12 @@ to avoid.
 
 ## Option D — Hierarchical JSONB configuration with dual merge semantics (chosen)
 
-Each hierarchy entity (`worlds`, `cities`, `departments`, `lemming_instances`)
-stores a partial JSONB configuration document containing only the keys it defines.
-Effective configuration is resolved by a centralized resolver using two distinct
-merge semantics applied in a single deterministic pipeline.
+Each hierarchy scope stores only the configuration it explicitly defines.
+Shipped relational scopes (`worlds`, `cities`, `departments`) use split JSONB
+config buckets. Future runtime scopes such as `lemming_instances` may follow
+the same split-bucket pattern or justify an alternative in a later ADR.
+Effective configuration is resolved by a centralized resolver using two
+distinct merge semantics applied in a single deterministic pipeline.
 
 **Pros:**
 - maps directly to the runtime hierarchy; every configuration value has an explicit
@@ -228,11 +230,12 @@ All other namespaces use override-dominant semantics.
 Each hierarchy entity stores partial configuration. Unset keys are resolved
 from the parent.
 
-At the World and City scopes, configuration is stored as split JSONB columns
+At the World, City, and Department scopes, configuration is stored as split
+JSONB columns
 instead of a single `config_jsonb` field:
 
 ```text
-worlds / cities
+worlds / cities / departments
   → limits_config
   → runtime_config
   → costs_config
@@ -240,14 +243,15 @@ worlds / cities
 ```
 
 Prior wording in this ADR described a single `config_jsonb` column per entity.
-The shipped implementation uses four split JSONB columns at both the World and
-City level. This keeps ownership boundaries explicit between limits, runtime
-defaults, costs, and model/provider declarations.
+The shipped implementation uses four split JSONB columns at the World, City,
+and Department levels. This keeps ownership boundaries explicit between
+limits, runtime defaults, costs, and model/provider declarations.
 
-Both World and City schemas use shared Ecto embedded schema modules
+World, City, and Department schemas use shared Ecto embedded schema modules
 (`LemmingsOs.Config.LimitsConfig`, `RuntimeConfig`, `CostsConfig`,
 `ModelsConfig`) for the four buckets, ensuring type consistency across levels.
-City config columns store local overrides only; they default to empty maps.
+City and Department config columns store local overrides only; they default to
+empty maps.
 
 Normal columns on `worlds` hold the bootstrap linkage and import metadata:
 
@@ -259,8 +263,10 @@ last_import_status
 last_imported_at
 ```
 
-Department and Lemming Type configuration storage is not yet implemented.
-When those scopes are persisted, they should follow the same split-column
+Department configuration storage is now shipped and follows the same split-
+bucket pattern as World and City: `limits_config`, `runtime_config`,
+`costs_config`, and `models_config` store local overrides only. Lemming Type
+configuration storage is still deferred and should follow the same split-column
 pattern or justify an alternative in a future ADR.
 
 Configuration is partial by design. The World document typically contains the
@@ -363,6 +369,7 @@ The shipped resolver accepts preloaded Ecto structs, not IDs:
 ```elixir
 Config.Resolver.resolve(%World{})
 Config.Resolver.resolve(%City{world: %World{}})
+Config.Resolver.resolve(%Department{city: %City{world: %World{}}})
 ```
 
 Each call returns an immutable effective configuration map with typed struct
@@ -382,13 +389,17 @@ and loaded configuration from the database internally. The shipped resolver is
 intentionally **pure and in-memory**: callers must preload the parent chain
 before calling. The resolver performs no DB access.
 
-Merge semantics for the shipped `World -> City` resolution:
+Merge semantics for the shipped resolver:
 
-- **Child overrides parent** -- non-nil City values replace World values via
+- **Child overrides parent** -- non-nil child values replace parent values via
   recursive deep merge.
 - Nil values in the child are pruned before merge, so they do not clobber
   parent defaults.
 - The resolver returns typed embedded schema structs, not raw maps.
+- Shipped hierarchy support is `World -> City -> Department`.
+- The resolver may use `department.world` as a fallback parent when
+  `department.city.world` is not preloaded, but it still performs no database
+  access and does not provide provenance/source tracing.
 
 ## 7.2 Deferred resolver capabilities
 
@@ -397,17 +408,16 @@ The following capabilities described in this ADR are not yet implemented:
 - **Deny-dominant merge** -- tool deny-list union and budget cap minimum
   semantics are architecturally intended but not yet enforced in the resolver.
   The shipped resolver uses override-dominant merge only.
-- **Department and Lemming Type resolution** -- these scopes are not yet
-  persisted; the resolver does not accept them.
+- **Lemming Type resolution** -- this scope is not yet persisted; the resolver
+  does not accept it.
 - **ID-based interface** -- the resolver does not accept raw UUIDs or perform
   database lookups. Callers must provide preloaded structs.
 - **ETS caching** -- `Config.Cache` is not yet implemented (see section 8).
 - **Config.Validator** -- validation is handled by Ecto changeset validations
   on the individual embedded schemas, not by a dedicated validator module.
-
-When Department and Lemming Type persistence ships, the resolver interface
-should be extended to accept those scopes while preserving the pure in-memory
-contract.
+- **Source tracing / explanation metadata** -- the resolver returns only the
+  effective typed config buckets. It does not report which scope supplied each
+  final value.
 
 The resolver remains the only location in the codebase where merge semantics
 are implemented. Subsystems must not re-implement merge logic.
@@ -455,7 +465,7 @@ Admin UI or API call
   Config.Validator validates structure and deny-dominant constraints
         │
         ▼
-  PostgreSQL update (config_jsonb on the hierarchy entity)
+  PostgreSQL update (affected config bucket columns on the hierarchy entity)
         │
         ▼
   config.updated audit event emitted (ADR-0018)
@@ -520,8 +530,8 @@ metadata:
   scope_type: world | city | department | lemming_type
   scope_id: <uuid>
   actor: <user or system identity>
-  previous_hash: <sha256 of previous config_jsonb>
-  new_hash: <sha256 of new config_jsonb>
+  previous_hash: <sha256 of previous persisted config bucket payload>
+  new_hash: <sha256 of new persisted config bucket payload>
   changed_keys: [...]
 ```
 
@@ -640,7 +650,8 @@ This ADR intentionally does not define:
   for a proposed change before it is committed to the database.
 - **Per-operator namespace isolation**: for multi-tenant deployments where different
   World operators should not observe each other's configuration keys.
-- **Signed configuration documents**: cryptographic signatures over config_jsonb
+- **Signed configuration documents**: cryptographic signatures over persisted
+  config bucket payloads
   to detect tampering in high-security deployments.
 
 ---
