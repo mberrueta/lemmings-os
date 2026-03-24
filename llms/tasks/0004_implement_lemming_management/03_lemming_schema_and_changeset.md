@@ -1,8 +1,8 @@
 # Task 03: Lemming Schema and Changeset
 
 ## Status
-- **Status**: COMPLETE
-- **Approved**: [x] Human sign-off
+- **Status**: BLOCKED
+- **Approved**: [ ] Human sign-off
 - **Blocked by**: Task 01, Task 02
 - **Blocks**: Task 04, Task 05
 - **Estimated Effort**: M
@@ -105,39 +105,32 @@ test/support/factory.ex                      # Factory pattern
 ---
 
 ## Execution Summary
+*[Filled by executing agent after completion]*
 
 ### Work Performed
-- Added `LemmingsOs.Lemmings.Lemming` with the persisted schema shape, hierarchy associations, five config embeds, lifecycle status helpers, and the schema changeset rules for this slice.
-- Added a `:lemming` ExMachina factory that derives `world` and `city` from its built `:department` parent and defaults status to `\"draft\"`.
-- Added schema tests covering required fields, status validation, ownership casting boundaries, embed casting, helper translations, database constraints, and the factory shape.
+- [What was actually done]
 
 ### Outputs Created
-- `lib/lemmings_os/lemmings/lemming.ex`
-- `test/lemmings_os/lemmings/lemming_test.exs`
-- Updated `test/support/factory.ex`
+- [List of files/artifacts created]
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
-| Lemming operator-facing description length should use the same 280-character bound as Department notes. | The task calls for a bounded description similar to Department notes, and reusing that limit keeps the operator metadata constraints aligned. |
-| A nil lemming status should translate to an unknown label for UI safety even though `nil` is not a valid persisted value. | Existing City and Department status helpers provide a nil-safe fallback for rendering code paths, so the Lemming schema follows the same UI-facing pattern. |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| Kept the activation guard out of the changeset and added a test proving `active` can be set without `instructions` at the schema layer. | Enforcing instructions presence in `changeset/2`. | The task explicitly reserves that business rule for the context lifecycle APIs in Task 04. |
-| Added `description_max_length/0` as a small helper, mirroring `Department.notes_max_length/0`. | Inlining the numeric bound only in the test. | This keeps the bound explicit and testable without scattering a magic number. |
 
 ### Blockers Encountered
-- None.
+- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
 
 ### Questions for Human
-1. None.
+1. [Question needing human input]
 
 ### Ready for Next Task
-- [x] All outputs complete
-- [x] Summary documented
-- [x] Questions listed (if any)
+- [ ] All outputs complete
+- [ ] Summary documented
+- [ ] Questions listed (if any)
 
 ---
 

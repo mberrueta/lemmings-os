@@ -1,8 +1,8 @@
 # Task 10: Lemming Detail View
 
 ## Status
-- **Status**: COMPLETE
-- **Approved**: [X] Human sign-off
+- **Status**: BLOCKED
+- **Approved**: [ ] Human sign-off
 - **Blocked by**: Task 09
 - **Blocks**: Task 13, Task 14
 - **Estimated Effort**: M
@@ -118,45 +118,29 @@ The agent should follow whichever approach best matches the existing navigation 
 *[Filled by executing agent after completion]*
 
 ### Work Performed
-- Replaced the mock-backed `/lemmings` page with persisted data from `Lemmings` and the default persisted world.
-- Added real Lemming detail loading with `department.city.world` preload and read-only effective config resolution through `Config.Resolver`.
-- Implemented lifecycle actions for `activate` and `archive`, including the `:instructions_required` activation guard flash path.
-- Reworked the detail panel to show persisted definition fields only: name, slug, description, instructions, status, hierarchy context, and effective config summary.
-- Added honest empty-selection and not-found states.
-- Replaced the mock navigation test with persisted records and added dedicated LiveView coverage for the detail page and lifecycle actions.
+- [What was actually done]
 
 ### Outputs Created
-- Updated `lib/lemmings_os_web/live/lemmings_live.ex`
-- Updated `lib/lemmings_os_web/live/lemmings_live.html.heex`
-- Updated `lib/lemmings_os_web/components/lemming_components.ex`
-- Updated `lib/lemmings_os_web/components/core_components.ex`
-- Updated `test/lemmings_os_web/live/navigation_live_test.exs`
-- Added `test/lemmings_os_web/live/lemmings_live_test.exs`
-- Updated gettext catalogs via `mix gettext.extract --merge`
+- [List of files/artifacts created]
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
-| The existing `/lemmings?lemming=<id>` route should become the persisted detail view | It already existed, is linked from the Department lemmings tab, and avoids introducing another route surface |
-| A compact effective-config summary is sufficient for this task | Task 10 calls for read-only config display; Task 13 owns editing |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| Kept the detail view on `/lemmings` rather than embedding a second panel inside Departments | Separate Departments panel, dedicated `/lemmings/:id` route | This preserves the existing deep link used by Task 09 and keeps the detail page focused |
-| Removed mock runtime fields from the detail page instead of trying to preserve the old registry presentation | Partial reuse of runtime fields | Task scope is persisted definition detail, not runtime activity |
-| Added a `muted` badge tone for archived lemmings | Reusing `default` or `warning` | Archived needed an explicitly subdued state without distorting other status tones |
 
 ### Blockers Encountered
-- `archived` used a `muted` status tone that the shared badge component did not support - Resolution: added `muted` tone support in `CoreComponents.badge/1`
+- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
 
 ### Questions for Human
-1. None
+1. [Question needing human input]
 
 ### Ready for Next Task
-- [x] All outputs complete
-- [x] Summary documented
-- [x] Questions listed (if any)
+- [ ] All outputs complete
+- [ ] Summary documented
+- [ ] Questions listed (if any)
 
 ---
 

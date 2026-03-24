@@ -1,8 +1,8 @@
 # Task 09: Department Lemmings Tab Desmoke
 
 ## Status
-- **Status**: COMPLETE
-- **Approved**: [X] Human sign-off
+- **Status**: BLOCKED
+- **Approved**: [ ] Human sign-off
 - **Blocked by**: Task 04, Task 05
 - **Blocks**: Task 10, Task 11
 - **Estimated Effort**: M
@@ -85,45 +85,32 @@ lib/lemmings_os/mock_data.ex                        # MockData to remove depende
 ---
 
 ## Execution Summary
-*Completed by the executing agent*
+*[Filled by executing agent after completion]*
 
 ### Work Performed
-- Replaced the Department Lemmings tab mock path with persisted loading through `Lemmings.list_lemmings/1`.
-- Renamed the LiveView assign from `department_lemming_preview` to `department_lemmings`.
-- Updated the tab UI to render persisted definition fields only: name, slug, status badge, and description preview.
-- Added an honest empty state with a CTA to `/lemmings/new`.
-- Removed the mock banner/copy and regenerated gettext entries for the updated tab copy.
+- [What was actually done]
 
 ### Outputs Created
-- `lib/lemmings_os_web/live/departments_live.ex`
-- `lib/lemmings_os_web/live/departments_live.html.heex`
-- `lib/lemmings_os_web/components/world_components.ex`
-- `test/lemmings_os_web/live/departments_live_test.exs`
-- `priv/gettext/en/LC_MESSAGES/world.po`
-- `priv/gettext/es/LC_MESSAGES/world.po`
-- `priv/gettext/world.pot`
+- [List of files/artifacts created]
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
-| The existing `Lemmings.list_lemmings/1` contract is the correct persisted read path for a Department-scoped listing. | The context API was already simplified to struct-based scope pattern matching and returns real persisted lemmings in display order. |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| Kept navigation targets on `/lemmings?lemming=ID` instead of inventing a new route. | Adding a dedicated detail route in this task. | Task 10 owns the real detail view; this task only needs a stable forward link target. |
-| Used the existing `status kind={:lemming}` badge component for lifecycle tones. | Custom badge tone mapping in the tab template. | The status component already centralizes the visual contract for lemming statuses. |
 
 ### Blockers Encountered
-- None
+- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
 
 ### Questions for Human
-1. None
+1. [Question needing human input]
 
 ### Ready for Next Task
-- [x] All outputs complete
-- [x] Summary documented
-- [x] Questions listed (if any)
+- [ ] All outputs complete
+- [ ] Summary documented
+- [ ] Questions listed (if any)
 
 ---
 
