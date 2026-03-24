@@ -9,8 +9,10 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
+  alias LemmingsOs.Config.ToolsConfig
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
+  alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds.World
 
   def world_factory do
@@ -70,6 +72,34 @@ defmodule LemmingsOs.Factory do
       runtime_config: %RuntimeConfig{},
       costs_config: %CostsConfig{budgets: %Budgets{}},
       models_config: %ModelsConfig{}
+    }
+  end
+
+  def lemming_factory do
+    unique_value = sequence(:lemming_unique, & &1)
+    department = build(:department)
+
+    name =
+      "Lemming #{unique_value} #{Faker.Company.bs()}"
+      |> String.replace(~r/\s+/u, " ")
+      |> String.trim()
+
+    slug_base = Helpers.slugify(name)
+
+    %Lemming{
+      world: department.world,
+      city: department.city,
+      department: department,
+      slug: "#{slug_base}-#{unique_value}",
+      name: name,
+      status: "draft",
+      description: "Lemming #{unique_value} description",
+      instructions: "Follow the department instructions carefully.",
+      limits_config: %LimitsConfig{},
+      runtime_config: %RuntimeConfig{},
+      costs_config: %CostsConfig{budgets: %Budgets{}},
+      models_config: %ModelsConfig{},
+      tools_config: %ToolsConfig{}
     }
   end
 end

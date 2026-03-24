@@ -59,3 +59,23 @@ msgstr "Draining"
 #, elixir-autogen, elixir-format
 msgid ".department_status_unknown"
 msgstr "Unknown"
+
+#: lib/lemmings_os/lemmings/lemming.ex:120
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_active"
+msgstr "Active"
+
+#: lib/lemmings_os/lemmings/lemming.ex:123
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_archived"
+msgstr "Archived"
+
+#: lib/lemmings_os/lemmings/lemming.ex:117
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_draft"
+msgstr "Draft"
+
+#: lib/lemmings_os/lemmings/lemming.ex:126
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_unknown"
+msgstr "Unknown"

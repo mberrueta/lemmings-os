@@ -876,37 +876,37 @@ msgstr "Overview"
 msgid ".department_tab_settings"
 msgstr "Settings"
 
-#: lib/lemmings_os_web/live/departments_live.ex:314
+#: lib/lemmings_os_web/live/departments_live.ex:313
 #, elixir-autogen, elixir-format
 msgid ".flash_department_activated"
 msgstr "Department activated."
 
-#: lib/lemmings_os_web/live/departments_live.ex:93
+#: lib/lemmings_os_web/live/departments_live.ex:92
 #, elixir-autogen, elixir-format
 msgid ".flash_department_deleted"
 msgstr "Department deleted."
 
-#: lib/lemmings_os_web/live/departments_live.ex:316
+#: lib/lemmings_os_web/live/departments_live.ex:315
 #, elixir-autogen, elixir-format
 msgid ".flash_department_disabled"
 msgstr "Department disabled."
 
-#: lib/lemmings_os_web/live/departments_live.ex:315
+#: lib/lemmings_os_web/live/departments_live.ex:314
 #, elixir-autogen, elixir-format
 msgid ".flash_department_draining"
 msgstr "Department set to draining."
 
-#: lib/lemmings_os_web/live/departments_live.ex:107
+#: lib/lemmings_os_web/live/departments_live.ex:106
 #, elixir-autogen, elixir-format
 msgid ".flash_department_lifecycle_failed"
 msgstr "Could not update the department lifecycle."
 
-#: lib/lemmings_os_web/live/departments_live.ex:77
+#: lib/lemmings_os_web/live/departments_live.ex:76
 #, elixir-autogen, elixir-format
 msgid ".flash_department_settings_saved"
 msgstr "Department settings saved."
 
-#: lib/lemmings_os_web/live/departments_live.ex:317
+#: lib/lemmings_os_web/live/departments_live.ex:316
 #, elixir-autogen, elixir-format
 msgid ".flash_department_updated"
 msgstr "Department updated."

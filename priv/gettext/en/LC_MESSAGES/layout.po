@@ -210,7 +210,7 @@ msgstr "Lemmings"
 msgid ".page_title_cities"
 msgstr "Cities"
 
-#: lib/lemmings_os_web/live/departments_live.ex:18
+#: lib/lemmings_os_web/live/departments_live.ex:17
 #, elixir-autogen
 msgid ".page_title_departments"
 msgstr "Departments"
@@ -552,19 +552,19 @@ msgid ".tools_usage_unknown"
 msgstr "Unknown"
 
 #: lib/lemmings_os_web/components/home_components.ex:255
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:255
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:250
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_action"
 msgstr "Import or recover the default World before relying on dashboard signals."
 
 #: lib/lemmings_os_web/components/home_components.ex:241
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:252
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:247
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_detail"
 msgstr "Home cannot claim hierarchy or runtime coverage until a World is available."
 
 #: lib/lemmings_os_web/components/home_components.ex:227
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:251
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:246
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_summary"
 msgstr "No persisted world available"

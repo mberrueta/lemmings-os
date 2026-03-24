@@ -261,3 +261,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid ".department_delete_denied_safety_indeterminate"
 msgstr ""
+
+#: lib/lemmings_os/lemmings/delete_denied_error.ex:20
+#, elixir-autogen, elixir-format
+msgid ".lemming_delete_denied_safety_indeterminate"
+msgstr ""

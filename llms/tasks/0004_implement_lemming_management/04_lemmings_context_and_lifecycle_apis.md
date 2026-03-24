@@ -121,32 +121,40 @@ test/lemmings_os/departments_test.exs                # Test pattern
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
 
 ### Work Performed
-- [What was actually done]
+- Added the `LemmingsOs.Lemmings` context with explicit World- and Department-scoped list APIs, fetch/get helpers, create/update lifecycle APIs, and topology aggregation.
+- Implemented hierarchy validation in `create_lemming/4` so the supplied Department must belong to the supplied City and World scope before insert.
+- Added `LemmingsOs.Lemmings.DeleteDeniedError` and wired `delete_lemming/1` to unconditionally deny hard deletion with `:safety_indeterminate`.
+- Added context tests covering listing, scoping, hierarchy validation, slug conflicts, lifecycle transitions, the instructions activation guard, delete denial, and topology summary behavior.
 
 ### Outputs Created
-- [List of files/artifacts created]
+- `lib/lemmings_os/lemmings.ex`
+- `lib/lemmings_os/lemmings/delete_denied_error.ex`
+- `test/lemmings_os/lemmings_test.exs`
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
+| `create_lemming/4` should return a single hierarchy-mismatch atom for both cross-city and cross-world mismatches. | The task allows `:department_not_in_world` or similar, and a single explicit atom keeps the public error surface stable while still enforcing the full hierarchy contract. |
+| `fetch_lemming/2` remains ID-based and unscoped, while collection APIs own the explicit World/Department boundaries. | This matches the existing Department pattern, where fetch-by-id is a direct lookup and scoped list APIs enforce boundary traversal. |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
+| Used `:department_not_in_city_world` as the hierarchy validation error atom. | Returning separate `:department_not_in_world` and `:department_not_in_city` atoms. | The create contract validates the full three-level ownership relationship, so one explicit mismatch atom avoids leaking internal branching into the public API. |
+| Added `list_all_lemmings/2` as a first-class World-scoped query instead of asking callers to iterate departments. | Deferring cross-department listing assembly to the web layer. | The task explicitly requires the context to own the cross-department query for the `/lemmings` page. |
 
 ### Blockers Encountered
-- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
+- None.
 
 ### Questions for Human
-1. [Question needing human input]
+1. None.
 
 ### Ready for Next Task
-- [ ] All outputs complete
-- [ ] Summary documented
-- [ ] Questions listed (if any)
+- [x] All outputs complete
+- [x] Summary documented
+- [x] Questions listed (if any)
 
 ---
 
