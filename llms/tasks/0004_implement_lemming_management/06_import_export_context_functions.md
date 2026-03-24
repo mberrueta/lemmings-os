@@ -107,32 +107,38 @@ lib/lemmings_os/lemmings.ex    # Add functions here
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
 
 ### Work Performed
-- [What was actually done]
+- Added `export_lemming/1` to `LemmingsOs.Lemmings` to produce a portable JSON-serializable map with `schema_version`, portable fields, and plain-map config buckets only.
+- Added `import_lemmings/4` to `LemmingsOs.Lemmings` to accept a single map or list of maps, validate `schema_version`, prevalidate the full batch, and insert records atomically through `Ecto.Multi`.
+- Added focused import/export coverage for single import, batch import, schema version handling, forward-compatible extra keys, empty-list import, validation failures, slug conflicts, and export/import roundtrip behavior.
 
 ### Outputs Created
-- [List of files/artifacts created]
+- Updated `lib/lemmings_os/lemmings.ex`
+- Added `test/lemmings_os/lemmings_import_export_test.exs`
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
+| Portable export keys should be string-keyed instead of atom-keyed. | The context is preparing data for JSON serialization, and string keys line up directly with decoded JSON payloads on import. |
+| Empty config buckets should collapse to `%{}` even when the underlying embed struct contains default empty nested fields or lists. | The task explicitly calls for empty buckets to export as empty maps, not verbose default-shaped payloads. |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
+| Split import into a prevalidation pass plus an atomic `Ecto.Multi` write phase. | Letting `Ecto.Multi` fail on the first invalid row and returning only one error. | The task requires per-record validation errors while still keeping all-or-nothing semantics. |
+| Parsed `{:lemming, index}` failures from the transaction back into indexed error entries. | Returning a generic transaction failure without record indexing. | This keeps duplicate-slug and DB-backed validation failures attributable to the specific imported record. |
 
 ### Blockers Encountered
-- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
+- None.
 
 ### Questions for Human
-1. [Question needing human input]
+1. None.
 
 ### Ready for Next Task
-- [ ] All outputs complete
-- [ ] Summary documented
-- [ ] Questions listed (if any)
+- [x] All outputs complete
+- [x] Summary documented
+- [x] Questions listed (if any)
 
 ---
 
