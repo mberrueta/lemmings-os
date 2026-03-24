@@ -54,6 +54,9 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
           notes: "Handles incoming operator escalations."
         )
 
+      insert(:lemming, world: world, city: city_b, department: department, status: "active")
+      insert(:lemming, world: world, city: city_b, department: department, status: "draft")
+
       {:ok, view, _html} = live(conn, ~p"/cities?city=#{city_b.id}")
 
       assert has_element?(view, "#cities-page")
@@ -69,6 +72,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       assert has_element?(view, "#city-departments-summary-copy", "Beta City")
       assert has_element?(view, "#city-department-item-#{department.id}")
       assert has_element?(view, "#city-department-name-#{department.id}", "Support")
+      assert has_element?(view, "#city-department-lemming-count-#{department.id}", "2 Lemmings")
       refute has_element?(view, "#city-active-lemmings-panel")
     end
 

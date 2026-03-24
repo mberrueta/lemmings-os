@@ -586,6 +586,12 @@ defmodule LemmingsOsWeb.WorldComponents do
             <span id={"city-department-name-#{department.id}"} class="leading-6 text-zinc-100">
               • {department.name}
             </span>
+            <span
+              id={"city-department-lemming-count-#{department.id}"}
+              class="ml-2 text-xs uppercase tracking-wider text-zinc-500"
+            >
+              {department.lemming_count} {dgettext("layout", ".nav_lemmings")}
+            </span>
             <span :if={department.notes_preview} class="text-zinc-400">
               {" "}
               <code class="bg-transparent px-0 text-xs text-zinc-400">
@@ -649,7 +655,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :settings_form, :any, default: nil
   attr :effective_config, :map, default: nil
   attr :local_overrides, :map, default: nil
-  attr :lemming_preview, :list, default: []
+  attr :department_lemmings, :list, default: []
 
   def department_detail_page(assigns) do
     ~H"""
@@ -792,33 +798,46 @@ defmodule LemmingsOsWeb.WorldComponents do
       <div :if={@active_tab == "lemmings"} id="department-lemmings-tab-panel" class="space-y-4">
         <.panel id="department-lemmings-panel">
           <:title>{dgettext("world", ".department_lemmings_title")}</:title>
-          <:subtitle>{dgettext("world", ".department_lemmings_mock_copy")}</:subtitle>
-          <div
-            id="department-lemmings-mock-banner"
-            class="mb-4 border-2 border-zinc-700 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
-          >
-            {dgettext("world", ".label_mock_backed_preview")}
-          </div>
+          <:subtitle>{dgettext("world", ".department_lemmings_copy")}</:subtitle>
 
-          <div :if={@lemming_preview == []} id="department-lemmings-empty-state">
+          <div :if={@department_lemmings == []} id="department-lemmings-empty-state">
             <.empty_state
               id="department-lemmings-empty-state-card"
               title={dgettext("world", ".department_lemmings_empty")}
               copy={dgettext("world", ".department_lemmings_empty_copy")}
             />
+            <div class="mt-4 flex justify-end">
+              <.button
+                id="department-lemmings-empty-cta"
+                navigate={~p"/lemmings/new"}
+                variant="secondary"
+              >
+                {dgettext("layout", ".button_new_lemming")}
+              </.button>
+            </div>
           </div>
 
-          <div :if={@lemming_preview != []} id="department-lemmings-list" class="flex flex-col gap-3">
+          <div
+            :if={@department_lemmings != []}
+            id="department-lemmings-list"
+            class="flex flex-col gap-3"
+          >
             <.link
-              :for={lemming <- @lemming_preview}
+              :for={lemming <- @department_lemmings}
               id={"department-lemming-#{lemming.id}"}
               navigate={~p"/lemmings?#{%{lemming: lemming.id}}"}
               class="flex items-center justify-between gap-3 border-2 border-zinc-700 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
             >
-              <div>
+              <div class="min-w-0">
                 <p class="flex items-center gap-2 text-base text-zinc-100">{lemming.name}</p>
                 <p class="text-xs uppercase tracking-wider text-zinc-400">
-                  {Helpers.display_value(lemming.role)} • {Helpers.display_value(lemming.current_task)}
+                  {Helpers.display_value(lemming.slug)}
+                </p>
+                <p :if={lemming.description} class="mt-2 text-sm text-zinc-400">
+                  {Helpers.truncate_value(lemming.description,
+                    max_length: 120,
+                    unavailable_label: nil
+                  )}
                 </p>
               </div>
               <div class="flex items-center justify-between gap-3">
@@ -1129,8 +1148,8 @@ defmodule LemmingsOsWeb.WorldComponents do
       region: Map.get(city, :node_name, "local"),
       color: "#49f28e",
       status: Map.get(city, :status, "unknown"),
-      agents: 0,
-      depts: 0,
+      lemmings: Map.get(city, :lemming_count, 0),
+      depts: Map.get(city, :department_count, 0),
       col: nil,
       row: nil
     }

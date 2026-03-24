@@ -6,28 +6,28 @@
 ## Run `mix gettext.extract` to bring this file up to
 ## date. Leave `msgstr`s empty as changing them here has no
 ## effect: edit them in PO (`.po`) files instead.
-#: lib/lemmings_os_web/components/layouts.ex:59
+#: lib/lemmings_os_web/components/layouts.ex:62
 #, elixir-autogen
 msgid ".aria_open_navigation"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:66
+#: lib/lemmings_os_web/components/layouts.ex:69
 #: lib/lemmings_os_web/components/layouts/root.html.heex:8
 #, elixir-autogen
 msgid ".brand_name"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:77
+#: lib/lemmings_os_web/components/layouts.ex:80
 #, elixir-autogen
 msgid ".terminal_mem"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:78
+#: lib/lemmings_os_web/components/layouts.ex:81
 #, elixir-autogen
 msgid ".terminal_tick"
 msgstr ""
 
-#: lib/lemmings_os_web/components/layouts.ex:79
+#: lib/lemmings_os_web/components/layouts.ex:82
 #, elixir-autogen
 msgid ".terminal_agents"
 msgstr ""
@@ -37,100 +37,102 @@ msgstr ""
 msgid ".sidebar_eyebrow"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:143
+#: lib/lemmings_os_web/components/sidebar_components.ex:146
 #, elixir-autogen
 msgid ".nav_section_overview"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:173
+#: lib/lemmings_os_web/components/sidebar_components.ex:176
 #, elixir-autogen
 msgid ".nav_section_operations"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:145
+#: lib/lemmings_os_web/components/sidebar_components.ex:148
 #: lib/lemmings_os_web/live/mock_shell.ex:40
 #, elixir-autogen
 msgid ".nav_home"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:215
-#: lib/lemmings_os_web/components/home_components.ex:219
-#: lib/lemmings_os_web/components/sidebar_components.ex:148
+#: lib/lemmings_os_web/components/home_components.ex:220
+#: lib/lemmings_os_web/components/home_components.ex:224
+#: lib/lemmings_os_web/components/sidebar_components.ex:151
 #: lib/lemmings_os_web/live/mock_shell.ex:41
 #, elixir-autogen
 msgid ".nav_world"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:154
+#: lib/lemmings_os_web/components/sidebar_components.ex:157
 #: lib/lemmings_os_web/live/mock_shell.ex:42
 #, elixir-autogen
 msgid ".nav_cities"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:160
+#: lib/lemmings_os_web/components/sidebar_components.ex:163
 #: lib/lemmings_os_web/live/mock_shell.ex:45
 #, elixir-autogen
 msgid ".nav_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:166
+#: lib/lemmings_os_web/components/sidebar_components.ex:169
+#: lib/lemmings_os_web/components/world_components.ex:593
 #: lib/lemmings_os_web/live/mock_shell.ex:47
 #, elixir-autogen
 msgid ".nav_lemmings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:216
-#: lib/lemmings_os_web/components/sidebar_components.ex:177
+#: lib/lemmings_os_web/components/home_components.ex:221
+#: lib/lemmings_os_web/components/sidebar_components.ex:180
 #: lib/lemmings_os_web/live/mock_shell.ex:48
 #, elixir-autogen
 msgid ".nav_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:217
-#: lib/lemmings_os_web/components/sidebar_components.ex:183
+#: lib/lemmings_os_web/components/home_components.ex:222
+#: lib/lemmings_os_web/components/sidebar_components.ex:186
 #: lib/lemmings_os_web/live/mock_shell.ex:49
 #, elixir-autogen
 msgid ".nav_logs"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:218
-#: lib/lemmings_os_web/components/sidebar_components.ex:189
+#: lib/lemmings_os_web/components/home_components.ex:223
+#: lib/lemmings_os_web/components/sidebar_components.ex:192
 #: lib/lemmings_os_web/live/mock_shell.ex:50
 #, elixir-autogen
 msgid ".nav_settings"
 msgstr ""
 
 #: lib/lemmings_os_web/components/sidebar_components.ex:69
+#: lib/lemmings_os_web/components/world_components.ex:815
 #, elixir-autogen
 msgid ".button_new_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:76
+#: lib/lemmings_os_web/components/sidebar_components.ex:79
 #, elixir-autogen
 msgid ".aria_toggle_sidebar"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:88
+#: lib/lemmings_os_web/components/sidebar_components.ex:91
 #, elixir-autogen
 msgid ".footer_agents"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:96
+#: lib/lemmings_os_web/components/sidebar_components.ex:99
 #, elixir-autogen
 msgid ".footer_nodes"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:104
+#: lib/lemmings_os_web/components/sidebar_components.ex:107
 #, elixir-autogen
 msgid ".footer_cpu"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:112
+#: lib/lemmings_os_web/components/sidebar_components.ex:115
 #, elixir-autogen
 msgid ".footer_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/sidebar_components.ex:123
+#: lib/lemmings_os_web/components/sidebar_components.ex:126
 #, elixir-autogen
 msgid ".footer_cluster_online"
 msgstr ""
@@ -196,7 +198,7 @@ msgstr ""
 msgid ".page_title_home"
 msgstr ""
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:11
+#: lib/lemmings_os_web/live/lemmings_live.ex:19
 #, elixir-autogen
 msgid ".page_title_lemmings"
 msgstr ""
@@ -211,7 +213,7 @@ msgstr ""
 msgid ".page_title_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/live/world_live.ex:15
+#: lib/lemmings_os_web/live/world_live.ex:18
 #, elixir-autogen
 msgid ".page_title_world"
 msgstr ""
@@ -493,19 +495,19 @@ msgstr ""
 msgid ".tools_policy_copy_unknown"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:221
+#: lib/lemmings_os_web/components/home_components.ex:226
 #: lib/lemmings_os_web/components/system_components.ex:80
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_mode_deferred"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:223
+#: lib/lemmings_os_web/components/home_components.ex:228
 #: lib/lemmings_os_web/components/system_components.ex:86
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_mode_known"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:222
+#: lib/lemmings_os_web/components/home_components.ex:227
 #: lib/lemmings_os_web/components/system_components.ex:83
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_mode_partial"
@@ -547,65 +549,65 @@ msgstr ""
 msgid ".tools_usage_unknown"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:255
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:250
+#: lib/lemmings_os_web/components/home_components.ex:260
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:262
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_action"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:241
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:247
+#: lib/lemmings_os_web/components/home_components.ex:246
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:259
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_detail"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:227
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:246
+#: lib/lemmings_os_web/components/home_components.ex:232
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:258
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_summary"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:258
+#: lib/lemmings_os_web/components/home_components.ex:263
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_partial_action"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:244
+#: lib/lemmings_os_web/components/home_components.ex:249
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_partial_detail"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:230
+#: lib/lemmings_os_web/components/home_components.ex:235
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_partial_summary"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:261
+#: lib/lemmings_os_web/components/home_components.ex:266
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_unavailable_action"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:247
+#: lib/lemmings_os_web/components/home_components.ex:252
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_unavailable_detail"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:233
+#: lib/lemmings_os_web/components/home_components.ex:238
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_policy_unavailable_summary"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:264
+#: lib/lemmings_os_web/components/home_components.ex:269
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_runtime_source_unavailable_action"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:250
+#: lib/lemmings_os_web/components/home_components.ex:255
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_runtime_source_unavailable_detail"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:236
+#: lib/lemmings_os_web/components/home_components.ex:241
 #, elixir-autogen, elixir-format
 msgid ".home_alert_tools_runtime_source_unavailable_summary"
 msgstr ""
@@ -741,23 +743,23 @@ msgstr ""
 msgid ".home_signals_title"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:206
+#: lib/lemmings_os_web/components/home_components.ex:211
 #, elixir-autogen, elixir-format
 msgid ".home_source_bootstrap_config"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:205
+#: lib/lemmings_os_web/components/home_components.ex:210
 #, elixir-autogen, elixir-format
 msgid ".home_source_persisted_world"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:207
-#: lib/lemmings_os_web/components/home_components.ex:213
+#: lib/lemmings_os_web/components/home_components.ex:212
+#: lib/lemmings_os_web/components/home_components.ex:218
 #, elixir-autogen, elixir-format
 msgid ".home_source_runtime_checks"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:208
+#: lib/lemmings_os_web/components/home_components.ex:213
 #, elixir-autogen, elixir-format
 msgid ".home_source_tools_snapshot"
 msgstr ""
@@ -807,7 +809,12 @@ msgstr ""
 msgid ".home_card_topology_summary_title"
 msgstr ""
 
-#: lib/lemmings_os_web/components/home_components.ex:211
+#: lib/lemmings_os_web/components/home_components.ex:216
 #, elixir-autogen, elixir-format
 msgid ".home_source_persisted_topology"
+msgstr ""
+
+#: lib/lemmings_os_web/components/home_components.ex:203
+#, elixir-autogen, elixir-format
+msgid ".home_card_topology_lemming_count_label"
 msgstr ""

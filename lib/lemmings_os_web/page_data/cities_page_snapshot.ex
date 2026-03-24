@@ -15,6 +15,7 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
   alias LemmingsOs.Gettext, as: AppGettext
+  alias LemmingsOs.Lemmings
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
 
@@ -43,6 +44,7 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
           name: String.t(),
           status: String.t(),
           status_label: String.t(),
+          lemming_count: non_neg_integer(),
           tags: [String.t()],
           notes_preview: String.t() | nil
         }
@@ -173,18 +175,21 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
   end
 
   defp city_departments_snapshot(%City{} = city) do
+    lemming_counts = Lemmings.lemming_counts_by_department(city)
+
     city.world_id
     |> Departments.list_departments(city.id)
-    |> Enum.map(&department_card/1)
+    |> Enum.map(&department_card(&1, lemming_counts))
   end
 
-  defp department_card(%Department{} = department) do
+  defp department_card(%Department{} = department, lemming_counts) when is_map(lemming_counts) do
     %{
       id: department.id,
       path: "/departments?city=#{department.city_id}&dept=#{department.id}",
       name: department.name,
       status: department.status,
       status_label: Department.translate_status(department),
+      lemming_count: Map.get(lemming_counts, department.id, 0),
       tags: department.tags || [],
       notes_preview: truncate_notes(department.notes)
     }

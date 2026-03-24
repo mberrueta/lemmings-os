@@ -22,6 +22,9 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshotTest do
           notes: String.duplicate("notes ", 30)
         )
 
+      insert(:lemming, world: world, city: city, department: department, status: "active")
+      insert(:lemming, world: world, city: city, department: department, status: "draft")
+
       _other_department =
         insert(:department,
           world: world,
@@ -36,11 +39,21 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshotTest do
       assert snapshot.selected_city.department_count == 1
       assert snapshot.selected_city.departments_path == "/departments?city=#{city.id}"
 
-      assert [%{id: id, path: path, name: "Support", status: "active", tags: tags}] =
+      assert [
+               %{
+                 id: id,
+                 path: path,
+                 name: "Support",
+                 status: "active",
+                 lemming_count: lemming_count,
+                 tags: tags
+               }
+             ] =
                snapshot.selected_city.departments
 
       assert id == department.id
       assert path == "/departments?city=#{city.id}&dept=#{department.id}"
+      assert lemming_count == 2
       assert tags == ["customer-care", "tier-1"]
       assert snapshot.selected_city.departments |> hd() |> Map.fetch!(:notes_preview) =~ "..."
     end

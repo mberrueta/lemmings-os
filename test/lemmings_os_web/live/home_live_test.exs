@@ -83,9 +83,11 @@ defmodule LemmingsOsWeb.HomeLiveTest do
 
     city_one = insert(:city, world: world, status: "active")
     city_two = insert(:city, world: world, status: "active")
-    insert(:department, world: world, city: city_one, status: "active")
-    insert(:department, world: world, city: city_one, status: "draining")
+    department_one = insert(:department, world: world, city: city_one, status: "active")
+    department_two = insert(:department, world: world, city: city_one, status: "draining")
     insert(:department, world: world, city: city_two, status: "disabled")
+    insert(:lemming, world: world, city: city_one, department: department_one, status: "active")
+    insert(:lemming, world: world, city: city_one, department: department_two, status: "draft")
 
     {:ok, view, _html} = live(conn, ~p"/")
 
@@ -93,6 +95,7 @@ defmodule LemmingsOsWeb.HomeLiveTest do
     assert has_element?(view, "#home-card-topology_summary-city_count", "2")
     assert has_element?(view, "#home-card-topology_summary-department_count", "3")
     assert has_element?(view, "#home-card-topology_summary-active_department_count", "1")
+    assert has_element?(view, "#home-card-topology_summary-lemming_count", "2")
   end
 
   test "renders degraded bootstrap health when the bootstrap emits warnings", %{conn: conn} do

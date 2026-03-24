@@ -224,10 +224,21 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       refute has_element?(view, "#department-notes-preview-#{department.id}")
     end
 
-    test "S09: lemmings tab is explicitly mock-backed and renders the preview list", %{conn: conn} do
+    test "S09: lemmings tab renders persisted lemming definitions", %{conn: conn} do
       world = insert(:world)
       city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
       department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      lemming =
+        insert(:lemming,
+          world: world,
+          city: city,
+          department: department,
+          name: "Incident Triage",
+          slug: "incident-triage",
+          status: "active",
+          description: "Classifies inbound incidents."
+        )
 
       {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
 
@@ -239,9 +250,43 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       )
 
       assert has_element?(view, "#department-lemmings-tab-panel")
-      assert has_element?(view, "#department-lemmings-mock-banner")
       assert has_element?(view, "#department-lemmings-list")
-      assert has_element?(view, "#department-lemmings-list a[id^='department-lemming-']")
+      assert has_element?(view, "#department-lemming-#{lemming.id}")
+      assert has_element?(view, "#department-lemming-#{lemming.id}", "Incident Triage")
+      assert has_element?(view, "#department-lemming-#{lemming.id}", "incident-triage")
+    end
+
+    test "S09c: city map payload includes persisted lemming counts", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        name: "Incident Triage",
+        slug: "incident-triage",
+        status: "active"
+      )
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id}}")
+
+      assert has_element?(view, "#departments-city-map")
+      assert render(view) =~ "lemming_count"
+    end
+
+    test "S09b: lemmings tab shows an honest empty state with create CTA", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      view |> element("#department-tab-lemmings") |> render_click()
+
+      assert has_element?(view, "#department-lemmings-empty-state")
+      assert has_element?(view, "#department-lemmings-empty-cta")
     end
 
     test "S10: settings distinguish effective config from local overrides", %{conn: conn} do

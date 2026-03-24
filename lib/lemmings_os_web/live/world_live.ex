@@ -5,8 +5,11 @@ defmodule LemmingsOsWeb.WorldLive do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Departments
   alias LemmingsOs.Helpers
+  alias LemmingsOs.Lemmings
   alias LemmingsOs.WorldBootstrap.Importer
+  alias LemmingsOs.Worlds
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
 
   def mount(_params, _session, socket) do
@@ -59,12 +62,21 @@ defmodule LemmingsOsWeb.WorldLive do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     freshness = freshness_threshold_seconds()
 
-    world_id
-    |> Cities.list_cities()
-    |> Enum.map(&to_city_summary(&1, now, freshness))
+    case Worlds.fetch_world(world_id) do
+      {:ok, world} ->
+        department_counts = Departments.department_counts_by_city(world)
+        lemming_counts = Lemmings.lemming_counts_by_city(world)
+
+        world
+        |> Cities.list_cities()
+        |> Enum.map(&to_city_summary(&1, now, freshness, department_counts, lemming_counts))
+
+      {:error, :not_found} ->
+        []
+    end
   end
 
-  defp to_city_summary(%City{} = city, now, freshness) do
+  defp to_city_summary(%City{} = city, now, freshness, department_counts, lemming_counts) do
     liveness = City.liveness(city, now, freshness)
 
     %{
@@ -74,6 +86,8 @@ defmodule LemmingsOsWeb.WorldLive do
       node_name: city.node_name,
       status: city.status,
       liveness: liveness,
+      department_count: Map.get(department_counts, city.id, 0),
+      lemming_count: Map.get(lemming_counts, city.id, 0),
       last_seen_at: city.last_seen_at,
       last_seen_at_label: Helpers.format_datetime(city.last_seen_at)
     }

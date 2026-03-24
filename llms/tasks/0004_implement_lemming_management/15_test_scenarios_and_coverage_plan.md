@@ -50,6 +50,19 @@ Turn the branch-level acceptance criteria into a concrete, prioritized test plan
 - Keep the plan grounded in what the branch actually ships
 - Prefer stable DOM selectors and deterministic time/data setup
 
+### Methods To Explicitly Cover
+
+- `LemmingsOs.Lemmings.topology_summary/1`
+- `LemmingsOs.Lemmings.lemming_counts_by_department/1`
+- `LemmingsOs.Lemmings.lemming_counts_by_city/1`
+- `LemmingsOs.Departments.topology_summary/1`
+- `LemmingsOs.Departments.department_counts_by_city/1`
+- `LemmingsOs.Config.Resolver.resolve/1` for `%LemmingsOs.Lemmings.Lemming{}`
+- `LemmingsOs.Lemmings.ImportExport.export_lemming/1`
+- `LemmingsOs.Lemmings.ImportExport.import_lemmings/4`
+
+These should be called out in the coverage plan as direct contracts to test, not only indirectly through page snapshots or LiveViews.
+
 ## Execution Instructions
 
 ### For the Agent

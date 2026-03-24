@@ -250,6 +250,34 @@ defmodule LemmingsOs.Lemmings do
     |> normalize_topology_summary()
   end
 
+  @doc """
+  Returns persisted Lemming counts keyed by Department id for a City.
+
+  Departments with no persisted Lemmings are omitted from the returned map.
+  """
+  @spec lemming_counts_by_department(City.t()) :: %{Ecto.UUID.t() => non_neg_integer()}
+  def lemming_counts_by_department(%City{id: city_id}) when is_binary(city_id) do
+    Lemming
+    |> where([lemming], lemming.city_id == ^city_id)
+    |> group_by([lemming], lemming.department_id)
+    |> select([lemming], {lemming.department_id, count(lemming.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Returns persisted Lemming counts keyed by City id for a World.
+  """
+  @spec lemming_counts_by_city(World.t()) :: %{Ecto.UUID.t() => non_neg_integer()}
+  def lemming_counts_by_city(%World{id: world_id}) when is_binary(world_id) do
+    Lemming
+    |> where([lemming], lemming.world_id == ^world_id)
+    |> group_by([lemming], lemming.city_id)
+    |> select([lemming], {lemming.city_id, count(lemming.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
   defp validate_city_in_world(world_id, %City{world_id: world_id}), do: :ok
   defp validate_city_in_world(_world_id, %City{}), do: {:error, :department_not_in_city_world}
 

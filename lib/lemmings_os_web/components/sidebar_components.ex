@@ -14,7 +14,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
     ~H"""
     <aside
       id="app-sidebar"
-      class="fixed top-0 left-0 z-[100] flex h-[100dvh] w-[min(18.5rem,85vw)] -translate-x-[110%] flex-col gap-5 overflow-y-auto border-2 border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl transition-transform duration-[220ms] md:sticky md:top-4 md:z-auto md:h-auto md:w-auto md:max-h-[calc(100vh-2rem)] md:translate-x-0 md:overflow-hidden lg:max-h-none lg:overflow-visible"
+      class="fixed top-0 left-0 z-[100] flex h-[100dvh] w-[min(18.5rem,85vw)] -translate-x-[110%] flex-col gap-5 overflow-y-auto border-2 border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl transition-[transform,width,padding] duration-[220ms] md:sticky md:top-4 md:z-auto md:h-auto md:w-auto md:max-h-[calc(100vh-2rem)] md:translate-x-0 md:overflow-hidden lg:max-h-none lg:overflow-visible"
       phx-click-away={
         JS.remove_class("mobile-open", to: "#app-sidebar")
         |> JS.remove_class("mobile-open", to: "#mobile-backdrop")
@@ -23,9 +23,9 @@ defmodule LemmingsOsWeb.SidebarComponents do
     >
       <.app_version_badge />
 
-      <div class="border-b-2 border-zinc-800 bg-zinc-900/50 pb-4 flex items-start justify-between gap-4">
+      <div class="sidebar-brand border-b-2 border-zinc-800 bg-zinc-900/50 pb-4 flex items-start justify-between gap-4">
         <div class="flex items-center gap-3">
-          <LemmingComponents.lemming_logo
+          <LemmingImageComponents.lemming_logo
             size={32}
             animation="blink"
             class="shrink-0"
@@ -35,7 +35,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
               {dgettext("layout", ".sidebar_eyebrow")}
             </p>
             <h1 class="font-mono text-sm font-medium leading-relaxed text-emerald-400">
-              <LemmingComponents.brand_wordmark />
+              <LemmingImageComponents.brand_wordmark />
             </h1>
           </div>
         </div>
@@ -52,7 +52,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
             navigate={item.path}
             title={item.label}
             class={[
-              "group flex items-center gap-3 border-2 border-transparent bg-zinc-900/40 px-3 py-2.5 text-sm transition-all duration-150 hover:border-emerald-400/40 hover:bg-emerald-400/5 hover:text-emerald-400",
+              "sidebar-nav-link group flex items-center gap-3 border-2 border-transparent bg-zinc-900/40 px-3 py-2.5 text-sm transition-all duration-150 hover:border-emerald-400/40 hover:bg-emerald-400/5 hover:text-emerald-400",
               @active_page == item.key &&
                 "border-emerald-400/60 bg-emerald-400/10 text-emerald-400 shadow-md"
             ]}
@@ -72,12 +72,15 @@ defmodule LemmingsOsWeb.SidebarComponents do
 
       <button
         class="mt-auto hidden size-8 shrink-0 self-center items-center justify-center border border-zinc-800 bg-transparent text-zinc-500 transition duration-150 hover:border-emerald-400 hover:text-emerald-400 lg:flex"
-        phx-click={JS.toggle_class("app-sidebar--collapsed", to: "#app-sidebar")}
+        phx-click={
+          JS.toggle_class("app-sidebar--collapsed", to: "#app-sidebar")
+          |> JS.toggle_class("app-shell--sidebar-collapsed", to: "#app-shell")
+        }
         aria-label={dgettext("layout", ".aria_toggle_sidebar")}
       >
         <.icon
           name="hero-chevron-double-left"
-          class="size-3 transition-transform duration-300 group-[.app-sidebar--collapsed]:rotate-180"
+          class="sidebar-collapse-icon size-3 transition-transform duration-300"
         />
       </button>
 

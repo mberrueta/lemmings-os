@@ -442,7 +442,7 @@ function renderCityTooltip(tooltip, city, labels) {
   appendTooltipLine(tooltip, city.region, "#7aa18a")
   appendTooltipLine(
     tooltip,
-    `${city.depts} ${labels.departments || ""} · ${city.agents} ${labels.agents || ""}`.trim()
+    `${city.depts} ${labels.departments || ""} · ${city.lemmings} ${labels.lemmings || ""}`.trim()
   )
   appendTooltipLine(tooltip, statusText, statusColor)
 }

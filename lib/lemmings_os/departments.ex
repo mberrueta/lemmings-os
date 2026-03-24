@@ -213,6 +213,19 @@ defmodule LemmingsOs.Departments do
   end
 
   @doc """
+  Returns persisted Department counts keyed by City id for a World.
+  """
+  @spec department_counts_by_city(World.t()) :: %{Ecto.UUID.t() => non_neg_integer()}
+  def department_counts_by_city(%World{id: world_id}) when is_binary(world_id) do
+    Department
+    |> where([department], department.world_id == ^world_id)
+    |> group_by([department], department.city_id)
+    |> select([department], {department.city_id, count(department.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Transitions a Department to a new administrative status.
 
   ## Examples

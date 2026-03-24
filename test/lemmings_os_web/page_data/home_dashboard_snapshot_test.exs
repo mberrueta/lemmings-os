@@ -51,7 +51,9 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshotTest do
       assert card(snapshot, "topology_summary").meta == %{
                city_count: 0,
                department_count: 0,
-               active_department_count: 0
+               active_department_count: 0,
+               lemming_count: 0,
+               active_lemming_count: 0
              }
 
       assert Enum.any?(snapshot.alerts, &(&1.code == "tools_policy_partial"))
@@ -61,9 +63,11 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshotTest do
       world = insert(:world)
       city_one = insert(:city, world: world, status: "active")
       city_two = insert(:city, world: world, status: "active")
-      insert(:department, world: world, city: city_one, status: "active")
-      insert(:department, world: world, city: city_one, status: "draining")
+      department_one = insert(:department, world: world, city: city_one, status: "active")
+      department_two = insert(:department, world: world, city: city_one, status: "draining")
       insert(:department, world: world, city: city_two, status: "disabled")
+      insert(:lemming, world: world, city: city_one, department: department_one, status: "active")
+      insert(:lemming, world: world, city: city_one, department: department_two, status: "draft")
 
       snapshot =
         HomeDashboardSnapshot.build(
@@ -76,7 +80,9 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshotTest do
       assert card(snapshot, "topology_summary").meta == %{
                city_count: 2,
                department_count: 3,
-               active_department_count: 1
+               active_department_count: 1,
+               lemming_count: 2,
+               active_lemming_count: 1
              }
     end
   end

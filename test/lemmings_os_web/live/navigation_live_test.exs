@@ -8,12 +8,18 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
   alias LemmingsOs.Repo
   alias LemmingsOs.Tools.MockPolicyFetcher
   alias LemmingsOs.Tools.MockRuntimeFetcher
+  alias LemmingsOs.Lemmings.Lemming
+  alias LemmingsOs.Cities.City
+  alias LemmingsOs.Departments.Department
   alias LemmingsOs.Worlds.World
   alias LemmingsOs.Worlds.Cache
 
   setup :verify_on_exit!
 
   setup do
+    Repo.delete_all(Lemming)
+    Repo.delete_all(Department)
+    Repo.delete_all(City)
     Repo.delete_all(World)
     Cache.invalidate_all()
     stub(MockRuntimeFetcher, :fetch, fn -> {:error, :not_implemented} end)
@@ -60,11 +66,20 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
     assert has_element?(view, "#department-overview-tab-panel")
   end
 
-  test "lemmings page supports a selected detail panel", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/lemmings?lemming=lem-1")
+  test "lemmings page links into dedicated detail view", %{conn: conn} do
+    world = insert(:world)
+    city = insert(:city, world: world, slug: "city-alpha", name: "City Alpha")
+    department = insert(:department, world: world, city: city, slug: "eng", name: "Engineering")
+    lemming = insert(:lemming, world: world, city: city, department: department, name: "Triage")
 
-    assert has_element?(view, "#lemming-detail-panel")
-    assert has_element?(view, "#lemming-link-lem-1[data-selected='true']")
+    {:ok, view, _html} = live(conn, ~p"/lemmings")
+
+    assert has_element?(view, "#lemming-card-#{lemming.id}")
+
+    {:ok, detail_view, _html} = live(conn, ~p"/lemmings/#{lemming.id}")
+
+    assert has_element?(detail_view, "#lemming-detail-panel")
+    assert has_element?(detail_view, "#lemming-hero-name", "Triage")
   end
 
   test "tools, logs, settings, and create lemming pages render", %{conn: conn} do

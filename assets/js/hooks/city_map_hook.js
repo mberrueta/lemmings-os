@@ -379,7 +379,7 @@ function drawDepartment(ctx, department, tick) {
   ctx.fillText(department.name.toUpperCase(), pixelX + TILE_SIZE / 2, pixelY + TILE_SIZE + 18)
   ctx.fillStyle = "#4a7a5a"
   ctx.font = '8px "Courier New", monospace'
-  ctx.fillText(`${(department.lemmings || []).length} lemmings`, pixelX + TILE_SIZE / 2, pixelY + TILE_SIZE + 28)
+  ctx.fillText(`${department.lemming_count || 0} lemmings`, pixelX + TILE_SIZE / 2, pixelY + TILE_SIZE + 28)
   ctx.textAlign = "left"
 }
 
@@ -492,8 +492,8 @@ function appendTooltipLine(tooltip, text, color = null) {
 }
 
 function renderDepartmentTooltip(tooltip, department, labels) {
-  const lemmingCount = (department.lemmings || []).length
-  const runningCount = (department.lemmings || []).filter(lemming => lemming.status === "running").length
+  const lemmingCount = department.lemming_count || 0
+  const runningCount = department.running_count || 0
 
   resetTooltip(tooltip)
   appendTooltipLine(tooltip, department.name, department.color)
