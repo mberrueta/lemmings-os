@@ -157,18 +157,11 @@ defmodule LemmingsOs.Lemmings.ImportExport do
     end
   end
 
-  defp validate_city_in_world(world_id, %City{world_id: world_id}), do: :ok
-  defp validate_city_in_world(_world_id, %City{}), do: {:error, :department_not_in_city_world}
+  defp validate_city_in_world(world_id, city),
+    do: Lemmings.validate_city_in_world(world_id, city)
 
-  defp validate_department_in_city_world(
-         world_id,
-         city_id,
-         %Department{world_id: world_id, city_id: city_id}
-       ),
-       do: :ok
-
-  defp validate_department_in_city_world(_world_id, _city_id, %Department{}),
-    do: {:error, :department_not_in_city_world}
+  defp validate_department_in_city_world(world_id, city_id, department),
+    do: Lemmings.validate_department_in_city_world(world_id, city_id, department)
 
   defp export_bucket(nil), do: %{}
 

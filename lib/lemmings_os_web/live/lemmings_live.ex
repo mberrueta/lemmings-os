@@ -363,6 +363,9 @@ defmodule LemmingsOsWeb.LemmingsLive do
       {_key, nil}, acc ->
         acc
 
+      {_key, []}, acc ->
+        acc
+
       {key, value}, acc when is_map(value) ->
         case prune_override(value) do
           %{} -> acc

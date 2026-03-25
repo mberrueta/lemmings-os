@@ -6,7 +6,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   use LemmingsOsWeb, :html
 
   alias LemmingsOs.Helpers
-  alias LemmingsOs.MockData
+  alias LemmingsOs.Lemmings
 
   attr :snapshot, :map, default: nil
   attr :import_result, :map, default: nil
@@ -618,7 +618,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :department, :map, required: true
 
   def department_room(assigns) do
-    lemmings = MockData.lemmings_for_department(assigns.department.id)
+    lemmings = Lemmings.list_lemmings(assigns.department)
     assigns = assign(assigns, :lemmings, lemmings)
 
     ~H"""
