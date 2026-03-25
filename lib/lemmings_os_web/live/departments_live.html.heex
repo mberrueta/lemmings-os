@@ -25,7 +25,7 @@
       settings_form={@department_settings_form}
       effective_config={@department_effective_config}
       local_overrides={@department_local_overrides}
-      lemming_preview={@department_lemming_preview}
+      department_lemmings={@department_lemmings}
     />
 
     <div
@@ -71,6 +71,8 @@
                   end,
                 col: nil,
                 row: nil,
+                lemming_count: Map.get(department, :lemming_count, 0),
+                running_count: 0,
                 lemmings: []
               }
             end)

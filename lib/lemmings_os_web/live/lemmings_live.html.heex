@@ -8,8 +8,34 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <LemmingComponents.lemmings_page
-    lemmings={@lemmings}
-    selected_lemming={@selected_lemming}
-  />
+  <%= case @live_action do %>
+    <% :index -> %>
+      <LemmingComponents.lemmings_page
+        world={@world}
+        cities={@cities}
+        departments={@departments}
+        filters_form={@filters_form}
+        selected_city={@selected_city}
+        selected_department={@selected_department}
+        lemmings={@lemmings}
+        selected_lemming={@selected_lemming}
+        selected_lemming_effective_config={@selected_lemming_effective_config}
+        selected_lemming_inheriting?={@selected_lemming_inheriting?}
+        lemming_not_found?={@lemming_not_found?}
+      />
+    <% :show -> %>
+      <LemmingComponents.lemming_detail_page
+        world={@world}
+        selected_city={@selected_city}
+        selected_department={@selected_department}
+        selected_lemming={@selected_lemming}
+        selected_lemming_effective_config={@selected_lemming_effective_config}
+        selected_lemming_inheriting?={@selected_lemming_inheriting?}
+        lemming_not_found?={@lemming_not_found?}
+        active_detail_tab={@active_detail_tab}
+        settings_form={@settings_form}
+        overview_path={@overview_path}
+        edit_path={@edit_path}
+      />
+  <% end %>
 </Layouts.app>

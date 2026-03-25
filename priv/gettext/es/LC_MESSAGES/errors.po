@@ -120,36 +120,36 @@ msgstr "Elimina la clave o extiende el validador bootstrap si es intencional."
 msgid ".aria_close"
 msgstr "cerrar"
 
-#: lib/lemmings_os_web/components/layouts.ex:115
+#: lib/lemmings_os_web/components/layouts.ex:118
 #, elixir-autogen
 msgid ".error_no_internet"
 msgstr "No encontramos internet"
 
-#: lib/lemmings_os_web/components/layouts.ex:120
-#: lib/lemmings_os_web/components/layouts.ex:132
+#: lib/lemmings_os_web/components/layouts.ex:123
+#: lib/lemmings_os_web/components/layouts.ex:135
 #, elixir-autogen
 msgid ".error_attempting_reconnect"
 msgstr "Intentando reconectar"
 
-#: lib/lemmings_os_web/components/layouts.ex:127
+#: lib/lemmings_os_web/components/layouts.ex:130
 #, elixir-autogen
 msgid ".error_something_went_wrong"
 msgstr "Algo salio mal!"
 
-#: lib/lemmings_os_web/components/core_components.ex:614
-#: lib/lemmings_os_web/components/core_components.ex:617
+#: lib/lemmings_os_web/components/core_components.ex:625
+#: lib/lemmings_os_web/components/core_components.ex:628
 #, elixir-autogen
 msgid ".issue_severity_error"
 msgstr "Error"
 
-#: lib/lemmings_os_web/components/core_components.ex:616
-#: lib/lemmings_os_web/components/core_components.ex:619
+#: lib/lemmings_os_web/components/core_components.ex:627
+#: lib/lemmings_os_web/components/core_components.ex:630
 #, elixir-autogen
 msgid ".issue_severity_info"
 msgstr "Info"
 
-#: lib/lemmings_os_web/components/core_components.ex:615
-#: lib/lemmings_os_web/components/core_components.ex:618
+#: lib/lemmings_os_web/components/core_components.ex:626
+#: lib/lemmings_os_web/components/core_components.ex:629
 #, elixir-autogen
 msgid ".issue_severity_warning"
 msgstr "Advertencia"
@@ -264,3 +264,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid ".department_delete_denied_safety_indeterminate"
 msgstr ""
+
+#: lib/lemmings_os/lemmings/delete_denied_error.ex:20
+#, elixir-autogen, elixir-format
+msgid ".lemming_delete_denied_safety_indeterminate"
+msgstr "La eliminacion del lemming no esta disponible porque todavia no se puede demostrar que sea segura."

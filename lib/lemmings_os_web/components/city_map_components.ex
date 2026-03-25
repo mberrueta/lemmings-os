@@ -11,15 +11,13 @@ defmodule LemmingsOsWeb.CityMapComponents do
   attr :class, :string, default: ""
 
   def department_node(assigns) do
-    assigns = assign(assigns, :lemming_count, length(Map.get(assigns.department, :lemmings, [])))
+    assigns = assign(assigns, :lemming_count, department_lemming_count(assigns.department))
 
     assigns =
       assign(
         assigns,
         :running_count,
-        Enum.count(Map.get(assigns.department, :lemmings, []), fn lemming ->
-          Map.get(lemming, :status) == :running
-        end)
+        department_running_count(assigns.department)
       )
 
     ~H"""
@@ -205,7 +203,7 @@ defmodule LemmingsOsWeb.CityMapComponents do
 
   defp count_lemmings(departments) do
     Enum.reduce(departments, 0, fn department, count ->
-      count + length(Map.get(department, :lemmings, []))
+      count + department_lemming_count(department)
     end)
   end
 
@@ -232,6 +230,8 @@ defmodule LemmingsOsWeb.CityMapComponents do
         color: department_color(department),
         col: Map.get(department, :col),
         row: Map.get(department, :row),
+        lemming_count: department_lemming_count(department),
+        running_count: department_running_count(department),
         lemmings:
           Enum.map(Map.get(department, :lemmings, []), fn lemming ->
             %{
@@ -254,5 +254,23 @@ defmodule LemmingsOsWeb.CityMapComponents do
       idle_status: dgettext("lemmings", ".status_idle")
     }
     |> Jason.encode!()
+  end
+
+  defp department_lemming_count(department) do
+    if is_integer(Map.get(department, :lemming_count)) do
+      Map.get(department, :lemming_count)
+    else
+      length(Map.get(department, :lemmings, []))
+    end
+  end
+
+  defp department_running_count(department) do
+    if is_integer(Map.get(department, :running_count)) do
+      Map.get(department, :running_count)
+    else
+      Enum.count(Map.get(department, :lemmings, []), fn lemming ->
+        Map.get(lemming, :status) in [:running, "running"]
+      end)
+    end
   end
 end

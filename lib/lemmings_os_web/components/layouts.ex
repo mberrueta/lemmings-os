@@ -41,7 +41,10 @@ defmodule LemmingsOsWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="grid min-h-screen grid-cols-1 gap-4 p-4 md:grid-cols-[5.5rem_minmax(0,1fr)] md:items-start lg:grid-cols-[18.5rem_minmax(0,1fr)]">
+    <div
+      id="app-shell"
+      class="grid min-h-screen grid-cols-1 gap-4 p-4 md:grid-cols-[5.5rem_minmax(0,1fr)] md:items-start lg:grid-cols-[18.5rem_minmax(0,1fr)]"
+    >
       <SidebarComponents.sidebar active_page={@page_key} summary={@summary} />
 
       <div

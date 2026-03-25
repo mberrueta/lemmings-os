@@ -1,0 +1,182 @@
+<Layouts.app
+  flash={@flash}
+  current_scope={@current_scope}
+  page_key={@page_key}
+  page_title={@page_title}
+  shell_user={@shell_user}
+  shell_host={@shell_host}
+  shell_breadcrumb={@shell_breadcrumb}
+  summary={@summary}
+>
+  <.content_container>
+    <%!-- Upload step --%>
+    <div :if={@step == :upload} id="import-upload-step" class="space-y-4">
+      <.panel id="import-upload-panel" tone="accent">
+        <:title>{dgettext("lemmings", ".import_upload_title")}</:title>
+        <:subtitle>{dgettext("lemmings", ".import_upload_copy")}</:subtitle>
+        <:actions>
+          <.button
+            :if={@department}
+            navigate={
+              ~p"/departments?#{%{city: @city.id, dept: @department.id, tab: "lemmings"}}"
+            }
+            variant="neutral"
+          >
+            {dgettext("world", ".button_all_departments")}
+          </.button>
+        </:actions>
+
+        <div
+          :if={@upload_error}
+          id="import-upload-error"
+          role="alert"
+          class="mb-4 border-2 border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+        >
+          {@upload_error}
+        </div>
+
+        <form
+          id="import-upload-form"
+          phx-change="validate_file"
+          phx-submit="process_file"
+        >
+          <div class="space-y-4">
+            <div class="flex flex-col gap-1.5">
+              <label
+                for={@uploads.json_file.ref}
+                class="text-xs font-bold uppercase tracking-widest text-zinc-500"
+              >
+                {dgettext("lemmings", ".import_upload_file_label")}
+              </label>
+
+              <.live_file_input
+                upload={@uploads.json_file}
+                class="block w-full border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:border-0 file:bg-zinc-800 file:px-3 file:py-1 file:text-xs file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
+                aria-describedby={if @upload_error, do: "import-upload-error"}
+              />
+
+              <ul
+                :if={@uploads.json_file.entries != []}
+                id="import-file-list"
+                class="mt-2 space-y-1"
+              >
+                <li
+                  :for={entry <- @uploads.json_file.entries}
+                  id={"import-file-entry-#{entry.ref}"}
+                  class="flex items-center gap-3 border-2 border-zinc-700 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-100"
+                >
+                  <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
+                  <span class="shrink-0 text-xs text-zinc-500">
+                    {Float.round(entry.client_size / 1024, 1)} KB
+                  </span>
+                  <button
+                    type="button"
+                    phx-click="cancel_upload"
+                    phx-value-ref={entry.ref}
+                    class="shrink-0 text-xs text-zinc-500 hover:text-red-400"
+                    aria-label={dgettext("lemmings", ".import_upload_remove_file")}
+                  >
+                    &times;
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="submit"
+                id="import-upload-submit-btn"
+                class="inline-flex h-9 items-center justify-center gap-2 border-2 border-emerald-400/50 bg-emerald-400/10 px-3 text-xs font-medium text-emerald-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+                phx-disable-with={dgettext("lemmings", ".button_import_processing")}
+              >
+                {dgettext("lemmings", ".button_import_upload")}
+              </button>
+            </div>
+          </div>
+        </form>
+      </.panel>
+    </div>
+
+    <%!-- Confirm step (conflicts found) --%>
+    <div :if={@step == :confirm} id="import-confirm-step" class="space-y-4">
+      <.panel id="import-confirm-panel" tone="warning">
+        <:title>{dgettext("lemmings", ".import_confirm_title")}</:title>
+        <:subtitle>{dgettext("lemmings", ".import_confirm_copy")}</:subtitle>
+
+        <div
+          :if={@confirm_error}
+          id="import-confirm-error"
+          role="alert"
+          class="mb-4 border-2 border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+        >
+          {@confirm_error}
+        </div>
+
+        <ul id="import-conflicts-list" class="mb-4 space-y-2" role="list">
+          <li
+            :for={conflict <- @conflicts}
+            id={"import-conflict-#{conflict.id}"}
+            class="border-2 border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200"
+          >
+            {dgettext("lemmings", ".import_conflict_detail",
+              department: @department.name,
+              city: @city.name,
+              slug: conflict.slug
+            )}
+          </li>
+        </ul>
+
+        <div id="import-confirm-records-list" class="mb-4 space-y-2">
+          <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", ".import_confirm_records_label",
+              count: length(@pending_records)
+            )}
+          </p>
+          <ul class="space-y-1" role="list">
+            <li
+              :for={record <- @pending_records}
+              id={"import-record-#{Base.encode64(Map.get(record, "name", ""), padding: false)}"}
+              class={[
+                "flex items-center gap-3 border-2 bg-zinc-950/70 px-3 py-2 text-sm",
+                if(Enum.any?(@conflicts, &(&1.name == Map.get(record, "name"))),
+                  do: "border-yellow-500/60 text-yellow-200",
+                  else: "border-zinc-700 text-zinc-100"
+                )
+              ]}
+            >
+              <span class="min-w-0 flex-1 truncate font-mono">
+                {Map.get(record, "name") || dgettext("lemmings", ".import_record_unnamed")}
+              </span>
+              <span
+                :if={Enum.any?(@conflicts, &(&1.name == Map.get(record, "name")))}
+                class="shrink-0 text-xs font-bold uppercase tracking-wider text-yellow-400"
+              >
+                {dgettext("lemmings", ".import_record_conflict")}
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            id="import-confirm-cancel-btn"
+            phx-click="cancel_import"
+            class="inline-flex h-9 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/80 px-3 text-xs font-medium text-zinc-100 transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+          >
+            {dgettext("lemmings", ".button_import_cancel")}
+          </button>
+          <button
+            type="button"
+            id="import-confirm-replace-btn"
+            phx-click="confirm_import"
+            class="inline-flex h-9 items-center justify-center gap-2 border-2 border-emerald-400/50 bg-emerald-400/10 px-3 text-xs font-medium text-emerald-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+            phx-disable-with={dgettext("lemmings", ".button_import_processing")}
+          >
+            {dgettext("lemmings", ".button_import_replace")}
+          </button>
+        </div>
+      </.panel>
+    </div>
+  </.content_container>
+</Layouts.app>

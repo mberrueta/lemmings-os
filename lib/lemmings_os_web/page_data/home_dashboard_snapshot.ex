@@ -12,6 +12,7 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Departments
+  alias LemmingsOs.Lemmings
   alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
@@ -92,14 +93,25 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
         %{department_count: department_count, active_department_count: active_department_count} =
           Departments.topology_summary(valid_id)
 
+        %{lemming_count: lemming_count, active_lemming_count: active_lemming_count} =
+          Lemmings.topology_summary(%World{id: valid_id})
+
         %{
           city_count: city_count,
           department_count: department_count,
-          active_department_count: active_department_count
+          active_department_count: active_department_count,
+          lemming_count: lemming_count,
+          active_lemming_count: active_lemming_count
         }
 
       :error ->
-        %{city_count: 0, department_count: 0, active_department_count: 0}
+        %{
+          city_count: 0,
+          department_count: 0,
+          active_department_count: 0,
+          lemming_count: 0,
+          active_lemming_count: 0
+        }
     end
   end
 

@@ -345,7 +345,11 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp stat_item_tone("danger"), do: "border-red-400/30"
 
   attr :id, :string, default: nil
-  attr :tone, :string, default: "default", values: ~w(default accent info success warning danger)
+
+  attr :tone, :string,
+    default: "default",
+    values: ~w(default accent info success warning danger muted)
+
   attr :class, :string, default: nil
   attr :rest, :global
   slot :inner_block, required: true
@@ -372,6 +376,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp badge_tone("success"), do: "border-emerald-400/50 text-emerald-400"
   defp badge_tone("warning"), do: "border-amber-400/50 text-amber-400"
   defp badge_tone("danger"), do: "border-red-400/50 text-red-400"
+  defp badge_tone("muted"), do: "border-zinc-700 text-zinc-500"
 
   attr :id, :string, default: nil
   attr :kind, :atom, required: true, values: [:world, :city, :lemming, :issue]
@@ -586,6 +591,9 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp lemming_status_tone("running"), do: "success"
   defp lemming_status_tone("thinking"), do: "warning"
   defp lemming_status_tone("error"), do: "danger"
+  defp lemming_status_tone("draft"), do: "default"
+  defp lemming_status_tone("active"), do: "success"
+  defp lemming_status_tone("archived"), do: "muted"
   defp lemming_status_tone(_status), do: "default"
 
   defp lemming_status_label(:running), do: dgettext("lemmings", ".status_running")
@@ -596,6 +604,9 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp lemming_status_label("thinking"), do: dgettext("lemmings", ".status_thinking")
   defp lemming_status_label("error"), do: dgettext("lemmings", ".status_error")
   defp lemming_status_label("idle"), do: dgettext("lemmings", ".status_idle")
+  defp lemming_status_label("draft"), do: dgettext("default", ".lemming_status_draft")
+  defp lemming_status_label("active"), do: dgettext("default", ".lemming_status_active")
+  defp lemming_status_label("archived"), do: dgettext("default", ".lemming_status_archived")
 
   defp lemming_status_label(status) when is_atom(status) do
     status |> Atom.to_string() |> String.upcase()

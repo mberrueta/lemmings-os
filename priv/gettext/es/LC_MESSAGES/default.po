@@ -59,3 +59,26 @@ msgstr "Drenando"
 #, elixir-autogen, elixir-format
 msgid ".department_status_unknown"
 msgstr "Desconocido"
+
+#: lib/lemmings_os/lemmings/lemming.ex:120
+#: lib/lemmings_os_web/components/core_components.ex:608
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_active"
+msgstr "Activo"
+
+#: lib/lemmings_os/lemmings/lemming.ex:123
+#: lib/lemmings_os_web/components/core_components.ex:609
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_archived"
+msgstr "Archivado"
+
+#: lib/lemmings_os/lemmings/lemming.ex:117
+#: lib/lemmings_os_web/components/core_components.ex:607
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_draft"
+msgstr "Borrador"
+
+#: lib/lemmings_os/lemmings/lemming.ex:126
+#, elixir-autogen, elixir-format
+msgid ".lemming_status_unknown"
+msgstr "Desconocido"

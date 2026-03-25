@@ -197,6 +197,11 @@ defmodule LemmingsOsWeb.HomeComponents do
           id: "active_department_count",
           label: dgettext("layout", ".home_card_topology_active_department_count_label"),
           value: to_string(meta.active_department_count)
+        },
+        %{
+          id: "lemming_count",
+          label: dgettext("layout", ".home_card_topology_lemming_count_label"),
+          value: to_string(meta.lemming_count)
         }
       ]
     }

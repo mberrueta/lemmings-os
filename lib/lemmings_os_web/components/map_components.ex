@@ -114,7 +114,7 @@ defmodule LemmingsOsWeb.MapComponents do
           font-size="6"
           font-family="monospace"
         >
-          {Map.get(@city, :agents, 0)}
+          {Map.get(@city, :lemmings, 0)}
         </text>
       </svg>
 
@@ -153,8 +153,8 @@ defmodule LemmingsOsWeb.MapComponents do
           <span class="world-map-canvas__stat-value">{length(@cities)}</span>
           <span class="world-map-canvas__stat-label">{dgettext("world", ".metric_online")}</span>
           <span class="world-map-canvas__stat-value">{count_online(@cities)}</span>
-          <span class="world-map-canvas__stat-label">{dgettext("world", ".metric_agents")}</span>
-          <span class="world-map-canvas__stat-value">{total_agents(@cities)}</span>
+          <span class="world-map-canvas__stat-label">{dgettext("world", ".metric_lemmings")}</span>
+          <span class="world-map-canvas__stat-value">{total_lemmings(@cities)}</span>
         </span>
       </div>
 
@@ -174,8 +174,8 @@ defmodule LemmingsOsWeb.MapComponents do
     Enum.count(cities, fn city -> Map.get(city, :status) in [:online, "online"] end)
   end
 
-  defp total_agents(cities) do
-    Enum.reduce(cities, 0, fn city, acc -> acc + Map.get(city, :agents, 0) end)
+  defp total_lemmings(cities) do
+    Enum.reduce(cities, 0, fn city, acc -> acc + Map.get(city, :lemmings, 0) end)
   end
 
   defp encode_cities(cities) do
@@ -187,7 +187,7 @@ defmodule LemmingsOsWeb.MapComponents do
         region: Map.get(city, :region),
         color: city_color(city),
         status: city |> Map.get(:status) |> to_string(),
-        agents: Map.get(city, :agents, 0),
+        lemmings: Map.get(city, :lemmings, 0),
         depts: Map.get(city, :depts, 0),
         col: Map.get(city, :col),
         row: Map.get(city, :row)
@@ -199,7 +199,7 @@ defmodule LemmingsOsWeb.MapComponents do
   defp encode_labels do
     %{
       departments: dgettext("world", ".metric_departments"),
-      agents: dgettext("world", ".metric_agents"),
+      lemmings: dgettext("world", ".metric_lemmings"),
       statuses: %{
         online: dgettext("world", ".status_online"),
         degraded: dgettext("world", ".status_degraded"),

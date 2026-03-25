@@ -1,10 +1,13 @@
 defmodule LemmingsOs.Config.Resolver do
   @moduledoc """
-  Resolves effective configuration for persisted World, City, and Department scopes.
+  Resolves effective configuration for persisted World, City, Department, and
+  Lemming scopes.
 
   The resolver is intentionally pure and in-memory. Callers must provide any
   required parent chain, such as `%City{world: %World{}}` or
-  `%Department{city: %City{world: %World{}}}`, before calling it.
+  `%Department{city: %City{world: %World{}}}` or
+  `%Lemming{department: %Department{city: %City{world: %World{}}}}`, before
+  calling it.
   """
 
   alias LemmingsOs.Cities.City
@@ -13,7 +16,9 @@ defmodule LemmingsOs.Config.Resolver do
   alias LemmingsOs.Config.LimitsConfig
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
+  alias LemmingsOs.Config.ToolsConfig
   alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds.World
 
   @type resolved_config :: %{
@@ -23,8 +28,17 @@ defmodule LemmingsOs.Config.Resolver do
           models_config: ModelsConfig.t()
         }
 
+  @type resolved_lemming_config :: %{
+          limits_config: LimitsConfig.t(),
+          runtime_config: RuntimeConfig.t(),
+          costs_config: CostsConfig.t(),
+          models_config: ModelsConfig.t(),
+          tools_config: ToolsConfig.t()
+        }
+
   @doc """
-  Returns the effective configuration for a World, City, or Department scope.
+  Returns the effective configuration for a World, City, Department, or
+  Lemming scope.
 
   For `%World{}`, the resolver returns the persisted config buckets as-is.
 
@@ -45,6 +59,7 @@ defmodule LemmingsOs.Config.Resolver do
       true
   """
   @spec resolve(World.t() | City.t() | Department.t()) :: resolved_config()
+  @spec resolve(Lemming.t()) :: resolved_lemming_config()
   def resolve(scope)
 
   @spec resolve(World.t()) :: resolved_config()
@@ -98,6 +113,81 @@ defmodule LemmingsOs.Config.Resolver do
     }
   end
 
+  @spec resolve(Lemming.t()) :: resolved_lemming_config()
+  def resolve(
+        %Lemming{
+          world: %World{} = world,
+          city: %City{world: %Ecto.Association.NotLoaded{}} = city,
+          department: %Department{city: %Ecto.Association.NotLoaded{}} = department
+        } = lemming
+      ) do
+    resolve(%{
+      lemming
+      | city: %{city | world: world},
+        department: %{department | city: %{city | world: world}}
+    })
+  end
+
+  def resolve(
+        %Lemming{
+          world: %World{} = world,
+          city: %City{world: nil} = city,
+          department: %Department{city: %Ecto.Association.NotLoaded{}} = department
+        } = lemming
+      ) do
+    resolve(%{
+      lemming
+      | city: %{city | world: world},
+        department: %{department | city: %{city | world: world}}
+    })
+  end
+
+  def resolve(
+        %Lemming{
+          world: %World{} = world,
+          city: %City{world: %Ecto.Association.NotLoaded{}} = city,
+          department: %Department{city: %City{world: nil}} = department
+        } = lemming
+      ) do
+    resolve(%{
+      lemming
+      | city: %{city | world: world},
+        department: %{department | city: %{department.city | world: world}}
+    })
+  end
+
+  def resolve(
+        %Lemming{
+          world: %World{} = world,
+          city: %City{world: nil} = city,
+          department: %Department{city: %City{world: nil}} = department
+        } = lemming
+      ) do
+    resolve(%{
+      lemming
+      | city: %{city | world: world},
+        department: %{department | city: %{department.city | world: world}}
+    })
+  end
+
+  def resolve(
+        %Lemming{department: %Department{city: %City{world: %World{}}} = department} = lemming
+      ) do
+    department_config = resolve(department)
+
+    %{
+      limits_config:
+        merge_bucket(department_config.limits_config, lemming.limits_config, LimitsConfig),
+      runtime_config:
+        merge_bucket(department_config.runtime_config, lemming.runtime_config, RuntimeConfig),
+      costs_config:
+        merge_bucket(department_config.costs_config, lemming.costs_config, CostsConfig),
+      models_config:
+        merge_bucket(department_config.models_config, lemming.models_config, ModelsConfig),
+      tools_config: merge_bucket(%ToolsConfig{}, lemming.tools_config, ToolsConfig)
+    }
+  end
+
   defp merge_bucket(parent, nil, _module), do: parent
 
   defp merge_bucket(parent, child, module) do
@@ -110,6 +200,7 @@ defmodule LemmingsOs.Config.Resolver do
   defp map_to_embed(map, LimitsConfig), do: struct(LimitsConfig, map)
   defp map_to_embed(map, RuntimeConfig), do: struct(RuntimeConfig, map)
   defp map_to_embed(map, ModelsConfig), do: struct(ModelsConfig, map)
+  defp map_to_embed(map, ToolsConfig), do: struct(ToolsConfig, map)
 
   defp map_to_embed(map, CostsConfig) do
     budgets =

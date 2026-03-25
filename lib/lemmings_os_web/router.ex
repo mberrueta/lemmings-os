@@ -26,8 +26,10 @@ defmodule LemmingsOsWeb.Router do
     live "/world", WorldLive, :index
     live "/cities", CitiesLive, :index
     live "/departments", DepartmentsLive, :index
-    live "/lemmings", LemmingsLive, :index
     live "/lemmings/new", CreateLemmingLive, :index
+    live "/lemmings/import", ImportLemmingLive, :import
+    live "/lemmings", LemmingsLive, :index
+    live "/lemmings/:id", LemmingsLive, :show
     live "/tools", ToolsLive, :index
     live "/logs", LogsLive, :index
     live "/settings", SettingsLive, :index

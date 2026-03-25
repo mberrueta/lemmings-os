@@ -153,16 +153,28 @@
 /* ── Tablet/Desktop: Auto-collapsed sidebar ─────── */
 @media (min-width: 768px) and (max-width: 1023px) {
   #app-sidebar .sidebar-label,
-  #app-sidebar .sidebar-brand__identity > div,
+  #app-sidebar .sidebar-brand__identity,
   #app-sidebar .sidebar-footer,
   #app-sidebar .app-version-badge {
     display: none;
+  }
+
+  #app-sidebar {
+    width: 5.5rem;
+    min-width: 5.5rem;
+    padding-inline: 0.75rem;
+  }
+
+  #app-sidebar .sidebar-brand,
+  #app-sidebar .sidebar-nav-link,
+  #app-sidebar > .pt-1 > a {
+    justify-content: center;
   }
 }
 
 /* ── Collapsed Sidebar Logic ────────────────────── */
 .app-sidebar--collapsed .sidebar-label,
-.app-sidebar--collapsed .sidebar-brand__identity > div,
+.app-sidebar--collapsed .sidebar-brand__identity,
 .app-sidebar--collapsed .sidebar-footer,
 .app-sidebar--collapsed .app-version-badge {
   display: none;
@@ -172,9 +184,20 @@
   #app-sidebar.app-sidebar--collapsed {
     width: 5.5rem;
     min-width: 5.5rem;
+    padding-inline: 0.75rem;
   }
 
-  .app-shell:has(#app-sidebar.app-sidebar--collapsed) {
+  #app-sidebar.app-sidebar--collapsed .sidebar-brand,
+  #app-sidebar.app-sidebar--collapsed .sidebar-nav-link,
+  #app-sidebar.app-sidebar--collapsed > .pt-1 > a {
+    justify-content: center;
+  }
+
+  #app-sidebar.app-sidebar--collapsed .sidebar-collapse-icon {
+    transform: rotate(180deg);
+  }
+
+  #app-shell.app-shell--sidebar-collapsed {
     grid-template-columns: 5.5rem minmax(0, 1fr);
   }
 }
