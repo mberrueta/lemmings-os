@@ -127,6 +127,19 @@ defmodule LemmingsOsWeb.LemmingsLiveTest do
     assert_redirected(view, ~p"/lemmings/#{lemming.id}?#{%{city: city.id, dept: department.id}}")
   end
 
+  test "shows an empty state when the selected department has no lemmings", %{conn: conn} do
+    world = insert(:world, name: "Ops World", slug: "ops-world")
+    city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+    department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+    {:ok, view, _html} = live(conn, ~p"/lemmings?#{%{city: city.id, dept: department.id}}")
+
+    assert has_element?(view, "#lemmings-cards-panel")
+    assert has_element?(view, "#lemmings-list-empty-state")
+    assert has_element?(view, "#lemmings-list-empty-state-card")
+    refute has_element?(view, "#lemmings-cards-grid")
+  end
+
   test "dedicated detail page renders workspace", %{conn: conn} do
     world = insert(:world, name: "Ops World", slug: "ops-world")
     city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
@@ -223,6 +236,46 @@ defmodule LemmingsOsWeb.LemmingsLiveTest do
     assert updated.status == "active"
     assert has_element?(view, "#flash-info")
     assert has_element?(view, "#lemming-hero-name", "Regression Tracker")
+  end
+
+  test "validate event provides inline feedback without persisting", %{conn: conn} do
+    world = insert(:world)
+    city = insert(:city, world: world, status: "active")
+    department = insert(:department, world: world, city: city, status: "active")
+    lemming = insert(:lemming, world: world, city: city, department: department, status: "draft")
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/lemmings/#{lemming.id}?#{%{city: city.id, dept: department.id, tab: "edit"}}"
+      )
+
+    html =
+      view
+      |> element("#lemming-settings-form")
+      |> render_change(%{
+        "lemming" => %{
+          "name" => "Regression Tracker Edited",
+          "slug" => lemming.slug,
+          "description" => lemming.description || "",
+          "instructions" => lemming.instructions || "",
+          "status" => lemming.status,
+          "limits_config" => %{"max_lemmings_per_department" => ""},
+          "runtime_config" => %{"idle_ttl_seconds" => "", "cross_city_communication" => ""},
+          "costs_config" => %{"budgets" => %{"monthly_usd" => "", "daily_tokens" => ""}},
+          "models_providers_json" => "{}",
+          "models_profiles_json" => "{}",
+          "allowed_tools_csv" => "",
+          "denied_tools_csv" => ""
+        }
+      })
+
+    assert html =~ ~s(value="Regression Tracker Edited")
+
+    unchanged = Repo.get!(Lemming, lemming.id)
+
+    assert unchanged.name == lemming.name
+    assert has_element?(view, "#lemming-settings-tab-panel")
   end
 
   test "settings save keeps activation guard when instructions are blank", %{conn: conn} do

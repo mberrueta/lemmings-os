@@ -120,6 +120,16 @@ defmodule LemmingsOs.LemmingsTest do
                gamma.id
              ]
     end
+
+    test "ignores unknown filter keys gracefully" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+
+      assert [fetched_lemming] = Lemmings.list_lemmings(world, foo: "bar")
+      assert fetched_lemming.id == lemming.id
+    end
   end
 
   describe "get APIs" do
@@ -212,6 +222,20 @@ defmodule LemmingsOs.LemmingsTest do
       other_world = insert(:world)
       other_city = insert(:city, world: other_world)
       department = insert(:department, world: other_world, city: other_city)
+
+      assert {:error, :department_not_in_city_world} =
+               Lemmings.create_lemming(world, city, department, %{
+                 slug: "code-reviewer",
+                 name: "Code Reviewer",
+                 status: "draft"
+               })
+    end
+
+    test "rejects creating a lemming when the city does not belong to the world" do
+      world = insert(:world)
+      other_world = insert(:world)
+      city = insert(:city, world: other_world)
+      department = insert(:department, world: other_world, city: city)
 
       assert {:error, :department_not_in_city_world} =
                Lemmings.create_lemming(world, city, department, %{
@@ -317,6 +341,23 @@ defmodule LemmingsOs.LemmingsTest do
 
       assert {:error, :instructions_required} = Lemmings.set_lemming_status(lemming, "active")
     end
+
+    test "set_lemming_status/2 rejects empty string instructions when activating" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+
+      lemming =
+        insert(:lemming,
+          world: world,
+          city: city,
+          department: department,
+          status: "draft",
+          instructions: ""
+        )
+
+      assert {:error, :instructions_required} = Lemmings.set_lemming_status(lemming, "active")
+    end
   end
 
   describe "delete_lemming/1" do
@@ -370,6 +411,56 @@ defmodule LemmingsOs.LemmingsTest do
                lemming_count: 0,
                active_lemming_count: 0
              }
+    end
+  end
+
+  describe "lemming_counts_by_department/1 and lemming_counts_by_city/1" do
+    test "returns department counts for a city and omits zero-count departments" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department_one = insert(:department, world: world, city: city)
+      department_two = insert(:department, world: world, city: city)
+      _unused_department = insert(:department, world: world, city: city)
+
+      insert(:lemming, world: world, city: city, department: department_one)
+      insert(:lemming, world: world, city: city, department: department_one)
+      insert(:lemming, world: world, city: city, department: department_two)
+
+      assert Lemmings.lemming_counts_by_department(city) == %{
+               department_one.id => 2,
+               department_two.id => 1
+             }
+    end
+
+    test "returns an empty department count map for cities without lemmings" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+
+      assert Lemmings.lemming_counts_by_department(city) == %{}
+    end
+
+    test "returns city counts for a world and omits zero-count cities" do
+      world = insert(:world)
+      city_one = insert(:city, world: world)
+      city_two = insert(:city, world: world)
+      _unused_city = insert(:city, world: world)
+      department_one = insert(:department, world: world, city: city_one)
+      department_two = insert(:department, world: world, city: city_two)
+
+      insert(:lemming, world: world, city: city_one, department: department_one)
+      insert(:lemming, world: world, city: city_one, department: department_one)
+      insert(:lemming, world: world, city: city_two, department: department_two)
+
+      assert Lemmings.lemming_counts_by_city(world) == %{
+               city_one.id => 2,
+               city_two.id => 1
+             }
+    end
+
+    test "returns an empty city count map for worlds without lemmings" do
+      world = insert(:world)
+
+      assert Lemmings.lemming_counts_by_city(world) == %{}
     end
   end
 end

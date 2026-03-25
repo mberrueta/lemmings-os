@@ -11,7 +11,7 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
   - `:upload_error` - `nil` or a human-readable error string for the upload step
   - `:conflicts` - list of `%{name: String.t(), slug: String.t(), id: String.t()}` for clashing records
   - `:pending_records` - decoded JSON records waiting for user confirmation
-  - `:existing_by_name` - map of `name => %Lemming{}` for the current department (used in confirm step)
+  - `:existing_by_slug` - map of `slug => %Lemming{}` for the current department (used in confirm step)
   - `:confirm_error` - nil or error string shown on the confirm step without bouncing back to upload
   """
 
@@ -37,7 +37,7 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
       |> assign(:upload_error, nil)
       |> assign(:conflicts, [])
       |> assign(:pending_records, [])
-      |> assign(:existing_by_name, %{})
+      |> assign(:existing_by_slug, %{})
       |> assign(:confirm_error, nil)
       |> allow_upload(:json_file,
         accept: ~w(.json),
@@ -86,15 +86,15 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
       city: city,
       department: department,
       pending_records: records,
-      existing_by_name: existing_by_name
+      existing_by_slug: existing_by_slug
     } = socket.assigns
 
-    conflict_names = Map.keys(existing_by_name)
-    {to_update, to_create} = Enum.split_with(records, &(Map.get(&1, "name") in conflict_names))
+    conflict_slugs = Map.keys(existing_by_slug)
+    {to_update, to_create} = Enum.split_with(records, &(Map.get(&1, "slug") in conflict_slugs))
 
     update_results =
       Enum.map(to_update, fn record ->
-        existing = Map.get(existing_by_name, Map.get(record, "name"))
+        existing = Map.get(existing_by_slug, Map.get(record, "slug"))
         Lemmings.update_lemming(existing, record)
       end)
 
@@ -140,7 +140,7 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
      |> assign(:step, :upload)
      |> assign(:pending_records, [])
      |> assign(:conflicts, [])
-     |> assign(:existing_by_name, %{})
+     |> assign(:existing_by_slug, %{})
      |> assign(:confirm_error, nil)
      |> assign(:upload_error, nil)}
   end
@@ -192,13 +192,13 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
     with {:ok, decoded} <- Jason.decode(json_bytes),
          {:ok, records} <- normalize_records(decoded) do
       existing_lemmings = Lemmings.list_lemmings(socket.assigns.department)
-      existing_by_name = Map.new(existing_lemmings, &{&1.name, &1})
+      existing_by_slug = Map.new(existing_lemmings, &{&1.slug, &1})
 
       conflicts =
         records
-        |> Enum.filter(fn r -> Map.get(r, "name") in Map.keys(existing_by_name) end)
+        |> Enum.filter(fn r -> Map.get(r, "slug") in Map.keys(existing_by_slug) end)
         |> Enum.map(fn r ->
-          existing = Map.get(existing_by_name, Map.get(r, "name"))
+          existing = Map.get(existing_by_slug, Map.get(r, "slug"))
           %{name: existing.name, slug: existing.slug, id: existing.id}
         end)
 
@@ -209,7 +209,7 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
          socket
          |> assign(:step, :confirm)
          |> assign(:pending_records, records)
-         |> assign(:existing_by_name, existing_by_name)
+         |> assign(:existing_by_slug, existing_by_slug)
          |> assign(:conflicts, conflicts)}
       end
     else

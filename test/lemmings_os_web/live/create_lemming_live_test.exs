@@ -55,6 +55,18 @@ defmodule LemmingsOsWeb.CreateLemmingLiveTest do
     assert_patch(view, ~p"/lemmings/new?#{%{dept: department.id}}")
   end
 
+  test "gracefully handles an invalid department id parameter", %{conn: conn} do
+    world = insert(:world, name: "Ops World")
+    city = insert(:city, world: world, name: "Alpha City")
+    insert(:department, world: world, city: city, name: "Support")
+
+    {:ok, view, _html} = live(conn, ~p"/lemmings/new?dept=#{Ecto.UUID.generate()}")
+
+    assert has_element?(view, "#create-lemming-missing-context")
+    assert has_element?(view, "#create-lemming-selected-world", "Ops World")
+    refute has_element?(view, "#create-lemming-panel")
+  end
+
   test "renders the real create form in department scope", %{conn: conn} do
     world = insert(:world, name: "Ops World")
     city = insert(:city, world: world, name: "Alpha City")

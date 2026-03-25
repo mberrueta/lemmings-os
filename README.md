@@ -10,7 +10,7 @@
 
 ## What is LemmingsOS?
 
-LemmingsOS is a **self-hosted runtime** for creating, supervising, and orchestrating autonomous AI agent hierarchies. It provides:
+LemmingsOS is a **self-hosted platform/runtime** for hierarchical autonomous agents. It provides:
 
 - **Structured agent hierarchy** — Worlds → Cities → Departments → Lemmings
 - **Hard isolation boundaries** — each World is a complete isolation boundary; Cities map to running server nodes
@@ -19,7 +19,9 @@ LemmingsOS is a **self-hosted runtime** for creating, supervising, and orchestra
 - **Extensible agent interfaces** — plug in your own agent logic through well-defined, typed contracts
 - **Self-hosted** — your infrastructure, your agents, your data
 
-LemmingsOS is not an AI model. It provides the **runtime scaffolding** that autonomous AI agents need to operate reliably: supervision, identity, messaging, and lifecycle management.
+The current milestone focuses on persisted hierarchy foundations, configuration, and operator flows. That sequencing does not redefine the product: the intended system also includes runtime execution, policy/governance, and tool usage.
+
+LemmingsOS is not an AI model. It provides the **runtime scaffolding** that autonomous AI agents need to operate reliably: supervision, identity, messaging, lifecycle management, policy enforcement, and controlled tool access.
 
 ---
 
@@ -53,7 +55,9 @@ LemmingsOS is not an AI model. It provides the **runtime scaffolding** that auto
 - **World** — The outermost isolation boundary. Cross-World communication is not permitted without an explicit gateway. Useful for staging vs. production, multi-tenant deployments, or air-gapped environments.
 - **City** — A live Elixir/OTP node. Cities can join or leave a World dynamically. Each City runs a local agent supervision tree.
 - **Department** — A named partition within a City. Departments define the purpose, capabilities, and constraints of the agents they contain.
-- **Lemming** — The atom of execution. A Lemming is a supervised process running a specific agent task. It has a stable identity, a lifecycle, and a message queue.
+- **Lemming** — The durable agent entity. A Lemming has a stable identity, persisted configuration, and lifecycle policy. Runtime execution is handled by Lemming instances derived from it.
+
+A durable Lemming can have multiple runtime instances over time; instances carry the message queue, checkpoints, and execution state.
 
 ---
 
@@ -65,7 +69,7 @@ LemmingsOS is not an AI model. It provides the **runtime scaffolding** that auto
 4. **Explicit over implicit** — all agent creation goes through the hierarchy API. No magic spawning.
 5. **Correctness before performance** — a correct, slow system is easier to optimize than a fast, broken one.
 6. **Self-hosted first** — designed to run on your own infrastructure, not as a cloud service dependency.
-7. **Agent identity is durable** — Lemmings have stable IDs across restarts within their lifecycle.
+7. **Agent identity is durable** — Lemmings keep stable IDs across runtime instance restarts and rehydration.
 8. **Minimal surface area** — the runtime does one thing well; domain logic lives in Lemmings, not in the framework.
 
 ---
@@ -163,10 +167,10 @@ High-level components:
 
 | Component | Responsibility |
 |---|---|
-| World Registry | Tracks Cities, Departments, and Lemmings; enforces boundary rules |
+| World Registry | Tracks Worlds, Cities, Departments, and Lemmings; enforces boundary rules |
 | City Supervisor | OTP supervision tree managing a City's Departments |
-| Department Manager | Controls Lemming lifecycle within a Department |
-| Lemming Executor | The process that runs a Lemming's agent logic loop |
+| Department Manager | Controls durable Lemmings and their runtime instances within a Department |
+| Lemming Runtime | Supervises LemmingInstance execution, checkpointing, and recovery |
 | Event Bus | Internal pub/sub for intra-City events |
 | Telemetry Layer | Structured metrics and traces across all hierarchy layers |
 
@@ -201,7 +205,7 @@ Open: [http://localhost:4000](http://localhost:4000)
 
 ## Multi-City Demo (Docker Compose)
 
-Runs one world/control-plane node + two city nodes over a shared Postgres instance.
+Runs one World node plus two City nodes over a shared Postgres instance.
 Stopping a city container causes it to go stale in the UI after the heartbeat threshold (default 90s).
 
 ### Option A — you already have Postgres running

@@ -77,6 +77,36 @@ defmodule LemmingsOs.Lemmings.LemmingTest do
              ).description
     end
 
+    test "S15: accepts instructions as operator-authored free text" do
+      instructions = String.duplicate("Review the queue and escalate when needed. ", 40)
+
+      changeset =
+        Lemming.changeset(%Lemming{}, %{
+          slug: "code-reviewer",
+          name: "Code Reviewer",
+          status: "draft",
+          instructions: instructions
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :instructions) == instructions
+    end
+
+    test "S16: accepts description at the exact maximum length boundary" do
+      description = String.duplicate("a", Lemming.description_max_length())
+
+      changeset =
+        Lemming.changeset(%Lemming{}, %{
+          slug: "code-reviewer",
+          name: "Code Reviewer",
+          status: "draft",
+          description: description
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :description) == description
+    end
+
     test "S06: casts all five config buckets through embeds" do
       changeset =
         Lemming.changeset(%Lemming{}, %{

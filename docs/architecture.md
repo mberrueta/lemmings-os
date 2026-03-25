@@ -1,10 +1,8 @@
-# LemmingsOS — Architecture Overview
+# LemmingsOS - Architecture Overview
 
 ## Purpose
 
-LemmingsOS is a self-hosted runtime for autonomous AI agent hierarchies. It provides
-structured lifecycle management, supervision, isolation, and observability for
-autonomous agents organized in a four-level hierarchy.
+LemmingsOS is a self-hosted platform/runtime for hierarchical autonomous agents. It provides structured lifecycle management, supervision, isolation, and observability for autonomous agents organized in a four-level hierarchy.
 
 Five pillars guide all architecture decisions:
 
@@ -12,7 +10,7 @@ Five pillars guide all architecture decisions:
 |---|---|
 | Micro-agent architecture | Lemmings do one thing; no super-agents |
 | Runtime, not prompts | Lifecycle and supervision, not workflow DAGs |
-| Safety by design | All external actions go through typed Tools — no arbitrary code execution |
+| Safety by design | All external actions go through typed Tools - no arbitrary code execution |
 | True autonomy | Lemmings run for hours/days, retry, and resume after crashes |
 | Local-first AI | Ollama and self-hosted models are first-class; cloud APIs are optional |
 
@@ -20,7 +18,7 @@ Five pillars guide all architecture decisions:
 
 ## Hierarchy
 
-```
+```text
                         ┌─────────────────────────────────────┐
                         │               World                  │
                         │    (hard isolation boundary)         │
@@ -47,90 +45,118 @@ Five pillars guide all architecture decisions:
 
 Level descriptions:
 
-- **World** — Hard isolation boundary. No cross-World communication without explicit Gateway. One per deployment or tenant.
-- **City** — One Elixir/OTP node. Persisted with real identity, heartbeat-backed liveness, and split config buckets. Multiple Cities can exist within a World; clustering is architecturally intended but not yet shipped.
-- **Department** — Persisted logical group of agents within a City. Stores operator-facing metadata, lifecycle status, and local config overrides.
-- **Lemming** — Supervised autonomous agent process. Has stable identity, lifecycle, and mailbox.
+- **World** - Hard isolation boundary. No cross-World communication without explicit Gateway. One per deployment or tenant.
+- **City** - One Elixir/OTP node. Persisted with real identity, heartbeat-backed liveness, and split config buckets. Multiple Cities can exist within a World; clustering is architecturally intended.
+- **Department** - Persisted logical group of agents within a City. Stores operator-facing metadata, lifecycle status, and local config overrides.
+- **Lemming** - The durable agent entity. A Lemming is the canonical persisted agent record within a Department. It carries identity, long-lived configuration, capability metadata, and lifecycle policy.
+- **LemmingInstance** - A runtime execution of a Lemming. Instances are supervised processes that run agent logic, own the message queue, and record checkpoints and status. One Lemming can have many instances over time.
 
-See ADR 0002 for the rationale behind this model.
+Runtime execution hangs off each durable Lemming as one or more LemmingInstances.
 
 ---
 
 ## Component Overview
 
-### World Context (`LemmingsOs.Worlds`)
+The labels below describe architectural runtime roles. Current module names are implementation references for the existing codebase, not the contract itself.
+
+### World Context
+
+* Current implementation module: `LemmingsOs.Worlds`.
 
 * Manages persisted World rows and bootstrap import.
 * Enforces World-scoping: no queries or events cross World boundaries without a Gateway.
 * Provides the authoritative World identity used by City registration and config resolution.
 
-### Config Resolver (`LemmingsOs.Config.Resolver`)
+### Config Resolver
 
-* Resolves effective configuration by merging World, City, and Department config buckets.
+* Current implementation module: `LemmingsOs.Config.Resolver`.
+
+* Resolves effective configuration by merging World, City, Department, and Lemming config buckets.
+* Merge order is hierarchical: child scopes override parent scopes, and deny-dominant keys follow ADR 0020 semantics.
 * Pure in-memory: callers must preload the parent chain before calling.
 * Child overrides parent; no DB access inside the resolver.
 
-### City Runtime (`LemmingsOs.Cities.Runtime`)
+### City Runtime
+
+* Current implementation module: `LemmingsOs.Cities.Runtime`.
 
 * Resolves and upserts the local runtime City identity at application startup.
 * Registers the local node as a City by upserting a `cities` row keyed by `node_name`.
 * Does not perform discovery, clustering, or remote node management.
 
-### City Heartbeat (`LemmingsOs.Cities.Heartbeat`)
+### City Heartbeat
+
+* Current implementation module: `LemmingsOs.Cities.Heartbeat`.
 
 * A GenServer that updates the local City's `last_seen_at` on a fixed 30-second interval.
 * Derived liveness (`alive`, `stale`, `unknown`) is computed from `last_seen_at` freshness.
 * Never mutates the administrative `status` field.
 
-### City Supervisor (planned, `LemmingsOs.City.Supervisor`)
+### City Supervisor
+
+* Current implementation module: `LemmingsOs.City.Supervisor`.
 
 * An OTP `Supervisor` (or `DynamicSupervisor`) managing all Departments within a City.
 * Responsible for Department startup, restart, and shutdown.
-* Not yet implemented; Department persistence exists, but Department runtime orchestration is still deferred.
+* Coordinates city-level process lifecycles without crossing World boundaries.
 
-### Department Manager (`LemmingsOs.Department.Manager`)
+### Department Manager
 
-* A `GenServer` managing the Lemming pool within a Department.
-* Handles Lemming spawn requests, restarts on crash, and graceful shutdown.
+* Current implementation module: `LemmingsOs.Department.Manager`.
+
+* A `GenServer` managing durable Lemmings and their runtime instances within a Department.
+* Handles Lemming activation, restarts on crash, and graceful shutdown.
 * Enforces Department-level constraints (capacity limits, capability filters).
-* Not yet implemented; current shipped work is the Department persistence and operator control-plane foundation.
 
-### Lemming Executor (`LemmingsOs.Lemming.Executor`)
+### Lemming Runtime
 
-* The leaf-level supervised process that runs agent logic.
-* Has a stable identity (UUID) that persists across restarts within a lifecycle.
+* Current implementation module: `LemmingsOs.Lemming.Executor`.
+
+* The leaf-level supervised runtime that executes a single LemmingInstance derived from a durable Lemming.
+* The durable Lemming identity remains stable; instance records capture individual execution lifecycles, retries, and checkpoints.
 * Exposes a standard message interface: `dispatch/2`, `status/1`, `stop/1`.
 * Agent logic is pluggable via a behaviour: `LemmingsOs.Lemming.Behaviour`.
 
-### Event Bus (`LemmingsOs.Events`)
+### Lemming Instance
+
+* Current implementation module: `LemmingsOs.Lemming.Instance`.
+
+* Runtime execution record for a durable Lemming.
+* Tracks message queue ownership, checkpoints, retry bookkeeping, and execution status.
+* May be created, stopped, or replaced without changing the durable Lemming identity.
+
+### Event Bus
+
+* Current implementation module: `LemmingsOs.Events`.
 
 * Internal pub/sub scoped to a City (not cross-City by default).
-* Used for intra-Department coordination and Department-to-Department signalling within
-  the same City.
+* Used for intra-Department coordination and Department-to-Department signalling within the same City.
 * Topic naming convention: `[world_id, city_id, department_id, event_type]`.
 
-### Telemetry Layer (`LemmingsOs.Telemetry`)
+### Telemetry Layer
+
+* Current implementation module: `LemmingsOs.Telemetry`.
 
 * All hierarchy levels emit `:telemetry` events.
-* Standard metadata: `world_id`, `city_id`, `department_id`, `lemming_id`.
+* Standard metadata: `world_id`, `city_id`, `department_id`, `lemming_id`, `lemming_instance_id`.
 * Phoenix.LiveDashboard integration for real-time process monitoring.
 
 ---
 
 ## Message Flow
 
-### Inbound: dispatching work to a Lemming
+### Inbound: dispatching work to a LemmingInstance
 
-```
+```text
 User / LiveView
       │
       │  Department.dispatch(dept, task)
       ▼
 Department Manager          ← validates task against Department constraints
       │
-      │  Lemming.Executor.dispatch(pid, task)
+      │  Lemming Runtime.dispatch(instance, task)
       ▼
-Lemming Executor            ← runs agent logic loop
+Lemming Instance            ← runs agent logic for a durable Lemming
       │
       │  Tool.call(tool_name, args)
       ▼
@@ -140,62 +166,59 @@ Tool Module                 ← controlled Elixir module; only permitted actions
 External system / LLM / DB
 ```
 
-All external side effects go through Tool modules. A Lemming cannot touch the outside
-world except through its declared toolset. This is the primary safety boundary.
+All external side effects go through Tool modules. A LemmingInstance cannot touch the outside world except through its declared toolset. This is the primary safety boundary.
 
-### Outbound: Lemming reporting results and events
+### Outbound: LemmingInstance reporting results and events
 
-```
-Lemming Executor
+```text
+Lemming Instance
       │
-      ├─── Lemming.report_result(result)
+      ├─── LemmingInstance.report_result(result)
       │         │
       │         ▼
-      │    DB (lemmings table updated, status → :completed)
+      │    DB (lemming_instances row updated, status → :completed)
       │
       └─── EventBus.publish(topic, event)
                 │
                 ▼
-           Department Manager   ← subscribed to Lemming events
+           Department Manager   ← subscribed to LemmingInstance events
                 │
                 ├── notify other Lemmings in the Department (if needed)
                 └── emit telemetry event upward
 ```
 
-The Event Bus is scoped to the City. Events do not cross City or World boundaries
-without explicit routing through a Gateway (not yet implemented).
+The Event Bus is scoped to the City. Events do not cross City or World boundaries without explicit routing through a Gateway.
 
 ---
 
 ## Failure Model
 
-LemmingsOS treats failure as a normal operating condition, not an exception.
-This is the core value proposition of building on Elixir/OTP.
+LemmingsOS treats failure as a normal operating condition, not an exception. This is the core value proposition of building on Elixir/OTP.
 
-### Lemming crash
+### LemmingInstance crash
 
-```
-Lemming Executor crashes (runtime error, timeout, bad LLM response)
+```text
+LemmingInstance crashes (runtime error, timeout, bad LLM response)
       │
       ▼
 Department Manager (DynamicSupervisor)
-      │  detects :DOWN signal from monitored Lemming
+      │  detects :DOWN signal from monitored instance
       │
-      ├── increments restart count for this Lemming
+      ├── increments restart count for this instance
       ├── checks restart policy (max_restarts, backoff strategy)
       │
-      ├── [within policy] restart Lemming with same identity (UUID preserved)
+      ├── [within policy] restart a new instance for the same durable Lemming identity
       │         │
-      │         └── Lemming.Executor resumes from last persisted checkpoint (if any)
+      │         └── Lemming Runtime resumes from last persisted checkpoint (if any)
       │
-      └── [policy exceeded] mark Lemming status → :failed in DB
+      └── [policy exceeded] mark the instance status → :failed in DB and update the parent Lemming lifecycle state
                 │
-                └── emit [:lemmings_os, :lemming, :failed] telemetry event
+                └── emit [:lemmings_os, :lemming_instance, :failed] telemetry event
 ```
 
 ### Department crash
 
-```
+```text
 Department Manager crashes (unrecoverable state corruption)
       │
       ▼
@@ -203,14 +226,14 @@ City Supervisor (Supervisor, :one_for_one)
       │  restarts Department Manager
       │
       ├── Department Manager reinitializes from DB state
-      │         (active Lemmings are re-supervised from persisted records)
+      │         (active LemmingInstances are re-supervised from persisted Lemmings and instance records)
       │
       └── emit [:lemmings_os, :department, :restarted] telemetry event
 ```
 
 ### City node failure
 
-```
+```text
 City node goes down (container stop, OS crash, deploy)
       │
       ▼
@@ -226,26 +249,19 @@ Other nodes / UI derive liveness from last_seen_at freshness
       └── LiveView dashboard reflects stale liveness on next poll
 ```
 
-Prior wording described distributed Erlang `:DOWN` monitoring and automatic
-status transitions. The shipped model detects City failure through heartbeat
-staleness only. There is no distributed Erlang monitoring, no automatic
-status mutation, and no Lemming migration.
-
 ### Telemetry contract
 
-Every failure path emits a structured telemetry event. All events include hierarchy
-metadata so operators can pinpoint exactly where a failure occurred:
+Every failure path emits a structured telemetry event. All events include hierarchy metadata so operators can pinpoint exactly where a failure occurred:
 
 ```elixir
 :telemetry.execute(
-  [:lemmings_os, :lemming, :failed],
+  [:lemmings_os, :lemming_instance, :failed],
   %{restart_count: n},
   %{world_id: w, city_id: c, department_id: d, lemming_id: l, reason: reason}
 )
 ```
 
-This makes LemmingsOS observable by default — not just when things go wrong, but
-at every state transition across the lifecycle.
+This makes LemmingsOS observable by default - not just when things go wrong, but at every state transition across the lifecycle.
 
 ---
 
@@ -253,11 +269,9 @@ at every state transition across the lifecycle.
 
 ### World Persistence And Bootstrap Model
 
-The `World` row is the durable system-of-record identity. Bootstrap YAML is
-ingestion input, not the long-term persisted source of truth, and runtime checks
-remain ephemeral read-model data.
+The `World` row is the durable system-of-record identity. Bootstrap YAML is ingestion input, not the long-term persisted source of truth, and runtime checks remain ephemeral read-model data.
 
-Current `worlds` shape:
+Worlds shape:
 
 ```text
 worlds
@@ -278,46 +292,46 @@ worlds
   updated_at
 ```
 
-This is an intentional departure from the older single-column `config_jsonb`
-concept. The architecture keeps:
+This is an intentional departure from the older single-column `config_jsonb` concept. The architecture keeps:
 
 - persisted World identity and operational linkage metadata on normal columns
 - world-level declarative config split across scoped JSONB columns
 - bootstrap file contents as ingestion input, not persisted wholesale
-- runtime-derived status in read models such as `WorldPageSnapshot`,
-  `SettingsPageSnapshot`, `ToolsPageSnapshot`, and `HomeDashboardSnapshot`
+- runtime-derived status in read models such as `WorldPageSnapshot`, `SettingsPageSnapshot`, `ToolsPageSnapshot`, and `HomeDashboardSnapshot`
 
-### Persisted relational hierarchy
+### Core relational hierarchy
 
-```
-worlds (shipped)
+```text
+worlds
   id, slug, name, status, bootstrap_source, bootstrap_path,
   last_bootstrap_hash, last_import_status, last_imported_at,
   limits_config, runtime_config, costs_config, models_config,
   inserted_at, updated_at
 
-cities (shipped)
+cities
   id, world_id, slug, name, node_name, host, distribution_port,
   epmd_port, status, last_seen_at,
   limits_config, runtime_config, costs_config, models_config,
   inserted_at, updated_at
 
-departments (shipped)
+departments
   id, world_id, city_id, slug, name, status, notes, tags,
   limits_config, runtime_config, costs_config, models_config,
   inserted_at, updated_at
-```
 
-### Target relational hierarchy (still deferred)
-
-```
 lemmings
-  id, department_id, city_id, world_id,
-  status, agent_module,
-  started_at, stopped_at, inserted_at
+  id, world_id, city_id, department_id, slug, name, description,
+  instructions, status, limits_config, runtime_config, costs_config,
+  models_config, tools_config,
+  inserted_at, updated_at
+
+lemming_instances
+  id, lemming_id, world_id, city_id, department_id, parent_instance_id,
+  instance_ref, status, queue_ref, started_at, stopped_at, last_checkpoint_at
 ```
 
 All tables are scoped by `world_id`. Context APIs require explicit World scope.
+`LemmingType` remains available as an optional future template/reuse layer, but it is not the primary core model.
 See ADR 0003 for isolation semantics.
 
 ---
@@ -345,15 +359,21 @@ See ADR 0003 for isolation semantics.
 
 ---
 
+## Implementation Sequencing
+
+Implementation can stage persistence, orchestration, and runtime execution separately. That sequencing does not change the architectural contract above.
+
+---
+
 ## Future Work (not yet designed)
 
-* `LemmingsOs.Gateway` — explicit cross-World communication bridge
+* `LemmingsOs.Gateway` - explicit cross-World communication bridge
 * Distributed Erlang clustering between City nodes (requires future ADR)
 * Secure remote City attachment and secret distribution (requires dedicated ADR and security design)
 * City membership protocol and automatic discovery
 * Department runtime supervisor / manager orchestration
-* Lemming persistence
 * Agent capability declarations and Department-level enforcement
 * Lemming hot-reload and live config updates
 * ETS-backed config cache (`Config.Cache`)
-* Deny-dominant merge semantics in the config resolver
+* Implementation of deny-dominant merge enforcement in the resolver and validator
+* Optional reusable template layer, if future reuse requirements justify it

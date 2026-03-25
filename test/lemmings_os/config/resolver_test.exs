@@ -438,6 +438,61 @@ defmodule LemmingsOs.Config.ResolverTest do
       assert resolved.tools_config.denied_tools == []
     end
 
+    test "uses the lemming.world fallback when city.world and department.city.world are nil" do
+      world =
+        build(:world,
+          limits_config: %LimitsConfig{max_cities: 4, max_departments_per_city: 16},
+          runtime_config: %RuntimeConfig{idle_ttl_seconds: 7200, cross_city_communication: false},
+          costs_config: %CostsConfig{
+            budgets: %CostsConfig.Budgets{monthly_usd: 50.0, daily_tokens: 500}
+          },
+          models_config: %ModelsConfig{
+            providers: %{"ollama" => %{"enabled" => true}},
+            profiles: %{"default" => %{"provider" => "ollama", "model" => "llama3.2"}}
+          }
+        )
+
+      city =
+        build(:city,
+          world: nil,
+          limits_config: %LimitsConfig{max_departments_per_city: 6},
+          runtime_config: %RuntimeConfig{cross_city_communication: true}
+        )
+
+      department =
+        build(:department,
+          world: world,
+          city: city,
+          limits_config: %LimitsConfig{max_lemmings_per_department: 2},
+          runtime_config: %RuntimeConfig{idle_ttl_seconds: 60}
+        )
+
+      lemming =
+        build(:lemming,
+          world: world,
+          city: city,
+          department: department,
+          tools_config: %ToolsConfig{
+            allowed_tools: ["filesystem"],
+            denied_tools: ["shell"]
+          }
+        )
+
+      resolved = Resolver.resolve(lemming)
+
+      assert resolved.limits_config.max_cities == 4
+      assert resolved.limits_config.max_departments_per_city == 6
+      assert resolved.limits_config.max_lemmings_per_department == 2
+      assert resolved.runtime_config.idle_ttl_seconds == 60
+      assert resolved.runtime_config.cross_city_communication == true
+      assert resolved.costs_config.budgets.monthly_usd == 50.0
+      assert resolved.costs_config.budgets.daily_tokens == 500
+      assert resolved.models_config.providers["ollama"]["enabled"] == true
+      assert resolved.models_config.profiles["default"]["model"] == "llama3.2"
+      assert resolved.tools_config.allowed_tools == ["filesystem"]
+      assert resolved.tools_config.denied_tools == ["shell"]
+    end
+
     test "does not add tools_config to world city or department resolution" do
       world = build(:world)
       city = build(:city, world: world)

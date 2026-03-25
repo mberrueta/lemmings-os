@@ -162,6 +162,35 @@ defmodule LemmingsOs.LemmingsImportExportTest do
                })
     end
 
+    test "rejects a city that does not belong to the target world" do
+      world = insert(:world)
+      other_world = insert(:world)
+      city = insert(:city, world: other_world)
+      department = insert(:department, world: other_world, city: city)
+
+      assert {:error, :department_not_in_city_world} =
+               ImportExport.import_lemmings(world, city, department, %{
+                 "slug" => "code-reviewer",
+                 "name" => "Code Reviewer",
+                 "status" => "draft"
+               })
+    end
+
+    test "rejects a department that does not belong to the target city and world" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      other_world = insert(:world)
+      other_city = insert(:city, world: other_world)
+      department = insert(:department, world: other_world, city: other_city)
+
+      assert {:error, :department_not_in_city_world} =
+               ImportExport.import_lemmings(world, city, department, %{
+                 "slug" => "code-reviewer",
+                 "name" => "Code Reviewer",
+                 "status" => "draft"
+               })
+    end
+
     test "accepts missing schema_version" do
       world = insert(:world)
       city = insert(:city, world: world)
@@ -191,6 +220,30 @@ defmodule LemmingsOs.LemmingsImportExportTest do
                })
 
       assert lemming.slug == "code-reviewer"
+    end
+
+    test "rejects invalid payload shapes" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+
+      assert {:error, [%{index: nil, error: :invalid_import_payload}]} =
+               ImportExport.import_lemmings(world, city, department, "not-json")
+
+      assert {:error, [%{index: nil, error: :invalid_import_payload}]} =
+               ImportExport.import_lemmings(world, city, department, 123)
+    end
+
+    test "rejects list payloads containing non-map entries" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+
+      assert {:error, [%{index: nil, error: :invalid_import_payload}]} =
+               ImportExport.import_lemmings(world, city, department, [
+                 %{"slug" => "code-reviewer", "name" => "Code Reviewer", "status" => "draft"},
+                 "bad-entry"
+               ])
     end
 
     test "returns ok for an empty import list" do
