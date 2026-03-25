@@ -8,7 +8,9 @@ defmodule LemmingsOsWeb.LemmingsLive do
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Helpers
   alias LemmingsOs.Lemmings
+  alias LemmingsOs.Lemmings.ImportExport
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
@@ -27,7 +29,11 @@ defmodule LemmingsOsWeb.LemmingsLive do
      |> assign(:selected_lemming, nil)
      |> assign(:selected_lemming_effective_config, nil)
      |> assign(:selected_lemming_inheriting?, false)
-     |> assign(:lemming_not_found?, false)}
+     |> assign(:lemming_not_found?, false)
+     |> assign(:active_detail_tab, "overview")
+     |> assign(:settings_form, nil)
+     |> assign(:overview_path, nil)
+     |> assign(:edit_path, nil)}
   end
 
   def handle_params(params, _uri, socket) do
@@ -41,6 +47,33 @@ defmodule LemmingsOsWeb.LemmingsLive do
       |> maybe_put_param(:dept, filters["department_id"])
 
     {:noreply, push_patch(socket, to: ~p"/lemmings?#{params}")}
+  end
+
+  def handle_event("validate_lemming_settings", %{"lemming" => params}, socket) do
+    {:noreply, assign_settings_form(socket, socket.assigns.selected_lemming, params, :validate)}
+  end
+
+  def handle_event("save_lemming_settings", %{"lemming" => params}, socket) do
+    attrs = Map.take(params, ["name", "slug", "description", "instructions", "status"])
+
+    if active_without_instructions?(socket.assigns.selected_lemming, attrs) do
+      {:noreply,
+       socket
+       |> assign_settings_form(socket.assigns.selected_lemming, params, :validate)
+       |> put_flash(:error, dgettext("lemmings", ".flash_instructions_required"))}
+    else
+      case Lemmings.update_lemming(socket.assigns.selected_lemming, attrs) do
+        {:ok, lemming} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("lemmings", ".flash_lemming_saved"))
+           |> load_page(stringify_keys(overview_tab_params(socket, lemming)))}
+
+        {:error, %Ecto.Changeset{} = _changeset} ->
+          {:noreply,
+           assign_settings_form(socket, socket.assigns.selected_lemming, params, :validate)}
+      end
+    end
   end
 
   def handle_event("lemming_lifecycle", %{"action" => action}, socket)
@@ -67,6 +100,19 @@ defmodule LemmingsOsWeb.LemmingsLive do
     end
   end
 
+  def handle_event("export_lemming", _params, %{assigns: %{selected_lemming: lemming}} = socket)
+      when not is_nil(lemming) do
+    export_map = ImportExport.export_lemming(lemming)
+    json_string = Jason.encode!(export_map, pretty: true)
+    filename = "lemming-#{lemming.slug}.json"
+
+    {:noreply, push_event(socket, "download_json", %{filename: filename, content: json_string})}
+  end
+
+  def handle_event("export_lemming", _params, socket) do
+    {:noreply, put_flash(socket, :error, dgettext("lemmings", ".flash_export_no_lemming"))}
+  end
+
   defp load_page(socket, params) do
     case Worlds.get_default_world() do
       {:ok, world} ->
@@ -87,6 +133,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
         |> assign(:filters_form, filters_form(selected_city, selected_department))
         |> assign(:lemmings, lemmings)
         |> assign(:lemming_not_found?, lemming_not_found?(socket, params, selected_lemming))
+        |> assign(:active_detail_tab, active_detail_tab(socket, params))
         |> assign_selected_lemming(selected_lemming)
         |> put_shell_breadcrumb(
           build_shell_breadcrumb(world, selected_city, selected_department, selected_lemming)
@@ -105,6 +152,10 @@ defmodule LemmingsOsWeb.LemmingsLive do
         |> assign(:selected_lemming_effective_config, nil)
         |> assign(:selected_lemming_inheriting?, false)
         |> assign(:lemming_not_found?, false)
+        |> assign(:active_detail_tab, "overview")
+        |> assign(:settings_form, nil)
+        |> assign(:overview_path, nil)
+        |> assign(:edit_path, nil)
         |> put_shell_breadcrumb(default_shell_breadcrumb(:lemmings))
     end
   end
@@ -124,15 +175,26 @@ defmodule LemmingsOsWeb.LemmingsLive do
     |> assign(:selected_lemming, nil)
     |> assign(:selected_lemming_effective_config, nil)
     |> assign(:selected_lemming_inheriting?, false)
+    |> assign(:settings_form, nil)
+    |> assign(:overview_path, nil)
+    |> assign(:edit_path, nil)
   end
 
   defp assign_selected_lemming(socket, %Lemming{} = lemming) do
     lemming = hydrate_resolver_chain(lemming, socket.assigns.world)
 
+    changeset =
+      lemming
+      |> Lemming.changeset(%{})
+      |> build_settings_changeset(nil)
+
     socket
     |> assign(:selected_lemming, lemming)
     |> assign(:selected_lemming_effective_config, Resolver.resolve(lemming))
     |> assign(:selected_lemming_inheriting?, inheriting_all_configuration?(lemming))
+    |> assign(:settings_form, to_form(changeset, as: :lemming))
+    |> assign(:overview_path, detail_path(lemming, socket, "overview"))
+    |> assign(:edit_path, detail_path(lemming, socket, "edit"))
   end
 
   defp load_selected_lemming(nil), do: nil
@@ -336,6 +398,49 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   defp stringify_keys(params) do
     Map.new(params, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "edit"}), do: "edit"
+  defp active_detail_tab(%{assigns: %{live_action: :show}}, _params), do: "overview"
+  defp active_detail_tab(_socket, _params), do: "overview"
+
+  defp detail_path(%Lemming{} = lemming, socket, tab) do
+    params =
+      socket
+      |> current_scope_params()
+      |> maybe_put_param(:tab, normalize_overview_tab(tab))
+
+    ~p"/lemmings/#{lemming.id}?#{params}"
+  end
+
+  defp normalize_overview_tab("overview"), do: nil
+  defp normalize_overview_tab(tab), do: tab
+
+  defp overview_tab_params(socket, %Lemming{} = lemming) do
+    socket
+    |> current_scope_params()
+    |> Map.put(:id, lemming.id)
+  end
+
+  defp assign_settings_form(socket, %Lemming{} = lemming, params, action) do
+    attrs = Map.take(params, ["name", "slug", "description", "instructions", "status"])
+
+    changeset =
+      lemming
+      |> Lemming.changeset(attrs)
+      |> build_settings_changeset(action)
+
+    assign(socket, :settings_form, to_form(changeset, as: :lemming))
+  end
+
+  defp build_settings_changeset(changeset, nil), do: changeset
+  defp build_settings_changeset(changeset, action), do: Map.put(changeset, :action, action)
+
+  defp active_without_instructions?(%Lemming{} = lemming, attrs) do
+    desired_status = Map.get(attrs, "status", lemming.status)
+    desired_instructions = Map.get(attrs, "instructions", lemming.instructions)
+
+    desired_status == "active" and Helpers.blank?(desired_instructions)
   end
 
   defp hydrate_resolver_chain(

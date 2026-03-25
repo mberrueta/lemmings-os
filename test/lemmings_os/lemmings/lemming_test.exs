@@ -114,9 +114,9 @@ defmodule LemmingsOs.Lemmings.LemmingTest do
       assert Lemming.translate_status(nil) == "Unknown"
 
       assert Lemming.status_options() == [
-               {"draft", "Draft"},
-               {"active", "Active"},
-               {"archived", "Archived"}
+               {"Draft", "draft"},
+               {"Active", "active"},
+               {"Archived", "archived"}
              ]
     end
 

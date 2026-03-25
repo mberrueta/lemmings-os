@@ -426,4 +426,34 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       assert has_element?(view, "#department-settings-tab-panel")
     end
   end
+
+  describe "import lemmings" do
+    setup do
+      world = insert(:world)
+      city = insert(:city, world: world, status: "active")
+
+      department =
+        insert(:department, world: world, city: city, slug: "research", name: "Research")
+
+      %{world: world, city: city, department: department}
+    end
+
+    test "S15: import button navigates to the import page", %{
+      conn: conn,
+      city: city,
+      department: department
+    } do
+      {:ok, view, _html} =
+        live(conn, ~p"/departments?#{%{city: city.id, dept: department.id, tab: "lemmings"}}")
+
+      assert has_element?(view, "#department-import-toggle-btn")
+
+      assert view
+             |> element("#department-import-toggle-btn")
+             |> render()
+             |> Floki.parse_fragment!()
+             |> Floki.attribute("href")
+             |> hd() =~ "/lemmings/import"
+    end
+  end
 end

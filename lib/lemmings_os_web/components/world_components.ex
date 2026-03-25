@@ -799,6 +799,24 @@ defmodule LemmingsOsWeb.WorldComponents do
         <.panel id="department-lemmings-panel">
           <:title>{dgettext("world", ".department_lemmings_title")}</:title>
           <:subtitle>{dgettext("world", ".department_lemmings_copy")}</:subtitle>
+          <:actions>
+            <div class="flex items-center gap-2">
+              <.button
+                id="department-import-toggle-btn"
+                navigate={~p"/lemmings/import?#{%{dept: @department.id}}"}
+                variant="neutral"
+              >
+                {dgettext("world", ".button_import_lemmings")}
+              </.button>
+              <.button
+                id="department-lemmings-create-btn"
+                navigate={~p"/lemmings/new?#{%{city: @selected_city.id, dept: @department.id}}"}
+                variant="secondary"
+              >
+                +
+              </.button>
+            </div>
+          </:actions>
 
           <div :if={@department_lemmings == []} id="department-lemmings-empty-state">
             <.empty_state
@@ -809,7 +827,7 @@ defmodule LemmingsOsWeb.WorldComponents do
             <div class="mt-4 flex justify-end">
               <.button
                 id="department-lemmings-empty-cta"
-                navigate={~p"/lemmings/new"}
+                navigate={~p"/lemmings/new?#{%{dept: @department.id}}"}
                 variant="secondary"
               >
                 {dgettext("layout", ".button_new_lemming")}
@@ -825,10 +843,16 @@ defmodule LemmingsOsWeb.WorldComponents do
             <.link
               :for={lemming <- @department_lemmings}
               id={"department-lemming-#{lemming.id}"}
-              navigate={~p"/lemmings?#{%{lemming: lemming.id}}"}
-              class="flex items-center justify-between gap-3 border-2 border-zinc-700 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
+              navigate={
+                ~p"/lemmings/#{lemming.id}?#{%{city: @department.city_id, dept: @department.id}}"
+              }
+              class="flex items-center gap-4 border-2 border-zinc-700 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
             >
-              <div class="min-w-0">
+              <LemmingImageComponents.lemming_type_avatar
+                slug={lemming.slug}
+                class="shrink-0 border-zinc-700 bg-zinc-900"
+              />
+              <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-2 text-base text-zinc-100">{lemming.name}</p>
                 <p class="text-xs uppercase tracking-wider text-zinc-400">
                   {Helpers.display_value(lemming.slug)}

@@ -104,7 +104,7 @@ defmodule LemmingsOs.Lemmings.Lemming do
   """
   @spec status_options() :: [{String.t(), String.t()}]
   def status_options do
-    Enum.map(@statuses, &{&1, translate_status(&1)})
+    Enum.map(@statuses, &{translate_status(&1), &1})
   end
 
   @doc """

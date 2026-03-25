@@ -18,6 +18,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :selected_lemming_effective_config, :map, default: nil
   attr :selected_lemming_inheriting?, :boolean, default: false
   attr :lemming_not_found?, :boolean, default: false
+  attr :active_detail_tab, :string, default: "overview"
+  attr :settings_form, :any, default: nil
+  attr :overview_path, :string, default: nil
+  attr :edit_path, :string, default: nil
 
   def lemmings_page(assigns) do
     ~H"""
@@ -27,7 +31,16 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <:subtitle>{dgettext("lemmings", ".subtitle_all_lemmings")}</:subtitle>
       </.panel>
 
-      <.panel id="lemmings-filters-panel" tone="info">
+      <.panel :if={!@world} id="lemmings-world-missing-state" tone="warning">
+        <:title>{dgettext("lemmings", ".title_all_lemmings")}</:title>
+        <.empty_state
+          id="lemmings-world-missing-state-card"
+          title={dgettext("lemmings", ".empty_world_unavailable")}
+          copy={dgettext("lemmings", ".empty_world_unavailable_copy")}
+        />
+      </.panel>
+
+      <.panel :if={@world} id="lemmings-filters-panel" tone="info">
         <:title>{dgettext("lemmings", ".title_filters")}</:title>
         <:subtitle>{dgettext("lemmings", ".subtitle_filters")}</:subtitle>
 
@@ -66,7 +79,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         </.form>
       </.panel>
 
-      <.panel id="lemmings-cards-panel">
+      <.panel :if={@world} id="lemmings-cards-panel">
         <:title>{dgettext("lemmings", ".title_lemming_types")}</:title>
         <:subtitle>{dgettext("lemmings", ".subtitle_lemming_types")}</:subtitle>
 
@@ -105,6 +118,24 @@ defmodule LemmingsOsWeb.LemmingComponents do
               )}
             </p>
 
+            <div class="grid gap-2 text-xs uppercase tracking-widest text-zinc-500">
+              <div id={"lemming-card-department-#{lemming.id}"} class="flex items-center gap-2">
+                <span>{dgettext("lemmings", ".filter_department")}</span>
+                <span class="font-mono text-zinc-300">
+                  {Helpers.display_value(lemming.department && lemming.department.name)}
+                </span>
+              </div>
+
+              <div id={"lemming-card-city-#{lemming.id}"} class="flex items-center gap-2">
+                <span>{dgettext("lemmings", ".filter_city")}</span>
+                <span class="font-mono text-zinc-300">
+                  {Helpers.display_value(
+                    lemming.department && lemming.department.city && lemming.department.city.name
+                  )}
+                </span>
+              </div>
+            </div>
+
             <div class="mt-auto flex items-center justify-between gap-3 border-t border-zinc-800 pt-3">
               <span class="text-xs font-bold uppercase tracking-widest text-zinc-500">
                 {dgettext("lemmings", ".label_open_detail")}
@@ -125,6 +156,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :selected_lemming_effective_config, :map, default: nil
   attr :selected_lemming_inheriting?, :boolean, default: false
   attr :lemming_not_found?, :boolean, default: false
+  attr :active_detail_tab, :string, default: "overview"
+  attr :settings_form, :any, default: nil
+  attr :overview_path, :string, default: nil
+  attr :edit_path, :string, default: nil
 
   def lemming_detail_page(assigns) do
     ~H"""
@@ -135,9 +170,16 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <div :if={@selected_lemming} class="flex items-start gap-4">
           <LemmingImageComponents.lemming_type_avatar
             slug={@selected_lemming.slug}
-            class="border-emerald-400/30 bg-emerald-400/5"
+            class={
+              if @selected_lemming.status == "archived",
+                do: "border-emerald-400/30 bg-emerald-400/5 opacity-40 grayscale",
+                else: "border-emerald-400/30 bg-emerald-400/5"
+            }
           />
-          <div class="min-w-0 flex-1">
+          <div class={[
+            "min-w-0 flex-1",
+            @selected_lemming.status == "archived" && "opacity-50"
+          ]}>
             <p id="lemming-hero-name" class="text-left text-lg text-zinc-100">
               {@selected_lemming.name}
             </p>
@@ -149,7 +191,30 @@ defmodule LemmingsOsWeb.LemmingComponents do
             </p>
           </div>
           <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2 self-start">
-            <.status kind={:lemming} value={@selected_lemming.status} />
+            <span id="lemming-export-hook" phx-hook="DownloadJsonHook" class="hidden" />
+            <span class={[
+              @selected_lemming.status == "archived" &&
+                "border-2 border-amber-400/50 bg-amber-400/5 px-2 py-1"
+            ]}>
+              <.status kind={:lemming} value={@selected_lemming.status} />
+            </span>
+
+            <button
+              id="lemming-export-button"
+              type="button"
+              phx-click="export_lemming"
+              class="inline-flex h-9 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/80 px-3 text-xs font-medium text-zinc-100 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+            >
+              {dgettext("lemmings", ".button_export_json")}
+            </button>
+
+            <.link
+              id="lemming-action-edit"
+              patch={@edit_path}
+              class="inline-flex h-9 items-center justify-center gap-2 border-2 border-sky-400/50 bg-sky-400/10 px-3 text-xs font-medium text-sky-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+            >
+              {dgettext("lemmings", ".tab_edit")}
+            </.link>
 
             <button
               :if={@selected_lemming.status in ["draft", "archived"]}
@@ -213,6 +278,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
           lemming={@selected_lemming}
           effective_config={@selected_lemming_effective_config}
           inheriting?={@selected_lemming_inheriting?}
+          active_tab={@active_detail_tab}
+          settings_form={@settings_form}
+          overview_path={@overview_path}
+          edit_path={@edit_path}
         />
 
         <.lemming_instances_workspace lemming={@selected_lemming} />
@@ -224,6 +293,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :lemming, :map, required: true
   attr :effective_config, :map, required: true
   attr :inheriting?, :boolean, default: false
+  attr :active_tab, :string, default: "overview"
+  attr :settings_form, :any, default: nil
+  attr :overview_path, :string, default: nil
+  attr :edit_path, :string, default: nil
 
   def lemming_detail_workspace(assigns) do
     assigns = assign(assigns, :budgets, Map.get(assigns.effective_config.costs_config, :budgets))
@@ -233,27 +306,21 @@ defmodule LemmingsOsWeb.LemmingComponents do
       id="lemming-detail-panel"
       tone={if(@lemming.status == "archived", do: "warning", else: "default")}
     >
-      <:actions>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div id="lemming-detail-tabs" class="flex flex-wrap gap-2">
-            <.badge id="lemming-tab-overview" tone="accent">
-              {dgettext("lemmings", ".tab_overview")}
-            </.badge>
-            <.badge id="lemming-tab_edit_placeholder" tone="default">
-              {dgettext("lemmings", ".tab_edit_coming_soon")}
-            </.badge>
-          </div>
+      <div id="lemming-detail-mode" class="flex flex-col gap-0.5">
+        <span class="text-sm font-medium text-zinc-100">
+          {if @active_tab == "edit",
+            do: dgettext("lemmings", ".tab_edit"),
+            else: dgettext("lemmings", ".tab_overview")}
+        </span>
+        <span
+          id="lemming-detail-slug"
+          class="font-mono text-xs uppercase tracking-widest text-zinc-500"
+        >
+          {@lemming.slug}
+        </span>
+      </div>
 
-          <p
-            id="lemming-detail-slug"
-            class="font-mono text-xs uppercase tracking-widest text-zinc-500"
-          >
-            {@lemming.slug}
-          </p>
-        </div>
-      </:actions>
-
-      <div class="space-y-6">
+      <div :if={@active_tab == "overview"} class="space-y-6">
         <div class="flex flex-col gap-2">
           <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
             {dgettext("lemmings", ".detail_instructions")}
@@ -327,6 +394,109 @@ defmodule LemmingsOsWeb.LemmingComponents do
               </div>
             </div>
           </div>
+        </.panel>
+      </div>
+
+      <div :if={@active_tab == "edit"} id="lemming-settings-tab-panel" class="space-y-6">
+        <.panel id="lemming-settings-form-panel" tone="info">
+          <:title>{dgettext("lemmings", ".title_lemming_settings")}</:title>
+          <:subtitle>{dgettext("lemmings", ".subtitle_lemming_settings")}</:subtitle>
+
+          <.form
+            :if={@settings_form}
+            for={@settings_form}
+            id="lemming-settings-form"
+            phx-change="validate_lemming_settings"
+            phx-submit="save_lemming_settings"
+          >
+            <div class="space-y-6">
+              <div class="grid gap-4 lg:grid-cols-2">
+                <.form_field_with_info
+                  field_id="lemming-settings-name"
+                  label={dgettext("lemmings", ".label_name")}
+                  tooltip={dgettext("lemmings", ".tooltip_create_name")}
+                >
+                  <.input id="lemming-settings-name" field={@settings_form[:name]} />
+                </.form_field_with_info>
+
+                <.form_field_with_info
+                  field_id="lemming-settings-slug"
+                  label={dgettext("lemmings", ".label_slug")}
+                  tooltip={dgettext("lemmings", ".tooltip_create_slug")}
+                >
+                  <.input id="lemming-settings-slug" field={@settings_form[:slug]} />
+                </.form_field_with_info>
+              </div>
+
+              <.form_field_with_info
+                field_id="lemming-settings-description"
+                label={dgettext("lemmings", ".label_description")}
+                tooltip={dgettext("lemmings", ".tooltip_create_description")}
+              >
+                <.input
+                  id="lemming-settings-description"
+                  field={@settings_form[:description]}
+                  type="textarea"
+                  rows="3"
+                />
+              </.form_field_with_info>
+
+              <.form_field_with_info
+                field_id="lemming-settings-instructions"
+                label={dgettext("lemmings", ".label_instructions")}
+                tooltip={dgettext("lemmings", ".tooltip_create_instructions")}
+              >
+                <.input
+                  id="lemming-settings-instructions"
+                  field={@settings_form[:instructions]}
+                  type="textarea"
+                  rows="6"
+                />
+              </.form_field_with_info>
+
+              <.form_field_with_info
+                field_id="lemming-settings-status"
+                label={dgettext("lemmings", ".label_status")}
+                tooltip={dgettext("lemmings", ".tooltip_create_status")}
+              >
+                <.input
+                  id="lemming-settings-status"
+                  field={@settings_form[:status]}
+                  type="select"
+                  options={LemmingsOs.Lemmings.Lemming.status_options()}
+                />
+              </.form_field_with_info>
+
+              <div class="grid gap-3 md:grid-cols-2">
+                <.button id="lemming-edit-limit" variant="ghost" type="button">
+                  {dgettext("lemmings", ".button_edit_limit")}
+                </.button>
+                <.button id="lemming-edit-runtime" variant="ghost" type="button">
+                  {dgettext("lemmings", ".button_edit_runtime")}
+                </.button>
+                <.button id="lemming-edit-costs" variant="ghost" type="button">
+                  {dgettext("lemmings", ".button_edit_costs")}
+                </.button>
+                <.button id="lemming-edit-tools" variant="ghost" type="button">
+                  {dgettext("lemmings", ".button_edit_tools")}
+                </.button>
+              </div>
+
+              <div class="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                <.button id="lemming-settings-cancel" patch={@overview_path} variant="primary">
+                  {dgettext("lemmings", ".button_cancel_edit")}
+                </.button>
+                <.button
+                  id="lemming-settings-save"
+                  type="submit"
+                  variant="secondary"
+                  phx-disable-with={dgettext("lemmings", ".button_saving_lemming")}
+                >
+                  {dgettext("lemmings", ".button_save_lemming")}
+                </.button>
+              </div>
+            </div>
+          </.form>
         </.panel>
       </div>
     </.panel>
@@ -433,105 +603,216 @@ defmodule LemmingsOsWeb.LemmingComponents do
   end
 
   attr :form, :any, required: true
-  attr :selected_tools, :list, required: true
-  attr :available_tools, :list, required: true
+  attr :scope_form, :any, required: true
+  attr :world, :map, default: nil
+  attr :city, :map, default: nil
+  attr :department, :map, default: nil
+  attr :cities, :list, default: []
+  attr :departments, :list, default: []
 
   def create_lemming_page(assigns) do
     ~H"""
     <.content_container>
+      <.panel id="create-lemming-header-panel" tone="accent">
+        <:title>{dgettext("lemmings", ".title_create_lemming")}</:title>
+        <:subtitle>{dgettext("lemmings", ".subtitle_create_lemming_real")}</:subtitle>
+      </.panel>
+
       <.content_grid columns="sidebar">
-        <.panel id="create-lemming-panel" tone="accent">
+        <.panel :if={!@department} id="create-lemming-missing-context" tone="warning">
+          <:title>{dgettext("lemmings", ".title_create_scope")}</:title>
+          <:subtitle>{dgettext("lemmings", ".subtitle_create_scope")}</:subtitle>
+
+          <div class="flex flex-col gap-6">
+            <.empty_state
+              id="create-lemming-missing-context-card"
+              title={dgettext("lemmings", ".empty_create_missing_department")}
+              copy={dgettext("lemmings", ".empty_create_missing_department_copy")}
+            />
+
+            <.form for={@scope_form} id="create-lemming-scope-form" phx-change="change_scope">
+              <div class="grid gap-4 lg:grid-cols-3">
+                <div
+                  id="create-lemming-selected-world"
+                  class="flex flex-col gap-1.5 border-2 border-zinc-800 bg-zinc-950/70 px-3 py-2.5"
+                >
+                  <span class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                    {dgettext("lemmings", ".filter_world")}
+                  </span>
+                  <span class="font-mono text-sm text-zinc-100">
+                    {Helpers.display_value(@world && @world.name)}
+                  </span>
+                </div>
+
+                <.input
+                  id="create-lemming-scope-city"
+                  field={@scope_form[:city_id]}
+                  type="select"
+                  label={dgettext("lemmings", ".filter_city")}
+                  options={Enum.map(@cities, fn city -> {city.name, city.id} end)}
+                  prompt={dgettext("lemmings", ".filter_city_prompt")}
+                />
+
+                <.input
+                  id="create-lemming-scope-department"
+                  field={@scope_form[:department_id]}
+                  type="select"
+                  label={dgettext("lemmings", ".filter_department")}
+                  options={
+                    Enum.map(@departments, fn department -> {department.name, department.id} end)
+                  }
+                  prompt={dgettext("lemmings", ".filter_department_prompt")}
+                  disabled={@departments == []}
+                />
+              </div>
+            </.form>
+          </div>
+        </.panel>
+
+        <.panel :if={@department} id="create-lemming-panel" tone="accent">
           <:title>{dgettext("lemmings", ".title_create_lemming")}</:title>
-          <:subtitle>{dgettext("lemmings", ".subtitle_create_lemming")}</:subtitle>
+          <:subtitle>{dgettext("lemmings", ".subtitle_create_lemming_form")}</:subtitle>
           <.form for={@form} id="create-lemming-form" phx-change="validate" phx-submit="save">
             <div class="flex flex-col gap-6">
-              <.input
-                field={@form[:name]}
+              <.form_field_with_info
+                field_id="lemming_name"
                 label={dgettext("lemmings", ".label_name")}
-                placeholder={dgettext("lemmings", ".placeholder_name")}
-              />
-              <.input
-                field={@form[:role]}
-                label={dgettext("lemmings", ".label_role")}
-                placeholder={dgettext("lemmings", ".placeholder_role")}
-              />
-              <.input
-                field={@form[:model]}
-                type="select"
-                label={dgettext("lemmings", ".label_model")}
-                options={[
-                  {"gpt-4o", "gpt-4o"},
-                  {"gpt-4o-mini", "gpt-4o-mini"},
-                  {"claude-3.5", "claude-3.5"},
-                  {"claude-3-opus", "claude-3-opus"},
-                  {"llama-3", "llama-3"}
-                ]}
-              />
-              <.input
-                field={@form[:system_prompt]}
-                type="textarea"
-                label={dgettext("lemmings", ".label_system_prompt")}
-                rows="5"
-              />
+                tooltip={dgettext("lemmings", ".tooltip_create_name")}
+              >
+                <.input
+                  field={@form[:name]}
+                  placeholder={dgettext("lemmings", ".placeholder_name")}
+                />
+              </.form_field_with_info>
 
-              <div class="flex flex-col gap-2">
-                <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                  {dgettext("lemmings", ".detail_tools_allowed")}
-                </p>
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    :for={tool <- @available_tools}
-                    id={"tool-toggle-#{tool}"}
-                    type="button"
-                    phx-click="toggle_tool"
-                    phx-value-tool={tool}
-                    class={[
-                      "border-2 px-3 py-1.5 text-xs font-medium transition-all duration-150",
-                      tool in @selected_tools &&
-                        "border-emerald-400/60 bg-emerald-400/10 text-emerald-400 shadow-md",
-                      tool not in @selected_tools &&
-                        "border-zinc-700 bg-zinc-950/80 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
-                    ]}
-                  >
-                    {tool}
-                  </button>
-                </div>
+              <.form_field_with_info
+                field_id="lemming_slug"
+                label={dgettext("lemmings", ".label_slug")}
+                tooltip={dgettext("lemmings", ".tooltip_create_slug")}
+              >
+                <.input
+                  field={@form[:slug]}
+                  placeholder={dgettext("lemmings", ".placeholder_slug")}
+                />
+              </.form_field_with_info>
+
+              <.form_field_with_info
+                field_id="lemming_description"
+                label={dgettext("lemmings", ".label_description")}
+                tooltip={dgettext("lemmings", ".tooltip_create_description")}
+              >
+                <.input
+                  field={@form[:description]}
+                  type="textarea"
+                  rows="3"
+                  placeholder={dgettext("lemmings", ".placeholder_description")}
+                />
+              </.form_field_with_info>
+
+              <.form_field_with_info
+                field_id="lemming_instructions"
+                label={dgettext("lemmings", ".label_instructions")}
+                tooltip={dgettext("lemmings", ".tooltip_create_instructions")}
+              >
+                <.input
+                  field={@form[:instructions]}
+                  type="textarea"
+                  rows="5"
+                  placeholder={dgettext("lemmings", ".placeholder_instructions")}
+                />
+              </.form_field_with_info>
+
+              <.form_field_with_info
+                field_id="lemming_status"
+                label={dgettext("lemmings", ".label_status")}
+                tooltip={dgettext("lemmings", ".tooltip_create_status")}
+              >
+                <.input
+                  field={@form[:status]}
+                  type="select"
+                  options={LemmingsOs.Lemmings.Lemming.status_options()}
+                />
+              </.form_field_with_info>
+
+              <div class="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                <.button
+                  id="create-lemming-cancel"
+                  navigate={
+                    ~p"/departments?#{%{city: @city.id, dept: @department.id, tab: "lemmings"}}"
+                  }
+                  variant="primary"
+                  class="w-full sm:w-fit"
+                >
+                  {dgettext("lemmings", ".button_cancel_create")}
+                </.button>
+
+                <.button
+                  type="submit"
+                  id="create-lemming-submit"
+                  variant="secondary"
+                  phx-disable-with={dgettext("lemmings", ".button_creating_lemming")}
+                  class="w-full sm:w-fit"
+                >
+                  {dgettext("lemmings", ".button_create_lemming")}
+                </.button>
               </div>
-
-              <.button type="submit" class="w-full sm:w-fit">
-                {dgettext("lemmings", ".button_deploy_lemming")}
-              </.button>
             </div>
           </.form>
         </.panel>
 
-        <.panel id="create-lemming-preview">
-          <:title>{dgettext("lemmings", ".title_deployment_preview")}</:title>
+        <.panel :if={@department} id="create-lemming-context-panel">
+          <:title>{dgettext("lemmings", ".title_create_scope")}</:title>
+          <:subtitle>{dgettext("lemmings", ".subtitle_create_scope")}</:subtitle>
           <div class="flex flex-col gap-6">
-            <div class="flex flex-col gap-2">
-              <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                {dgettext("lemmings", ".detail_selected_tooling")}
-              </p>
-              <div class="flex flex-wrap gap-2">
-                <.badge :for={tool <- @selected_tools} tone="accent">{tool}</.badge>
-                <.badge :if={@selected_tools == []} tone="default">
-                  {dgettext("lemmings", ".empty_no_tools_selected")}
-                </.badge>
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                {dgettext("lemmings", ".detail_expected_outcome")}
-              </p>
-              <p class="text-sm text-zinc-400 leading-relaxed">
-                {dgettext("lemmings", ".copy_expected_outcome")}
-              </p>
-            </div>
+            <.stat_item
+              id="create-lemming-world"
+              label={dgettext("lemmings", ".filter_world")}
+              value={Helpers.display_value(@world && @world.name)}
+            />
+            <.stat_item
+              id="create-lemming-city"
+              label={dgettext("lemmings", ".filter_city")}
+              value={Helpers.display_value(@city && @city.name)}
+            />
+            <.stat_item
+              id="create-lemming-department"
+              label={dgettext("lemmings", ".filter_department")}
+              value={Helpers.display_value(@department && @department.name)}
+            />
+            <p class="text-sm leading-relaxed text-zinc-400">
+              {dgettext("lemmings", ".copy_create_scope")}
+            </p>
           </div>
         </.panel>
       </.content_grid>
     </.content_container>
+    """
+  end
+
+  attr :field_id, :string, required: true
+  attr :label, :string, required: true
+  attr :tooltip, :string, required: true
+
+  slot :inner_block, required: true
+
+  def form_field_with_info(assigns) do
+    ~H"""
+    <div class="flex flex-col gap-1.5">
+      <div class="flex items-center gap-2">
+        <label for={@field_id} class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+          {@label}
+        </label>
+        <span
+          class="inline-flex size-5 items-center justify-center rounded-full border border-zinc-700
+     bg-zinc-950/80 text-zinc-400"
+          title={@tooltip}
+          aria-label={@tooltip}
+        >
+          <.icon name="hero-information-circle" class="size-3.5" />
+        </span>
+      </div>
+      {render_slot(@inner_block)}
+    </div>
     """
   end
 
