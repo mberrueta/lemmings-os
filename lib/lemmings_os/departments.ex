@@ -24,14 +24,14 @@ defmodule LemmingsOs.Departments do
 
   def list_departments(%World{id: world_id}, opts) do
     Department
-    |> filter_query([world_id: world_id | opts])
+    |> filter_query(Keyword.merge([world_id: world_id], opts))
     |> order_by([department], asc: department.inserted_at, asc: department.id)
     |> Repo.all()
   end
 
   def list_departments(%City{id: city_id}, opts) do
     Department
-    |> filter_query([city_id: city_id | opts])
+    |> filter_query(Keyword.merge([city_id: city_id], opts))
     |> order_by([department], asc: department.inserted_at, asc: department.id)
     |> Repo.all()
   end
@@ -42,7 +42,7 @@ defmodule LemmingsOs.Departments do
   @spec get_department(Ecto.UUID.t(), keyword()) :: Department.t() | nil
   def get_department(id, opts \\ []) when is_binary(id) do
     Department
-    |> filter_query([id: id | opts])
+    |> filter_query(Keyword.merge([id: id], opts))
     |> Repo.one()
   end
 
@@ -52,7 +52,7 @@ defmodule LemmingsOs.Departments do
   @spec get_department_by_slug(City.t(), String.t(), keyword()) :: Department.t() | nil
   def get_department_by_slug(%City{id: city_id}, slug, opts \\ []) when is_binary(slug) do
     Department
-    |> filter_query([city_id: city_id, slug: slug | opts])
+    |> filter_query(Keyword.merge([city_id: city_id, slug: slug], opts))
     |> Repo.one()
   end
 

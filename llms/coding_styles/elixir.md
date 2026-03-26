@@ -104,19 +104,19 @@ end
 
 def list_departments(%City{id: city_id}, opts \\ []) do
   Department
-  |> filter_query([city_id: city_id | opts])
+  |> filter_query(Keyword.merge([city_id: city_id], opts))
   |> Repo.all()
 end
 
 def list_departments(%World{id: world_id}, opts) do
   Department
-  |> filter_query([world_id: world_id | opts])
+  |> filter_query(Keyword.merge([world_id: world_id], opts))
   |> Repo.all()
 end
 
 def get_department(id, opts \\ []) do
   Department
-  |> filter_query([id: id | opts])
+  |> filter_query(Keyword.merge([id: id], opts))
   |> Repo.one()
 end
 ```

@@ -3,10 +3,14 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
   import LemmingsOsWeb.MockShell
 
+  alias LemmingsOs.Cities
+  alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.MockData
+  alias LemmingsOs.Worlds
+  alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
 
   @detail_tabs ~w(overview lemmings settings)
@@ -172,9 +176,17 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
   defp load_departments(_snapshot, nil), do: []
 
-  defp load_departments(snapshot, selected_city) do
-    Departments.list_departments(selected_city, preload: [:city, :world])
+  defp load_departments(%{world: %{id: world_id}}, %{id: city_id})
+       when is_binary(world_id) and is_binary(city_id) do
+    with %World{} = world <- Worlds.get_world(world_id),
+         %City{} = city <- Cities.get_city(world, city_id) do
+      Departments.list_departments(city, preload: [:city, :world])
+    else
+      _ -> []
+    end
   end
+
+  defp load_departments(_, _), do: []
 
   defp select_department([], _department_id), do: nil
   defp select_department(_departments, nil), do: nil

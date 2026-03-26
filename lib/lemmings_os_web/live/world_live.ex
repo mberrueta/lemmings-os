@@ -61,8 +61,7 @@ defmodule LemmingsOsWeb.WorldLive do
     freshness = freshness_threshold_seconds()
     world = %World{id: world_id}
 
-    world
-    |> Cities.list_cities()
+    Cities.list_cities(world)
     |> Enum.map(&to_city_summary(&1, now, freshness))
   end
 

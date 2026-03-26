@@ -44,8 +44,7 @@ defmodule LemmingsOsWeb.HealthController do
       case Worlds.get_default_world() do
         %{} = world ->
           cities =
-            world
-            |> Cities.list_cities()
+            Cities.list_cities(world)
             |> Enum.map(fn city ->
               %{
                 node_name: city.node_name,

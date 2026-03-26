@@ -69,8 +69,10 @@ defmodule LemmingsOs.DepartmentsTest do
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
 
-      assert %Department{} = fetched_department =
-               Departments.get_department(department.id, preload: [:world, :city])
+      fetched_department =
+        Departments.get_department(department.id, preload: [:world, :city])
+
+      assert %Department{} = fetched_department
 
       assert Ecto.assoc_loaded?(fetched_department.world)
       assert Ecto.assoc_loaded?(fetched_department.city)
@@ -85,8 +87,10 @@ defmodule LemmingsOs.DepartmentsTest do
       department = insert(:department, world: world, city: city, slug: "support")
       insert(:department, world: world, city: other_city, slug: "support")
 
-      assert %Department{} = fetched_department =
-               Departments.get_department_by_slug(city, department.slug)
+      fetched_department =
+        Departments.get_department_by_slug(city, department.slug)
+
+      assert %Department{} = fetched_department
 
       assert fetched_department.id == department.id
     end
@@ -132,11 +136,14 @@ defmodule LemmingsOs.DepartmentsTest do
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city, status: "disabled")
 
-      assert {:ok, draining_department} = Departments.set_department_status(department, "draining")
+      assert {:ok, draining_department} =
+               Departments.set_department_status(department, "draining")
+
       assert draining_department.status == "draining"
 
       assert {:ok, disabled_department} =
                Departments.set_department_status(draining_department, "disabled")
+
       assert disabled_department.status == "disabled"
 
       assert {:ok, active_again_department} =

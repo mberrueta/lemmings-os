@@ -61,7 +61,6 @@ defmodule LemmingsOs.Worlds.WorldsTest do
     end
   end
 
-
   describe "get_default_world/0" do
     test "returns the default world when one exists" do
       Repo.delete_all(World)

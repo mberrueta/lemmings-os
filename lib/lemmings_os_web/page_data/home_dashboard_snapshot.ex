@@ -88,8 +88,7 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
         world = %World{id: valid_id}
 
         city_count =
-          world
-          |> Cities.list_cities()
+          Cities.list_cities(world)
           |> length()
 
         %{department_count: department_count, active_department_count: active_department_count} =
