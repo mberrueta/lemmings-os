@@ -225,6 +225,17 @@ The Model Runtime is a peer of the Tool Runtime in the execution architecture.
 It is not a Tool. Tools are for external side effects. The Model Runtime is
 the internal reasoning engine boundary.
 
+## 4.1 Phase 1 Runtime Slice
+
+This ADR defines the long-term Model Runtime boundary. The Phase 1 runtime slice adopts that boundary with a deliberately narrow provider scope:
+
+- `ModelRuntime` is the only model execution entrypoint used by runtime orchestration
+- prompt assembly happens inside `ModelRuntime`
+- provider-specific HTTP logic lives behind a provider behaviour
+- `Providers.Ollama` is the first provider implementation for Phase 1
+
+Additional providers, richer streaming semantics, and broader output modes are extensions to this contract, not reasons to collapse model execution back into `LemmingInstances` or the web layer.
+
 ---
 
 # 5. Provider Abstraction

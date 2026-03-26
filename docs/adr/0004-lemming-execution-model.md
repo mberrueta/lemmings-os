@@ -135,6 +135,20 @@ Each execution instance:
 
 The Lemming definition shown in the control plane represents a **Lemming type** or template. Runtime work is performed by **Lemming instances** spawned from that type.
 
+## 4.1 Phase 1 Runtime Slice
+
+This ADR defines the long-term execution model and remains the source of truth for the intended architecture. The Phase 1 runtime slice uses a narrower operational subset rather than the full long-term execution taxonomy.
+
+Phase 1 focuses on:
+
+- on-demand `LemmingInstance` creation from a durable `Lemming`
+- supervised per-instance executor processes
+- explicit queueing, processing, retry, idle, failure, and expiry lifecycle
+- model execution through `ModelRuntime`
+- no peer delegation, join semantics, or generalized pause/resume workflow
+
+The richer execution model in this ADR remains the intended long-term architecture unless intentionally revised by a later ADR. The Phase 1 runtime slice does not replace that model; it defines an intentionally smaller contract for the first runtime slice.
+
 ---
 
 # 5. Runtime Model
@@ -186,6 +200,26 @@ Each Lemming instance behaves as an explicit stateful execution with states such
 - cancelled
 
 The exact set of states may evolve, but the execution model is explicitly state-based and resumable.
+
+### Phase 1 status subset
+
+The Phase 1 runtime slice uses the following operational statuses:
+
+- `created`
+- `queued`
+- `processing`
+- `retrying`
+- `idle`
+- `failed`
+- `expired`
+
+These statuses are a constrained Phase 1 subset of the richer execution model above, not a replacement for it. They collapse several long-term states into operationally simpler buckets:
+
+- `running` and `waiting_model` map to `processing`
+- `retry_backoff` maps to `retrying`
+- `waiting_tool`, `waiting_message`, `paused`, `completed`, and `cancelled` are deferred beyond Phase 1
+
+Deferred states remain part of the intended long-term model and should be introduced explicitly in later phases rather than inferred from temporary implementation shortcuts.
 
 ## 5.4 Minimal in-process state
 
