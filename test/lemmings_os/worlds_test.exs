@@ -1,7 +1,6 @@
 defmodule LemmingsOs.Worlds.WorldsTest do
   use LemmingsOs.DataCase, async: false
 
-  alias Ecto.NoResultsError
   alias LemmingsOs.Config.CostsConfig
   alias LemmingsOs.Config.CostsConfig.Budgets
   alias LemmingsOs.Config.LimitsConfig
@@ -49,35 +48,19 @@ defmodule LemmingsOs.Worlds.WorldsTest do
     end
   end
 
-  describe "fetch_world/1" do
+  describe "get_world/1" do
     test "returns the persisted world" do
       world = insert(:world)
 
-      assert {:ok, fetched_world} = Worlds.fetch_world(world.id)
+      assert %World{} = fetched_world = Worlds.get_world(world.id)
       assert fetched_world.id == world.id
     end
 
     test "returns an error tuple when the world does not exist" do
-      assert {:error, reason} = Worlds.fetch_world(Ecto.UUID.generate())
-      assert reason in [:not_found, :world_not_found]
+      assert Worlds.get_world(Ecto.UUID.generate()) == nil
     end
   end
 
-  describe "get_world!/1" do
-    test "returns the persisted world" do
-      world = insert(:world)
-
-      fetched_world = Worlds.get_world!(world.id)
-
-      assert fetched_world.id == world.id
-    end
-
-    test "raises when the world does not exist" do
-      assert_raise NoResultsError, fn ->
-        Worlds.get_world!(Ecto.UUID.generate())
-      end
-    end
-  end
 
   describe "get_default_world/0" do
     test "returns the default world when one exists" do
@@ -85,15 +68,14 @@ defmodule LemmingsOs.Worlds.WorldsTest do
       world = insert(:world)
       LemmingsOs.Worlds.Cache.invalidate_all()
 
-      assert {:ok, default_world} = Worlds.get_default_world()
+      assert %World{} = default_world = Worlds.get_default_world()
       assert default_world.id == world.id
     end
 
     test "returns an error tuple when no world exists" do
       Repo.delete_all(World)
       LemmingsOs.Worlds.Cache.invalidate_all()
-      assert {:error, reason} = Worlds.get_default_world()
-      assert reason in [:not_found, :world_not_found, :default_world_not_found]
+      assert Worlds.get_default_world() == nil
     end
   end
 

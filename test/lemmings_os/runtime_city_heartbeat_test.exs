@@ -69,7 +69,7 @@ defmodule LemmingsOs.Cities.HeartbeatTest do
 
       assert :ok = Heartbeat.heartbeat(pid)
 
-      assert {:ok, world} = Worlds.get_default_world()
+      assert %World{} = world = Worlds.get_default_world()
       [city] = Cities.list_cities(world)
 
       assert city.node_name == "primary@localhost"

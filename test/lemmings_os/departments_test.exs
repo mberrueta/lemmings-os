@@ -1,14 +1,13 @@
 defmodule LemmingsOs.DepartmentsTest do
   use LemmingsOs.DataCase, async: false
 
-  alias Ecto.NoResultsError
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.DeleteDeniedError
   alias LemmingsOs.Departments.Department
 
   doctest LemmingsOs.Departments
 
-  describe "list_departments/3" do
+  describe "list_departments/2" do
     test "returns departments for the explicit world/city scope" do
       world = insert(:world)
       city = insert(:city, world: world)
@@ -21,7 +20,7 @@ defmodule LemmingsOs.DepartmentsTest do
       insert(:department, world: world, city: other_city)
       insert(:department, world: other_world, city: other_world_city)
 
-      departments = Departments.list_departments(world, city)
+      departments = Departments.list_departments(city)
 
       assert Enum.sort(Enum.map(departments, & &1.id)) ==
                Enum.sort([department_a.id, department_b.id])
@@ -34,7 +33,7 @@ defmodule LemmingsOs.DepartmentsTest do
       disabled_department = insert(:department, world: world, city: city, status: "disabled")
 
       assert [filtered_department] =
-               Departments.list_departments(world.id, city.id,
+               Departments.list_departments(city,
                  status: "disabled",
                  ids: [disabled_department.id],
                  slug: disabled_department.slug,
@@ -48,36 +47,30 @@ defmodule LemmingsOs.DepartmentsTest do
     end
   end
 
-  describe "fetch/get APIs" do
-    test "fetch_department/2 returns the department by id" do
+  describe "get APIs" do
+    test "get_department/2 returns the department by id" do
       world = insert(:world)
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
 
-      assert {:ok, fetched_department} = Departments.fetch_department(department.id)
+      assert %Department{} = fetched_department = Departments.get_department(department.id)
       assert fetched_department.id == department.id
     end
 
-    test "fetch_department/2 returns not_found when the id is missing" do
+    test "get_department/2 returns nil when the id is missing" do
       _world = insert(:world)
       _city = insert(:city)
 
-      assert {:error, :not_found} = Departments.fetch_department(Ecto.UUID.generate())
+      assert Departments.get_department(Ecto.UUID.generate()) == nil
     end
 
-    test "get_department!/2 raises when missing" do
-      assert_raise NoResultsError, fn ->
-        Departments.get_department!(Ecto.UUID.generate())
-      end
-    end
-
-    test "fetch_department/2 supports explicit preloads" do
+    test "get_department/2 supports explicit preloads" do
       world = insert(:world)
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
 
-      assert {:ok, fetched_department} =
-               Departments.fetch_department(department.id, preload: [:world, :city])
+      assert %Department{} = fetched_department =
+               Departments.get_department(department.id, preload: [:world, :city])
 
       assert Ecto.assoc_loaded?(fetched_department.world)
       assert Ecto.assoc_loaded?(fetched_department.city)
@@ -92,21 +85,20 @@ defmodule LemmingsOs.DepartmentsTest do
       department = insert(:department, world: world, city: city, slug: "support")
       insert(:department, world: world, city: other_city, slug: "support")
 
-      assert {:ok, fetched_department} =
-               Departments.fetch_department_by_slug(city.id, department.slug)
+      assert %Department{} = fetched_department =
+               Departments.get_department_by_slug(city, department.slug)
 
       assert fetched_department.id == department.id
-      assert Departments.get_department_by_slug!(city, department.slug).id == department.id
     end
   end
 
-  describe "create_department/3" do
+  describe "create_department/2" do
     test "creates a department scoped to the given world and city" do
       world = insert(:world)
       city = insert(:city, world: world)
 
       assert {:ok, department} =
-               Departments.create_department(world, city, %{
+               Departments.create_department(city, %{
                  slug: "support",
                  name: "Support",
                  status: "active",
@@ -117,22 +109,9 @@ defmodule LemmingsOs.DepartmentsTest do
       assert department.city_id == city.id
       assert department.tags == ["customer-support", "high-priority"]
     end
-
-    test "rejects creating a department when the city does not belong to the world" do
-      world = insert(:world)
-      other_world = insert(:world)
-      city = insert(:city, world: other_world)
-
-      assert {:error, :city_not_in_world} =
-               Departments.create_department(world.id, city.id, %{
-                 slug: "support",
-                 name: "Support",
-                 status: "active"
-               })
-    end
   end
 
-  describe "update_department/2 and lifecycle wrappers" do
+  describe "update_department/2 and status transitions" do
     test "updates persisted department attributes" do
       world = insert(:world)
       city = insert(:city, world: world)
@@ -148,18 +127,16 @@ defmodule LemmingsOs.DepartmentsTest do
       assert updated_department.notes == "Updated notes"
     end
 
-    test "set_department_status/2 and wrappers delegate through the status path" do
+    test "set_department_status/2 drives lifecycle transitions" do
       world = insert(:world)
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city, status: "disabled")
 
-      assert {:ok, active_department} = Departments.activate_department(department)
-      assert active_department.status == "active"
-
-      assert {:ok, draining_department} = Departments.drain_department(active_department)
+      assert {:ok, draining_department} = Departments.set_department_status(department, "draining")
       assert draining_department.status == "draining"
 
-      assert {:ok, disabled_department} = Departments.disable_department(draining_department)
+      assert {:ok, disabled_department} =
+               Departments.set_department_status(draining_department, "disabled")
       assert disabled_department.status == "disabled"
 
       assert {:ok, active_again_department} =
@@ -214,7 +191,7 @@ defmodule LemmingsOs.DepartmentsTest do
     test "returns zero counts for worlds without departments" do
       world = insert(:world)
 
-      assert Departments.topology_summary(world.id) == %{
+      assert Departments.topology_summary(world) == %{
                department_count: 0,
                active_department_count: 0
              }

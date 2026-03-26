@@ -42,7 +42,7 @@ defmodule LemmingsOsWeb.HealthController do
   defp city_liveness_summary do
     try do
       case Worlds.get_default_world() do
-        {:ok, world} ->
+        %{} = world ->
           cities =
             world
             |> Cities.list_cities()
@@ -57,7 +57,7 @@ defmodule LemmingsOsWeb.HealthController do
 
           {:ok, cities}
 
-        {:error, :not_found} ->
+        nil ->
           {:ok, []}
       end
     rescue

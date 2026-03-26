@@ -16,22 +16,6 @@ defmodule LemmingsOs.Worlds do
   Returns all persisted worlds.
 
   Accepts an optional keyword list for filtering.
-
-  ## Examples
-
-      iex> LemmingsOs.Repo.delete_all(LemmingsOs.Worlds.World)
-      iex> LemmingsOs.Factory.insert(:world, status: "ok")
-      iex> LemmingsOs.Factory.insert(:world, status: "degraded")
-      iex> worlds = LemmingsOs.Worlds.list_worlds()
-      iex> length(worlds)
-      2
-
-      iex> LemmingsOs.Repo.delete_all(LemmingsOs.Worlds.World)
-      iex> LemmingsOs.Factory.insert(:world, status: "ok")
-      iex> LemmingsOs.Factory.insert(:world, status: "degraded")
-      iex> worlds = LemmingsOs.Worlds.list_worlds(status: "ok")
-      iex> Enum.all?(worlds, &(&1.status == "ok"))
-      true
   """
   @spec list_worlds(keyword()) :: [World.t()]
   def list_worlds(opts \\ []) do
@@ -42,100 +26,47 @@ defmodule LemmingsOs.Worlds do
   end
 
   @doc """
-  Returns the world for the given persisted ID. Raises `Ecto.NoResultsError` if not found.
+  Returns the world for the given persisted ID, or `nil` when missing.
 
-  Results are served from the `Worlds.Cache`. The cache is invalidated automatically
-  on upsert, so callers may receive a cached value until the next write or explicit
-  `Worlds.Cache.invalidate_world/1` call.
-
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> fetched_world = LemmingsOs.Worlds.get_world!(world.id)
-      iex> fetched_world.id == world.id
-      true
+  Results are served from `Worlds.Cache`. The cache is invalidated automatically
+  on upsert, so callers may receive a cached value until the next write or
+  explicit `Worlds.Cache.invalidate_world/1` call.
   """
-  @spec get_world!(Ecto.UUID.t()) :: World.t()
-  def get_world!(id) do
-    case fetch_world(id) do
+  @spec get_world(Ecto.UUID.t()) :: World.t() | nil
+  def get_world(id) do
+    case Cache.fetch_world(id, fn -> Repo.get(World, id) |> normalize_world_result() end) do
       {:ok, world} -> world
-      {:error, :not_found} -> raise Ecto.NoResultsError, queryable: World
+      {:error, :not_found} -> nil
     end
   end
 
   @doc """
-  Fetches a world by persisted ID.
+  Returns the default world for the current node, or `nil` when none exists.
 
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> {:ok, fetched_world} = LemmingsOs.Worlds.fetch_world(world.id)
-      iex> fetched_world.slug == world.slug
-      true
-
-      iex> LemmingsOs.Worlds.fetch_world(Ecto.UUID.generate())
-      {:error, :not_found}
-  """
-  @spec fetch_world(Ecto.UUID.t()) :: {:ok, World.t()} | {:error, :not_found}
-  def fetch_world(id) do
-    Cache.fetch_world(id, fn ->
-      fetch_world_result(Repo.get(World, id))
-    end)
-  end
-
-  @doc """
-  Returns the default world for the current node.
-
-  This task keeps the default-world contract minimal by selecting the oldest
+  This keeps the default-world contract minimal by selecting the oldest
   persisted world when one exists.
-
-  ## Examples
-
-      iex> LemmingsOs.Repo.delete_all(LemmingsOs.Worlds.World)
-      iex> LemmingsOs.Worlds.Cache.invalidate_all()
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> {:ok, default_world} = LemmingsOs.Worlds.get_default_world()
-      iex> default_world.id == world.id
-      true
   """
-  @spec get_default_world() :: {:ok, World.t()} | {:error, :not_found}
+  @spec get_default_world() :: World.t() | nil
   def get_default_world do
-    Cache.fetch_default_world(fn ->
-      query =
-        World
-        |> order_by([world], asc: world.inserted_at, asc: world.id)
-        |> limit(1)
+    case Cache.fetch_default_world(fn ->
+           query =
+             World
+             |> order_by([world], asc: world.inserted_at, asc: world.id)
+             |> limit(1)
 
-      query
-      |> Repo.one()
-      |> fetch_world_result()
-    end)
+           query
+           |> Repo.one()
+           |> normalize_world_result()
+         end) do
+      {:ok, world} -> world
+      {:error, :not_found} -> nil
+    end
   end
 
   @doc """
   Creates or updates a world from persisted or bootstrap-facing attributes.
 
   Upsert matching prefers persisted `id`, then `bootstrap_path`, then `slug`.
-  That keeps bootstrap sync idempotent without treating the bootstrap payload
-  as the persisted source of truth.
-
-  ## Examples
-
-      iex> attrs = LemmingsOs.Factory.params_for(:world, name: "Doc World")
-      iex> {:ok, world} = LemmingsOs.Worlds.upsert_world(attrs)
-      iex> {world.name, world.status, world.last_import_status}
-      {"Doc World", "unknown", "unknown"}
-
-      iex> attrs = LemmingsOs.Factory.params_for(:world, name: "Before")
-      iex> {:ok, world} = LemmingsOs.Worlds.upsert_world(attrs)
-      iex> {:ok, updated_world} =
-      ...>   LemmingsOs.Worlds.upsert_world(%{
-      ...>     "slug" => world.slug,
-      ...>     "bootstrap_path" => world.bootstrap_path,
-      ...>     "name" => "After"
-      ...>   })
-      iex> updated_world.id == world.id and updated_world.name == "After"
-      true
   """
   @spec upsert_world(map()) :: {:ok, World.t()} | {:error, Ecto.Changeset.t()}
   def upsert_world(attrs) when is_map(attrs) do
@@ -148,13 +79,6 @@ defmodule LemmingsOs.Worlds do
 
   @doc """
   Creates or updates a world using the bootstrap sync contract.
-
-  ## Examples
-
-      iex> attrs = LemmingsOs.Factory.params_for(:world, name: "Bootstrap World")
-      iex> {:ok, world} = LemmingsOs.Worlds.upsert_bootstrap_world(attrs)
-      iex> world.name
-      "Bootstrap World"
   """
   @spec upsert_bootstrap_world(map()) :: {:ok, World.t()} | {:error, Ecto.Changeset.t()}
   def upsert_bootstrap_world(attrs), do: upsert_world(attrs)
@@ -162,22 +86,7 @@ defmodule LemmingsOs.Worlds do
   @doc """
   Updates an existing world located by the bootstrap lookup chain.
 
-  Unlike `upsert_world/1`, this function never inserts a new record. It is
-  intended for failure-path bootstrap sync where the YAML file is missing or
-  invalid and no slug or name is available to create a valid world row. If no
-  existing world can be found via the lookup chain, `{:error, :not_found}` is
-  returned and no write is attempted.
-
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> attrs = %{slug: world.slug, status: "unavailable", last_import_status: "unavailable"}
-      iex> {:ok, updated} = LemmingsOs.Worlds.update_existing_world(attrs)
-      iex> updated.status
-      "unavailable"
-
-      iex> LemmingsOs.Worlds.update_existing_world(%{slug: "does-not-exist"})
-      {:error, :not_found}
+  Unlike `upsert_world/1`, this function never inserts a new record.
   """
   @spec update_existing_world(map()) ::
           {:ok, World.t()} | {:error, :not_found} | {:error, Ecto.Changeset.t()}
@@ -204,8 +113,8 @@ defmodule LemmingsOs.Worlds do
 
   defp invalidate_cached_reads({:error, _changeset} = error), do: error
 
-  defp fetch_world_result(%World{} = world), do: {:ok, world}
-  defp fetch_world_result(nil), do: {:error, :not_found}
+  defp normalize_world_result(%World{} = world), do: {:ok, world}
+  defp normalize_world_result(nil), do: {:error, :not_found}
 
   defp lookup_world(attrs), do: lookup_world_by_id(attr_value(attrs, :id), attrs)
 

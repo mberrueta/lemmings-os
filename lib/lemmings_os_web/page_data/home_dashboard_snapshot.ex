@@ -85,13 +85,15 @@ defmodule LemmingsOsWeb.PageData.HomeDashboardSnapshot do
   def build_topology_card_meta(world_id) when is_binary(world_id) do
     case Ecto.UUID.cast(world_id) do
       {:ok, valid_id} ->
+        world = %World{id: valid_id}
+
         city_count =
-          valid_id
+          world
           |> Cities.list_cities()
           |> length()
 
         %{department_count: department_count, active_department_count: active_department_count} =
-          Departments.topology_summary(valid_id)
+          Departments.topology_summary(world)
 
         %{lemming_count: lemming_count, active_lemming_count: active_lemming_count} =
           Lemmings.topology_summary(%World{id: valid_id})

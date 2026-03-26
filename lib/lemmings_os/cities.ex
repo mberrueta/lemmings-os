@@ -16,79 +16,25 @@ defmodule LemmingsOs.Cities do
   Returns persisted cities for the given World scope.
 
   Accepts an optional keyword list for filtering and explicit preloads.
-
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> LemmingsOs.Factory.insert(:city, world: world, status: "active")
-      iex> cities = LemmingsOs.Cities.list_cities(world)
-      iex> length(cities)
-      1
   """
-  @spec list_cities(World.t() | Ecto.UUID.t(), keyword()) :: [City.t()]
-  def list_cities(world_or_world_id, opts \\ [])
-
-  def list_cities(%World{} = world, opts) do
-    world
-    |> list_cities_query(opts)
-    |> Repo.all()
-  end
-
-  def list_cities(world_id, opts) when is_binary(world_id) do
-    world_id
-    |> list_cities_query(opts)
-    |> Repo.all()
-  end
-
-  @doc """
-  Returns the base City query for the given World scope.
-
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> LemmingsOs.Cities.list_cities_query(world) |> Ecto.Query.exclude(:preload) |> Map.has_key?(:from)
-      true
-  """
-  @spec list_cities_query(World.t() | Ecto.UUID.t(), keyword()) :: Ecto.Query.t()
-  def list_cities_query(%World{id: world_id}, opts), do: list_cities_query(world_id, opts)
-
-  def list_cities_query(world_id, opts) when is_binary(world_id) do
+  @spec list_cities(World.t(), keyword()) :: [City.t()]
+  def list_cities(%World{id: world_id}, opts \\ []) do
     City
     |> where([city], city.world_id == ^world_id)
     |> filter_query(opts)
     |> order_by([city], asc: city.inserted_at, asc: city.id)
+    |> Repo.all()
   end
 
   @doc """
-  Returns the City for the given World-scoped persisted ID.
-
-  Raises `Ecto.NoResultsError` if no City exists in that World.
+  Returns the City for the given World-scoped persisted ID, or `nil`.
   """
-  @spec get_city!(World.t(), Ecto.UUID.t()) :: City.t()
-  def get_city!(%World{} = world, id) do
-    case fetch_city(world, id) do
-      {:ok, city} -> city
-      {:error, :not_found} -> raise Ecto.NoResultsError, queryable: City
-    end
-  end
-
-  @doc """
-  Fetches a City by World-scoped persisted ID.
-
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> city = LemmingsOs.Factory.insert(:city, world: world)
-      iex> {:ok, fetched_city} = LemmingsOs.Cities.fetch_city(world, city.id)
-      iex> fetched_city.id == city.id
-      true
-  """
-  @spec fetch_city(World.t(), Ecto.UUID.t()) :: {:ok, City.t()} | {:error, :not_found}
-  def fetch_city(%World{id: world_id}, id) when is_binary(id) do
+  @spec get_city(World.t(), Ecto.UUID.t(), keyword()) :: City.t() | nil
+  def get_city(%World{id: world_id}, id, opts \\ []) when is_binary(id) do
     City
     |> where([city], city.world_id == ^world_id and city.id == ^id)
+    |> filter_query(opts)
     |> Repo.one()
-    |> fetch_city_result()
   end
 
   @doc """
@@ -101,13 +47,6 @@ defmodule LemmingsOs.Cities do
 
   @doc """
   Creates a City scoped to the given World.
-
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> {:ok, city} = LemmingsOs.Cities.create_city(world, %{slug: "ops", name: "Ops", node_name: "ops@localhost", status: "active"})
-      iex> city.world_id == world.id
-      true
   """
   @spec create_city(World.t(), map()) :: {:ok, City.t()} | {:error, Ecto.Changeset.t()}
   def create_city(%World{id: world_id}, attrs) when is_map(attrs) do
@@ -135,8 +74,7 @@ defmodule LemmingsOs.Cities do
   @doc """
   Creates or updates the runtime-owned City row for the given World.
 
-  Lookup prefers persisted `id`, then `node_name`, then `slug`. This keeps the
-  runtime presence contract narrow without reshaping the normal CRUD API.
+  Lookup prefers persisted `id`, then `node_name`, then `slug`.
   """
   @spec upsert_runtime_city(World.t(), map()) :: {:ok, City.t()} | {:error, Ecto.Changeset.t()}
   def upsert_runtime_city(%World{} = world, attrs) when is_map(attrs) do
@@ -148,15 +86,6 @@ defmodule LemmingsOs.Cities do
 
   @doc """
   Persists the latest heartbeat timestamp for a City.
-
-  ## Examples
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> city = LemmingsOs.Factory.insert(:city, world: world)
-      iex> seen_at = DateTime.utc_now() |> DateTime.truncate(:second)
-      iex> {:ok, updated_city} = LemmingsOs.Cities.heartbeat_city(city, seen_at)
-      iex> updated_city.last_seen_at == seen_at
-      true
   """
   @spec heartbeat_city(City.t(), DateTime.t()) :: {:ok, City.t()} | {:error, Ecto.Changeset.t()}
   def heartbeat_city(%City{} = city, seen_at \\ DateTime.utc_now()) do
@@ -176,9 +105,6 @@ defmodule LemmingsOs.Cities do
     |> order_by([city], asc: city.last_seen_at, asc: city.id)
     |> Repo.all()
   end
-
-  defp fetch_city_result(%City{} = city), do: {:ok, city}
-  defp fetch_city_result(nil), do: {:error, :not_found}
 
   defp runtime_lookup_target(%World{id: world_id}, attrs) do
     lookup_runtime_city_by_id(world_id, attr_value(attrs, :id)) ||

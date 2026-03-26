@@ -96,7 +96,8 @@ defmodule LemmingsOsWeb.PageData.SettingsPageSnapshot do
   defp city_section(nil, _local_node_name), do: unavailable_city_section()
 
   defp city_section(snapshot, local_node_name) do
-    city = Cities.list_cities(snapshot.world.id, node_name: local_node_name) |> List.first()
+    world = %World{id: snapshot.world.id}
+    city = Cities.list_cities(world, node_name: local_node_name) |> List.first()
     city_section_from_row(city)
   end
 

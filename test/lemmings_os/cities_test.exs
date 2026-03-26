@@ -1,7 +1,6 @@
 defmodule LemmingsOs.CitiesTest do
   use LemmingsOs.DataCase, async: false
 
-  alias Ecto.NoResultsError
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
 
@@ -41,15 +40,6 @@ defmodule LemmingsOs.CitiesTest do
       # Verify stable ordering: sorted by inserted_at ASC, then id ASC
       [first, second] = cities
       assert {first.inserted_at, first.id} <= {second.inserted_at, second.id}
-    end
-
-    test "S04: accepts world_id string instead of World struct" do
-      world = insert(:world)
-      city = insert(:city, world: world)
-
-      [fetched_city] = Cities.list_cities(world.id)
-
-      assert fetched_city.id == city.id
     end
 
     test "S05: returns empty list for a world with no cities" do
@@ -93,19 +83,19 @@ defmodule LemmingsOs.CitiesTest do
     end
   end
 
-  describe "fetch_city/2 and get_city!/2" do
+  describe "get_city/3" do
     test "S09: fetches a city only within the given world" do
       world = insert(:world)
       city = insert(:city, world: world)
 
-      assert {:ok, fetched_city} = Cities.fetch_city(world, city.id)
+      assert %City{} = fetched_city = Cities.get_city(world, city.id)
       assert fetched_city.id == city.id
     end
 
     test "S10: returns not_found when the city does not exist" do
       world = insert(:world)
 
-      assert {:error, :not_found} = Cities.fetch_city(world, Ecto.UUID.generate())
+      assert Cities.get_city(world, Ecto.UUID.generate()) == nil
     end
 
     test "S11: returns not_found when the city is outside the given world (cross-world isolation)" do
@@ -113,11 +103,7 @@ defmodule LemmingsOs.CitiesTest do
       other_world = insert(:world)
       city = insert(:city, world: other_world)
 
-      assert {:error, :not_found} = Cities.fetch_city(world, city.id)
-
-      assert_raise NoResultsError, fn ->
-        Cities.get_city!(world, city.id)
-      end
+      assert Cities.get_city(world, city.id) == nil
     end
   end
 
