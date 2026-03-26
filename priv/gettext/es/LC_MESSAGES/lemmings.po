@@ -355,8 +355,8 @@ msgid ".empty_create_missing_department_copy"
 msgstr "Selecciona una ciudad y un departamento para crear el nuevo lemming en el scope correcto."
 
 #: lib/lemmings_os_web/live/create_lemming_live.ex:72
-#: lib/lemmings_os_web/live/import_lemming_live.ex:171
-#: lib/lemmings_os_web/live/import_lemming_live.ex:177
+#: lib/lemmings_os_web/live/import_lemming_live.ex:152
+#: lib/lemmings_os_web/live/import_lemming_live.ex:178
 #, elixir-autogen, elixir-format
 msgid ".flash_create_scope_invalid"
 msgstr "El departamento seleccionado no pertenece al scope esperado de ciudad o mundo."
@@ -428,34 +428,34 @@ msgid ".flash_export_no_lemming"
 msgstr "No hay lemming seleccionado para exportar."
 
 #: lib/lemmings_os_web/live/import_lemming_live.ex:114
-#: lib/lemmings_os_web/live/import_lemming_live.ex:235
+#: lib/lemmings_os_web/live/import_lemming_live.ex:236
 #, elixir-autogen
 msgid ".flash_import_success"
 msgstr "Se importaron %{count} lemming(s) correctamente."
 
-#: lib/lemmings_os_web/live/import_lemming_live.ex:218
-#: lib/lemmings_os_web/live/import_lemming_live.ex:222
+#: lib/lemmings_os_web/live/import_lemming_live.ex:219
+#: lib/lemmings_os_web/live/import_lemming_live.ex:223
 #, elixir-autogen
 msgid ".error_import_invalid_json"
 msgstr "El texto pegado no es JSON valido. Revisa la sintaxis e intenta de nuevo."
 
 #: lib/lemmings_os_web/live/import_lemming_live.ex:124
-#: lib/lemmings_os_web/live/import_lemming_live.ex:246
+#: lib/lemmings_os_web/live/import_lemming_live.ex:247
 #, elixir-autogen
 msgid ".error_import_unsupported_version"
 msgstr "Version de esquema no soportada. Solo se soportan exportaciones de version 1."
 
-#: lib/lemmings_os_web/live/import_lemming_live.ex:273
-#: lib/lemmings_os_web/live/import_lemming_live.ex:281
-#: lib/lemmings_os_web/live/import_lemming_live.ex:288
+#: lib/lemmings_os_web/live/import_lemming_live.ex:274
+#: lib/lemmings_os_web/live/import_lemming_live.ex:282
+#: lib/lemmings_os_web/live/import_lemming_live.ex:289
 #, elixir-autogen
 msgid ".error_import_record_invalid"
 msgstr "El registro %{index} es invalido: %{errors}."
 
 #: lib/lemmings_os_web/live/import_lemming_live.ex:131
-#: lib/lemmings_os_web/live/import_lemming_live.ex:253
-#: lib/lemmings_os_web/live/import_lemming_live.ex:290
-#: lib/lemmings_os_web/live/import_lemming_live.ex:295
+#: lib/lemmings_os_web/live/import_lemming_live.ex:254
+#: lib/lemmings_os_web/live/import_lemming_live.ex:291
+#: lib/lemmings_os_web/live/import_lemming_live.ex:296
 #, elixir-autogen
 msgid ".error_import_failed"
 msgstr "Error en la importacion. Verifica el payload JSON e intenta de nuevo."

@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
-  alias LemmingsOs.MockData
+  alias LemmingsOs.Lemmings
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
@@ -29,7 +29,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> assign(:department_settings_form, nil)
      |> assign(:department_effective_config, nil)
      |> assign(:department_local_overrides, nil)
-     |> assign(:department_lemming_preview, [])}
+     |> assign(:department_lemmings, [])}
   end
 
   def handle_params(params, _uri, socket) do
@@ -169,7 +169,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         |> assign(:department_settings_form, nil)
         |> assign(:department_effective_config, nil)
         |> assign(:department_local_overrides, nil)
-        |> assign(:department_lemming_preview, [])
+        |> assign(:department_lemmings, [])
         |> put_shell_breadcrumb(default_shell_breadcrumb(:departments))
     end
   end
@@ -210,7 +210,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_settings_form, nil)
     |> assign(:department_effective_config, nil)
     |> assign(:department_local_overrides, nil)
-    |> assign(:department_lemming_preview, [])
+    |> assign(:department_lemmings, [])
   end
 
   defp assign_department_detail(socket, %Department{} = department, requested_tab) do
@@ -220,7 +220,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_settings_form, build_department_settings_form(department))
     |> assign(:department_effective_config, Resolver.resolve(department))
     |> assign(:department_local_overrides, department_local_overrides(department))
-    |> assign(:department_lemming_preview, department_lemming_preview(department))
+    |> assign(:department_lemmings, Lemmings.list_lemmings(department))
   end
 
   defp build_department_settings_form(%Department{} = department) do
@@ -291,25 +291,6 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       {key, value}, acc ->
         Map.put(acc, key, value)
     end)
-  end
-
-  defp department_lemming_preview(%Department{} = department) do
-    direct_preview = MockData.lemmings_for_department(department.slug)
-
-    if direct_preview == [] do
-      department.id
-      |> :erlang.phash2()
-      |> rem(max(length(MockData.lemmings()), 1))
-      |> rotated_mock_lemmings()
-    else
-      direct_preview
-    end
-  end
-
-  defp rotated_mock_lemmings(seed) do
-    lemmings = MockData.lemmings()
-    {head, tail} = Enum.split(lemmings, seed)
-    Enum.take(tail ++ head, 4)
   end
 
   defp apply_lifecycle_action(department, "activate"),

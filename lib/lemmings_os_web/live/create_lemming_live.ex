@@ -74,45 +74,47 @@ defmodule LemmingsOsWeb.CreateLemmingLive do
   end
 
   defp load_page(socket, %{"dept" => department_id}) when is_binary(department_id) do
-    department = Departments.get_department!(department_id, preload: [:city, :world])
-    cities = Cities.list_cities(department.world)
-    departments = Departments.list_departments(department.world, department.city)
+    case Departments.get_department(department_id, preload: [:city, :world]) do
+      nil ->
+        load_page(socket, %{})
 
-    socket
-    |> assign(:world, department.world)
-    |> assign(:city, department.city)
-    |> assign(:department, department)
-    |> assign(:cities, cities)
-    |> assign(:departments, departments)
-    |> assign(
-      :scope_form,
-      build_scope_form(%{"city_id" => department.city.id, "department_id" => department.id})
-    )
-    |> assign(:form, build_form(base_changeset(form_params(socket.assigns.form))))
-    |> put_shell_breadcrumb([
-      shell_item(:cities, "/cities"),
-      shell_item(
-        department.city.name || department.city.id,
-        "/cities?city=#{department.city.id}"
-      ),
-      shell_item(:departments, "/departments?city=#{department.city.id}"),
-      shell_item(
-        department.name || department.id,
-        "/departments?city=#{department.city.id}&dept=#{department.id}"
-      ),
-      shell_item("new", "/lemmings/new?dept=#{department.id}")
-    ])
-  rescue
-    Ecto.NoResultsError ->
-      load_page(socket, %{})
+      department ->
+        cities = Cities.list_cities(department.world)
+        departments = Departments.list_departments(department.city)
+
+        socket
+        |> assign(:world, department.world)
+        |> assign(:city, department.city)
+        |> assign(:department, department)
+        |> assign(:cities, cities)
+        |> assign(:departments, departments)
+        |> assign(
+          :scope_form,
+          build_scope_form(%{"city_id" => department.city.id, "department_id" => department.id})
+        )
+        |> assign(:form, build_form(base_changeset(form_params(socket.assigns.form))))
+        |> put_shell_breadcrumb([
+          shell_item(:cities, "/cities"),
+          shell_item(
+            department.city.name || department.city.id,
+            "/cities?city=#{department.city.id}"
+          ),
+          shell_item(:departments, "/departments?city=#{department.city.id}"),
+          shell_item(
+            department.name || department.id,
+            "/departments?city=#{department.city.id}&dept=#{department.id}"
+          ),
+          shell_item("new", "/lemmings/new?dept=#{department.id}")
+        ])
+    end
   end
 
   defp load_page(socket, %{"city" => city_id}) when is_binary(city_id) do
     case Worlds.get_default_world() do
-      {:ok, world} ->
+      %Worlds.World{} = world ->
         cities = Cities.list_cities(world)
         city = Enum.find(cities, &(&1.id == city_id))
-        departments = if city, do: Departments.list_departments(world, city), else: []
+        departments = if city, do: Departments.list_departments(city), else: []
 
         socket
         |> assign(:world, world)
@@ -131,14 +133,14 @@ defmodule LemmingsOsWeb.CreateLemmingLive do
           shell_item("new", "/lemmings/new")
         ])
 
-      {:error, :not_found} ->
+      nil ->
         load_page_without_scope(socket)
     end
   end
 
   defp load_page(socket, _params) do
     case Worlds.get_default_world() do
-      {:ok, world} ->
+      %Worlds.World{} = world ->
         socket
         |> assign(:world, world)
         |> assign(:city, nil)
@@ -153,7 +155,7 @@ defmodule LemmingsOsWeb.CreateLemmingLive do
           shell_item("new", "/lemmings/new")
         ])
 
-      {:error, :not_found} ->
+      nil ->
         load_page_without_scope(socket)
     end
   end
