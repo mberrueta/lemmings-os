@@ -124,9 +124,8 @@ defmodule LemmingsOs.Departments do
   @spec delete_department(Department.t()) ::
           {:ok, Department.t()} | {:error, DeleteDeniedError.t()}
   def delete_department(%Department{} = department) do
-    with :ok <- ensure_department_disabled_for_delete(department),
-         :ok <- ensure_department_safe_to_delete(department) do
-      Repo.delete(department)
+    with :ok <- ensure_department_disabled_for_delete(department) do
+      ensure_department_safe_to_delete(department)
     end
   end
 

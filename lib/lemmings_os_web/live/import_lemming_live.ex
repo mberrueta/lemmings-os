@@ -126,9 +126,6 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
 
         {:error, errors} when is_list(errors) ->
           {:noreply, assign(socket, :confirm_error, import_changeset_error_message(errors))}
-
-        {:error, _} ->
-          {:noreply, assign(socket, :confirm_error, dgettext("lemmings", ".error_import_failed"))}
       end
     end
   end
@@ -249,9 +246,6 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
 
       {:error, errors} when is_list(errors) ->
         {:noreply, assign(socket, :upload_error, import_changeset_error_message(errors))}
-
-      {:error, _reason} ->
-        {:noreply, assign(socket, :upload_error, dgettext("lemmings", ".error_import_failed"))}
     end
   end
 

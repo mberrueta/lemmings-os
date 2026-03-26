@@ -46,7 +46,7 @@ defmodule LemmingsOsWeb.PageData.SettingsPageSnapshot do
             status: String.t(),
             imported_at: DateTime.t() | nil
           },
-          help_links: [%{id: String.t(), label: String.t(), to: String.t()}]
+          help_links: [%{id: String.t(), to: String.t()}]
         }
 
   @spec build() :: t()
@@ -179,7 +179,6 @@ defmodule LemmingsOsWeb.PageData.SettingsPageSnapshot do
   defp host_name do
     case :inet.gethostname() do
       {:ok, hostname} -> List.to_string(hostname)
-      _error -> nil
     end
   end
 end

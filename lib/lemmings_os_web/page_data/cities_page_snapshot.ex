@@ -196,7 +196,7 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
       name: department.name,
       status: department.status,
       status_label: Department.translate_status(department),
-      tags: department.tags || [],
+      tags: department.tags,
       notes_preview: truncate_notes(department.notes),
       lemming_count: Map.get(counts, department.id, 0)
     }

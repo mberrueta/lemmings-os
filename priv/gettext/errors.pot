@@ -266,3 +266,22 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid ".lemming_delete_denied_safety_indeterminate"
 msgstr ""
+
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:69
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:87
+#: lib/lemmings_os/lemming_instances/message.ex:62
+#, elixir-autogen, elixir-format
+msgid ".invalid_choice"
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:99
+#, elixir-autogen, elixir-format
+msgid ".invalid_value_type"
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:68
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:86
+#: lib/lemmings_os/lemming_instances/message.ex:61
+#, elixir-autogen, elixir-format
+msgid ".required"
+msgstr ""
