@@ -184,8 +184,15 @@ rg "create index" priv/repo/migrations/ -n | tail -40
 
 #### 2.3 Context APIs
 Use predictable naming:
-- `list_*`, `get_*`, `get_*!`
+
+Do not use over-abstracted APIs:
+- Avoid `world_or_world_id` / `city_or_city_id` / `department_or_department_id` unions
+- Avoid redundant read pairs like `fetch_*` + `get_*!` unless explicitly required
+- Avoid helper indirection like `fetch_city_in_world` when struct matching and direct id checks are enough
+- `list_*` with scope pattern matching (`%World{}`, `%City{}`, `%Department{}`)
+- `get_*` returning `struct | nil` for normal reads
 - `create_*`, `update_*`, `delete_*`
+- `set_*_status/2` for lifecycle transitions instead of one wrapper per status
 - `change_*` for forms
 
 Prefer query helpers:

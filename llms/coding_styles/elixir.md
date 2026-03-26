@@ -17,7 +17,7 @@
 - **Schemas** live under their context (not a global `Schemas` bucket).
 - **Web** layer only depends on contexts, not vice-versa.
 - Module names: `LemmingsOsWeb.*` (web), `LemmingsOs.*` (core). One module per file.
-- Context APIs for World-scoped resources MUST accept `world_id` or `%World{}` explicitly.
+- Context APIs for domain-scoped operations MUST accept domain structs (for example `%World{}`, `%City{}`, `%Department{}`), not `*_or_*_id` unions.
 
 ```elixir
 # good
@@ -90,22 +90,35 @@ end
 
 - Use `changeset/2` for validation; use `unique_constraint/3` instead of prechecks.
 - Prefer `Ecto.Multi` for multi-step writes; return final typed tuples.
-- Keep queries composable; expose filter functions rather than many `list_by_*` variants.
+- Keep context surfaces small: avoid duplicate variants that encode the same behavior.
+- For entity-scoped operations, pass structs (`%World{}`, `%City{}`, `%Department{}`), not `*_or_*_id` unions.
+- Prefer read APIs that return `struct | nil` for normal lookups; only keep bang reads when there is a strong, consistent reason.
+- For hierarchical collections, use a single `list_*` API differentiated by scope pattern matching in function heads.
+- Use `filter_query/2` with explicit keys (`:world_id`, `:city_id`, `:department_id`, `:status`, `:slug`, `:ids`, `:preload`, ...).
+- Avoid ceremonial private helpers (for example `fetch_*_in_world`) when direct struct matching and simple field checks are enough.
+- Do not duplicate lifecycle wrappers (`activate_*`, `disable_*`, ...) when `set_*_status/2` already expresses the transition.
 - Only preload what you render/use; avoid N+1 with explicit `preload`.
-- All World-scoped tables MUST be filtered by `world_id` in every query.
 
 ```elixir
-# composable World-scoped query
-def list_departments(world_id, opts \\ []) do
-  from(d in Department, where: d.world_id == ^world_id)
-  |> filter_query(opts)
+# composable scope-based query
+
+def list_departments(%City{id: city_id}, opts \\ []) do
+  Department
+  |> filter_query(Keyword.merge([city_id: city_id], opts))
   |> Repo.all()
 end
 
-defp filter_query(q, [{:city_id, city_id} | rest]),
-  do: filter_query(from(d in q, where: d.city_id == ^city_id), rest)
-defp filter_query(q, [_ | rest]), do: filter_query(q, rest)
-defp filter_query(q, []), do: q
+def list_departments(%World{id: world_id}, opts) do
+  Department
+  |> filter_query(Keyword.merge([world_id: world_id], opts))
+  |> Repo.all()
+end
+
+def get_department(id, opts \\ []) do
+  Department
+  |> filter_query(Keyword.merge([id: id], opts))
+  |> Repo.one()
+end
 ```
 
 ## 5) OTP & Process Management

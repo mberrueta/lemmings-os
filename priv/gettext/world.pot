@@ -638,12 +638,12 @@ msgstr ""
 msgid ".city_form_submit_update"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:181
+#: lib/lemmings_os_web/live/cities_live.ex:184
 #, elixir-autogen
 msgid ".flash_city_created"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:206
+#: lib/lemmings_os_web/live/cities_live.ex:209
 #, elixir-autogen
 msgid ".flash_city_updated"
 msgstr ""
@@ -659,8 +659,8 @@ msgstr ""
 msgid ".flash_city_not_found"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:191
-#: lib/lemmings_os_web/live/cities_live.ex:216
+#: lib/lemmings_os_web/live/cities_live.ex:194
+#: lib/lemmings_os_web/live/cities_live.ex:219
 #, elixir-autogen
 msgid ".flash_city_save_error"
 msgstr ""
@@ -859,68 +859,47 @@ msgstr ""
 msgid ".department_tab_settings"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:303
+#: lib/lemmings_os_web/live/departments_live.ex:307
 #, elixir-autogen, elixir-format
 msgid ".flash_department_activated"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:92
+#: lib/lemmings_os_web/live/departments_live.ex:96
 #, elixir-autogen, elixir-format
 msgid ".flash_department_deleted"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:305
+#: lib/lemmings_os_web/live/departments_live.ex:309
 #, elixir-autogen, elixir-format
 msgid ".flash_department_disabled"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:304
+#: lib/lemmings_os_web/live/departments_live.ex:308
 #, elixir-autogen, elixir-format
 msgid ".flash_department_draining"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:106
+#: lib/lemmings_os_web/live/departments_live.ex:110
 #, elixir-autogen, elixir-format
 msgid ".flash_department_lifecycle_failed"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:76
+#: lib/lemmings_os_web/live/departments_live.ex:80
 #, elixir-autogen, elixir-format
 msgid ".flash_department_settings_saved"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:306
+#: lib/lemmings_os_web/live/departments_live.ex:310
 #, elixir-autogen, elixir-format
 msgid ".flash_department_updated"
+msgstr ""
+
+#: lib/lemmings_os_web/components/world_components.ex:809
+#, elixir-autogen, elixir-format
+msgid ".button_import_lemmings"
 msgstr ""
 
 #: lib/lemmings_os_web/components/world_components.ex:801
 #, elixir-autogen, elixir-format
 msgid ".department_lemmings_copy"
-msgstr ""
-
-#: lib/lemmings_os_web/components/world_components.ex:809
-#, elixir-autogen
-msgid ".button_import_lemmings"
-msgstr ""
-
-msgid ".import_lemmings_title"
-msgstr ""
-
-msgid ".import_lemmings_copy"
-msgstr ""
-
-msgid ".import_lemmings_label_json"
-msgstr ""
-
-msgid ".import_lemmings_placeholder"
-msgstr ""
-
-msgid ".button_import_cancel"
-msgstr ""
-
-msgid ".button_import_submit"
-msgstr ""
-
-msgid ".button_import_importing"
 msgstr ""

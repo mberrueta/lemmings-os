@@ -63,12 +63,12 @@ defmodule LemmingsOs.Cities.Runtime do
           {:ok, City.t()} | {:error, :default_world_not_found | Changeset.t()}
   def sync_runtime_city(opts \\ []) do
     case Worlds.get_default_world() do
-      {:ok, %World{} = world} ->
+      %World{} = world ->
         world
         |> Cities.upsert_runtime_city(runtime_city_attrs(opts))
         |> log_sync_result(world)
 
-      {:error, :not_found} ->
+      nil ->
         {:error, :default_world_not_found}
     end
   end
@@ -104,13 +104,13 @@ defmodule LemmingsOs.Cities.Runtime do
     runtime_city_attrs = runtime_city_attrs(opts)
 
     case Worlds.get_default_world() do
-      {:ok, %World{} = world} ->
+      %World{} = world ->
         case Cities.list_cities(world, node_name: runtime_city_attrs.node_name) do
           [%City{} = city] -> {:ok, city}
           [] -> {:error, :runtime_city_not_found}
         end
 
-      {:error, :not_found} ->
+      nil ->
         {:error, :default_world_not_found}
     end
   end

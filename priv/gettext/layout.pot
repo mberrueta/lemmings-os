@@ -208,12 +208,12 @@ msgstr ""
 msgid ".page_title_cities"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:17
+#: lib/lemmings_os_web/live/departments_live.ex:21
 #, elixir-autogen
 msgid ".page_title_departments"
 msgstr ""
 
-#: lib/lemmings_os_web/live/world_live.ex:18
+#: lib/lemmings_os_web/live/world_live.ex:16
 #, elixir-autogen
 msgid ".page_title_world"
 msgstr ""
@@ -550,19 +550,19 @@ msgid ".tools_usage_unknown"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:260
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:262
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:263
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_action"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:246
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:259
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:260
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_detail"
 msgstr ""
 
 #: lib/lemmings_os_web/components/home_components.ex:232
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:258
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:259
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_summary"
 msgstr ""

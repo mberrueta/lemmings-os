@@ -642,12 +642,12 @@ msgstr "Crear ciudad"
 msgid ".city_form_submit_update"
 msgstr "Guardar cambios"
 
-#: lib/lemmings_os_web/live/cities_live.ex:181
+#: lib/lemmings_os_web/live/cities_live.ex:184
 #, elixir-autogen
 msgid ".flash_city_created"
 msgstr "Ciudad creada."
 
-#: lib/lemmings_os_web/live/cities_live.ex:206
+#: lib/lemmings_os_web/live/cities_live.ex:209
 #, elixir-autogen
 msgid ".flash_city_updated"
 msgstr "Ciudad actualizada."
@@ -663,8 +663,8 @@ msgstr "Ciudad eliminada."
 msgid ".flash_city_not_found"
 msgstr "Ciudad no encontrada."
 
-#: lib/lemmings_os_web/live/cities_live.ex:191
-#: lib/lemmings_os_web/live/cities_live.ex:216
+#: lib/lemmings_os_web/live/cities_live.ex:194
+#: lib/lemmings_os_web/live/cities_live.ex:219
 #, elixir-autogen
 msgid ".flash_city_save_error"
 msgstr "No se pudo guardar la ciudad. Revisá el formulario."
@@ -863,68 +863,47 @@ msgstr "Resumen"
 msgid ".department_tab_settings"
 msgstr "Ajustes"
 
-#: lib/lemmings_os_web/live/departments_live.ex:303
+#: lib/lemmings_os_web/live/departments_live.ex:307
 #, elixir-autogen, elixir-format
 msgid ".flash_department_activated"
 msgstr "Departamento activado."
 
-#: lib/lemmings_os_web/live/departments_live.ex:92
+#: lib/lemmings_os_web/live/departments_live.ex:96
 #, elixir-autogen, elixir-format
 msgid ".flash_department_deleted"
 msgstr "Departamento borrado."
 
-#: lib/lemmings_os_web/live/departments_live.ex:305
+#: lib/lemmings_os_web/live/departments_live.ex:309
 #, elixir-autogen, elixir-format
 msgid ".flash_department_disabled"
 msgstr "Departamento deshabilitado."
 
-#: lib/lemmings_os_web/live/departments_live.ex:304
+#: lib/lemmings_os_web/live/departments_live.ex:308
 #, elixir-autogen, elixir-format
 msgid ".flash_department_draining"
 msgstr "Departamento puesto en drenaje."
 
-#: lib/lemmings_os_web/live/departments_live.ex:106
+#: lib/lemmings_os_web/live/departments_live.ex:110
 #, elixir-autogen, elixir-format
 msgid ".flash_department_lifecycle_failed"
 msgstr "No se pudo actualizar el ciclo de vida del departamento."
 
-#: lib/lemmings_os_web/live/departments_live.ex:76
+#: lib/lemmings_os_web/live/departments_live.ex:80
 #, elixir-autogen, elixir-format
 msgid ".flash_department_settings_saved"
 msgstr "Ajustes del departamento guardados."
 
-#: lib/lemmings_os_web/live/departments_live.ex:306
+#: lib/lemmings_os_web/live/departments_live.ex:310
 #, elixir-autogen, elixir-format
 msgid ".flash_department_updated"
 msgstr "Departamento actualizado."
 
-#: lib/lemmings_os_web/components/world_components.ex:801
-#, elixir-autogen, elixir-format, fuzzy
-msgid ".department_lemmings_copy"
-msgstr "No hay lemmings disponibles"
-
 #: lib/lemmings_os_web/components/world_components.ex:809
-#, elixir-autogen
+#, elixir-autogen, elixir-format
 msgid ".button_import_lemmings"
-msgstr "Importar JSON"
+msgstr ""
 
-msgid ".import_lemmings_title"
-msgstr "Importar lemmings desde JSON"
-
-msgid ".import_lemmings_copy"
-msgstr "Pega un objeto de lemming o un array JSON de lemmings exportados desde otro departamento. La importación se valida antes de persistir."
-
-msgid ".import_lemmings_label_json"
-msgstr "Carga útil JSON"
-
-msgid ".import_lemmings_placeholder"
-msgstr "{\"schema_version\": 1, \"name\": \"...\", \"slug\": \"...\", \"status\": \"draft\"}"
-
-msgid ".button_import_cancel"
-msgstr "Cancelar"
-
-msgid ".button_import_submit"
-msgstr "Importar"
-
-msgid ".button_import_importing"
-msgstr "Importando..."
+#: lib/lemmings_os_web/components/world_components.ex:801
+#, elixir-autogen, elixir-format
+msgid ".department_lemmings_copy"
+msgstr ""

@@ -146,30 +146,31 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
   end
 
   defp load_page(socket, %{"dept" => department_id}) when is_binary(department_id) do
-    department = Departments.get_department!(department_id, preload: [:city, :world])
+    case Departments.get_department(department_id, preload: [:city, :world]) do
+      nil ->
+        socket
+        |> put_flash(:error, dgettext("lemmings", ".flash_create_scope_invalid"))
+        |> push_navigate(to: ~p"/lemmings")
 
-    socket
-    |> assign(:world, department.world)
-    |> assign(:city, department.city)
-    |> assign(:department, department)
-    |> put_shell_breadcrumb([
-      shell_item(:cities, "/cities"),
-      shell_item(
-        department.city.name || department.city.id,
-        "/cities?city=#{department.city.id}"
-      ),
-      shell_item(:departments, "/departments?city=#{department.city.id}"),
-      shell_item(
-        department.name || department.id,
-        "/departments?city=#{department.city.id}&dept=#{department.id}&tab=lemmings"
-      ),
-      shell_item("import", "/lemmings/import?dept=#{department.id}")
-    ])
-  rescue
-    Ecto.NoResultsError ->
-      socket
-      |> put_flash(:error, dgettext("lemmings", ".flash_create_scope_invalid"))
-      |> push_navigate(to: ~p"/lemmings")
+      department ->
+        socket
+        |> assign(:world, department.world)
+        |> assign(:city, department.city)
+        |> assign(:department, department)
+        |> put_shell_breadcrumb([
+          shell_item(:cities, "/cities"),
+          shell_item(
+            department.city.name || department.city.id,
+            "/cities?city=#{department.city.id}"
+          ),
+          shell_item(:departments, "/departments?city=#{department.city.id}"),
+          shell_item(
+            department.name || department.id,
+            "/departments?city=#{department.city.id}&dept=#{department.id}&tab=lemmings"
+          ),
+          shell_item("import", "/lemmings/import?dept=#{department.id}")
+        ])
+    end
   end
 
   defp load_page(socket, _params) do

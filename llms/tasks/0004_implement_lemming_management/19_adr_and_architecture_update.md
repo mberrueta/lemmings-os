@@ -2,10 +2,10 @@
 
 ## Status
 
-- **Status**: COMPLETE
-- **Approved**: [X] Human sign-off
-- **Blocked by**: None
-- **Blocks**: Task 20
+- **Status**: BLOCKED
+- **Approved**: [ ] Human sign-off
+- **Blocked by**: Task 01, Task 02, Task 03, Task 04, Task 05
+- **Blocks**: Task 15, Task 16, Task 17, Task 18, Task 20
 - **Estimated Effort**: M
 
 ## Assigned Agent
@@ -89,45 +89,39 @@ The following docs are mandatory review targets for this task:
 
 ## Execution Summary
 
+*[Filled by executing agent after completion]*
+
 ### Work Performed
 
-- Reviewed the live architecture docs against the intended long-term product contract for hierarchical agents, runtime execution, and tool governance.
-- Restored the ADRs and overview docs so they describe the full runtime platform rather than a control-plane-only or branch-specific subset.
-- Kept implementation sequencing isolated as a non-normative note where the docs needed it.
+- [What was actually done]
 
 ### Outputs Created
 
-- Updated `docs/adr/0020-hierarchical-configuration-model.md`
-- Updated `docs/adr/0021-core-domain-schema.md`
-- Updated `docs/architecture.md`
-- Updated `README.md`
+- [List of files/artifacts created]
 
 ### Assumptions Made
 
 | Assumption | Rationale |
 |------------|-----------|
-| Task 19 should track the intended product contract, not the branch's temporary implementation shape | ADRs are architectural documents, so they must describe the long-term runtime model. |
 
 ### Decisions Made
 
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| Restore the full hierarchical runtime model in ADRs | Narrowing the docs to current branch state would weaken the architectural contract. |
-| Keep implementation sequencing separate from the normative architecture | Branch-specific shapes should not redefine the product model. |
 
 ### Blockers Encountered
 
-- None
+- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
 
 ### Questions for Human
 
-- None
+1. [Question needing human input]
 
 ### Ready for Next Task
 
-- [x] All outputs complete
-- [x] Summary documented
-- [x] Questions listed (if any)
+- [ ] All outputs complete
+- [ ] Summary documented
+- [ ] Questions listed (if any)
 
 ---
 

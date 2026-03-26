@@ -128,10 +128,19 @@ defmodule LemmingsOsWeb.PageData.WorldPageSnapshot do
   defp fetch_snapshot_world(nil, opts),
     do: fetch_snapshot_world_by_id(Keyword.get(opts, :world_id))
 
-  defp fetch_snapshot_world_by_id(world_id) when is_binary(world_id),
-    do: Worlds.fetch_world(world_id)
+  defp fetch_snapshot_world_by_id(world_id) when is_binary(world_id) do
+    case Worlds.get_world(world_id) do
+      %World{} = world -> {:ok, world}
+      nil -> {:error, :not_found}
+    end
+  end
 
-  defp fetch_snapshot_world_by_id(_world_id), do: Worlds.get_default_world()
+  defp fetch_snapshot_world_by_id(_world_id) do
+    case Worlds.get_default_world() do
+      %World{} = world -> {:ok, world}
+      nil -> {:error, :not_found}
+    end
+  end
 
   defp persisted_world_snapshot(%World{} = world) do
     %{

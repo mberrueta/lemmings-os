@@ -1,8 +1,8 @@
 # Task 11: Create Lemming Page Desmoke
 
 ## Status
-- **Status**: COMPLETE
-- **Approved**: [X] Human sign-off
+- **Status**: BLOCKED
+- **Approved**: [ ] Human sign-off
 - **Blocked by**: Task 04, Task 09
 - **Blocks**: Task 15
 - **Estimated Effort**: M
@@ -116,48 +116,29 @@ The agent should choose the approach that best fits the existing navigation mode
 *[Filled by executing agent after completion]*
 
 ### Work Performed
-- Replaced the mock-backed `CreateLemmingLive` with a real changeset-backed create flow using `Lemmings.create_lemming/4`.
-- Added Department-scoped create context through `/lemmings/new?dept=<department_id>`.
-- Upgraded the no-context entry at `/lemmings/new` to load the default world plus real city and department selectors, patching into the scoped create flow instead of showing only a dead-end warning.
-- Implemented live validation, auto-slug generation from name, manual slug override preservation, and real persistence.
-- Reworked the create page UI to use existing panel/input/button/stat components instead of the mock tools workflow.
-- Updated the Department Lemmings empty-state CTA to navigate with Department context.
-- Added dedicated LiveView coverage for missing-context, real form rendering, auto-slug, create success, and duplicate slug validation.
-- Updated `en` and `es` translations for the new create flow strings.
+- [What was actually done]
 
 ### Outputs Created
-- Updated `lib/lemmings_os_web/live/create_lemming_live.ex`
-- Updated `lib/lemmings_os_web/live/create_lemming_live.html.heex`
-- Updated `lib/lemmings_os_web/components/lemming_components.ex`
-- Updated `lib/lemmings_os_web/components/world_components.ex`
-- Added `test/lemmings_os_web/live/create_lemming_live_test.exs`
-- Updated `test/lemmings_os_web/live/navigation_live_test.exs`
-- Updated `priv/gettext/en/LC_MESSAGES/lemmings.po`
-- Updated `priv/gettext/es/LC_MESSAGES/lemmings.po`
+- [List of files/artifacts created]
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
-- Using `?dept=` on `/lemmings/new` is acceptable for this task. | It preserves the existing route surface while giving the form the Department context it needs. |
-- Entering `/lemmings/new` without Department context should stay honest instead of crashing. | The sidebar still links to the generic route, so an empty-state guard is safer than implicit fake defaults. |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-- Kept the route as `/lemmings/new?dept=ID`. | Department tab inline form; a new nested route. | Lowest-diff option that still gives real Department context and matches current navigation patterns. |
-- Derived World and City from the persisted Department preload instead of trusting query params. | Passing `world` and `city` through params and re-validating them. | Keeps the API simpler and aligned with the domain contract that Department owns its parent scope. |
-- Left the generic `/lemmings/new` route available with a world/city/department scope picker. | Forcing a redirect or removing the route. | Avoids breaking the sidebar entrypoint while still guiding operators toward the correct Department-scoped create flow. |
 
 ### Blockers Encountered
-- The page had no existing dedicated LiveView test coverage. - Resolution: added `test/lemmings_os_web/live/create_lemming_live_test.exs` to lock the new contract.
+- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
 
 ### Questions for Human
-1. The sidebar still links to `/lemmings/new` without Department context. If the product later wants a global creation flow beyond the default world, that route will need a broader world-selection decision.
+1. [Question needing human input]
 
 ### Ready for Next Task
-- [x] All outputs complete
-- [x] Summary documented
-- [x] Questions listed (if any)
+- [ ] All outputs complete
+- [ ] Summary documented
+- [ ] Questions listed (if any)
 
 ---
 

@@ -66,7 +66,7 @@ defmodule LemmingsOsWeb.CitiesLive do
   def handle_event("edit_city", %{"id" => city_id}, socket) do
     with %{snapshot: %{} = snapshot} <- socket.assigns,
          {:ok, world} <- fetch_snapshot_world(snapshot),
-         {:ok, city} <- Cities.fetch_city(world, city_id) do
+         %City{} = city <- Cities.get_city(world, city_id) do
       changeset = City.changeset(city, %{})
       form = to_form(changeset, as: :city)
 
@@ -113,7 +113,7 @@ defmodule LemmingsOsWeb.CitiesLive do
   def handle_event("delete_city", %{"id" => city_id}, socket) do
     with %{snapshot: %{} = snapshot} <- socket.assigns,
          {:ok, world} <- fetch_snapshot_world(snapshot),
-         {:ok, city} <- Cities.fetch_city(world, city_id),
+         %City{} = city <- Cities.get_city(world, city_id),
          {:ok, _city} <- Cities.delete_city(city) do
       socket =
         socket
@@ -156,7 +156,10 @@ defmodule LemmingsOsWeb.CitiesLive do
     do: [shell_item(:cities, "/cities"), shell_item(name || id, "/cities?city=#{id}")]
 
   defp fetch_snapshot_world(%{world: %{id: world_id}}) do
-    Worlds.fetch_world(world_id)
+    case Worlds.get_world(world_id) do
+      %{} = world -> {:ok, world}
+      nil -> {:error, :not_found}
+    end
   end
 
   defp fetch_snapshot_world(_snapshot), do: {:error, :not_found}

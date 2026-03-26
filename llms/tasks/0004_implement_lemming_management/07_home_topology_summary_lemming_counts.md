@@ -1,8 +1,8 @@
 # Task 07: Home Topology Summary -- Lemming Counts
 
 ## Status
-- **Status**: COMPLETE
-- **Approved**: [X] Human sign-off
+- **Status**: BLOCKED
+- **Approved**: [ ] Human sign-off
 - **Blocked by**: Task 04
 - **Blocks**: Task 15
 - **Estimated Effort**: S
@@ -75,44 +75,32 @@ test/lemmings_os_web/page_data/home_dashboard_snapshot_test.exs
 ---
 
 ## Execution Summary
-*Completed by the frontend agent*
+*[Filled by executing agent after completion]*
 
 ### Work Performed
-- Extended `HomeDashboardSnapshot.build_topology_card_meta/1` to merge persisted lemming counts from `Lemmings.topology_summary/1` into the topology card meta.
-- Updated `HomeComponents.card_display/1` so the topology summary card renders `lemming_count` alongside the existing city and department counts, while keeping `active_lemming_count` available only in the snapshot meta.
-- Updated snapshot and LiveView tests to assert the new lemming counts, including the zero-count case.
-- Added the gettext entry for the new topology label in English, Spanish, and the extraction template.
+- [What was actually done]
 
 ### Outputs Created
-- `lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex`
-- `lib/lemmings_os_web/components/home_components.ex`
-- `test/lemmings_os_web/page_data/home_dashboard_snapshot_test.exs`
-- `test/lemmings_os_web/live/home_live_test.exs`
-- `priv/gettext/en/LC_MESSAGES/layout.po`
-- `priv/gettext/es/LC_MESSAGES/layout.po`
-- `priv/gettext/layout.pot`
+- [List of files/artifacts created]
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
-| The existing Home dashboard template did not need a direct markup change because the topology card already renders through `HomeComponents.dashboard_card/1`. | The requested UI update is fully expressed by the snapshot and card component data contract. |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
-| Kept the topology card as counts only, without introducing any lemming status breakdown. | Adding per-status detail. | The task explicitly asked for simple count-only output. |
-| Exposed `active_lemming_count` in snapshot metadata but rendered only `lemming_count` on the card. | Rendering both lemming totals on the card. | The task requires the extra meta field, but the UI should stay count-only without adding a lemming status breakdown. |
 
 ### Blockers Encountered
-- None
+- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
 
 ### Questions for Human
-1. None
+1. [Question needing human input]
 
 ### Ready for Next Task
-- [x] All outputs complete
-- [x] Summary documented
-- [x] Questions listed (if any)
+- [ ] All outputs complete
+- [ ] Summary documented
+- [ ] Questions listed (if any)
 
 ---
 

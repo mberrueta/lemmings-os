@@ -3,10 +3,14 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
   import LemmingsOsWeb.MockShell
 
+  alias LemmingsOs.Cities
+  alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Lemmings
+  alias LemmingsOs.Worlds
+  alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
 
   @detail_tabs ~w(overview lemmings settings)
@@ -172,16 +176,17 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
   defp load_departments(_snapshot, nil), do: []
 
-  defp load_departments(snapshot, selected_city) do
-    lemming_counts =
-      Lemmings.lemming_counts_by_department(%LemmingsOs.Cities.City{id: selected_city.id})
-
-    snapshot.world.id
-    |> Departments.list_departments(selected_city.id, preload: [:city, :world])
-    |> Enum.map(fn department ->
-      Map.put(department, :lemming_count, Map.get(lemming_counts, department.id, 0))
-    end)
+  defp load_departments(%{world: %{id: world_id}}, %{id: city_id})
+       when is_binary(world_id) and is_binary(city_id) do
+    with %World{} = world <- Worlds.get_world(world_id),
+         %City{} = city <- Cities.get_city(world, city_id) do
+      Departments.list_departments(city, preload: [:city, :world])
+    else
+      _ -> []
+    end
   end
+
+  defp load_departments(_, _), do: []
 
   defp select_department([], _department_id), do: nil
   defp select_department(_departments, nil), do: nil
@@ -195,7 +200,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   defp reload_department_detail(nil), do: nil
 
   defp reload_department_detail(%Department{} = department) do
-    Departments.get_department!(department.id, preload: [:world, :city])
+    Departments.get_department(department.id, preload: [:world, :city])
   end
 
   defp assign_department_detail(socket, nil, _requested_tab) do
@@ -215,7 +220,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_settings_form, build_department_settings_form(department))
     |> assign(:department_effective_config, Resolver.resolve(department))
     |> assign(:department_local_overrides, department_local_overrides(department))
-    |> assign(:department_lemmings, department_lemmings(department))
+    |> assign(:department_lemmings, Lemmings.list_lemmings(department))
   end
 
   defp build_department_settings_form(%Department{} = department) do
@@ -288,15 +293,14 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     end)
   end
 
-  defp department_lemmings(%Department{} = department), do: Lemmings.list_lemmings(department)
-
   defp apply_lifecycle_action(department, "activate"),
-    do: Departments.activate_department(department)
+    do: Departments.set_department_status(department, "active")
 
-  defp apply_lifecycle_action(department, "drain"), do: Departments.drain_department(department)
+  defp apply_lifecycle_action(department, "drain"),
+    do: Departments.set_department_status(department, "draining")
 
   defp apply_lifecycle_action(department, "disable"),
-    do: Departments.disable_department(department)
+    do: Departments.set_department_status(department, "disabled")
 
   defp apply_lifecycle_action(department, "delete"), do: Departments.delete_department(department)
 

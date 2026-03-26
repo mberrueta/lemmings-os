@@ -115,7 +115,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   defp load_page(socket, params) do
     case Worlds.get_default_world() do
-      {:ok, world} ->
+      %World{} = world ->
         selected_lemming = load_selected_lemming(lemming_id_param(socket, params))
         cities = Cities.list_cities(world)
         selected_city = selected_city(cities, params["city"], selected_lemming)
@@ -139,7 +139,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
           build_shell_breadcrumb(world, selected_city, selected_department, selected_lemming)
         )
 
-      {:error, :not_found} ->
+      nil ->
         socket
         |> assign(:world, nil)
         |> assign(:cities, [])
@@ -228,8 +228,8 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   defp load_departments(_world, nil), do: []
 
-  defp load_departments(%World{} = world, %City{} = city) do
-    Departments.list_departments(world, city, preload: [:city, :world])
+  defp load_departments(%World{}, %City{} = city) do
+    Departments.list_departments(city, preload: [:city, :world])
   end
 
   defp load_lemmings(_world, _city, %Department{} = department) do

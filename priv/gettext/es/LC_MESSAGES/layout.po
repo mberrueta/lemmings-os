@@ -213,12 +213,12 @@ msgstr "Lemmings"
 msgid ".page_title_cities"
 msgstr "Ciudades"
 
-#: lib/lemmings_os_web/live/departments_live.ex:17
+#: lib/lemmings_os_web/live/departments_live.ex:21
 #, elixir-autogen
 msgid ".page_title_departments"
 msgstr "Departamentos"
 
-#: lib/lemmings_os_web/live/world_live.ex:18
+#: lib/lemmings_os_web/live/world_live.ex:16
 #, elixir-autogen
 msgid ".page_title_world"
 msgstr "Mundo"
@@ -555,19 +555,19 @@ msgid ".tools_usage_unknown"
 msgstr "Desconocido"
 
 #: lib/lemmings_os_web/components/home_components.ex:260
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:262
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:263
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_action"
 msgstr "Importa o recupera el mundo por defecto antes de confiar en las señales del panel."
 
 #: lib/lemmings_os_web/components/home_components.ex:246
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:259
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:260
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_detail"
 msgstr "La pantalla principal no puede afirmar cobertura de jerarquía ni entorno hasta que exista un mundo."
 
 #: lib/lemmings_os_web/components/home_components.ex:232
-#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:258
+#: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:259
 #, elixir-autogen, elixir-format
 msgid ".home_world_unavailable_summary"
 msgstr "No hay un mundo persistido disponible"
@@ -822,4 +822,4 @@ msgstr "Topologia persistida"
 #: lib/lemmings_os_web/components/home_components.ex:203
 #, elixir-autogen, elixir-format
 msgid ".home_card_topology_lemming_count_label"
-msgstr "Lemmings"
+msgstr ""
