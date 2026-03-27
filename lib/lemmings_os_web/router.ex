@@ -30,6 +30,7 @@ defmodule LemmingsOsWeb.Router do
     live "/lemmings/import", ImportLemmingLive, :import
     live "/lemmings", LemmingsLive, :index
     live "/lemmings/:id", LemmingsLive, :show
+    live "/lemmings/instances/:id", InstanceLive, :show
     live "/tools", ToolsLive, :index
     live "/logs", LogsLive, :index
     live "/settings", SettingsLive, :index

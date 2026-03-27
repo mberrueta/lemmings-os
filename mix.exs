@@ -92,6 +92,7 @@ defmodule LemmingsOs.MixProject do
       {:yaml_elixir, "~> 2.12"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      {:req, "~> 0.5"},
 
       # Dev tooling
       {:live_debugger, "~> 0.6.0", only: :dev},

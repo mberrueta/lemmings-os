@@ -13,6 +13,10 @@ defmodule LemmingsOs.Application do
       [
         LemmingsOsWeb.Telemetry,
         LemmingsOs.Repo,
+        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.ExecutorRegistry},
+        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.SchedulerRegistry},
+        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.PoolRegistry},
+        LemmingsOs.LemmingInstances.DetsStore,
         {LemmingsOs.Worlds.Cache, []},
         {DNSCluster, query: Application.get_env(:lemmings_os, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: LemmingsOs.PubSub}

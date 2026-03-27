@@ -379,7 +379,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp badge_tone("muted"), do: "border-zinc-700 text-zinc-500"
 
   attr :id, :string, default: nil
-  attr :kind, :atom, required: true, values: [:world, :city, :lemming, :issue]
+  attr :kind, :atom, required: true, values: [:world, :city, :lemming, :instance, :issue]
   attr :value, :any, required: true
   attr :class, :string, default: nil
   attr :rest, :global
@@ -548,6 +548,14 @@ defmodule LemmingsOsWeb.CoreComponents do
     }
   end
 
+  defp status_details(:instance, status) do
+    %{
+      tone: instance_status_tone(status),
+      label: instance_status_label(status),
+      value: status_value(status)
+    }
+  end
+
   defp status_details(:issue, severity) do
     %{
       tone: issue_status_tone(severity),
@@ -613,6 +621,24 @@ defmodule LemmingsOsWeb.CoreComponents do
   end
 
   defp lemming_status_label(status) when is_binary(status), do: String.upcase(status)
+
+  defp instance_status_tone("created"), do: "info"
+  defp instance_status_tone("queued"), do: "warning"
+  defp instance_status_tone("processing"), do: "success"
+  defp instance_status_tone("retrying"), do: "warning"
+  defp instance_status_tone("idle"), do: "accent"
+  defp instance_status_tone("failed"), do: "danger"
+  defp instance_status_tone("expired"), do: "muted"
+  defp instance_status_tone(_status), do: "default"
+
+  defp instance_status_label(status) when is_atom(status),
+    do: status |> Atom.to_string() |> instance_status_label()
+
+  defp instance_status_label(status) when is_binary(status) do
+    status
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
 
   defp issue_status_tone("error"), do: "danger"
   defp issue_status_tone("warning"), do: "warning"

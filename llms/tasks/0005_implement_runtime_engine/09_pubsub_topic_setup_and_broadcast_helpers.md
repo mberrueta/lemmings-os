@@ -1,7 +1,7 @@
 # Task 09: PubSub Topic Setup and Broadcast Helpers
 
 ## Status
-- **Status**: PENDING
+- **Status**: COMPLETED
 - **Approved**: [ ] Human sign-off
 
 ## Assigned Agent
@@ -87,32 +87,42 @@ lib/lemmings_os/application.ex  # {Phoenix.PubSub, name: LemmingsOs.PubSub}
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
+*Filled after implementation.*
 
 ### Work Performed
-- [What was actually done]
+- Added `LemmingsOs.LemmingInstances.PubSub` as a stateless helper module for runtime topics, subscriptions, and broadcasts.
+- Centralized the scheduler and instance topic construction behind `scheduler_topic/1` and `instance_topic/1`.
+- Added broadcast helpers for `work_available`, `capacity_released`, `status_changed`, and the existing executor/scheduler admission signal.
+- Wired `LemmingsOs.LemmingInstances.Executor` to use the new helper for scheduler notifications and instance status broadcasts.
+- Wired `LemmingsOs.LemmingInstances.DepartmentScheduler` to use the new helper for topic subscription and admission broadcasts.
+- Added focused ExUnit coverage for topic construction and PubSub payload shapes.
 
 ### Outputs Created
-- [List of files/artifacts created]
+- `lib/lemmings_os/lemming_instances/pubsub.ex`
+- `test/lemmings_os/lemming_instances/pubsub_test.exs`
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
+| The existing `LemmingsOs.PubSub` server is sufficient for all runtime signals in v1. | The plan explicitly calls for reuse of the existing PubSub server rather than creating a new one. |
+| `scheduler_admit` remains part of the runtime coordination flow between scheduler and executor. | The executor already listens for this signal, so I centralized it alongside the new helper functions to avoid leaving the runtime split across direct PubSub calls. |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
+| Keep the helper module stateless and thin. | Introduce a GenServer or config-driven wrapper. | The task called for pure helpers only, and the runtime does not need state here. |
+| Add tests around the helper module instead of only relying on downstream integration tests. | Wait for later executor/scheduler tests. | PubSub topics and payloads are a contract boundary and should be locked down early. |
 
 ### Blockers Encountered
-- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
+- None.
 
 ### Questions for Human
-1. [Question needing human input]
+1. None.
 
 ### Ready for Next Task
-- [ ] All outputs complete
-- [ ] Summary documented
-- [ ] Questions listed (if any)
+- [x] All outputs complete
+- [x] Summary documented
+- [x] Questions listed (if any)
 
 ---
 

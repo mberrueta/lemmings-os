@@ -25,6 +25,13 @@ config :lemmings_os, LemmingsOsWeb.Endpoint,
 config :lemmings_os, :world_bootstrap_import_on_startup, false
 config :lemmings_os, :runtime_city_registration_on_startup, false
 config :lemmings_os, :runtime_city_heartbeat_on_startup, false
+config :lemmings_os, :runtime_dets, directory: Path.expand("../tmp/runtime/dets", __DIR__)
+
+config :lemmings_os, :model_runtime,
+  provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,
+  default_model: "llama3.2",
+  timeout: 120_000,
+  ollama: [base_url: System.get_env("OLLAMA_BASE_URL") || "http://127.0.0.1:11434"]
 
 config :lemmings_os, :tools_runtime_fetcher, LemmingsOs.Tools.MockRuntimeFetcher
 config :lemmings_os, :tools_policy_fetcher, LemmingsOs.Tools.MockPolicyFetcher
