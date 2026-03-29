@@ -64,13 +64,16 @@ defmodule LemmingsOs.ModelRuntime.Providers.OllamaTest do
     assert response.raw["message"]["content"] == ~s({"action":"reply","reply":"hello"})
   end
 
-  test "S02: chat/2 returns provider_error for non-success responses", %{bypass: bypass} do
+  test "S02: chat/2 returns enriched provider error for non-success responses", %{
+    bypass: bypass
+  } do
     Bypass.expect_once(bypass, "POST", "/api/chat", fn conn ->
       Plug.Conn.resp(conn, 500, ~s({"error":"boom"}))
     end)
 
     assert capture_log(fn ->
-             assert {:error, :provider_error} =
+             assert {:error,
+                     {:provider_http_error, %{provider: "ollama", status: 500, detail: "boom"}}} =
                       Ollama.chat(
                         %{
                           model: "llama3.2",

@@ -42,15 +42,7 @@ defmodule LemmingsOs.ModelRuntime do
   """
   @spec run(map(), [map()], map() | String.t()) ::
           {:ok, Response.t()}
-          | {:error,
-             :invalid_request
-             | :invalid_structured_output
-             | :missing_model
-             | :network_error
-             | :provider_error
-             | :timeout
-             | :unknown_action
-             | :unsupported_provider}
+          | {:error, term()}
   def run(config_snapshot, history, current_request)
       when is_map(config_snapshot) and is_list(history) do
     with {:ok, provider_mod} <- resolve_provider_module(config_snapshot),

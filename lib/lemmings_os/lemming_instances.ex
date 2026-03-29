@@ -3,19 +3,26 @@ defmodule LemmingsOs.LemmingInstances do
   Runtime persistence boundary for spawned lemming sessions.
 
   This context owns durable instance rows, immutable transcript messages, and
-  world-scoped runtime queries. It does not start executors or notify
-  schedulers.
+  world-scoped runtime queries. It persists transcript messages and hands
+  follow-up work to the running executor through the runtime boundary.
   """
 
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias Ecto.Multi
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Helpers
+  alias LemmingsOs.LemmingInstances.DetsStore
+  alias LemmingsOs.LemmingInstances.EtsStore
   alias LemmingsOs.Lemmings.Lemming
+  alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Repo
+  alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Worlds.World
 
   @statuses ~w(created queued processing retrying idle failed expired)
@@ -88,8 +95,29 @@ defmodule LemmingsOs.LemmingInstances do
           end)
 
         case Repo.transaction(transaction) do
-          {:ok, %{instance: instance}} -> {:ok, instance}
-          {:error, _step, reason, _changes} -> {:error, reason}
+          {:ok, %{instance: instance, message: message}} ->
+            Logger.info("runtime instance spawned",
+              event: "instance.spawn",
+              instance_id: instance.id,
+              lemming_id: instance.lemming_id,
+              world_id: instance.world_id,
+              city_id: instance.city_id,
+              department_id: instance.department_id,
+              message_id: message.id,
+              status: instance.status
+            )
+
+            _ =
+              ActivityLog.record(:runtime, "instance", "Runtime instance spawned", %{
+                instance_id: instance.id,
+                lemming_id: instance.lemming_id,
+                message_id: message.id
+              })
+
+            {:ok, instance}
+
+          {:error, _step, reason, _changes} ->
+            {:error, reason}
         end
     end
   end
@@ -112,7 +140,8 @@ defmodule LemmingsOs.LemmingInstances do
       ...>     status: "active"
       ...>   )
       iex> {:ok, instance} = LemmingsOs.LemmingInstances.spawn_instance(lemming, "List the project risks")
-      iex> [%LemmingsOs.LemmingInstances.LemmingInstance{id: ^instance.id}] =
+      iex> instance_id = instance.id
+      iex> [%LemmingsOs.LemmingInstances.LemmingInstance{id: ^instance_id}] =
       ...>   LemmingsOs.LemmingInstances.list_instances(world)
   """
   @spec list_instances(World.t(), keyword()) :: [LemmingInstance.t()]
@@ -144,7 +173,8 @@ defmodule LemmingsOs.LemmingInstances do
       ...>     status: "active"
       ...>   )
       iex> {:ok, instance} = LemmingsOs.LemmingInstances.spawn_instance(lemming, "Summarize the roadmap")
-      iex> {:ok, %LemmingsOs.LemmingInstances.LemmingInstance{id: ^instance.id}} =
+      iex> instance_id = instance.id
+      iex> {:ok, %LemmingsOs.LemmingInstances.LemmingInstance{id: ^instance_id}} =
       ...>   LemmingsOs.LemmingInstances.get_instance(instance.id, world: world)
   """
   @spec get_instance(Ecto.UUID.t(), keyword()) ::
@@ -166,6 +196,51 @@ defmodule LemmingsOs.LemmingInstances do
   end
 
   def get_instance(_, _), do: {:error, :not_found}
+
+  @doc """
+  Returns a normalized runtime-state snapshot for an instance.
+
+  ## Examples
+
+      iex> world = LemmingsOs.Factory.insert(:world)
+      iex> city = LemmingsOs.Factory.insert(:city, world: world)
+      iex> department = LemmingsOs.Factory.insert(:department, world: world, city: city)
+      iex> lemming =
+      ...>   LemmingsOs.Factory.insert(:lemming,
+      ...>     world: world,
+      ...>     city: city,
+      ...>     department: department,
+      ...>     status: "active"
+      ...>   )
+      iex> {:ok, instance} = LemmingsOs.LemmingInstances.spawn_instance(lemming, "Summarize the roadmap")
+      iex> now = DateTime.utc_now() |> DateTime.truncate(:second)
+      iex> :ok =
+      ...>   LemmingsOs.LemmingInstances.DetsStore.snapshot(instance.id, %{
+      ...>     department_id: instance.department_id,
+      ...>     queue: :queue.new(),
+      ...>     current_item: nil,
+      ...>     retry_count: 0,
+      ...>     max_retries: 3,
+      ...>     context_messages: [],
+      ...>     status: :idle,
+      ...>     started_at: now,
+      ...>     last_activity_at: now
+      ...>   })
+      iex> {:ok, runtime_state} = LemmingsOs.LemmingInstances.get_runtime_state(instance.id)
+      iex> runtime_state.status
+      "idle"
+  """
+  @spec get_runtime_state(LemmingInstance.t() | Ecto.UUID.t()) ::
+          {:ok, map()} | {:error, :not_found}
+  def get_runtime_state(%LemmingInstance{id: instance_id}), do: get_runtime_state(instance_id)
+
+  def get_runtime_state(instance_id) when is_binary(instance_id) do
+    with {:ok, state} <- read_runtime_state(instance_id) do
+      {:ok, normalize_runtime_state(state)}
+    end
+  end
+
+  def get_runtime_state(_instance_id), do: {:error, :not_found}
 
   @doc """
   Updates a runtime instance status and any supplied temporal markers.
@@ -201,8 +276,9 @@ defmodule LemmingsOs.LemmingInstances do
   @doc """
   Appends a follow-up user message to an existing instance transcript.
 
-  Terminal instances reject new work. The context does not start executors or
-  notify schedulers directly.
+  Terminal instances reject new work. The context persists the user message and
+  forwards the request to the running executor, which owns queueing and
+  runtime notifications.
 
   ## Examples
 
@@ -217,34 +293,72 @@ defmodule LemmingsOs.LemmingInstances do
       ...>     status: "active"
       ...>   )
       iex> {:ok, instance} = LemmingsOs.LemmingInstances.spawn_instance(lemming, "Summarize the roadmap")
-      iex> {:ok, ^instance} = LemmingsOs.LemmingInstances.enqueue_work(instance, "Continue with risks")
+      iex> {:ok, ^instance} =
+      ...>   LemmingsOs.LemmingInstances.enqueue_work(instance, "Continue with risks",
+      ...>     executor_pid: self(),
+      ...>     executor_mod: LemmingsOs.LemmingInstancesTest.FakeExecutor
+      ...>   )
       iex> {:error, :terminal_instance} =
       ...>   LemmingsOs.LemmingInstances.enqueue_work(%{instance | status: "failed"}, "Try again")
   """
   @spec enqueue_work(LemmingInstance.t(), String.t(), keyword()) ::
           {:ok, LemmingInstance.t()} | {:error, Ecto.Changeset.t() | atom()}
-  def enqueue_work(instance, request_text, opts)
+  def enqueue_work(instance, request_text, opts \\ [])
 
   def enqueue_work(%LemmingInstance{status: status}, _request_text, _opts)
       when status in @terminal_statuses do
     {:error, :terminal_instance}
   end
 
-  def enqueue_work(%LemmingInstance{} = instance, request_text, _opts) do
+  def enqueue_work(%LemmingInstance{} = instance, request_text, opts) do
     if Helpers.blank?(request_text) do
       {:error, :empty_request_text}
     else
-      %Message{}
-      |> Message.changeset(%{
-        lemming_instance_id: instance.id,
-        world_id: instance.world_id,
-        role: "user",
-        content: request_text
-      })
-      |> Repo.insert()
-      |> case do
-        {:ok, _message} -> {:ok, instance}
-        {:error, changeset} -> {:error, changeset}
+      result =
+        with {:ok, executor_pid} <- resolve_executor_pid(instance, opts),
+             {:ok, message} <- persist_user_message(instance, request_text),
+             :ok <- dispatch_work_to_executor(executor_pid, request_text, opts) do
+          _ = PubSub.broadcast_message_appended(instance.id, message.id, message.role)
+
+          Logger.info("follow-up request enqueued",
+            event: "instance.follow_up.enqueue",
+            instance_id: instance.id,
+            world_id: instance.world_id,
+            department_id: instance.department_id,
+            message_id: message.id,
+            status: instance.status
+          )
+
+          _ =
+            ActivityLog.record(:runtime, "instance", "Follow-up request enqueued", %{
+              instance_id: instance.id,
+              message_id: message.id
+            })
+
+          {:ok, instance}
+        end
+
+      case result do
+        {:ok, instance} ->
+          {:ok, instance}
+
+        {:error, reason} = error ->
+          Logger.warning("follow-up request could not be queued",
+            event: "instance.follow_up.enqueue_failed",
+            instance_id: instance.id,
+            world_id: instance.world_id,
+            department_id: instance.department_id,
+            status: instance.status,
+            reason: inspect(reason)
+          )
+
+          _ =
+            ActivityLog.record(:error, "instance", "Follow-up request could not be queued", %{
+              instance_id: instance.id,
+              reason: inspect(reason)
+            })
+
+          error
       end
     end
   end
@@ -386,16 +500,91 @@ defmodule LemmingsOs.LemmingInstances do
     end
   end
 
+  defp snapshot_value(%Ecto.Association.NotLoaded{}), do: nil
+
   defp snapshot_value(%_{} = struct) do
     struct
     |> Map.from_struct()
+    |> Map.delete(:__meta__)
     |> Map.new(fn {key, value} -> {key, snapshot_value(value)} end)
   end
 
   defp snapshot_value(%{} = map) do
+    map = Map.delete(map, :__meta__)
     Map.new(map, fn {key, value} -> {key, snapshot_value(value)} end)
   end
 
   defp snapshot_value(list) when is_list(list), do: Enum.map(list, &snapshot_value/1)
   defp snapshot_value(value), do: value
+
+  defp persist_user_message(%LemmingInstance{} = instance, request_text) do
+    %Message{}
+    |> Message.changeset(%{
+      lemming_instance_id: instance.id,
+      world_id: instance.world_id,
+      role: "user",
+      content: request_text
+    })
+    |> Repo.insert()
+  end
+
+  defp resolve_executor_pid(%LemmingInstance{id: instance_id}, opts) do
+    case Keyword.get(opts, :executor_pid) do
+      pid when is_pid(pid) ->
+        {:ok, pid}
+
+      _ ->
+        case Registry.lookup(LemmingsOs.LemmingInstances.ExecutorRegistry, instance_id) do
+          [{pid, _value}] when is_pid(pid) -> {:ok, pid}
+          _ -> {:error, :executor_unavailable}
+        end
+    end
+  end
+
+  defp dispatch_work_to_executor(executor_pid, request_text, opts) when is_pid(executor_pid) do
+    executor_mod = Keyword.get(opts, :executor_mod, Executor)
+
+    if function_exported?(executor_mod, :enqueue_work, 2) do
+      executor_mod.enqueue_work(executor_pid, request_text)
+    else
+      {:error, :executor_unavailable}
+    end
+  end
+
+  defp read_runtime_state(instance_id) do
+    case EtsStore.get(instance_id) do
+      {:ok, state} ->
+        {:ok, state}
+
+      {:error, :not_found} ->
+        case DetsStore.read(instance_id) do
+          {:ok, state} -> {:ok, state}
+          _ -> {:error, :not_found}
+        end
+    end
+  end
+
+  defp normalize_runtime_state(state) do
+    %{
+      retry_count: Map.get(state, :retry_count, 0),
+      max_retries: Map.get(state, :max_retries, 3),
+      queue_depth: runtime_queue_depth(Map.get(state, :queue)),
+      current_item: Map.get(state, :current_item),
+      last_error: Map.get(state, :last_error),
+      status: runtime_status(Map.get(state, :status)),
+      started_at: Map.get(state, :started_at),
+      last_activity_at: Map.get(state, :last_activity_at)
+    }
+  end
+
+  defp runtime_queue_depth(queue) when is_tuple(queue) do
+    if :queue.is_queue(queue), do: :queue.len(queue), else: 0
+  end
+
+  defp runtime_queue_depth(queue) when is_list(queue), do: length(queue)
+  defp runtime_queue_depth(_queue), do: 0
+
+  defp runtime_status(status) when is_atom(status), do: Atom.to_string(status)
+  defp runtime_status(status) when is_binary(status), do: status
+  defp runtime_status(_status), do: nil
 end

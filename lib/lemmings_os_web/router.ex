@@ -53,6 +53,7 @@ defmodule LemmingsOsWeb.Router do
     scope "/dev" do
       pipe_through :browser
 
+      live "/runtime", LemmingsOsWeb.RuntimeDashboardLive, :index
       live_dashboard "/dashboard", metrics: LemmingsOsWeb.Telemetry
     end
   end

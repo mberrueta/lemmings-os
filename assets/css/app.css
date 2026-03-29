@@ -142,16 +142,12 @@
   }
 }
 
-/* ── Mobile: sidebar as drawer state ───────────── */
-@media (max-width: 767px) {
-  #app-sidebar.mobile-open {
-    translate: 0;
-    transform: none;
-  }
-}
-
 /* ── Tablet/Desktop: Auto-collapsed sidebar ─────── */
 @media (min-width: 768px) and (max-width: 1023px) {
+  #app-shell {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+
   #app-sidebar .sidebar-label,
   #app-sidebar .sidebar-brand__identity,
   #app-sidebar .sidebar-footer,
@@ -169,6 +165,17 @@
   #app-sidebar .sidebar-nav-link,
   #app-sidebar > .pt-1 > a {
     justify-content: center;
+  }
+}
+
+@media (min-width: 1024px) {
+  #app-shell {
+    grid-template-columns: 18rem minmax(0, 1fr);
+  }
+
+  #app-sidebar {
+    width: 18rem;
+    min-width: 18rem;
   }
 }
 

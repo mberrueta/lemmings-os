@@ -14,10 +14,12 @@ defmodule LemmingsOsWeb.SidebarComponents do
     ~H"""
     <aside
       id="app-sidebar"
-      class="fixed top-0 left-0 z-[100] flex h-[100dvh] w-[min(18.5rem,85vw)] -translate-x-[110%] flex-col gap-5 overflow-y-auto border-2 border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl transition-[transform,width,padding] duration-[220ms] md:sticky md:top-4 md:z-auto md:h-auto md:w-auto md:max-h-[calc(100vh-2rem)] md:translate-x-0 md:overflow-hidden lg:max-h-none lg:overflow-visible"
+      class="fixed top-0 left-0 z-50 flex h-screen w-72 -translate-x-full flex-col gap-5 overflow-y-auto border-2 border-zinc-800 bg-zinc-950/95 p-4 shadow-2xl transition-transform duration-200 md:sticky md:top-4 md:z-auto md:h-auto md:max-h-screen md:translate-x-0 md:overflow-hidden lg:max-h-none lg:overflow-visible"
       phx-click-away={
-        JS.remove_class("mobile-open", to: "#app-sidebar")
-        |> JS.remove_class("mobile-open", to: "#mobile-backdrop")
+        JS.add_class("-translate-x-full", to: "#app-sidebar")
+        |> JS.remove_class("translate-x-0", to: "#app-sidebar")
+        |> JS.remove_class("opacity-100", to: "#mobile-backdrop")
+        |> JS.remove_class("pointer-events-auto", to: "#mobile-backdrop")
         |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-nav-toggle")
       }
     >
@@ -121,8 +123,7 @@ defmodule LemmingsOsWeb.SidebarComponents do
         </div>
 
         <div class="flex items-center gap-2 px-1 text-xs font-medium text-emerald-400">
-          <span class="inline-block size-2 bg-emerald-400 shadow-[0_0_8px_rgba(73,242,142,0.4)] animate-pulse">
-          </span>
+          <span class="inline-block size-2 bg-emerald-400 shadow-lg animate-pulse"></span>
           {dgettext("layout", ".footer_cluster_online")}
         </div>
       </div>
@@ -186,6 +187,12 @@ defmodule LemmingsOsWeb.SidebarComponents do
             label: dgettext("layout", ".nav_logs"),
             path: ~p"/logs",
             icon: "hero-clipboard-document-list"
+          },
+          %{
+            key: :runtime,
+            label: "Runtime",
+            path: ~p"/dev/runtime",
+            icon: "hero-cpu-chip"
           },
           %{
             key: :settings,

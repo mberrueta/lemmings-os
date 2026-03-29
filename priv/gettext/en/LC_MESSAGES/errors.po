@@ -136,20 +136,20 @@ msgstr "Attempting to reconnect"
 msgid ".error_something_went_wrong"
 msgstr "Something went wrong!"
 
-#: lib/lemmings_os_web/components/core_components.ex:625
-#: lib/lemmings_os_web/components/core_components.ex:628
+#: lib/lemmings_os_web/components/core_components.ex:651
+#: lib/lemmings_os_web/components/core_components.ex:654
 #, elixir-autogen
 msgid ".issue_severity_error"
 msgstr "Error"
 
-#: lib/lemmings_os_web/components/core_components.ex:627
-#: lib/lemmings_os_web/components/core_components.ex:630
+#: lib/lemmings_os_web/components/core_components.ex:653
+#: lib/lemmings_os_web/components/core_components.ex:656
 #, elixir-autogen
 msgid ".issue_severity_info"
 msgstr "Info"
 
-#: lib/lemmings_os_web/components/core_components.ex:626
-#: lib/lemmings_os_web/components/core_components.ex:629
+#: lib/lemmings_os_web/components/core_components.ex:652
+#: lib/lemmings_os_web/components/core_components.ex:655
 #, elixir-autogen
 msgid ".issue_severity_warning"
 msgstr "Warning"
@@ -285,6 +285,7 @@ msgstr ""
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:68
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:86
 #: lib/lemmings_os/lemming_instances/message.ex:61
+#: lib/lemmings_os_web/live/instance_live.ex:509
 #, elixir-autogen, elixir-format
 msgid ".required"
 msgstr ""

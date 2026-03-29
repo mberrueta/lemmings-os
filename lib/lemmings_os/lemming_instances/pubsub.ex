@@ -37,6 +37,19 @@ defmodule LemmingsOs.LemmingInstances.PubSub do
   end
 
   @doc """
+  Builds the instance transcript topic for an instance ID.
+
+  ## Examples
+
+      iex> LemmingsOs.LemmingInstances.PubSub.instance_messages_topic("instance-1")
+      "instance:instance-1:messages"
+  """
+  @spec instance_messages_topic(binary()) :: String.t()
+  def instance_messages_topic(instance_id) when is_binary(instance_id) do
+    "instance:#{instance_id}:messages"
+  end
+
+  @doc """
   Builds the global capacity topic used to wake schedulers after releases.
 
   ## Examples
@@ -71,6 +84,19 @@ defmodule LemmingsOs.LemmingInstances.PubSub do
   @spec subscribe_instance(binary()) :: :ok | {:error, term()}
   def subscribe_instance(instance_id) when is_binary(instance_id) do
     Phoenix.PubSub.subscribe(@pubsub_server, instance_topic(instance_id))
+  end
+
+  @doc """
+  Subscribes the caller to an instance transcript topic.
+
+  ## Examples
+
+      iex> LemmingsOs.LemmingInstances.PubSub.subscribe_instance_messages("instance-1")
+      :ok
+  """
+  @spec subscribe_instance_messages(binary()) :: :ok | {:error, term()}
+  def subscribe_instance_messages(instance_id) when is_binary(instance_id) do
+    Phoenix.PubSub.subscribe(@pubsub_server, instance_messages_topic(instance_id))
   end
 
   @doc """
@@ -155,6 +181,19 @@ defmodule LemmingsOs.LemmingInstances.PubSub do
       @pubsub_server,
       instance_topic(instance_id),
       {:status_changed, %{instance_id: instance_id, status: status, metadata: metadata}}
+    )
+  end
+
+  @doc """
+  Broadcasts that a new transcript message has been appended for an instance.
+  """
+  @spec broadcast_message_appended(binary(), binary(), binary()) :: :ok | {:error, term()}
+  def broadcast_message_appended(instance_id, message_id, role)
+      when is_binary(instance_id) and is_binary(message_id) and is_binary(role) do
+    Phoenix.PubSub.broadcast(
+      @pubsub_server,
+      instance_messages_topic(instance_id),
+      {:message_appended, %{instance_id: instance_id, message_id: message_id, role: role}}
     )
   end
 

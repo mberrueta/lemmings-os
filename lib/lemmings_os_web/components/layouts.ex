@@ -43,13 +43,13 @@ defmodule LemmingsOsWeb.Layouts do
     ~H"""
     <div
       id="app-shell"
-      class="grid min-h-screen grid-cols-1 gap-4 p-4 md:grid-cols-[5.5rem_minmax(0,1fr)] md:items-start lg:grid-cols-[18.5rem_minmax(0,1fr)]"
+      class="grid min-h-screen grid-cols-1 gap-4 p-4 md:items-start"
     >
       <SidebarComponents.sidebar active_page={@page_key} summary={@summary} />
 
       <div
         id="mobile-backdrop"
-        class="fixed inset-0 z-[99] cursor-pointer bg-black/65 opacity-0 pointer-events-none transition-opacity duration-[220ms] [&.mobile-open]:opacity-100 [&.mobile-open]:pointer-events-auto"
+        class="fixed inset-0 z-40 cursor-pointer bg-black/65 opacity-0 pointer-events-none transition-opacity duration-200"
         phx-click={close_mobile_nav()}
       />
 
@@ -108,7 +108,7 @@ defmodule LemmingsOsWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} class="fixed top-4 right-4 z-[110] flex flex-col gap-3" aria-live="polite">
+    <div id={@id} class="fixed top-4 right-4 z-50 flex flex-col gap-3" aria-live="polite">
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
@@ -140,14 +140,18 @@ defmodule LemmingsOsWeb.Layouts do
   end
 
   defp toggle_mobile_nav do
-    JS.toggle_class("mobile-open", to: "#app-sidebar")
-    |> JS.toggle_class("mobile-open", to: "#mobile-backdrop")
+    JS.remove_class("-translate-x-full", to: "#app-sidebar")
+    |> JS.add_class("translate-x-0", to: "#app-sidebar")
+    |> JS.add_class("opacity-100", to: "#mobile-backdrop")
+    |> JS.add_class("pointer-events-auto", to: "#mobile-backdrop")
     |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#mobile-nav-toggle")
   end
 
   defp close_mobile_nav do
-    JS.remove_class("mobile-open", to: "#app-sidebar")
-    |> JS.remove_class("mobile-open", to: "#mobile-backdrop")
+    JS.add_class("-translate-x-full", to: "#app-sidebar")
+    |> JS.remove_class("translate-x-0", to: "#app-sidebar")
+    |> JS.remove_class("opacity-100", to: "#mobile-backdrop")
+    |> JS.remove_class("pointer-events-auto", to: "#mobile-backdrop")
     |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-nav-toggle")
   end
 end

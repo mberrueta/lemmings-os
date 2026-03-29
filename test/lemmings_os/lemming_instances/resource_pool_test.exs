@@ -4,6 +4,12 @@ defmodule LemmingsOs.LemmingInstances.ResourcePoolTest do
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.LemmingInstances.ResourcePool
 
+  setup do
+    ensure_registry!(LemmingsOs.LemmingInstances.PoolRegistry)
+    ensure_dynamic_supervisor!(LemmingsOs.LemmingInstances.PoolSupervisor)
+    :ok
+  end
+
   test "S01: via_name and child_spec build the expected registry wiring" do
     assert ResourcePool.via_name("ollama:llama3.2") ==
              {:via, Registry, {LemmingsOs.LemmingInstances.PoolRegistry, "ollama:llama3.2"}}
@@ -80,5 +86,42 @@ defmodule LemmingsOs.LemmingInstances.ResourcePoolTest do
     assert ResourcePool.status(pid) == {0, 1}
 
     GenServer.stop(pid)
+  end
+
+  test "S05: checkout by resource key starts the pool under the pool supervisor" do
+    resource_key = "ollama:autostart"
+
+    assert :ok = ResourcePool.checkout(resource_key)
+
+    assert [{pool_pid, _value}] =
+             Registry.lookup(LemmingsOs.LemmingInstances.PoolRegistry, resource_key)
+
+    assert DynamicSupervisor.which_children(LemmingsOs.LemmingInstances.PoolSupervisor) != []
+    assert ResourcePool.status(resource_key) == {1, 1}
+
+    assert :ok = ResourcePool.checkin(resource_key)
+    GenServer.stop(pool_pid)
+  end
+
+  defp ensure_registry!(name) do
+    case Process.whereis(name) do
+      pid when is_pid(pid) ->
+        :ok
+
+      nil ->
+        start_supervised!({Registry, keys: :unique, name: name})
+        :ok
+    end
+  end
+
+  defp ensure_dynamic_supervisor!(name) do
+    case Process.whereis(name) do
+      pid when is_pid(pid) ->
+        :ok
+
+      nil ->
+        start_supervised!({DynamicSupervisor, name: name, strategy: :one_for_one})
+        :ok
+    end
   end
 end

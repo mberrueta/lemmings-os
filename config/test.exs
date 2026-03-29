@@ -25,6 +25,8 @@ config :lemmings_os, LemmingsOsWeb.Endpoint,
 config :lemmings_os, :world_bootstrap_import_on_startup, false
 config :lemmings_os, :runtime_city_registration_on_startup, false
 config :lemmings_os, :runtime_city_heartbeat_on_startup, false
+config :lemmings_os, :runtime_engine_on_startup, false
+config :lemmings_os, dev_routes: true
 config :lemmings_os, :runtime_dets, directory: Path.expand("../tmp/runtime/dets", __DIR__)
 
 config :lemmings_os, :model_runtime,

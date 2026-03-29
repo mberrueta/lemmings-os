@@ -27,6 +27,7 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
           retry_count: non_neg_integer(),
           max_retries: pos_integer(),
           context_messages: [map()],
+          last_error: String.t() | nil,
           status: atom(),
           started_at: DateTime.t() | nil,
           last_activity_at: DateTime.t() | nil
@@ -216,7 +217,22 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
 
     target_status = normalize_status(status)
 
-    :ets.foldl(&collect_status_entry(&1, department_id, target_status, &2), [], @table_name)
+    @table_name
+    |> :ets.select(status_match_spec(department_id, target_status))
+    |> Enum.map(fn {instance_id, state} -> {normalize_key(instance_id), state} end)
+    |> Enum.sort_by(&status_sort_key/1)
+  end
+
+  @doc """
+  Returns all active runtime entries currently stored in ETS.
+  """
+  @spec list_all() :: [{instance_id(), state()}]
+  def list_all do
+    :ok = init_table()
+
+    @table_name
+    |> :ets.tab2list()
+    |> Enum.map(fn {instance_id, state} -> {normalize_key(instance_id), state} end)
     |> Enum.sort_by(&status_sort_key/1)
   end
 
@@ -322,24 +338,26 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
 
   defp key(instance_id), do: {instance_id}
 
-  defp instance_id_from_key({instance_id}) when is_binary(instance_id), do: instance_id
+  defp normalize_key({instance_id}) when is_binary(instance_id), do: instance_id
+  defp normalize_key(instance_id) when is_binary(instance_id), do: instance_id
+  defp normalize_key(other), do: other
 
-  defp collect_status_entry({key, state}, department_id, target_status, acc) do
-    if matching_status_entry?(state, department_id, target_status) do
-      [{instance_id_from_key(key), state} | acc]
-    else
-      acc
-    end
+  defp status_match_spec(department_id, target_status) do
+    # Equivalent to:
+    # fn {instance_id, state} ->
+    #   state.department_id == department_id and state.status == target_status
+    # end
+    [
+      {
+        {:"$1", :"$2"},
+        [
+          {:==, {:map_get, :department_id, :"$2"}, department_id},
+          {:==, {:map_get, :status, :"$2"}, target_status}
+        ],
+        [{{:"$1", :"$2"}}]
+      }
+    ]
   end
-
-  defp matching_status_entry?(
-         %{department_id: department_id, status: status},
-         department_id,
-         status
-       ),
-       do: true
-
-  defp matching_status_entry?(_state, _department_id, _target_status), do: false
 
   defp status_sort_key({instance_id, state}) do
     {queue_rank(state.queue), queue_depth(state.queue), instance_id}
@@ -372,6 +390,7 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
       :context_messages,
       normalize_context_messages(field_value(state, :context_messages))
     )
+    |> Map.put(:last_error, normalize_last_error(field_value(state, :last_error)))
     |> Map.put(:status, normalize_status(field_value(state, :status)))
     |> Map.put(:started_at, field_value(state, :started_at))
     |> Map.put(:last_activity_at, field_value(state, :last_activity_at))
@@ -387,6 +406,7 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
      |> maybe_normalize_field(:retry_count, &normalize_non_neg_integer(&1, 0))
      |> maybe_normalize_field(:max_retries, &normalize_pos_integer(&1, @default_max_retries))
      |> maybe_normalize_field(:context_messages, &normalize_context_messages/1)
+     |> maybe_normalize_field(:last_error, &normalize_last_error/1)
      |> maybe_normalize_field(:status, &normalize_status/1)}
   end
 
@@ -403,6 +423,9 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
 
   defp normalize_context_messages(messages) when is_list(messages), do: messages
   defp normalize_context_messages(_messages), do: []
+
+  defp normalize_last_error(error) when is_binary(error) and error != "", do: error
+  defp normalize_last_error(_error), do: nil
 
   defp normalize_current_item(nil), do: nil
 

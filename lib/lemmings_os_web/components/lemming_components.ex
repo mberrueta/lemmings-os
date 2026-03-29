@@ -45,7 +45,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <:subtitle>{dgettext("lemmings", ".subtitle_filters")}</:subtitle>
 
         <.form for={@filters_form} id="lemmings-filters-form" phx-change="change_filters">
-          <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <div class="grid gap-4 lg:grid-cols-3">
             <div
               id="lemmings-selected-world"
               class="flex flex-col gap-1.5 border-2 border-zinc-800 bg-zinc-950/70 px-3 py-2.5"
@@ -102,9 +102,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
             navigate={
               ~p"/lemmings/#{lemming.id}?#{card_params(@selected_city, @selected_department)}"
             }
-            class={[
-              "flex min-h-40 flex-col gap-4 border-2 border-zinc-800 bg-zinc-950/80 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400 hover:bg-emerald-400/5"
-            ]}
+            class="flex min-h-40 flex-col gap-4 border-2 border-zinc-800 bg-zinc-950/80 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400 hover:bg-emerald-400/5"
           >
             <div class="flex items-start justify-between gap-4">
               <p class="min-w-0 text-base leading-tight text-zinc-100">{lemming.name}</p>
@@ -558,7 +556,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
               type="button"
               disabled
               title={@spawn_disabled_reason}
-              class="inline-flex min-h-[2.8rem] items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/70 px-4 py-2 text-sm font-medium text-zinc-500"
+              class="inline-flex min-h-11 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/70 px-4 py-2 text-sm font-medium text-zinc-500"
             >
               Spawn
             </button>

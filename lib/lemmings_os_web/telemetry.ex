@@ -1,6 +1,10 @@
 defmodule LemmingsOsWeb.Telemetry do
   use Supervisor
+  import Ecto.Query, warn: false
   import Telemetry.Metrics
+
+  alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.Repo
 
   def start_link(arg) do
     Supervisor.start_link(__MODULE__, arg, name: __MODULE__)
@@ -11,7 +15,8 @@ defmodule LemmingsOsWeb.Telemetry do
     children = [
       # Telemetry poller will execute the given period measurements
       # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
-      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
+      {:telemetry_poller,
+       measurements: periodic_measurements(), period: 10_000, init_delay: 10_000}
       # Add reporters as children of your supervision tree.
       # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
@@ -75,6 +80,18 @@ defmodule LemmingsOsWeb.Telemetry do
           "The time the connection spent waiting before being checked out for the query"
       ),
 
+      # Runtime metrics
+      last_value("lemmings_os.runtime.instances.total"),
+      last_value("lemmings_os.runtime.instances.created"),
+      last_value("lemmings_os.runtime.instances.queued"),
+      last_value("lemmings_os.runtime.instances.processing"),
+      last_value("lemmings_os.runtime.instances.retrying"),
+      last_value("lemmings_os.runtime.instances.idle"),
+      last_value("lemmings_os.runtime.instances.failed"),
+      last_value("lemmings_os.runtime.instances.expired"),
+      sum("lemmings_os.runtime.session.spawn.count"),
+      sum("lemmings_os.runtime.session.recovered.count"),
+
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),
@@ -84,10 +101,51 @@ defmodule LemmingsOsWeb.Telemetry do
   end
 
   defp periodic_measurements do
-    [
-      # A module, function and arguments to be invoked periodically.
-      # This function must call :telemetry.execute/3 and a metric must be added above.
-      # {LemmingsOsWeb, :count_users, []}
-    ]
+    [{__MODULE__, :emit_runtime_snapshot, []}]
+  end
+
+  def emit_runtime_snapshot do
+    measurements = runtime_instance_measurements()
+
+    :telemetry.execute([:lemmings_os, :runtime, :instances], measurements, %{
+      source: :poller
+    })
+  end
+
+  defp runtime_instance_measurements do
+    try do
+      base_query =
+        from(instance in LemmingInstance,
+          group_by: instance.status,
+          select: %{status: instance.status, count: count(instance.id)}
+        )
+
+      counts =
+        Repo.all(base_query)
+        |> Map.new(fn %{status: status, count: count} -> {status, count} end)
+
+      %{
+        total: Enum.reduce(counts, 0, fn {_status, count}, acc -> acc + count end),
+        created: Map.get(counts, "created", 0),
+        queued: Map.get(counts, "queued", 0),
+        processing: Map.get(counts, "processing", 0),
+        retrying: Map.get(counts, "retrying", 0),
+        idle: Map.get(counts, "idle", 0),
+        failed: Map.get(counts, "failed", 0),
+        expired: Map.get(counts, "expired", 0)
+      }
+    rescue
+      _ ->
+        %{
+          total: 0,
+          created: 0,
+          queued: 0,
+          processing: 0,
+          retrying: 0,
+          idle: 0,
+          failed: 0,
+          expired: 0
+        }
+    end
   end
 end

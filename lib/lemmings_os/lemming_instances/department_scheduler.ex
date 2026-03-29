@@ -14,6 +14,9 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
 
   use GenServer
 
+  require Logger
+
+  alias LemmingsOs.LemmingInstances.ConfigSnapshot
   @default_pubsub_mod Phoenix.PubSub
   @default_pubsub_name LemmingsOs.PubSub
   @default_context_mod LemmingsOs.LemmingInstances
@@ -145,6 +148,14 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
     GenServer.call(normalize_server(server), :admit_next)
   end
 
+  @doc """
+  Returns an operator-facing snapshot for scheduler inspection.
+  """
+  @spec snapshot(GenServer.server() | binary()) :: map()
+  def snapshot(server) do
+    GenServer.call(normalize_server(server), :snapshot)
+  end
+
   @doc false
   @spec oldest_eligible_first([map()]) :: [map()]
   def oldest_eligible_first(candidates) when is_list(candidates) do
@@ -172,6 +183,12 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
 
       state = subscribe_scheduler_topic(state)
 
+      Logger.info("scheduler started",
+        event: "instance.scheduler.started",
+        department_id: department_id,
+        admission_mode: state.admission_mode
+      )
+
       {:ok, state}
     else
       {:stop, :missing_department_id}
@@ -182,6 +199,20 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
   def handle_call(:admit_next, _from, state) do
     _ = admit_candidates(state, 1)
     {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call(:snapshot, _from, state) do
+    queued_instances = fetch_candidates(state)
+
+    snapshot = %{
+      department_id: state.department_id,
+      admission_mode: state.admission_mode,
+      queued_count: length(queued_instances),
+      queued_instance_ids: Enum.map(queued_instances, & &1.instance_id)
+    }
+
+    {:reply, snapshot, state}
   end
 
   @impl true
@@ -295,6 +326,14 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
     with {:ok, resource_key} <- resolve_resource_key(candidate, state),
          {:ok, executor_pid} <- resolve_executor_pid(candidate.instance_id),
          :ok <- checkout_pool(state, resource_key, executor_pid) do
+      Logger.info("scheduler admitted instance",
+        event: "instance.scheduler.admit",
+        department_id: state.department_id,
+        instance_id: candidate.instance_id,
+        resource_key: resource_key,
+        executor_pid: inspect(executor_pid)
+      )
+
       broadcast_admission(state, candidate, resource_key)
       :admitted
     else
@@ -311,7 +350,7 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
   defp resolve_resource_key(candidate, state) do
     case candidate_config_snapshot(candidate, state) do
       {:ok, config_snapshot} ->
-        case resource_key_from_snapshot(config_snapshot) do
+        case ConfigSnapshot.resource_key(config_snapshot) do
           nil -> {:error, :missing_resource_key}
           resource_key -> {:ok, resource_key}
         end
@@ -474,61 +513,4 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
   defp admission_mode(:auto), do: :auto
   defp admission_mode(:manual), do: :manual
   defp admission_mode(_other), do: :auto
-
-  defp resource_key_from_snapshot(config_snapshot) when is_map(config_snapshot) do
-    models_config =
-      fetch_map_value(config_snapshot, :models_config) ||
-        fetch_map_value(config_snapshot, "models_config")
-
-    profile =
-      models_config
-      |> models_profiles()
-      |> selected_profile()
-
-    case profile do
-      nil ->
-        nil
-
-      profile ->
-        provider = fetch_map_value(profile, :provider) || fetch_map_value(profile, "provider")
-        model = fetch_map_value(profile, :model) || fetch_map_value(profile, "model")
-
-        "#{provider}:#{model}"
-    end
-  end
-
-  defp models_profiles(%{} = models_config) do
-    fetch_map_value(models_config, :profiles) || fetch_map_value(models_config, "profiles") || %{}
-  end
-
-  defp models_profiles(_other), do: %{}
-
-  defp selected_profile(%{} = profiles) do
-    case Map.fetch(profiles, :default) do
-      {:ok, profile} ->
-        profile
-
-      :error ->
-        selected_named_profile(profiles)
-    end
-  end
-
-  defp selected_profile(_other), do: nil
-
-  defp selected_named_profile(profiles) do
-    case Map.fetch(profiles, "default") do
-      {:ok, profile} ->
-        profile
-
-      :error ->
-        first_profile(profiles)
-    end
-  end
-
-  defp first_profile(profiles) do
-    case Enum.sort_by(profiles, fn {key, _value} -> to_string(key) end) do
-      [] -> nil
-      [{_key, profile} | _rest] -> profile
-    end
-  end
 end

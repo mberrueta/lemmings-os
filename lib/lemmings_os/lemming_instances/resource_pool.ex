@@ -13,9 +13,12 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
 
   use GenServer
 
+  require Logger
+
   @default_capacity 1
   @default_pubsub_mod Phoenix.PubSub
   @default_pubsub_name LemmingsOs.PubSub
+  @default_pool_supervisor LemmingsOs.LemmingInstances.PoolSupervisor
 
   @type gate :: :open | :closed
   @type holder :: pid() | nil
@@ -192,6 +195,28 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
   end
 
   @doc """
+  Returns an operator-facing snapshot for pool inspection.
+  """
+  @spec snapshot(GenServer.server() | binary()) :: map()
+  def snapshot(server_or_resource_key) do
+    case lookup_server(server_or_resource_key) do
+      {:ok, server} ->
+        GenServer.call(server, :snapshot)
+
+      {:error, _reason} ->
+        %{
+          resource_key: extract_resource_key(server_or_resource_key),
+          current: 0,
+          max: default_capacity(),
+          gate: :open,
+          available?: true,
+          holders_count: 0,
+          holder_department_ids: []
+        }
+    end
+  end
+
+  @doc """
   Returns whether a token is currently available.
 
   ## Examples
@@ -287,7 +312,13 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
         pubsub_name: Keyword.get(opts, :pubsub_name, @default_pubsub_name)
       }
 
-      store_fallback_pid(resource_key, self())
+      Logger.info("resource pool started",
+        event: "instance.pool.started",
+        resource_key: resource_key,
+        pool_current: 0,
+        pool_max: state.max
+      )
+
       {:ok, state}
     else
       {:stop, :missing_resource_key}
@@ -308,6 +339,15 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
           holders:
             Map.put(state.holders, monitor_ref, %{pid: holder_pid, department_id: department_id})
       }
+
+      Logger.info("resource pool checkout granted",
+        event: "instance.pool.checkout",
+        resource_key: state.resource_key,
+        holder_pid: inspect(holder_pid),
+        department_id: department_id,
+        pool_current: state.current,
+        pool_max: state.max
+      )
 
       {:reply, :ok, state}
     end
@@ -332,6 +372,15 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
             holders: holders
         }
 
+        Logger.info("resource pool checkout released",
+          event: "instance.pool.checkin",
+          resource_key: state.resource_key,
+          holder_pid: inspect(pid),
+          department_id: holder.department_id,
+          pool_current: state.current,
+          pool_max: state.max
+        )
+
         {:reply, :ok, broadcast_capacity_released(state, holder.department_id)}
     end
   end
@@ -343,6 +392,27 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
   @impl true
   def handle_call(:status, _from, state) do
     {:reply, {state.current, state.max}, state}
+  end
+
+  @impl true
+  def handle_call(:snapshot, _from, state) do
+    snapshot = %{
+      resource_key: state.resource_key,
+      current: state.current,
+      max: state.max,
+      gate: state.gate,
+      available?: state.gate == :open and state.current < state.max,
+      holders_count: map_size(state.holders),
+      holder_department_ids:
+        state.holders
+        |> Map.values()
+        |> Enum.map(& &1.department_id)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+        |> Enum.sort()
+    }
+
+    {:reply, snapshot, state}
   end
 
   @impl true
@@ -361,7 +431,7 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
   end
 
   @impl true
-  def handle_info({:DOWN, monitor_ref, :process, _pid, _reason}, state) do
+  def handle_info({:DOWN, monitor_ref, :process, _pid, reason}, state) do
     case Map.pop(state.holders, monitor_ref) do
       {nil, _holders} ->
         {:noreply, state}
@@ -373,14 +443,10 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
             holders: holders
         }
 
+        log_holder_down(state, holder, reason)
+
         {:noreply, broadcast_capacity_released(state, holder.department_id)}
     end
-  end
-
-  @impl true
-  def terminate(_reason, %{resource_key: resource_key}) do
-    delete_fallback_pid(resource_key, self())
-    :ok
   end
 
   defp ensure_started(server) when is_pid(server) or is_atom(server) or is_tuple(server),
@@ -400,17 +466,14 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
     do: {:ok, server}
 
   defp lookup_server(resource_key) when is_binary(resource_key) do
-    case resolve_running_server(resource_key) do
+    case registry_pid(resource_key) do
       {:ok, pid} -> {:ok, pid}
       :error -> {:error, :not_found}
     end
   end
 
   defp resolve_running_server(resource_key) do
-    case registry_pid(resource_key) do
-      {:ok, pid} -> {:ok, pid}
-      :error -> fallback_pid(resource_key)
-    end
+    registry_pid(resource_key)
   end
 
   defp registry_pid(resource_key) do
@@ -435,55 +498,62 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
     not is_nil(Process.whereis(LemmingsOs.LemmingInstances.PoolRegistry))
   end
 
-  defp fallback_pid(resource_key) do
-    case :persistent_term.get(fallback_key(resource_key), :undefined) do
-      pid when is_pid(pid) ->
-        if Process.alive?(pid), do: {:ok, pid}, else: :error
-
-      _ ->
-        :error
-    end
-  end
-
   defp start_pool(resource_key) do
     opts = [resource_key: resource_key]
 
-    if registry_running?() do
-      case start_link(opts) do
+    if registry_running?() and pool_supervisor_running?() do
+      case DynamicSupervisor.start_child(@default_pool_supervisor, child_spec(opts)) do
         {:ok, pid} -> {:ok, pid}
         {:error, {:already_started, pid}} -> {:ok, pid}
         {:error, reason} -> {:error, reason}
       end
     else
-      case start_link(Keyword.put(opts, :name, nil)) do
-        {:ok, pid} ->
-          store_fallback_pid(resource_key, pid)
-          {:ok, pid}
-
-        {:error, {:already_started, pid}} ->
-          {:ok, pid}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+      {:error, :pool_supervisor_not_running}
     end
   end
 
-  defp store_fallback_pid(resource_key, pid) when is_binary(resource_key) and is_pid(pid) do
-    :persistent_term.put(fallback_key(resource_key), pid)
-    :ok
+  defp extract_resource_key(resource_key) when is_binary(resource_key), do: resource_key
+  defp extract_resource_key(_server), do: nil
+
+  defp log_holder_down(state, holder, reason) when reason in [:normal, :shutdown] do
+    Logger.info("resource pool holder exited and capacity was reclaimed",
+      event: "instance.pool.holder_down",
+      resource_key: state.resource_key,
+      holder_pid: inspect(holder.pid),
+      department_id: holder.department_id,
+      pool_current: state.current,
+      pool_max: state.max,
+      reason: inspect(reason)
+    )
   end
 
-  defp delete_fallback_pid(resource_key, pid) when is_binary(resource_key) and is_pid(pid) do
-    key = fallback_key(resource_key)
-
-    case :persistent_term.get(key, :undefined) do
-      ^pid -> :persistent_term.erase(key)
-      _ -> :ok
-    end
+  defp log_holder_down(state, holder, {:shutdown, _detail} = reason) do
+    Logger.info("resource pool holder exited and capacity was reclaimed",
+      event: "instance.pool.holder_down",
+      resource_key: state.resource_key,
+      holder_pid: inspect(holder.pid),
+      department_id: holder.department_id,
+      pool_current: state.current,
+      pool_max: state.max,
+      reason: inspect(reason)
+    )
   end
 
-  defp fallback_key(resource_key), do: {__MODULE__, :fallback_pid, resource_key}
+  defp log_holder_down(state, holder, reason) do
+    Logger.warning("resource pool holder crashed and capacity was reclaimed",
+      event: "instance.pool.holder_down",
+      resource_key: state.resource_key,
+      holder_pid: inspect(holder.pid),
+      department_id: holder.department_id,
+      pool_current: state.current,
+      pool_max: state.max,
+      reason: inspect(reason)
+    )
+  end
+
+  defp pool_supervisor_running? do
+    not is_nil(Process.whereis(@default_pool_supervisor))
+  end
 
   defp max_capacity(opts) do
     config_capacity(Keyword.get(opts, :max_capacity, Keyword.get(opts, :capacity)))

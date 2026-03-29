@@ -10,6 +10,10 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
   setup do
     :ok = EtsStore.init_table()
     :ets.delete_all_objects(:lemming_instance_runtime)
+    ensure_registry!(LemmingsOs.LemmingInstances.ExecutorRegistry)
+    ensure_registry!(LemmingsOs.LemmingInstances.SchedulerRegistry)
+    ensure_registry!(LemmingsOs.LemmingInstances.PoolRegistry)
+    ensure_dynamic_supervisor!(LemmingsOs.LemmingInstances.PoolSupervisor)
     :ok
   end
 
@@ -40,8 +44,8 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
 
     {:ok, executor_pid} = Agent.start_link(fn -> nil end, name: executor_name)
 
-    {:ok, pool_pid} =
-      ResourcePool.start_link(resource_key: resource_key, name: nil, gate: :open, pubsub_mod: nil)
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
 
     assert {:ok, _state} =
              EtsStore.put(instance_id, %{
@@ -91,12 +95,33 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
                       resource_key: ^resource_key
                     }}
 
-    assert ResourcePool.status(pool_pid) == {1, 1}
+    assert ResourcePool.status(resource_key) == {1, 1}
 
-    assert :ok = ResourcePool.checkin(pool_pid, executor_pid)
+    assert :ok = ResourcePool.checkin(resource_key, executor_pid)
 
     GenServer.stop(pid)
-    GenServer.stop(pool_pid)
     GenServer.stop(executor_pid)
+  end
+
+  defp ensure_registry!(name) do
+    case Process.whereis(name) do
+      pid when is_pid(pid) ->
+        :ok
+
+      nil ->
+        start_supervised!({Registry, keys: :unique, name: name})
+        :ok
+    end
+  end
+
+  defp ensure_dynamic_supervisor!(name) do
+    case Process.whereis(name) do
+      pid when is_pid(pid) ->
+        :ok
+
+      nil ->
+        start_supervised!({DynamicSupervisor, name: name, strategy: :one_for_one})
+        :ok
+    end
   end
 end

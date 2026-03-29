@@ -24,7 +24,7 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
   """
   @spec chat(Provider.request(), keyword()) ::
           {:ok, Provider.provider_response()}
-          | {:error, :network_error | :provider_error | :timeout}
+          | {:error, term()}
   def chat(request, opts \\ [])
 
   def chat(%{model: model, messages: messages} = request, opts)
@@ -46,22 +46,23 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
 
       {:ok, %Req.Response{status: status, body: body}} ->
         log_provider_error(status, body)
-        {:error, :provider_error}
+        {:error, {:provider_http_error, provider_error_metadata(status, body)}}
 
       {:error, %Req.TransportError{reason: :timeout}} ->
-        {:error, :timeout}
+        {:error, {:provider_timeout, %{provider: @provider_name}}}
 
       {:error, %Req.TransportError{} = error} ->
         log_network_error(error)
-        {:error, :network_error}
+        {:error, {:provider_network_error, network_error_metadata(error)}}
 
       {:error, error} ->
         log_network_error(error)
-        {:error, :network_error}
+        {:error, {:provider_network_error, network_error_metadata(error)}}
     end
   end
 
-  def chat(_request, _opts), do: {:error, :provider_error}
+  def chat(_request, _opts),
+    do: {:error, {:provider_invalid_response, %{provider: @provider_name}}}
 
   defp request_body(request) do
     model = Map.get(request, :model) || Map.get(request, "model")
@@ -84,12 +85,13 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
   defp normalize_body(body) when is_binary(body) do
     case Jason.decode(body) do
       {:ok, parsed} when is_map(parsed) -> {:ok, parsed}
-      {:ok, _parsed} -> {:error, :provider_error}
-      {:error, _reason} -> {:error, :provider_error}
+      {:ok, _parsed} -> {:error, {:provider_invalid_response, %{provider: @provider_name}}}
+      {:error, _reason} -> {:error, {:provider_invalid_response, %{provider: @provider_name}}}
     end
   end
 
-  defp normalize_body(_body), do: {:error, :provider_error}
+  defp normalize_body(_body),
+    do: {:error, {:provider_invalid_response, %{provider: @provider_name}}}
 
   defp response_content(%{"message" => %{"content" => content}}) when is_binary(content),
     do: {:ok, content}
@@ -101,11 +103,12 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
     case Map.get(message, :content) || Map.get(message, "content") do
       content when is_binary(content) -> {:ok, content}
       content when is_list(content) -> {:ok, IO.iodata_to_binary(content)}
-      _ -> {:error, :provider_error}
+      _ -> {:error, {:provider_invalid_response, %{provider: @provider_name}}}
     end
   end
 
-  defp response_content(_body), do: {:error, :provider_error}
+  defp response_content(_body),
+    do: {:error, {:provider_invalid_response, %{provider: @provider_name}}}
 
   defp build_provider_response(content, body, model) do
     input_tokens = fetch_integer(body, "prompt_eval_count")
@@ -187,6 +190,42 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
       reason: inspect(reason)
     )
   end
+
+  defp provider_error_metadata(status, body) do
+    %{
+      provider: @provider_name,
+      status: status,
+      detail: summarize_body(body)
+    }
+  end
+
+  defp network_error_metadata(reason) do
+    %{
+      provider: @provider_name,
+      reason: inspect(reason)
+    }
+  end
+
+  defp summarize_body(%{"error" => error}) when is_binary(error), do: error
+  defp summarize_body(%{error: error}) when is_binary(error), do: error
+
+  defp summarize_body(body) when is_binary(body) do
+    trimmed = String.trim(body)
+
+    case Jason.decode(trimmed) do
+      {:ok, %{"error" => error}} when is_binary(error) ->
+        error
+
+      {:ok, %{error: error}} when is_binary(error) ->
+        error
+
+      _ ->
+        String.slice(trimmed, 0, 200)
+    end
+  end
+
+  defp summarize_body(body) when is_map(body), do: inspect(body, limit: 10, printable_limit: 200)
+  defp summarize_body(_body), do: nil
 
   defp default_base_url do
     model_runtime_config()

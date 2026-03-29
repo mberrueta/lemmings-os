@@ -32,6 +32,7 @@ defmodule LemmingsOsWeb.MockShell do
   def default_shell_breadcrumb(:lemmings), do: [shell_item(:lemmings, "/lemmings")]
   def default_shell_breadcrumb(:tools), do: [shell_item(:tools, "/tools")]
   def default_shell_breadcrumb(:logs), do: [shell_item(:logs, "/logs")]
+  def default_shell_breadcrumb(:runtime), do: [shell_item(:runtime, "/dev/runtime")]
   def default_shell_breadcrumb(:settings), do: [shell_item(:settings, "/settings")]
   def default_shell_breadcrumb(_page_key), do: []
 
@@ -47,6 +48,7 @@ defmodule LemmingsOsWeb.MockShell do
   def shell_label(:lemmings), do: translated_shell_label(dgettext("layout", ".nav_lemmings"))
   def shell_label(:tools), do: translated_shell_label(dgettext("layout", ".nav_tools"))
   def shell_label(:logs), do: translated_shell_label(dgettext("layout", ".nav_logs"))
+  def shell_label(:runtime), do: "runtime"
   def shell_label(:settings), do: translated_shell_label(dgettext("layout", ".nav_settings"))
   def shell_label(label) when is_atom(label), do: label |> Atom.to_string() |> shell_label()
   def shell_label("new"), do: translated_shell_label(dgettext("layout", ".breadcrumb_new"))

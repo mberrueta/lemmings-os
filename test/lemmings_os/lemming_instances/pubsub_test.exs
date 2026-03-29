@@ -31,7 +31,23 @@ defmodule LemmingsOs.LemmingInstances.PubSubTest do
                     }}
   end
 
-  test "S04: broadcast_capacity_released/2 emits the scheduler payload shape" do
+  test "S04: subscribe_instance_messages/1 and broadcast_message_appended/3 use the transcript topic" do
+    instance_id = "instance-pubsub-message"
+    message_id = "message-pubsub-message"
+    role = "assistant"
+
+    assert :ok = PubSub.subscribe_instance_messages(instance_id)
+    assert :ok = PubSub.broadcast_message_appended(instance_id, message_id, role)
+
+    assert_receive {:message_appended,
+                    %{
+                      instance_id: ^instance_id,
+                      message_id: ^message_id,
+                      role: ^role
+                    }}
+  end
+
+  test "S05: broadcast_capacity_released/2 emits the scheduler payload shape" do
     department_id = "dept-pubsub-capacity"
     resource_key = "ollama:llama3.2"
 
@@ -42,7 +58,7 @@ defmodule LemmingsOs.LemmingInstances.PubSubTest do
                     %{department_id: ^department_id, resource_key: ^resource_key}}
   end
 
-  test "S05: subscribe_capacity/0 and broadcast_capacity_released/1 use the global capacity topic" do
+  test "S06: subscribe_capacity/0 and broadcast_capacity_released/1 use the global capacity topic" do
     resource_key = "ollama:llama3.2"
 
     assert :ok = PubSub.subscribe_capacity()
@@ -51,7 +67,7 @@ defmodule LemmingsOs.LemmingInstances.PubSubTest do
     assert_receive {:capacity_released, %{resource_key: ^resource_key}}
   end
 
-  test "S06: broadcast_scheduler_admit/3 emits the scheduler admission payload" do
+  test "S07: broadcast_scheduler_admit/3 emits the scheduler admission payload" do
     department_id = "dept-pubsub-admit"
     instance_id = "instance-pubsub-admit"
     resource_key = "ollama:llama3.2"

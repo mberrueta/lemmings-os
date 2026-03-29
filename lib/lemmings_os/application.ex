@@ -11,16 +11,14 @@ defmodule LemmingsOs.Application do
   def start(_type, _args) do
     children =
       [
-        LemmingsOsWeb.Telemetry,
         LemmingsOs.Repo,
-        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.ExecutorRegistry},
-        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.SchedulerRegistry},
-        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.PoolRegistry},
+        LemmingsOsWeb.Telemetry,
         LemmingsOs.LemmingInstances.DetsStore,
+        LemmingsOs.Runtime.ActivityLog,
         {LemmingsOs.Worlds.Cache, []},
         {DNSCluster, query: Application.get_env(:lemmings_os, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: LemmingsOs.PubSub}
-      ] ++ runtime_city_heartbeat_child() ++ [LemmingsOsWeb.Endpoint]
+      ] ++ runtime_engine_children() ++ runtime_city_heartbeat_child() ++ [LemmingsOsWeb.Endpoint]
 
     opts = [strategy: :one_for_one, name: LemmingsOs.Supervisor]
 
@@ -28,6 +26,7 @@ defmodule LemmingsOs.Application do
       {:ok, _supervisor} = result ->
         maybe_run_world_bootstrap_import()
         maybe_sync_runtime_city()
+        maybe_recover_runtime_sessions()
         result
 
       error ->
@@ -62,9 +61,47 @@ defmodule LemmingsOs.Application do
     end
   end
 
+  defp maybe_recover_runtime_sessions do
+    if Application.get_env(:lemmings_os, :runtime_engine_on_startup, true) do
+      {:ok, recovered_count} = LemmingsOs.Runtime.recover_created_sessions()
+
+      Logger.info("runtime recovery sweep completed",
+        event: "runtime.recovery.sweep",
+        recovered_count: recovered_count
+      )
+
+      _ =
+        LemmingsOs.Runtime.ActivityLog.record(
+          :system,
+          "runtime",
+          "Recovery sweep completed",
+          %{recovered_count: recovered_count}
+        )
+    end
+  end
+
   defp runtime_city_heartbeat_child do
     if Application.get_env(:lemmings_os, :runtime_city_heartbeat_on_startup, true) do
       [{LemmingsOs.Cities.Heartbeat, []}]
+    else
+      []
+    end
+  end
+
+  defp runtime_engine_children do
+    if Application.get_env(:lemmings_os, :runtime_engine_on_startup, true) do
+      [
+        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.ExecutorRegistry},
+        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.SchedulerRegistry},
+        {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.PoolRegistry},
+        LemmingsOs.LemmingInstances.RuntimeTableOwner,
+        {DynamicSupervisor,
+         name: LemmingsOs.LemmingInstances.PoolSupervisor, strategy: :one_for_one},
+        {DynamicSupervisor,
+         name: LemmingsOs.LemmingInstances.ExecutorSupervisor, strategy: :one_for_one},
+        {DynamicSupervisor,
+         name: LemmingsOs.LemmingInstances.SchedulerSupervisor, strategy: :one_for_one}
+      ]
     else
       []
     end
