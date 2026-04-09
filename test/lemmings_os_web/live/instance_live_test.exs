@@ -11,6 +11,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
   alias LemmingsOs.LemmingInstances.EtsStore
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.Executor
+  alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Repo
   alias LemmingsOsWeb.InstanceComponents
@@ -45,6 +46,16 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     start_supervised!(
       {DynamicSupervisor,
        name: LemmingsOs.LemmingInstances.PoolSupervisor, strategy: :one_for_one}
+    )
+
+    start_supervised!(
+      {DynamicSupervisor,
+       name: LemmingsOs.LemmingInstances.ExecutorSupervisor, strategy: :one_for_one}
+    )
+
+    start_supervised!(
+      {DynamicSupervisor,
+       name: LemmingsOs.LemmingInstances.SchedulerSupervisor, strategy: :one_for_one}
     )
 
     start_supervised!(LemmingsOs.LemmingInstances.RuntimeTableOwner)
@@ -87,10 +98,14 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
     assert html =~ ~s(data-role="assistant")
     assert html =~ "The outage has been contained."
-    assert html =~ "border-sky-400/50 text-sky-400"
-    assert html =~ "border-emerald-400/50 text-emerald-400"
-    assert html =~ "border-zinc-700 text-zinc-500"
-    assert html =~ "border-zinc-700 text-zinc-300"
+    assert html =~ "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+    assert html =~ "Input 12 tokens"
+    assert html =~ "Output 8 tokens"
+    assert html =~ "Total 20 tokens"
+    refute html =~ "openai"
+    refute html =~ "gpt-4.1-mini"
+    refute html =~ "cache_read"
+    refute html =~ "reasoning_tokens"
   end
 
   test "S03: renders a not found state for missing instances", %{conn: conn} do
@@ -209,6 +224,79 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     assert eventually_has_element?(view, "#instance-status-badge", "Queued")
   end
 
+  test "S05b: rejects forged follow-up submits when the instance is not idle", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-follow-up-request-text[disabled]")
+
+    view
+    |> element("#instance-follow-up-form")
+    |> render_submit(%{
+      "follow_up_request" => %{"request_text" => "Force a second request while starting"}
+    })
+
+    assert has_element?(view, "#instance-follow-up-error", "Starting...")
+
+    refute has_element?(
+             view,
+             "#instance-session-transcript-stream",
+             "Force a second request while starting"
+           )
+  end
+
+  test "S05c: follow-up input toggles as PubSub status changes arrive", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_idle_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    refute has_element?(view, "#instance-follow-up-request-text[disabled]")
+    assert has_element?(view, "#instance-follow-up-copy", "Ready for another request.")
+
+    {:ok, _instance} = LemmingsOs.LemmingInstances.update_status(instance, "queued", %{})
+    assert :ok = PubSub.broadcast_status_change(instance.id, "queued")
+
+    assert eventually_has_element?(view, "#instance-follow-up-request-text[disabled]")
+    assert eventually_has_element?(view, "#instance-follow-up-copy", "Waiting for capacity...")
+
+    {:ok, _instance} = LemmingsOs.LemmingInstances.update_status(instance, "idle", %{})
+    assert :ok = PubSub.broadcast_status_change(instance.id, "idle")
+
+    assert eventually_lacks_element?(view, "#instance-follow-up-request-text[disabled]")
+
+    {:ok, _instance} = LemmingsOs.LemmingInstances.update_status(instance, "failed", %{})
+    assert :ok = PubSub.broadcast_status_change(instance.id, "failed")
+
+    assert eventually_has_element?(
+             view,
+             "#instance-follow-up-terminal-message",
+             "Instance has failed"
+           )
+
+    refute has_element?(view, "#instance-follow-up-form")
+  end
+
+  test "S05d: failed instances render a retry action and requeue when clicked", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    {:ok, failed_instance} = LemmingsOs.LemmingInstances.update_status(instance, "failed", %{})
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{failed_instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-retry-button", "Retry")
+
+    view
+    |> element("#instance-retry-button")
+    |> render_click()
+
+    assert eventually_has_element?(view, "#instance-status-badge", "Queued")
+    assert eventually_lacks_element?(view, "#instance-retry-button")
+    assert eventually_has_element?(view, "#instance-follow-up-copy", "Waiting for capacity...")
+  end
+
   defp spawn_runtime_session do
     world = insert(:world, name: "Ops World", slug: "ops-world")
     city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
@@ -267,6 +355,19 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     else
       Process.sleep(50)
       eventually_has_element?(view, selector, text, attempts - 1)
+    end
+  end
+
+  defp eventually_lacks_element?(view, selector, attempts \\ 10)
+
+  defp eventually_lacks_element?(_view, _selector, 0), do: true
+
+  defp eventually_lacks_element?(view, selector, attempts) do
+    if has_element?(view, selector) do
+      Process.sleep(50)
+      eventually_lacks_element?(view, selector, attempts - 1)
+    else
+      true
     end
   end
 end

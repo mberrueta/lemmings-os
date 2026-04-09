@@ -13,3 +13,4 @@ _build
 /tmp/
 *.dets
 /erl_crash.dump
+/.codex

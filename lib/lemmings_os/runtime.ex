@@ -86,6 +86,45 @@ defmodule LemmingsOs.Runtime do
   end
 
   @doc """
+  Retries a failed runtime session.
+
+  If the failed executor is still alive, the retry is pushed into that process.
+  Otherwise, the runtime restarts the scheduler/executor pair and resumes the
+  latest pending user request from the transcript.
+  """
+  @spec retry_session(LemmingInstance.t(), keyword()) ::
+          {:ok, LemmingInstance.t()} | {:error, atom() | term()}
+  def retry_session(instance, opts \\ [])
+
+  def retry_session(%LemmingInstance{status: "failed"} = instance, opts) do
+    case Registry.lookup(LemmingsOs.LemmingInstances.ExecutorRegistry, instance.id) do
+      [{executor_pid, _value}] when is_pid(executor_pid) ->
+        :ok = Executor.retry(executor_pid)
+
+        Logger.info("runtime session retry requested",
+          event: "runtime.retry_session",
+          instance_id: instance.id,
+          lemming_id: instance.lemming_id,
+          department_id: instance.department_id,
+          world_id: instance.world_id
+        )
+
+        _ =
+          ActivityLog.record(:runtime, "instance", "Runtime session retry requested", %{
+            instance_id: instance.id,
+            mode: "existing_executor"
+          })
+
+        {:ok, instance}
+
+      _ ->
+        retry_failed_session(instance, opts)
+    end
+  end
+
+  def retry_session(%LemmingInstance{}, _opts), do: {:error, :instance_not_failed}
+
+  @doc """
   Reconciles created runtime instances after boot.
 
   This best-effort recovery is intended for sessions that were persisted but
@@ -250,6 +289,35 @@ defmodule LemmingsOs.Runtime do
     end
   end
 
+  defp retry_failed_session(instance, opts) do
+    with {:ok, retried_instance, resume_message} <- retry_plan(instance),
+         {:ok, _scheduler_pid} <- start_scheduler(retried_instance, opts),
+         {:ok, executor_pid} <-
+           start_executor(
+             retried_instance,
+             Keyword.put(opts, :executor_opts, executor_opts_for_recovery(opts, true))
+           ),
+         :ok <- maybe_resume_pending(executor_pid, resume_message) do
+      Logger.info("runtime session retry requested",
+        event: "runtime.retry_session",
+        instance_id: retried_instance.id,
+        lemming_id: retried_instance.lemming_id,
+        department_id: retried_instance.department_id,
+        world_id: retried_instance.world_id,
+        message_id: resume_message_id(resume_message)
+      )
+
+      _ =
+        ActivityLog.record(:runtime, "instance", "Runtime session retry requested", %{
+          instance_id: retried_instance.id,
+          mode: "recovered_executor",
+          resume_message_id: resume_message_id(resume_message)
+        })
+
+      {:ok, retried_instance}
+    end
+  end
+
   defp recovery_plan(instance) do
     case pending_user_message(instance) do
       {:ok, message} ->
@@ -257,6 +325,16 @@ defmodule LemmingsOs.Runtime do
 
       :none ->
         {:ok, normalize_attached_instance(instance), :noop}
+    end
+  end
+
+  defp retry_plan(instance) do
+    case pending_user_message(instance) do
+      {:ok, message} ->
+        {:ok, %{instance | status: "created"}, {:pending, message}}
+
+      :none ->
+        {:error, :no_pending_request}
     end
   end
 

@@ -20,7 +20,7 @@ config :lemmings_os, :runtime_engine_on_startup, true
 
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,
-  default_model: "llama3.2",
+  default_model: "qwen3.5:latest",
   timeout: 120_000,
   ollama: [base_url: System.get_env("OLLAMA_BASE_URL") || "http://localhost:11434"]
 

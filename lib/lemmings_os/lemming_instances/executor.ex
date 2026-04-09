@@ -202,6 +202,14 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   @doc """
+  Retries the current failed work item by moving it back into the queue.
+  """
+  @spec retry(GenServer.server() | binary()) :: :ok
+  def retry(server) do
+    GenServer.cast(normalize_server(server), :retry_failed)
+  end
+
+  @doc """
   Returns the current executor status snapshot.
 
   ## Examples
@@ -461,6 +469,11 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   @impl true
+  def handle_cast(:retry_failed, state) do
+    {:noreply, retry_failed(state)}
+  end
+
+  @impl true
   def handle_cast(:admit, state) do
     {:noreply, maybe_start_processing(state)}
   end
@@ -592,6 +605,30 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp maybe_restart_retry(state), do: state
+
+  defp retry_failed(%{status: "failed"} = state) do
+    queue =
+      case state.current_item do
+        nil -> state.queue
+        current_item -> :queue.in_r(current_item, state.queue)
+      end
+
+    if :queue.is_empty(queue) do
+      state
+    else
+      state
+      |> Map.put(:queue, queue)
+      |> Map.put(:current_item, nil)
+      |> Map.put(:current_resource_key, nil)
+      |> Map.put(:retry_count, 0)
+      |> Map.put(:last_error, nil)
+      |> transition_to("queued", %{stopped_at: nil})
+      |> put_runtime_state()
+      |> notify_scheduler()
+    end
+  end
+
+  defp retry_failed(state), do: state
 
   defp handle_model_result(state, {:ok, %LemmingsOs.ModelRuntime.Response{} = response}) do
     state

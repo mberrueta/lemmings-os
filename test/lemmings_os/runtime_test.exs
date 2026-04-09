@@ -166,6 +166,35 @@ defmodule LemmingsOs.RuntimeTest do
              "created"
   end
 
+  test "S05: retry_session/2 requeues a failed instance when its executor is down" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    assert {:ok, instance} = LemmingInstances.spawn_instance(lemming, "Retry the failed request")
+    assert {:ok, failed_instance} = LemmingInstances.update_status(instance, "failed", %{})
+
+    assert {:ok, retried_instance} =
+             Runtime.retry_session(failed_instance, scheduler_opts: [admission_mode: :manual])
+
+    assert retried_instance.id == failed_instance.id
+    assert retried_instance.status == "created"
+
+    assert [{executor_pid, _value}] =
+             Registry.lookup(LemmingsOs.LemmingInstances.ExecutorRegistry, failed_instance.id)
+
+    assert is_pid(executor_pid)
+    assert eventually_status(failed_instance.id) == "queued"
+  end
+
   defp eventually_status(instance_id, attempts \\ 10)
 
   defp eventually_status(instance_id, 0), do: Executor.status(instance_id).status

@@ -18,7 +18,7 @@ models:
       base_url: "http://127.0.0.1:11434"
       default_billing_mode: "zero_cost"
       allowed_models:
-        - "llama3.2"
+        - "qwen3.5:latest"
         - "qwen2.5:7b"
     openai:
       enabled: false
@@ -29,7 +29,7 @@ models:
   profiles:
     default:
       provider: "ollama"
-      model: "qwen2.5:7b"
+      model: "qwen3.5:latest"
       fallbacks:
         - provider: "ollama"
           model: "gemma2"

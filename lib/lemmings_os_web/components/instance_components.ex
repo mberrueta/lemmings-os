@@ -5,8 +5,6 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   use LemmingsOsWeb, :html
 
-  alias LemmingsOs.Helpers
-
   @default_max_retries 3
 
   attr :id, :string, default: nil
@@ -14,6 +12,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
   attr :runtime_state, :map, default: %{}
   attr :status_now, :any, default: nil
   attr :class, :string, default: nil
+  slot :actions
 
   def status_banner(assigns) do
     assigns =
@@ -104,6 +103,25 @@ defmodule LemmingsOsWeb.InstanceComponents do
             {status_elapsed(@status, @runtime_state, @status_now)}
           </p>
         </div>
+
+        <div
+          :if={@actions != []}
+          class="border border-zinc-800 bg-zinc-950/70 px-3 py-2 sm:col-span-2"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Operator action")}
+              </p>
+              <p class="mt-1 text-sm text-zinc-400">
+                {dgettext("lemmings", "Retry the latest failed request.")}
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              {render_slot(@actions)}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
     """
@@ -111,6 +129,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   attr :id, :string, required: true
   attr :message, :map, required: true
+  attr :display_now, :any, default: nil
   attr :class, :string, default: nil
 
   def message_bubble(assigns) do
@@ -119,58 +138,56 @@ defmodule LemmingsOsWeb.InstanceComponents do
     ~H"""
     <article
       id={@id}
-      class={["chat", message_alignment(@message_role), @class]}
+      class={["flex w-full", message_alignment(@message_role), @class]}
       data-role={@message_role}
     >
-      <div class="chat-header text-xs uppercase tracking-widest text-zinc-500">
-        {message_role_label(@message_role)}
-      </div>
+      <div class={["grid w-full max-w-3xl gap-2", message_grid_alignment(@message_role)]}>
+        <div class={[
+          "flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500",
+          message_meta_alignment(@message_role)
+        ]}>
+          <span class={[
+            "inline-flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
+            message_avatar_tone(@message_role)
+          ]}>
+            {message_avatar_label(@message_role)}
+          </span>
+          <span>{message_role_label(@message_role)}</span>
+        </div>
 
-      <div class={[
-        "chat-bubble max-w-none border-2 border-zinc-800 bg-zinc-950/90 text-zinc-100",
-        message_bubble_tone(@message_role)
-      ]}>
-        <p class="whitespace-pre-wrap break-words text-sm leading-6">
-          {@message.content}
-        </p>
+        <div class={[
+          "instance-session-message-surface w-full rounded-2xl border px-4 py-3",
+          message_bubble_tone(@message_role)
+        ]}>
+          <p class="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">
+            {@message.content}
+          </p>
 
-        <div
-          :if={assistant_metadata?(@message_role)}
-          class="mt-4 space-y-3 border-t border-zinc-800 pt-3"
-        >
-          <div class="flex flex-wrap gap-2">
-            <.badge :if={@message.provider} tone="info">
-              {@message.provider}
-            </.badge>
-            <.badge :if={@message.model} tone="accent">
-              {@message.model}
-            </.badge>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <.badge :if={@message.input_tokens != nil} tone="muted">
-              {dgettext("lemmings", "Input %{count} tokens", count: @message.input_tokens)}
-            </.badge>
-            <.badge :if={@message.output_tokens != nil} tone="muted">
-              {dgettext("lemmings", "Output %{count} tokens", count: @message.output_tokens)}
-            </.badge>
-            <.badge :if={@message.total_tokens != nil} tone="success">
-              {dgettext("lemmings", "Total %{count} tokens", count: @message.total_tokens)}
-            </.badge>
-          </div>
-
-          <div :if={usage_items(@message.usage) != []} class="flex flex-wrap gap-2">
-            <.badge :for={item <- usage_items(@message.usage)} tone="default">
-              {item}
-            </.badge>
+          <div
+            :if={assistant_metadata?(@message_role)}
+            class="mt-4 space-y-3 border-t border-zinc-800 pt-3"
+          >
+            <div class="flex flex-wrap gap-2">
+              <.badge :if={@message.input_tokens != nil} tone="muted">
+                {dgettext("lemmings", "Input %{count} tokens", count: @message.input_tokens)}
+              </.badge>
+              <.badge :if={@message.output_tokens != nil} tone="muted">
+                {dgettext("lemmings", "Output %{count} tokens", count: @message.output_tokens)}
+              </.badge>
+              <.badge :if={@message.total_tokens != nil} tone="success">
+                {dgettext("lemmings", "Total %{count} tokens", count: @message.total_tokens)}
+              </.badge>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="chat-footer text-xs uppercase tracking-widest text-zinc-500">
-        {Helpers.format_datetime(@message.inserted_at,
-          nil_label: dgettext("lemmings", "Unknown time")
-        )}
+        <div class={[
+          "flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500",
+          message_meta_alignment(@message_role)
+        ]}>
+          <span class="text-zinc-400">{message_clock_label(@message.inserted_at)}</span>
+          <span class="text-zinc-600">{message_age_label(@message.inserted_at, @display_now)}</span>
+        </div>
       </div>
     </article>
     """
@@ -319,16 +336,38 @@ defmodule LemmingsOsWeb.InstanceComponents do
   defp status_icon_class("expired"), do: "text-zinc-500"
   defp status_icon_class(_status), do: "text-zinc-400"
 
-  defp message_alignment(role) when role in ["assistant", :assistant], do: "chat-start"
-  defp message_alignment(_role), do: "chat-end"
+  defp message_alignment(role) when role in ["assistant", :assistant], do: "justify-start"
+  defp message_alignment(_role), do: "justify-end"
+
+  defp message_grid_alignment(role) when role in ["assistant", :assistant],
+    do: "justify-items-start"
+
+  defp message_grid_alignment(_role), do: "justify-items-end"
+
+  defp message_meta_alignment(role) when role in ["assistant", :assistant],
+    do: "justify-start text-left"
+
+  defp message_meta_alignment(_role), do: "justify-end text-right"
 
   defp message_role_label(role) when role in ["assistant", :assistant],
     do: dgettext("lemmings", "Assistant")
 
   defp message_role_label(_role), do: dgettext("lemmings", "User")
 
-  defp message_bubble_tone(role) when role in ["assistant", :assistant], do: "chat-bubble-neutral"
-  defp message_bubble_tone(_role), do: "chat-bubble-primary"
+  defp message_bubble_tone(role) when role in ["assistant", :assistant],
+    do: "border-emerald-400/15 bg-gradient-to-b from-emerald-950/45 to-zinc-950/95 rounded-tl-md"
+
+  defp message_bubble_tone(_role),
+    do: "border-sky-400/20 bg-gradient-to-b from-sky-950/40 to-zinc-950/95 rounded-tr-md"
+
+  defp message_avatar_tone(role) when role in ["assistant", :assistant],
+    do: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+
+  defp message_avatar_tone(_role),
+    do: "border-sky-400/30 bg-sky-400/10 text-sky-300"
+
+  defp message_avatar_label(role) when role in ["assistant", :assistant], do: "AI"
+  defp message_avatar_label(_role), do: "You"
 
   defp assistant_metadata?(role) when role in ["assistant", :assistant], do: true
   defp assistant_metadata?(_role), do: false
@@ -348,17 +387,24 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   defp runtime_current_item_label(%{current_item: current_item}), do: inspect(current_item)
 
-  defp usage_items(nil), do: []
+  defp message_clock_label(%DateTime{} = inserted_at), do: Calendar.strftime(inserted_at, "%H:%M")
 
-  defp usage_items(usage) when is_map(usage) do
-    usage
-    |> Enum.sort_by(fn {key, _value} -> to_string(key) end)
-    |> Enum.map(fn {key, value} -> "#{key}: #{format_usage_value(value)}" end)
+  defp message_clock_label(_inserted_at), do: dgettext("lemmings", "Unknown time")
+
+  defp message_age_label(%DateTime{} = inserted_at, %DateTime{} = display_now) do
+    seconds = max(DateTime.diff(display_now, inserted_at, :second), 0)
+
+    cond do
+      seconds < 60 -> dgettext("lemmings", "now")
+      seconds < 3_600 -> "#{div(seconds, 60)}m ago"
+      seconds < 86_400 -> "#{div(seconds, 3_600)}h ago"
+      true -> "#{div(seconds, 86_400)}d ago"
+    end
   end
 
-  defp usage_items(_usage), do: []
+  defp message_age_label(%DateTime{} = inserted_at, _display_now) do
+    message_age_label(inserted_at, DateTime.utc_now() |> DateTime.truncate(:second))
+  end
 
-  defp format_usage_value(value) when is_binary(value), do: value
-  defp format_usage_value(value) when is_integer(value), do: Integer.to_string(value)
-  defp format_usage_value(value), do: inspect(value)
+  defp message_age_label(_inserted_at, _display_now), do: nil
 end

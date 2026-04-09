@@ -6,6 +6,7 @@ defmodule LemmingsOsWeb.InstanceLive do
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Helpers
+  alias LemmingsOs.Runtime
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
 
@@ -93,6 +94,7 @@ defmodule LemmingsOsWeb.InstanceLive do
   def handle_event("submit_follow_up_request", %{"follow_up_request" => params}, socket) do
     request_text = Map.get(params, "request_text", "")
     form = follow_up_form(params, :validate)
+    status = socket.assigns.instance |> instance_status()
 
     cond do
       Helpers.blank?(request_text) ->
@@ -102,19 +104,12 @@ defmodule LemmingsOsWeb.InstanceLive do
          |> assign(:follow_up_submit_disabled?, true)
          |> assign(:follow_up_error, nil)}
 
-      match?(%{status: "failed"}, socket.assigns.instance) ->
+      not follow_up_input_enabled?(status) ->
         {:noreply,
          socket
          |> assign(:follow_up_form, form)
          |> assign(:follow_up_submit_disabled?, true)
-         |> assign(:follow_up_error, follow_up_terminal_error("failed"))}
-
-      match?(%{status: "expired"}, socket.assigns.instance) ->
-        {:noreply,
-         socket
-         |> assign(:follow_up_form, form)
-         |> assign(:follow_up_submit_disabled?, true)
-         |> assign(:follow_up_error, follow_up_terminal_error("expired"))}
+         |> assign(:follow_up_error, follow_up_submission_error(status))}
 
       true ->
         case LemmingInstances.enqueue_work(socket.assigns.instance, request_text, []) do
@@ -135,6 +130,37 @@ defmodule LemmingsOsWeb.InstanceLive do
              |> assign(:follow_up_submit_disabled?, Helpers.blank?(request_text))
              |> assign(:follow_up_error, follow_up_error(reason))}
         end
+    end
+  end
+
+  def handle_event("retry_instance", _params, %{assigns: %{instance: nil}} = socket) do
+    {:noreply,
+     put_flash(socket, :error, dgettext("lemmings", "Unable to retry this instance right now."))}
+  end
+
+  def handle_event("retry_instance", _params, socket) do
+    case Runtime.retry_session(socket.assigns.instance) do
+      {:ok, _instance} ->
+        {:noreply,
+         put_flash(socket, :info, dgettext("lemmings", "Retry requested for this instance."))}
+
+      {:error, :instance_not_failed} ->
+        {:noreply,
+         socket
+         |> load_instance(socket.assigns.instance.id, %{"world" => current_world_id(socket)})
+         |> put_flash(:error, dgettext("lemmings", "Only failed instances can be retried."))}
+
+      {:error, :no_pending_request} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("lemmings", "There is no failed request to retry."))}
+
+      {:error, _reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("lemmings", "Unable to retry this instance right now.")
+         )}
     end
   end
 
@@ -159,7 +185,7 @@ defmodule LemmingsOsWeb.InstanceLive do
             |> assign(:waiting_for_first_response?, waiting_for_first_response?(messages))
             |> assign(:instance_not_found?, false)
             |> assign(:status_tick_ref, nil)
-            |> stream(:messages, messages, reset: true)
+            |> stream(:messages, transcript_entries(messages), reset: true)
             |> schedule_status_tick()
             |> put_shell_breadcrumb(build_shell_breadcrumb(instance))
 
@@ -319,11 +345,6 @@ defmodule LemmingsOsWeb.InstanceLive do
     end
   end
 
-  defp page_key_label(%{id: id}) when is_binary(id),
-    do: dgettext("lemmings", "Instance %{id}", id: id)
-
-  defp page_key_label(_instance), do: dgettext("lemmings", "Instance session")
-
   defp instance_status(%{status: status}) when is_binary(status) and status != "", do: status
   defp instance_status(_instance), do: "created"
 
@@ -348,27 +369,22 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp instance_status_detail(%{status: status}, runtime_state, now) when not is_nil(status) do
     copy = status_copy(instance_status(%{status: status}), runtime_state, now)
-
-    if copy == "" do
-      dgettext("lemmings", "Runtime status")
-    else
-      copy
-    end
+    instance_status_detail(copy)
   end
 
   defp instance_status_detail(_instance, _runtime_state, _now),
     do: dgettext("lemmings", "Runtime status")
 
-  defp last_activity_detail(runtime_state) do
-    case Map.get(runtime_state, :current_item) do
-      nil ->
-        dgettext("lemmings", "Latest runtime move")
+  defp instance_status_detail(""), do: dgettext("lemmings", "Runtime status")
+  defp instance_status_detail(copy), do: copy
 
-      current_item ->
-        dgettext("lemmings", "Current item: %{item}",
-          item: runtime_current_item_label(%{current_item: current_item})
-        )
-    end
+  defp last_activity_detail(%{current_item: nil}),
+    do: dgettext("lemmings", "Latest runtime move")
+
+  defp last_activity_detail(%{current_item: current_item}) do
+    dgettext("lemmings", "Current item: %{item}",
+      item: runtime_current_item_label(%{current_item: current_item})
+    )
   end
 
   defp runtime_current_item_label(%{current_item: %{content: content}})
@@ -385,16 +401,17 @@ defmodule LemmingsOsWeb.InstanceLive do
   defp retry_info(runtime_state) when is_map(runtime_state) do
     retry_count = Map.get(runtime_state, :retry_count)
     max_retries = Map.get(runtime_state, :max_retries, @default_max_retries)
-
-    if is_integer(retry_count) and retry_count >= 0 do
-      dgettext("lemmings", "Retry attempt %{count} of %{max}",
-        count: retry_count,
-        max: max_retries
-      )
-    else
-      nil
-    end
+    retry_info(retry_count, max_retries)
   end
+
+  defp retry_info(retry_count, max_retries) when is_integer(retry_count) and retry_count >= 0 do
+    dgettext("lemmings", "Retry attempt %{count} of %{max}",
+      count: retry_count,
+      max: max_retries
+    )
+  end
+
+  defp retry_info(_retry_count, _max_retries), do: nil
 
   defp status_label("created", _runtime_state), do: dgettext("lemmings", "Starting...")
   defp status_label("queued", _runtime_state), do: dgettext("lemmings", "Waiting for capacity...")
@@ -445,16 +462,16 @@ defmodule LemmingsOsWeb.InstanceLive do
       Map.get(runtime_state, reference_key) || Map.get(runtime_state, :started_at) ||
         Map.get(runtime_state, :last_activity_at)
 
-    case {started_at, now} do
-      {%DateTime{} = started_at, %DateTime{} = now} ->
-        DateTime.diff(now, started_at, :second)
-        |> max(0)
-        |> format_duration()
-
-      _ ->
-        dgettext("lemmings", "unknown")
-    end
+    elapsed_label(started_at, now)
   end
+
+  defp elapsed_label(%DateTime{} = started_at, %DateTime{} = now) do
+    DateTime.diff(now, started_at, :second)
+    |> max(0)
+    |> format_duration()
+  end
+
+  defp elapsed_label(_started_at, _now), do: dgettext("lemmings", "unknown")
 
   defp format_duration(seconds) when is_integer(seconds) and seconds < 60 do
     dgettext("lemmings", "%{seconds}s", seconds: seconds)
@@ -496,11 +513,13 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp follow_up_form(params) when is_map(params), do: follow_up_form(params, nil)
 
-  defp follow_up_form(params, action) when is_map(params) do
+  defp follow_up_form(params, :validate) when is_map(params) do
     changeset = follow_up_changeset(params)
-    changeset = if action == :validate, do: %{changeset | action: :validate}, else: changeset
-    to_form(changeset, as: :follow_up_request)
+    to_form(%{changeset | action: :validate}, as: :follow_up_request)
   end
+
+  defp follow_up_form(params, _action) when is_map(params),
+    do: to_form(follow_up_changeset(params), as: :follow_up_request)
 
   defp follow_up_changeset(params) when is_map(params) do
     {%{request_text: ""}, %{request_text: :string}}
@@ -515,6 +534,12 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp follow_up_terminal_error(_status),
     do: dgettext("lemmings", "Instance cannot accept follow-up requests")
+
+  defp follow_up_submission_error("failed"), do: follow_up_terminal_error("failed")
+  defp follow_up_submission_error("expired"), do: follow_up_terminal_error("expired")
+
+  defp follow_up_submission_error(status) when is_binary(status),
+    do: follow_up_status_copy(status)
 
   defp follow_up_error(:executor_unavailable),
     do: dgettext("lemmings", "Unable to queue the follow-up request right now.")
@@ -545,4 +570,64 @@ defmodule LemmingsOsWeb.InstanceLive do
     do: dgettext("lemmings", "This request will reuse the current transcript context.")
 
   defp follow_up_helper_copy(status), do: follow_up_status_copy(status)
+
+  defp transcript_entries(messages) when is_list(messages) do
+    messages
+    |> Enum.reduce({[], nil}, fn message, {entries, previous_date} ->
+      current_date = message_date(message)
+
+      entries =
+        case current_date do
+          %Date{} = date when date != previous_date ->
+            separator = %{id: "day-#{Date.to_iso8601(date)}", type: :day_divider, date: date}
+
+            entries ++
+              [separator, %{id: "message-#{message.id}", type: :message, message: message}]
+
+          _ ->
+            entries ++ [%{id: "message-#{message.id}", type: :message, message: message}]
+        end
+
+      {entries, current_date || previous_date}
+    end)
+    |> elem(0)
+  end
+
+  defp message_date(%{inserted_at: %DateTime{} = inserted_at}), do: DateTime.to_date(inserted_at)
+  defp message_date(_message), do: nil
+
+  defp transcript_day_label(%Date{} = date) do
+    Calendar.strftime(date, "%A · %b %-d")
+    |> String.upcase()
+  end
+
+  defp transcript_day_label(_date), do: nil
+
+  defp instance_model_label(%{config_snapshot: config_snapshot}) when is_map(config_snapshot) do
+    nested_config_value(config_snapshot, [:models_config, :profiles, :default, :model]) ||
+      nested_config_value(config_snapshot, [:models_config, "profiles", "default", "model"]) ||
+      dgettext("lemmings", "Unknown model")
+  end
+
+  defp instance_model_label(_instance), do: dgettext("lemmings", "Unknown model")
+
+  defp instance_provider_label(%{config_snapshot: config_snapshot})
+       when is_map(config_snapshot) do
+    nested_config_value(config_snapshot, [:models_config, :profiles, :default, :provider]) ||
+      nested_config_value(config_snapshot, [:models_config, "profiles", "default", "provider"]) ||
+      dgettext("lemmings", "Unknown provider")
+  end
+
+  defp instance_provider_label(_instance), do: dgettext("lemmings", "Unknown provider")
+
+  defp nested_config_value(value, []), do: value
+
+  defp nested_config_value(map, [key | rest]) when is_map(map) do
+    case Map.get(map, key) do
+      nil -> nil
+      next -> nested_config_value(next, rest)
+    end
+  end
+
+  defp nested_config_value(_value, _path), do: nil
 end

@@ -140,6 +140,43 @@
     image-rendering: pixelated;
     image-rendering: crisp-edges;
   }
+
+  .instance-session-shell {
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.05),
+      0 24px 80px rgba(0, 0, 0, 0.45);
+  }
+
+  .instance-session-hero {
+    background:
+      radial-gradient(circle at top left, rgba(16, 185, 129, 0.14), transparent 30%),
+      radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 24%),
+      linear-gradient(180deg, rgba(4, 10, 9, 0.98), rgba(4, 9, 8, 0.94));
+  }
+
+  .instance-session-stats-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .instance-session-stats-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .instance-session-transcript-bg {
+    background:
+      radial-gradient(circle at center, rgba(16, 185, 129, 0.04), transparent 36%),
+      linear-gradient(180deg, rgba(3, 9, 8, 0.82), rgba(3, 9, 8, 0.96));
+  }
+
+  .instance-session-follow-up-panel {
+    background: linear-gradient(180deg, rgba(4, 10, 9, 0.96), rgba(2, 7, 6, 0.98));
+  }
+
+  .instance-session-composer,
+  .instance-session-message-surface {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  }
 }
 
 /* ── Tablet/Desktop: Auto-collapsed sidebar ─────── */

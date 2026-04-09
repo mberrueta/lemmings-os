@@ -230,6 +230,52 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     GenServer.stop(pid)
   end
 
+  test "S04b: retry/1 requeues failed work on a live executor", %{instance: instance} do
+    capture_log(fn ->
+      resource_key = "ollama:retry-live"
+
+      assert :ok = PubSub.subscribe_instance(instance.id)
+
+      {:ok, pid} =
+        Executor.start_link(
+          instance: instance,
+          config_snapshot: %{
+            runtime_config: %{max_retries: 1},
+            models_config: %{profiles: %{default: %{provider: "ollama", model: "retry-live"}}}
+          },
+          context_mod: LemmingInstances,
+          model_mod: CrashingModelRuntime,
+          pool_mod: ResourcePool,
+          pubsub_mod: Phoenix.PubSub,
+          dets_mod: nil,
+          ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+          name: nil
+        )
+
+      {:ok, _pool_pid} =
+        start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+      assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+      assert :ok = Executor.enqueue_work(pid, "Retry me")
+      assert_receive {:status_changed, %{status: "queued"}}
+
+      send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+      assert_receive {:status_changed, %{status: "processing"}}
+      assert_receive {:status_changed, %{status: "failed"}}
+
+      assert :ok = Executor.retry(pid)
+      assert_receive {:status_changed, %{status: "queued"}}
+
+      send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+      assert_receive {:status_changed, %{status: "processing"}}
+      assert_receive {:status_changed, %{status: "failed"}}
+
+      GenServer.stop(pid)
+    end)
+  end
+
   test "S05: failed executions clear persisted DETS snapshots", %{instance: instance} do
     resource_key = "ollama:failed-snapshot"
     started_at = DateTime.utc_now() |> DateTime.truncate(:second)
