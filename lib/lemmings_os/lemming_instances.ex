@@ -243,21 +243,30 @@ defmodule LemmingsOs.LemmingInstances do
       ...>     started_at: now,
       ...>     last_activity_at: now
       ...>   })
-      iex> {:ok, runtime_state} = LemmingsOs.LemmingInstances.get_runtime_state(instance.id)
+      iex> {:ok, runtime_state} =
+      ...>   LemmingsOs.LemmingInstances.get_runtime_state(instance.id, world: world)
       iex> runtime_state.status
       "idle"
   """
-  @spec get_runtime_state(LemmingInstance.t() | Ecto.UUID.t()) ::
+  @spec get_runtime_state(LemmingInstance.t() | Ecto.UUID.t(), keyword()) ::
           {:ok, map()} | {:error, :not_found}
-  def get_runtime_state(%LemmingInstance{id: instance_id}), do: get_runtime_state(instance_id)
+  def get_runtime_state(instance, opts \\ [])
 
-  def get_runtime_state(instance_id) when is_binary(instance_id) do
-    with {:ok, state} <- read_runtime_state(instance_id) do
+  def get_runtime_state(%LemmingInstance{id: instance_id}, opts) when is_list(opts) do
+    get_runtime_state(instance_id, opts)
+  end
+
+  def get_runtime_state(instance_id, opts) when is_binary(instance_id) and is_list(opts) do
+    with world_id when is_binary(world_id) <- world_scope_id(opts),
+         {:ok, _instance} <- get_instance(instance_id, world_id: world_id),
+         {:ok, state} <- read_runtime_state(instance_id) do
       {:ok, normalize_runtime_state(state)}
+    else
+      _other -> {:error, :not_found}
     end
   end
 
-  def get_runtime_state(_instance_id), do: {:error, :not_found}
+  def get_runtime_state(_instance_id, _opts), do: {:error, :not_found}
 
   @doc """
   Updates a runtime instance status and any supplied temporal markers.
@@ -572,6 +581,12 @@ defmodule LemmingsOs.LemmingInstances do
     case EtsStore.get(instance_id) do
       {:ok, state} ->
         {:ok, state}
+
+      {:error, :not_started} ->
+        case DetsStore.read(instance_id) do
+          {:ok, state} -> {:ok, state}
+          _ -> {:error, :not_found}
+        end
 
       {:error, :not_found} ->
         case DetsStore.read(instance_id) do

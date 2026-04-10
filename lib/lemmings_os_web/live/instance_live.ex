@@ -264,8 +264,8 @@ defmodule LemmingsOsWeb.InstanceLive do
     match?([%{role: "user"}], messages)
   end
 
-  defp runtime_state(%{id: instance_id} = instance) do
-    case LemmingInstances.get_runtime_state(instance_id) do
+  defp runtime_state(%{id: instance_id, world_id: world_id} = instance) do
+    case LemmingInstances.get_runtime_state(instance_id, world_id: world_id) do
       {:ok, state} ->
         %{
           retry_count: Map.get(state, :retry_count, 0),

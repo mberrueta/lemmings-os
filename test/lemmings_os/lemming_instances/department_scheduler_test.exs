@@ -6,8 +6,10 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.LemmingInstances.ResourcePool
+  alias LemmingsOs.LemmingInstances.RuntimeTableOwner
 
   setup do
+    start_supervised!(RuntimeTableOwner)
     :ok = EtsStore.init_table()
     :ets.delete_all_objects(:lemming_instance_runtime)
     ensure_registry!(LemmingsOs.LemmingInstances.ExecutorRegistry)

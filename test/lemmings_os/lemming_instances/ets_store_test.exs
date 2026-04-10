@@ -2,8 +2,10 @@ defmodule LemmingsOs.LemmingInstances.EtsStoreTest do
   use ExUnit.Case, async: false
 
   alias LemmingsOs.LemmingInstances.EtsStore
+  alias LemmingsOs.LemmingInstances.RuntimeTableOwner
 
   setup do
+    start_supervised!(RuntimeTableOwner)
     :ok = EtsStore.init_table()
     :ets.delete_all_objects(:lemming_instance_runtime)
     :ok
@@ -66,5 +68,12 @@ defmodule LemmingsOs.LemmingInstances.EtsStoreTest do
     assert {:ok, dequeued} = EtsStore.dequeue_work_item("instance-1")
     assert dequeued.id == "msg-1"
     assert EtsStore.get_queue_depth("instance-1") == 0
+  end
+
+  test "S04: init_table/0 asks the runtime table owner to recreate a deleted table" do
+    true = :ets.delete(:lemming_instance_runtime)
+
+    assert :ok = EtsStore.init_table()
+    assert :ets.whereis(:lemming_instance_runtime) != :undefined
   end
 end

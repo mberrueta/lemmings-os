@@ -6,6 +6,8 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
   instance, and a handful of wrappers around raw ETS reads and writes.
   """
 
+  alias LemmingsOs.LemmingInstances.RuntimeTableOwner
+
   @table_name :lemming_instance_runtime
   @default_max_retries 3
 
@@ -28,37 +30,23 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
           max_retries: pos_integer(),
           context_messages: [map()],
           last_error: String.t() | nil,
+          internal_error_details: map() | String.t() | nil,
           status: atom(),
           started_at: DateTime.t() | nil,
           last_activity_at: DateTime.t() | nil
         }
 
   @doc """
-  Creates the runtime ETS table if it does not already exist.
+  Ensures the runtime ETS table is available through the long-lived owner.
 
   ## Examples
 
       iex> LemmingsOs.LemmingInstances.EtsStore.init_table()
       :ok
   """
-  @spec init_table() :: :ok
+  @spec init_table() :: :ok | {:error, :not_started}
   def init_table do
-    case :ets.whereis(@table_name) do
-      :undefined ->
-        _ =
-          :ets.new(@table_name, [
-            :set,
-            :public,
-            :named_table,
-            read_concurrency: true,
-            write_concurrency: true
-          ])
-
-        :ok
-
-      _tid ->
-        :ok
-    end
+    RuntimeTableOwner.ensure_table()
   end
 
   @doc """
@@ -111,12 +99,13 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
       iex> stored.department_id
       "dept-1"
   """
-  @spec get(instance_id()) :: {:ok, state()} | {:error, :not_found}
+  @spec get(instance_id()) :: {:ok, state()} | {:error, :not_found | :not_started}
   def get(instance_id) when is_binary(instance_id) do
     with :ok <- init_table(),
          [{_entry_key, state}] <- :ets.lookup(@table_name, key(instance_id)) do
       {:ok, state}
     else
+      {:error, reason} -> {:error, reason}
       [] -> {:error, :not_found}
     end
   end
@@ -391,6 +380,10 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
       normalize_context_messages(field_value(state, :context_messages))
     )
     |> Map.put(:last_error, normalize_last_error(field_value(state, :last_error)))
+    |> Map.put(
+      :internal_error_details,
+      normalize_internal_error_details(field_value(state, :internal_error_details))
+    )
     |> Map.put(:status, normalize_status(field_value(state, :status)))
     |> Map.put(:started_at, field_value(state, :started_at))
     |> Map.put(:last_activity_at, field_value(state, :last_activity_at))
@@ -407,6 +400,7 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
      |> maybe_normalize_field(:max_retries, &normalize_pos_integer(&1, @default_max_retries))
      |> maybe_normalize_field(:context_messages, &normalize_context_messages/1)
      |> maybe_normalize_field(:last_error, &normalize_last_error/1)
+     |> maybe_normalize_field(:internal_error_details, &normalize_internal_error_details/1)
      |> maybe_normalize_field(:status, &normalize_status/1)}
   end
 
@@ -426,6 +420,15 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
 
   defp normalize_last_error(error) when is_binary(error) and error != "", do: error
   defp normalize_last_error(_error), do: nil
+
+  defp normalize_internal_error_details(%{} = error_details), do: error_details
+
+  defp normalize_internal_error_details(error_details)
+       when is_binary(error_details) and error_details != "" do
+    error_details
+  end
+
+  defp normalize_internal_error_details(_error_details), do: nil
 
   defp normalize_current_item(nil), do: nil
 

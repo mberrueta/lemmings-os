@@ -5,6 +5,11 @@ defmodule LemmingsOs.RuntimeTest do
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.Runtime
 
+  defmodule RejectingExecutorApi do
+    def enqueue_work(_pid, _content), do: {:error, :executor_unavailable}
+    def resume_pending(_pid, _content), do: {:error, :executor_unavailable}
+  end
+
   setup do
     start_supervised!(
       {Registry, keys: :unique, name: LemmingsOs.LemmingInstances.ExecutorRegistry}
@@ -58,6 +63,32 @@ defmodule LemmingsOs.RuntimeTest do
     assert eventually_status(instance.id) == "queued"
 
     [message] = LemmingInstances.list_messages(instance)
+    assert {message.role, message.content} == {"user", "Summarize the roadmap"}
+  end
+
+  test "S01b: spawn_session/3 returns an error when initial executor admission is rejected" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    assert {:error, :executor_unavailable} =
+             Runtime.spawn_session(lemming, "Summarize the roadmap",
+               executor_api_mod: RejectingExecutorApi,
+               scheduler_opts: [admission_mode: :manual]
+             )
+
+    [instance] = LemmingInstances.list_instances(world, lemming_id: lemming.id)
+    [message] = LemmingInstances.list_messages(instance)
+
+    assert instance.status == "created"
     assert {message.role, message.content} == {"user", "Summarize the roadmap"}
   end
 

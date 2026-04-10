@@ -34,7 +34,8 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
         base_url: Keyword.get(opts, :base_url, default_base_url()),
         receive_timeout: Keyword.get(opts, :timeout, default_timeout()),
         http_errors: :return,
-        retry: false
+        retry: false,
+        redirect: false
       )
 
     case Req.post(req, url: "/api/chat", json: request_body(request)) do

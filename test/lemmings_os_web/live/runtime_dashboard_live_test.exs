@@ -7,10 +7,12 @@ defmodule LemmingsOsWeb.RuntimeDashboardLiveTest do
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.ResourcePool
+  alias LemmingsOs.LemmingInstances.RuntimeTableOwner
   alias LemmingsOs.Runtime.ActivityLog
 
   setup do
     ActivityLog.clear()
+    start_supervised!(RuntimeTableOwner)
     ensure_runtime_registry!(LemmingsOs.LemmingInstances.ExecutorRegistry)
     ensure_runtime_registry!(LemmingsOs.LemmingInstances.SchedulerRegistry)
     ensure_runtime_registry!(LemmingsOs.LemmingInstances.PoolRegistry)

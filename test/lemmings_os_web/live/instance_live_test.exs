@@ -216,13 +216,15 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
           queue_depth: 0,
           retry_count: 3,
           max_retries: 3,
-          last_error: "ollama provider returned a non-success response (HTTP 500): boom."
+          last_error: "ollama request failed (HTTP 500). Retry or inspect logs.",
+          internal_error_details: %{detail: "boom"}
         },
         status_now: now
       })
 
     assert html =~ "Failure detail"
-    assert html =~ "ollama provider returned a non-success response (HTTP 500): boom."
+    assert html =~ "ollama request failed (HTTP 500). Retry or inspect logs."
+    refute html =~ "boom"
   end
 
   test "S04c: truncates long current item copy in the status banner" do

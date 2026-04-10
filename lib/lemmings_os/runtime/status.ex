@@ -261,6 +261,7 @@ defmodule LemmingsOs.Runtime.Status do
         retry_count: state.retry_count,
         max_retries: state.max_retries,
         last_error: state.last_error,
+        internal_error_details: Map.get(state, :internal_error_details),
         started_at: state.started_at,
         last_activity_at: state.last_activity_at,
         executor_alive?: not is_nil(executor),

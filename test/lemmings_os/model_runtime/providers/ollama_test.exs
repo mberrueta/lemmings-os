@@ -102,4 +102,26 @@ defmodule LemmingsOs.ModelRuntime.Providers.OllamaTest do
              assert is_binary(reason)
            end) =~ "ollama provider request failed"
   end
+
+  test "S04: chat/2 does not follow redirects automatically", %{bypass: bypass} do
+    Bypass.expect_once(bypass, "POST", "/api/chat", fn conn ->
+      conn
+      |> Plug.Conn.put_resp_header("location", "http://127.0.0.1:1/redirected")
+      |> Plug.Conn.resp(302, "")
+    end)
+
+    assert capture_log(fn ->
+             assert {:error,
+                     {:provider_http_error, %{provider: "ollama", status: 302, detail: ""}}} =
+                      Ollama.chat(
+                        %{
+                          model: "llama3.2",
+                          messages: [%{role: "user", content: "Hello"}],
+                          format: "json"
+                        },
+                        base_url: "http://127.0.0.1:#{bypass.port}",
+                        timeout: 1_000
+                      )
+           end) =~ "ollama provider returned a non-success response"
+  end
 end

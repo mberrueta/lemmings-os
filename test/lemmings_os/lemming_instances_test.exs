@@ -23,6 +23,13 @@ defmodule LemmingsOs.LemmingInstancesTest do
     end
   end
 
+  defmodule CrashOnEnqueueExecutor do
+    def enqueue_work(pid, content) do
+      Process.exit(pid, :kill)
+      LemmingsOs.LemmingInstances.Executor.enqueue_work(pid, content)
+    end
+  end
+
   setup do
     ensure_registry!(LemmingsOs.LemmingInstances.ExecutorRegistry)
     Repo.delete_all(Message)
@@ -75,6 +82,57 @@ defmodule LemmingsOs.LemmingInstancesTest do
              assert {:error, :executor_unavailable} =
                       LemmingInstances.enqueue_work(instance, "Continue with risks")
            end) =~ "follow-up request could not be queued"
+  end
+
+  test "S02c: enqueue_work does not acknowledge success when executor admission is not confirmed" do
+    instance = spawn_idle_instance()
+    dead_pid = spawn(fn -> :ok end)
+    monitor_ref = Process.monitor(dead_pid)
+
+    assert_receive {:DOWN, ^monitor_ref, :process, ^dead_pid, _reason}
+
+    assert capture_log(fn ->
+             assert {:error, :executor_unavailable} =
+                      LemmingInstances.enqueue_work(instance, "Continue with risks",
+                        executor_pid: dead_pid
+                      )
+           end) =~ "follow-up request could not be queued"
+
+    assert Enum.sort(Enum.map(LemmingInstances.list_messages(instance), &{&1.role, &1.content})) ==
+             [
+               {"user", "Continue with risks"},
+               {"user", "Investigate the outage"}
+             ]
+  end
+
+  test "S02d: enqueue_work returns an error when the executor dies after registry resolution" do
+    instance = spawn_idle_instance()
+    parent = self()
+
+    executor_pid =
+      spawn(fn ->
+        {:ok, _} =
+          Registry.register(LemmingsOs.LemmingInstances.ExecutorRegistry, instance.id, :race)
+
+        send(parent, {:executor_registered, self()})
+
+        receive do
+          :stop -> :ok
+        end
+      end)
+
+    monitor_ref = Process.monitor(executor_pid)
+
+    assert_receive {:executor_registered, ^executor_pid}
+
+    assert capture_log(fn ->
+             assert {:error, :executor_unavailable} =
+                      LemmingInstances.enqueue_work(instance, "Continue with risks",
+                        executor_mod: CrashOnEnqueueExecutor
+                      )
+           end) =~ "follow-up request could not be queued"
+
+    assert_receive {:DOWN, ^monitor_ref, :process, ^executor_pid, :killed}
   end
 
   test "S03: spawn_instance serializes config snapshots without __meta__ or not loaded associations" do
@@ -132,7 +190,8 @@ defmodule LemmingsOs.LemmingInstancesTest do
                last_activity_at: last_activity_at
              })
 
-    assert {:ok, runtime_state} = LemmingInstances.get_runtime_state(instance.id)
+    assert {:ok, runtime_state} =
+             LemmingInstances.get_runtime_state(instance.id, world_id: instance.world_id)
 
     assert runtime_state == %{
              retry_count: 1,
@@ -144,6 +203,38 @@ defmodule LemmingsOs.LemmingInstancesTest do
              started_at: started_at,
              last_activity_at: last_activity_at
            }
+  end
+
+  test "S04b: get_runtime_state/2 requires explicit world scope and enforces it" do
+    instance = spawn_idle_instance()
+    other_world = insert(:world)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    case Process.whereis(DetsStore) do
+      pid when is_pid(pid) -> :ok
+      nil -> start_supervised!(DetsStore)
+    end
+
+    assert :ok =
+             DetsStore.snapshot(instance.id, %{
+               department_id: instance.department_id,
+               queue: :queue.new(),
+               current_item: nil,
+               retry_count: 0,
+               max_retries: 3,
+               context_messages: [],
+               status: :idle,
+               started_at: now,
+               last_activity_at: now
+             })
+
+    assert {:error, :not_found} = LemmingInstances.get_runtime_state(instance.id)
+
+    assert {:error, :not_found} =
+             LemmingInstances.get_runtime_state(instance.id, world: other_world)
+
+    assert {:ok, _runtime_state} =
+             LemmingInstances.get_runtime_state(instance.id, world_id: instance.world_id)
   end
 
   test "S05: spawn_instance rejects blank initial requests and inactive lemmings" do

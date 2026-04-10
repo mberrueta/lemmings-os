@@ -54,7 +54,7 @@ defmodule LemmingsOs.Runtime do
              instance,
              Keyword.put(opts, :executor_opts, executor_opts_without_context_load(opts))
            ),
-         :ok <- Executor.enqueue_work(executor_pid, first_request_text) do
+         :ok <- executor_api(opts).enqueue_work(executor_pid, first_request_text) do
       Logger.info("runtime session spawned",
         event: "runtime.spawn_session",
         instance_id: instance.id,
@@ -235,7 +235,7 @@ defmodule LemmingsOs.Runtime do
                executor_opts_for_recovery(opts, pending_recovery?(resume_message))
              )
            ),
-         :ok <- maybe_resume_pending(executor_pid, resume_message) do
+         :ok <- maybe_resume_pending(executor_pid, resume_message, opts) do
       Logger.info("runtime instance recovered",
         event: "runtime.instance.recovered",
         instance_id: recovered_instance.id,
@@ -297,7 +297,7 @@ defmodule LemmingsOs.Runtime do
              retried_instance,
              Keyword.put(opts, :executor_opts, executor_opts_for_recovery(opts, true))
            ),
-         :ok <- maybe_resume_pending(executor_pid, resume_message) do
+         :ok <- maybe_resume_pending(executor_pid, resume_message, opts) do
       Logger.info("runtime session retry requested",
         event: "runtime.retry_session",
         instance_id: retried_instance.id,
@@ -360,10 +360,10 @@ defmodule LemmingsOs.Runtime do
     end
   end
 
-  defp maybe_resume_pending(_executor_pid, :noop), do: :ok
+  defp maybe_resume_pending(_executor_pid, :noop, _opts), do: :ok
 
-  defp maybe_resume_pending(executor_pid, {:pending, message}) do
-    Executor.resume_pending(executor_pid, message.content)
+  defp maybe_resume_pending(executor_pid, {:pending, message}, opts) do
+    executor_api(opts).resume_pending(executor_pid, message.content)
   end
 
   defp pending_recovery?({:pending, _message}), do: true
@@ -385,6 +385,10 @@ defmodule LemmingsOs.Runtime do
   defp executor_opts_without_context_load(opts) do
     Keyword.get(opts, :executor_opts, [])
     |> Keyword.put(:load_context_messages, false)
+  end
+
+  defp executor_api(opts) do
+    Keyword.get(opts, :executor_api_mod, Executor)
   end
 
   defp recovery_limit(opts) do

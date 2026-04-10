@@ -7,8 +7,10 @@ defmodule LemmingsOs.LemmingInstances.TelemetryTest do
   alias LemmingsOs.LemmingInstances.EtsStore
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.ResourcePool
+  alias LemmingsOs.LemmingInstances.RuntimeTableOwner
 
   setup do
+    ensure_process_started!(RuntimeTableOwner)
     :ok = EtsStore.init_table()
     :ets.delete_all_objects(:lemming_instance_runtime)
 
@@ -17,7 +19,6 @@ defmodule LemmingsOs.LemmingInstances.TelemetryTest do
     ensure_registry!(LemmingsOs.LemmingInstances.PoolRegistry)
     ensure_dynamic_supervisor!(LemmingsOs.LemmingInstances.PoolSupervisor)
 
-    ensure_process_started!(LemmingsOs.LemmingInstances.RuntimeTableOwner)
     ensure_process_started!(LemmingsOs.LemmingInstances.DetsStore)
 
     on_exit(fn ->

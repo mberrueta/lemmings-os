@@ -24,6 +24,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.LemmingInstances.ResourcePool
+  alias LemmingsOs.LemmingInstances.RuntimeTableOwner
   alias LemmingsOs.LemmingInstances.Telemetry
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
@@ -55,6 +56,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           max_retries: pos_integer(),
           context_messages: [map()],
           last_error: String.t() | nil,
+          internal_error_details: map() | String.t() | nil,
           model_task_pid: pid() | nil,
           model_task_monitor_ref: reference() | nil,
           model_task_ref: reference() | nil,
@@ -186,13 +188,12 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       {:error, :empty_request_text}
   """
   @spec enqueue_work(GenServer.server() | binary(), String.t()) ::
-          :ok | {:error, :empty_request_text}
+          :ok | {:error, :empty_request_text | :executor_unavailable | :terminal_instance}
   def enqueue_work(server, content) when is_binary(content) do
     if Helpers.blank?(content) do
       {:error, :empty_request_text}
     else
-      GenServer.cast(normalize_server(server), {:enqueue_work, content})
-      :ok
+      safe_call(normalize_server(server), {:enqueue_work, content})
     end
   end
 
@@ -201,13 +202,12 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   context already loaded into memory.
   """
   @spec resume_pending(GenServer.server() | binary(), String.t()) ::
-          :ok | {:error, :empty_request_text}
+          :ok | {:error, :empty_request_text | :executor_unavailable | :terminal_instance}
   def resume_pending(server, content) when is_binary(content) do
     if Helpers.blank?(content) do
       {:error, :empty_request_text}
     else
-      GenServer.cast(normalize_server(server), {:resume_pending, content})
-      :ok
+      safe_call(normalize_server(server), {:resume_pending, content})
     end
   end
 
@@ -360,6 +360,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         max_retries: max_retries(config_snapshot),
         context_messages: [],
         last_error: nil,
+        internal_error_details: nil,
         model_task_pid: nil,
         model_task_monitor_ref: nil,
         model_task_ref: nil,
@@ -381,50 +382,67 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         now_fun: now_fun
       }
 
-      state =
-        state
-        |> ensure_runtime_table()
-        |> maybe_load_context_messages()
-        |> persist_started_at()
-        |> put_runtime_state()
-        |> subscribe_scheduler()
+      case ensure_runtime_table() do
+        :ok ->
+          state =
+            state
+            |> maybe_load_context_messages()
+            |> persist_started_at()
+            |> put_runtime_state()
+            |> subscribe_scheduler()
 
-      Logger.info("executor started",
-        event: "instance.executor.started",
-        instance_id: state.instance_id,
-        lemming_id: instance_lemming_id(state.instance),
-        world_id: instance_world_id(state.instance),
-        city_id: instance_city_id(state.instance),
-        department_id: state.department_id,
-        status: state.status,
-        queue_depth: :queue.len(state.queue),
-        retry_count: state.retry_count,
-        max_retries: state.max_retries,
-        current_item_id: current_item_id(state.current_item)
-      )
-
-      _ =
-        Telemetry.execute(
-          [:lemmings_os, :instance, :started],
-          %{count: 1},
-          Telemetry.instance_metadata(state.instance, %{
+          Logger.info("executor started",
+            event: "instance.executor.started",
             instance_id: state.instance_id,
+            lemming_id: instance_lemming_id(state.instance),
+            world_id: instance_world_id(state.instance),
+            city_id: instance_city_id(state.instance),
+            department_id: state.department_id,
             status: state.status,
             queue_depth: :queue.len(state.queue),
             retry_count: state.retry_count,
-            max_retries: state.max_retries
-          })
-        )
+            max_retries: state.max_retries,
+            current_item_id: current_item_id(state.current_item)
+          )
 
-      _ =
-        ActivityLog.record(:runtime, "executor", "Executor started", %{
-          instance_id: state.instance_id,
-          department_id: state.department_id,
-          status: state.status
-        })
+          _ =
+            Telemetry.execute(
+              [:lemmings_os, :instance, :started],
+              %{count: 1},
+              Telemetry.instance_metadata(state.instance, %{
+                instance_id: state.instance_id,
+                status: state.status,
+                queue_depth: :queue.len(state.queue),
+                retry_count: state.retry_count,
+                max_retries: state.max_retries
+              })
+            )
 
-      {:ok, state}
+          _ =
+            ActivityLog.record(:runtime, "executor", "Executor started", %{
+              instance_id: state.instance_id,
+              department_id: state.department_id,
+              status: state.status
+            })
+
+          {:ok, state}
+
+        {:error, reason} ->
+          {:stop, {:runtime_table_unavailable, reason}}
+      end
     end
+  end
+
+  @impl true
+  def handle_call({:enqueue_work, content}, _from, state) do
+    {reply, next_state} = enqueue_work_item(state, content, append_to_context?: true)
+    {:reply, reply, next_state}
+  end
+
+  @impl true
+  def handle_call({:resume_pending, content}, _from, state) do
+    {reply, next_state} = enqueue_work_item(state, content, append_to_context?: false)
+    {:reply, reply, next_state}
   end
 
   @impl true
@@ -434,7 +452,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       retry_count: state.retry_count,
       max_retries: state.max_retries,
       queue_depth: :queue.len(state.queue),
-      last_error: state.last_error
+      last_error: state.last_error,
+      internal_error_details: state.internal_error_details
     }
 
     {:reply, snapshot, state}
@@ -452,6 +471,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       current_item_id: current_item_id(state.current_item),
       current_resource_key: state.current_resource_key,
       last_error: state.last_error,
+      internal_error_details: state.internal_error_details,
       started_at: state.started_at,
       last_activity_at: state.last_activity_at
     }
@@ -466,35 +486,14 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   @impl true
   def handle_cast({:enqueue_work, content}, state) do
-    if terminal_status?(state.status) do
-      Logger.info("executor ignored work for terminal instance",
-        event: "instance.executor.enqueue",
-        instance_id: state.instance_id,
-        lemming_id: instance_lemming_id(state.instance),
-        world_id: instance_world_id(state.instance),
-        city_id: instance_city_id(state.instance),
-        department_id: state.department_id,
-        resource_key: state.current_resource_key,
-        status: state.status
-      )
-
-      {:noreply, state}
-    else
-      {state, did_transition?} = enqueue_item(state, content, append_to_context?: true)
-      state = if did_transition?, do: notify_scheduler(state), else: state
-      {:noreply, state}
-    end
+    {_reply, next_state} = enqueue_work_item(state, content, append_to_context?: true)
+    {:noreply, next_state}
   end
 
   @impl true
   def handle_cast({:resume_pending, content}, state) do
-    if terminal_status?(state.status) do
-      {:noreply, state}
-    else
-      {state, did_transition?} = enqueue_item(state, content, append_to_context?: false)
-      state = if did_transition?, do: notify_scheduler(state), else: state
-      {:noreply, state}
-    end
+    {_reply, next_state} = enqueue_work_item(state, content, append_to_context?: false)
+    {:noreply, next_state}
   end
 
   @impl true
@@ -651,6 +650,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       |> Map.put(:current_resource_key, nil)
       |> Map.put(:retry_count, 0)
       |> Map.put(:last_error, nil)
+      |> Map.put(:internal_error_details, nil)
       |> transition_to("queued", %{stopped_at: nil})
       |> put_runtime_state()
       |> notify_scheduler()
@@ -662,6 +662,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp handle_model_result(state, {:ok, %LemmingsOs.ModelRuntime.Response{} = response}) do
     state
     |> Map.put(:last_error, nil)
+    |> Map.put(:internal_error_details, nil)
     |> persist_assistant_message(response)
     |> clear_current_item()
     |> advance_after_success()
@@ -682,11 +683,13 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp handle_model_retry(state, reason) do
     next_retry = state.retry_count + 1
     error_message = last_error_message(reason)
+    internal_error_details = internal_error_details(reason)
 
     if next_retry >= state.max_retries do
       state
       |> Map.put(:retry_count, next_retry)
       |> Map.put(:last_error, error_message)
+      |> Map.put(:internal_error_details, internal_error_details)
       |> release_resource()
       |> cleanup_snapshot()
       |> transition_to("failed", %{stopped_at: state.now_fun.()})
@@ -695,6 +698,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       state
       |> Map.put(:retry_count, next_retry)
       |> Map.put(:last_error, error_message)
+      |> Map.put(:internal_error_details, internal_error_details)
       |> transition_to("retrying")
       |> put_runtime_state()
       |> schedule_retry()
@@ -725,6 +729,17 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp clear_current_item(state) do
     %{state | current_item: nil, retry_count: 0}
+  end
+
+  defp enqueue_work_item(state, content, opts) do
+    if terminal_status?(state.status) do
+      log_terminal_enqueue(state)
+      {{:error, :terminal_instance}, state}
+    else
+      {next_state, did_transition?} = enqueue_item(state, content, opts)
+      next_state = if did_transition?, do: notify_scheduler(next_state), else: next_state
+      {:ok, next_state}
+    end
   end
 
   defp enqueue_item(state, content, opts) do
@@ -1110,11 +1125,25 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         state
 
       dets_mod ->
-        if function_exported?(dets_mod, :snapshot, 2) do
-          _ = dets_mod.snapshot(state.instance_id, runtime_state)
-        end
+        dispatch_snapshot(state.instance_id, runtime_state, dets_mod)
 
         state
+    end
+  end
+
+  defp dispatch_snapshot(instance_id, runtime_state, dets_mod) do
+    cond do
+      function_exported?(dets_mod, :snapshot_async, 2) ->
+        _ = dets_mod.snapshot_async(instance_id, runtime_state)
+
+      function_exported?(dets_mod, :snapshot, 2) ->
+        _ =
+          Task.start(fn ->
+            _ = dets_mod.snapshot(instance_id, runtime_state)
+          end)
+
+      true ->
+        :ok
     end
   end
 
@@ -1160,24 +1189,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     state
   end
 
-  defp ensure_runtime_table(state) do
-    case :ets.whereis(@runtime_table) do
-      :undefined ->
-        _ =
-          :ets.new(@runtime_table, [
-            :set,
-            :public,
-            :named_table,
-            read_concurrency: true,
-            write_concurrency: true
-          ])
-
-        state
-
-      _ ->
-        state
-    end
-  end
+  defp ensure_runtime_table, do: RuntimeTableOwner.ensure_table()
 
   defp put_runtime_state(state) do
     runtime_state = runtime_state_map(state)
@@ -1210,6 +1222,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       max_retries: state.max_retries,
       context_messages: state.context_messages,
       last_error: state.last_error,
+      internal_error_details: state.internal_error_details,
       status: status_atom(state.status),
       started_at: state.started_at,
       last_activity_at: state.last_activity_at
@@ -1268,31 +1281,23 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp current_item_id(_current_item), do: nil
 
   defp last_error_message(:provider_error),
-    do: "Model provider returned a non-success response."
+    do: "Model request failed. Retry or inspect logs."
 
   defp last_error_message({:provider_http_error, %{provider: provider} = metadata}) do
     provider_label = provider_label(provider)
     status_copy = provider_status_copy(metadata)
-    detail_copy = provider_detail_copy(metadata)
 
-    "#{provider_label} provider returned a non-success response#{status_copy}#{detail_copy}"
+    "#{provider_label} request failed#{status_copy}. Retry or inspect logs."
   end
 
   defp last_error_message({:provider_timeout, %{provider: provider}}),
-    do: "#{provider_label(provider)} provider request timed out."
+    do: "#{provider_label(provider)} request timed out. Retry or inspect logs."
 
-  defp last_error_message({:provider_network_error, %{provider: provider} = metadata}) do
-    case Map.get(metadata, :reason) do
-      reason when is_binary(reason) and reason != "" ->
-        "#{provider_label(provider)} provider request failed: #{reason}."
-
-      _ ->
-        "#{provider_label(provider)} provider request failed due to a network error."
-    end
-  end
+  defp last_error_message({:provider_network_error, %{provider: provider}}),
+    do: "#{provider_label(provider)} request failed. Retry or inspect logs."
 
   defp last_error_message({:provider_invalid_response, %{provider: provider}}),
-    do: "#{provider_label(provider)} provider returned an invalid response."
+    do: "#{provider_label(provider)} returned an invalid response. Retry or inspect logs."
 
   defp last_error_message(:network_error),
     do: "Model provider request failed due to a network error."
@@ -1330,7 +1335,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp last_error_message(reason) when is_atom(reason),
     do: "Runtime error: #{Atom.to_string(reason)}."
 
-  defp last_error_message(reason), do: "Runtime error: #{inspect(reason)}."
+  defp last_error_message(_reason), do: "Runtime error. Retry or inspect logs."
 
   defp provider_label(provider) when is_binary(provider) and provider != "", do: provider
   defp provider_label(provider) when is_atom(provider), do: Atom.to_string(provider)
@@ -1339,10 +1344,24 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp provider_status_copy(%{status: status}) when is_integer(status), do: " (HTTP #{status})"
   defp provider_status_copy(_metadata), do: ""
 
-  defp provider_detail_copy(%{detail: detail}) when is_binary(detail) and detail != "",
-    do: ": #{detail}."
+  defp internal_error_details({:provider_http_error, metadata}) when is_map(metadata) do
+    Map.put(metadata, :kind, :provider_http_error)
+  end
 
-  defp provider_detail_copy(_metadata), do: "."
+  defp internal_error_details({:provider_timeout, metadata}) when is_map(metadata) do
+    Map.put(metadata, :kind, :provider_timeout)
+  end
+
+  defp internal_error_details({:provider_network_error, metadata}) when is_map(metadata) do
+    Map.put(metadata, :kind, :provider_network_error)
+  end
+
+  defp internal_error_details({:provider_invalid_response, metadata}) when is_map(metadata) do
+    Map.put(metadata, :kind, :provider_invalid_response)
+  end
+
+  defp internal_error_details(reason) when is_atom(reason), do: %{kind: reason}
+  defp internal_error_details(reason), do: inspect(reason)
 
   defp status_atom(status) when is_binary(status) do
     Map.fetch!(@status_atoms, status)
@@ -1397,6 +1416,25 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp normalize_server(server) when is_binary(server), do: via_name(server)
   defp normalize_server(server), do: server
+
+  defp safe_call(server, message) do
+    GenServer.call(server, message)
+  catch
+    :exit, _reason -> {:error, :executor_unavailable}
+  end
+
+  defp log_terminal_enqueue(state) do
+    Logger.info("executor ignored work for terminal instance",
+      event: "instance.executor.enqueue",
+      instance_id: state.instance_id,
+      lemming_id: instance_lemming_id(state.instance),
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      department_id: state.department_id,
+      resource_key: state.current_resource_key,
+      status: state.status
+    )
+  end
 
   defp max_retries(config_snapshot) do
     runtime_config_value(config_snapshot, :max_retries) ||

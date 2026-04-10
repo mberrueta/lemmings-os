@@ -88,6 +88,25 @@ defmodule LemmingsOs.LemmingInstances.DetsStore do
   end
 
   @doc """
+  Enqueues a best-effort DETS snapshot write without blocking the caller.
+  """
+  @spec snapshot_async(instance_id(), snapshot()) :: :ok | {:error, term()}
+  def snapshot_async(instance_id, state_map) when is_binary(instance_id) and is_map(state_map) do
+    case Process.whereis(__MODULE__) do
+      nil ->
+        {:error, :not_started}
+
+      _pid ->
+        GenServer.cast(__MODULE__, {:snapshot_async, instance_id, state_map})
+        :ok
+    end
+  end
+
+  def snapshot_async(instance_id, _state_map) when is_binary(instance_id) do
+    {:error, :invalid_state}
+  end
+
+  @doc """
   Deletes a snapshot for an instance.
 
   ## Examples
@@ -153,16 +172,7 @@ defmodule LemmingsOs.LemmingInstances.DetsStore do
 
   @impl true
   def handle_call({:snapshot, instance_id, state_map}, _from, state) do
-    reply =
-      case safe_dets_call(fn -> :dets.insert(@table_name, {instance_id, state_map}) end) do
-        :ok ->
-          log_snapshot_written(instance_id)
-          emit_snapshot_written(instance_id)
-          :ok
-
-        {:error, reason} ->
-          fail(:snapshot, instance_id, reason)
-      end
+    reply = write_snapshot(instance_id, state_map)
 
     {:reply, reply, state}
   end
@@ -184,6 +194,12 @@ defmodule LemmingsOs.LemmingInstances.DetsStore do
   end
 
   @impl true
+  def handle_cast({:snapshot_async, instance_id, state_map}, state) do
+    _ = write_snapshot(instance_id, state_map)
+    {:noreply, state}
+  end
+
+  @impl true
   def terminate(_reason, _state) do
     case :dets.close(@table_name) do
       :ok -> :ok
@@ -200,6 +216,18 @@ defmodule LemmingsOs.LemmingInstances.DetsStore do
     catch
       kind, reason ->
         {:error, {kind, reason}}
+    end
+  end
+
+  defp write_snapshot(instance_id, state_map) do
+    case safe_dets_call(fn -> :dets.insert(@table_name, {instance_id, state_map}) end) do
+      :ok ->
+        log_snapshot_written(instance_id)
+        emit_snapshot_written(instance_id)
+        :ok
+
+      {:error, reason} ->
+        fail(:snapshot, instance_id, reason)
     end
   end
 
