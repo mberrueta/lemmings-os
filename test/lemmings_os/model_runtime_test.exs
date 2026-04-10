@@ -111,4 +111,18 @@ defmodule LemmingsOs.ModelRuntimeTest do
 
     assert %Response{reply: "hello", provider: "ollama", model: "llama3.2"} = response
   end
+
+  test "S06: run/3 returns :missing_model when no model is configured" do
+    previous_runtime_config = Application.get_env(:lemmings_os, :model_runtime, [])
+    runtime_config_without_model = Keyword.delete(previous_runtime_config, :default_model)
+    Application.put_env(:lemmings_os, :model_runtime, runtime_config_without_model)
+
+    on_exit(fn ->
+      Application.put_env(:lemmings_os, :model_runtime, previous_runtime_config)
+    end)
+
+    config_snapshot = %{provider_module: FakeProvider}
+
+    assert {:error, :missing_model} = ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+  end
 end

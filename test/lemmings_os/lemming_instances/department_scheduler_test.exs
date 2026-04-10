@@ -103,6 +103,69 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
     GenServer.stop(executor_pid)
   end
 
+  test "S04: auto mode reacts to work_available and admits queued work" do
+    department_id = "dept-auto"
+    instance_id = "instance-auto"
+    resource_key = "ollama:auto"
+    executor_name = Executor.via_name(instance_id)
+
+    {:ok, executor_pid} = Agent.start_link(fn -> nil end, name: executor_name)
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert {:ok, _state} =
+             EtsStore.put(instance_id, %{
+               department_id: department_id,
+               world_id: Ecto.UUID.generate(),
+               queue:
+                 :queue.from_list([
+                   %{
+                     id: "msg-auto",
+                     content: "Auto admitted item",
+                     origin: :user,
+                     inserted_at: ~U[2024-01-01 00:00:00Z]
+                   }
+                 ]),
+               current_item: nil,
+               config_snapshot: %{
+                 models_config: %{profiles: %{default: %{provider: "ollama", model: "auto"}}}
+               },
+               resource_key: resource_key,
+               retry_count: 0,
+               max_retries: 3,
+               context_messages: [],
+               status: :queued,
+               started_at: nil,
+               last_activity_at: nil
+             })
+
+    assert :ok = PubSub.subscribe_scheduler(department_id)
+
+    {:ok, pid} =
+      DepartmentScheduler.start_link(
+        department_id: department_id,
+        admission_mode: :auto,
+        ets_mod: EtsStore,
+        pool_mod: ResourcePool,
+        context_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        name: nil
+      )
+
+    assert :ok = PubSub.broadcast_work_available(department_id)
+
+    assert_receive {:scheduler_admit,
+                    %{
+                      department_id: ^department_id,
+                      instance_id: ^instance_id,
+                      resource_key: ^resource_key
+                    }}
+
+    GenServer.stop(pid)
+    GenServer.stop(executor_pid)
+  end
+
   defp ensure_registry!(name) do
     case Process.whereis(name) do
       pid when is_pid(pid) ->

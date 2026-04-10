@@ -186,48 +186,55 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   end
 
   test "S04: hanging model execution times out and fails the executor", %{instance: instance} do
-    resource_key = "ollama:hanging-model"
+    assert capture_log(fn ->
+             resource_key = "ollama:hanging-model"
 
-    assert :ok = PubSub.subscribe_instance(instance.id)
+             assert :ok = PubSub.subscribe_instance(instance.id)
 
-    {:ok, pid} =
-      Executor.start_link(
-        instance: instance,
-        config_snapshot: %{
-          runtime_config: %{max_retries: 1, model_timeout_ms: 10},
-          models_config: %{
-            profiles: %{default: %{provider: "ollama", model: "hanging-model"}}
-          }
-        },
-        context_mod: LemmingInstances,
-        model_mod: HangingModelRuntime,
-        pool_mod: ResourcePool,
-        pubsub_mod: Phoenix.PubSub,
-        dets_mod: nil,
-        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
-        name: nil
-      )
+             {:ok, pid} =
+               Executor.start_link(
+                 instance: instance,
+                 config_snapshot: %{
+                   runtime_config: %{max_retries: 1, model_timeout_ms: 10},
+                   models_config: %{
+                     profiles: %{default: %{provider: "ollama", model: "hanging-model"}}
+                   }
+                 },
+                 context_mod: LemmingInstances,
+                 model_mod: HangingModelRuntime,
+                 pool_mod: ResourcePool,
+                 pubsub_mod: Phoenix.PubSub,
+                 dets_mod: nil,
+                 ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+                 name: nil
+               )
 
-    {:ok, _pool_pid} =
-      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+             {:ok, _pool_pid} =
+               start_supervised(
+                 {ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil}
+               )
 
-    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
-    assert ResourcePool.status(resource_key) == {1, 1}
+             assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+             assert ResourcePool.status(resource_key) == {1, 1}
 
-    assert :ok = Executor.enqueue_work(pid, "Hang please")
-    assert_receive {:status_changed, %{status: "queued"}}
+             assert :ok = Executor.enqueue_work(pid, "Hang please")
+             assert_receive {:status_changed, %{status: "queued"}}
 
-    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+             send(
+               pid,
+               {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}}
+             )
 
-    assert_receive {:status_changed, %{status: "processing"}}
-    assert_receive {:status_changed, %{status: "failed"}}
+             assert_receive {:status_changed, %{status: "processing"}}
+             assert_receive {:status_changed, %{status: "failed"}}
 
-    assert ResourcePool.status(resource_key) == {0, 1}
+             assert ResourcePool.status(resource_key) == {0, 1}
 
-    assert %{status: "failed", last_error: "Executor model task timed out."} =
-             Executor.status(pid)
+             assert %{status: "failed", last_error: "Executor model task timed out."} =
+                      Executor.status(pid)
 
-    GenServer.stop(pid)
+             GenServer.stop(pid)
+           end) =~ "Executor model task timed out."
   end
 
   test "S04b: retry/1 requeues failed work on a live executor", %{instance: instance} do
@@ -336,6 +343,105 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
            end) =~ "executor model task crashed"
   end
 
+  test "S06: idle_timeout_ms option expires an idle executor deterministically", %{
+    instance: instance
+  } do
+    resource_key = "ollama:idle-timeout"
+
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "fake-model",
+          observer_pid: self(),
+          models_config: %{profiles: %{default: %{provider: "ollama", model: "fake-model"}}}
+        },
+        context_mod: LemmingInstances,
+        model_mod: FakeModelRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        idle_timeout_ms: 20,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Expire after idle")
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:model_run, _task_pid, %{model: "fake-model"}, _context_messages,
+                    %{content: "Expire after idle"}}
+
+    assert_receive {:status_changed, %{status: "idle"}}
+    assert_receive {:status_changed, %{status: "expired"}}
+
+    assert Repo.get!(LemmingsOs.LemmingInstances.LemmingInstance, instance.id).status == "expired"
+  end
+
+  test "S07: multiple queued items are processed in FIFO order", %{instance: instance} do
+    resource_key = "ollama:fifo-model"
+
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "fifo-model",
+          observer_pid: self(),
+          models_config: %{profiles: %{default: %{provider: "ollama", model: "fifo-model"}}}
+        },
+        context_mod: LemmingInstances,
+        model_mod: FakeModelRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "First queued item")
+    assert :ok = Executor.enqueue_work(pid, "Second queued item")
+
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:model_run, _task_pid, %{model: "fifo-model"}, _context_messages,
+                    %{content: "First queued item"}}
+
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    wait_for_pool_status(resource_key, {0, 1})
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:model_run, _task_pid, %{model: "fifo-model"}, _context_messages,
+                    %{content: "Second queued item"}}
+
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    GenServer.stop(pid)
+  end
+
   defp ensure_registry!(name) do
     case Process.whereis(name) do
       pid when is_pid(pid) ->
@@ -356,5 +462,23 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
         start_supervised!({DynamicSupervisor, name: name, strategy: :one_for_one})
         :ok
     end
+  end
+
+  defp wait_for_pool_status(resource_key, expected_status, attempts \\ 20)
+
+  defp wait_for_pool_status(resource_key, expected_status, attempts)
+       when attempts > 0 do
+    case ResourcePool.status(resource_key) do
+      ^expected_status ->
+        :ok
+
+      _other ->
+        Process.sleep(10)
+        wait_for_pool_status(resource_key, expected_status, attempts - 1)
+    end
+  end
+
+  defp wait_for_pool_status(resource_key, expected_status, 0) do
+    assert ResourcePool.status(resource_key) == expected_status
   end
 end

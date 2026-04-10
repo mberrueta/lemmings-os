@@ -628,329 +628,402 @@ msgstr "Stable identifier used in URLs and topology records. It is auto-generate
 msgid ".tooltip_create_status"
 msgstr "Initial lifecycle state for the new lemming type."
 
-#: lib/lemmings_os_web/components/instance_components.ex:288
-#: lib/lemmings_os_web/live/instance_live.ex:474
+#: lib/lemmings_os_web/components/instance_components.ex:321
+#: lib/lemmings_os_web/live/instance_live.ex:491
 #, elixir-autogen, elixir-format
 msgid "%{hours}h %{minutes}m %{seconds}s"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:280
-#: lib/lemmings_os_web/live/instance_live.ex:466
+#: lib/lemmings_os_web/components/instance_components.ex:313
+#: lib/lemmings_os_web/live/instance_live.ex:483
 #, elixir-autogen, elixir-format
 msgid "%{minutes}m %{seconds}s"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:274
-#: lib/lemmings_os_web/live/instance_live.ex:460
+#: lib/lemmings_os_web/components/instance_components.ex:307
+#: lib/lemmings_os_web/live/instance_live.ex:477
 #, elixir-autogen, elixir-format
 msgid "%{seconds}s"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:187
+#: lib/lemmings_os_web/live/instance_live.html.heex:301
 #, elixir-autogen, elixir-format
 msgid "Ask the instance to continue..."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:326
+#: lib/lemmings_os_web/components/instance_components.ex:369
 #, elixir-autogen, elixir-format
 msgid "Assistant"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:41
+#: lib/lemmings_os_web/live/instance_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Back to parent lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:129
+#: lib/lemmings_os_web/live/instance_live.html.heex:159
+#: lib/lemmings_os_web/live/instance_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Chronological messages"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:126
+#: lib/lemmings_os_web/live/instance_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Conversation Transcript"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:65
+#: lib/lemmings_os_web/components/instance_components.ex:64
+#: lib/lemmings_os_web/live/instance_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Current item"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:368
+#: lib/lemmings_os_web/live/instance_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "Current item: %{item}"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:313
+#: lib/lemmings_os_web/live/instance_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Current status: %{status}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:101
+#: lib/lemmings_os_web/components/instance_components.ex:100
 #, elixir-autogen, elixir-format
 msgid "Elapsed"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:412
+#: lib/lemmings_os_web/live/instance_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Expired"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:411
+#: lib/lemmings_os_web/live/instance_live.ex:428
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:53
+#: lib/lemmings_os_web/components/instance_components.ex:52
 #, elixir-autogen, elixir-format
 msgid "Failure detail"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:159
-#: lib/lemmings_os_web/live/instance_live.html.heex:186
+#: lib/lemmings_os_web/live/instance_live.html.heex:250
+#: lib/lemmings_os_web/live/instance_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Follow-up request"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:410
+#: lib/lemmings_os_web/live/instance_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Idle"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:231
-#: lib/lemmings_os_web/live/instance_live.ex:434
+#: lib/lemmings_os_web/components/instance_components.ex:264
+#: lib/lemmings_os_web/live/instance_live.ex:451
 #, elixir-autogen, elixir-format
 msgid "Idle for %{elapsed}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:152
+#: lib/lemmings_os_web/components/instance_components.ex:181
 #, elixir-autogen, elixir-format
 msgid "Input %{count} tokens"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:281
+#: lib/lemmings_os_web/live/instance_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Instance"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:323
-#, elixir-autogen, elixir-format
-msgid "Instance %{id}"
-msgstr ""
-
-#: lib/lemmings_os_web/live/instance_live.ex:19
+#: lib/lemmings_os_web/live/instance_live.ex:20
 #, elixir-autogen, elixir-format
 msgid "Instance Session"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:517
+#: lib/lemmings_os_web/live/instance_live.ex:536
 #, elixir-autogen, elixir-format
 msgid "Instance cannot accept follow-up requests"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:514
-#: lib/lemmings_os_web/live/instance_live.ex:541
+#: lib/lemmings_os_web/live/instance_live.ex:533
+#: lib/lemmings_os_web/live/instance_live.ex:566
 #, elixir-autogen, elixir-format
 msgid "Instance has expired"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:513
-#: lib/lemmings_os_web/live/instance_live.ex:540
+#: lib/lemmings_os_web/live/instance_live.ex:532
+#: lib/lemmings_os_web/live/instance_live.ex:565
 #, elixir-autogen, elixir-format
 msgid "Instance has failed"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:96
+#: lib/lemmings_os_web/live/instance_live.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Instance not found"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:287
-#: lib/lemmings_os_web/live/instance_live.ex:325
+#: lib/lemmings_os_web/live/instance_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "Instance session"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:73
+#: lib/lemmings_os_web/live/instance_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "Last activity at"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:365
+#: lib/lemmings_os_web/live/instance_live.ex:382
 #, elixir-autogen, elixir-format
 msgid "Latest runtime move"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:133
+#: lib/lemmings_os_web/live/instance_live.html.heex:65
+#: lib/lemmings_os_web/live/instance_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Live"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:155
+#: lib/lemmings_os_web/components/instance_components.ex:184
 #, elixir-autogen, elixir-format
 msgid "Output %{count} tokens"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:401
+#: lib/lemmings_os_web/live/instance_live.ex:418
 #, elixir-autogen, elixir-format
 msgid "Processing"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:218
-#: lib/lemmings_os_web/live/instance_live.ex:421
+#: lib/lemmings_os_web/components/instance_components.ex:251
+#: lib/lemmings_os_web/live/instance_live.ex:438
 #, elixir-autogen, elixir-format
 msgid "Processing for %{elapsed}"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:537
+#: lib/lemmings_os_web/live/instance_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "Processing..."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:77
+#: lib/lemmings_os_web/components/instance_components.ex:76
+#: lib/lemmings_os_web/live/instance_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Queue depth"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:539
+#: lib/lemmings_os_web/live/instance_live.ex:564
 #, elixir-autogen, elixir-format
 msgid "Ready for another request."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:201
-#: lib/lemmings_os_web/components/instance_components.ex:224
-#: lib/lemmings_os_web/live/instance_live.ex:390
-#: lib/lemmings_os_web/live/instance_live.ex:427
+#: lib/lemmings_os_web/components/instance_components.ex:234
+#: lib/lemmings_os_web/components/instance_components.ex:257
+#: lib/lemmings_os_web/live/instance_live.ex:408
+#: lib/lemmings_os_web/live/instance_live.ex:444
 #, elixir-autogen, elixir-format
 msgid "Retry attempt %{count} of %{max}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:89
+#: lib/lemmings_os_web/components/instance_components.ex:88
+#: lib/lemmings_os_web/live/instance_live.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Retry state"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:407
+#: lib/lemmings_os_web/live/instance_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "Retrying (%{count}/%{max})"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:538
+#: lib/lemmings_os_web/live/instance_live.ex:563
+#: lib/lemmings_os_web/live/instance_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Retrying..."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:111
+#: lib/lemmings_os_web/live/instance_live.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Return to parent lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:237
-#: lib/lemmings_os_web/live/instance_live.ex:440
+#: lib/lemmings_os_web/components/instance_components.ex:270
+#: lib/lemmings_os_web/live/instance_live.ex:457
 #, elixir-autogen, elixir-format
 msgid "Runtime expired."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:236
-#: lib/lemmings_os_web/live/instance_live.ex:439
+#: lib/lemmings_os_web/components/instance_components.ex:269
+#: lib/lemmings_os_web/live/instance_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "Runtime failed."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:353
-#: lib/lemmings_os_web/live/instance_live.ex:360
+#: lib/lemmings_os_web/live/instance_live.ex:376
+#: lib/lemmings_os_web/live/instance_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Runtime status"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:210
+#: lib/lemmings_os_web/live/instance_live.html.heex:327
 #, elixir-autogen, elixir-format
 msgid "Send follow-up"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:208
+#: lib/lemmings_os_web/live/instance_live.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Sending..."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:63
+#: lib/lemmings_os_web/live/instance_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Started at"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:212
-#: lib/lemmings_os_web/components/instance_components.ex:238
-#: lib/lemmings_os_web/live/instance_live.ex:399
-#: lib/lemmings_os_web/live/instance_live.ex:413
-#: lib/lemmings_os_web/live/instance_live.ex:415
-#: lib/lemmings_os_web/live/instance_live.ex:441
-#: lib/lemmings_os_web/live/instance_live.ex:535
-#: lib/lemmings_os_web/live/instance_live.ex:542
+#: lib/lemmings_os_web/components/instance_components.ex:245
+#: lib/lemmings_os_web/components/instance_components.ex:271
+#: lib/lemmings_os_web/live/instance_live.ex:416
+#: lib/lemmings_os_web/live/instance_live.ex:430
+#: lib/lemmings_os_web/live/instance_live.ex:432
+#: lib/lemmings_os_web/live/instance_live.ex:458
+#: lib/lemmings_os_web/live/instance_live.ex:560
+#: lib/lemmings_os_web/live/instance_live.ex:567
 #, elixir-autogen, elixir-format
 msgid "Starting..."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:99
+#: lib/lemmings_os_web/live/instance_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "The requested runtime session could not be loaded for this world scope."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:545
+#: lib/lemmings_os_web/live/instance_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "This request will reuse the current transcript context."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:158
+#: lib/lemmings_os_web/components/instance_components.ex:187
 #, elixir-autogen, elixir-format
 msgid "Total %{count} tokens"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:520
-#: lib/lemmings_os_web/live/instance_live.ex:526
+#: lib/lemmings_os_web/live/instance_live.ex:545
+#: lib/lemmings_os_web/live/instance_live.ex:551
 #, elixir-autogen, elixir-format
 msgid "Unable to queue the follow-up request right now."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:523
+#: lib/lemmings_os_web/live/instance_live.ex:548
 #, elixir-autogen, elixir-format
 msgid "Unable to save the follow-up request."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:172
+#: lib/lemmings_os_web/components/instance_components.ex:417
 #, elixir-autogen, elixir-format
 msgid "Unknown time"
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:297
+#: lib/lemmings_os_web/live/instance_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "Use the transcript to review the latest runtime activity."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:328
+#: lib/lemmings_os_web/components/instance_components.ex:371
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:215
-#: lib/lemmings_os_web/live/instance_live.ex:400
-#: lib/lemmings_os_web/live/instance_live.ex:418
-#: lib/lemmings_os_web/live/instance_live.ex:536
+#: lib/lemmings_os_web/components/instance_components.ex:248
+#: lib/lemmings_os_web/live/instance_live.ex:417
+#: lib/lemmings_os_web/live/instance_live.ex:435
+#: lib/lemmings_os_web/live/instance_live.ex:561
 #, elixir-autogen, elixir-format
 msgid "Waiting for capacity..."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.html.heex:153
+#: lib/lemmings_os_web/live/instance_live.html.heex:240
 #, elixir-autogen, elixir-format
 msgid "Waiting for first response..."
 msgstr ""
 
-#: lib/lemmings_os_web/live/instance_live.ex:274
+#: lib/lemmings_os_web/live/instance_live.ex:300
 #, elixir-autogen, elixir-format
 msgid "World"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:269
-#: lib/lemmings_os_web/live/instance_live.ex:455
+#: lib/lemmings_os_web/components/instance_components.ex:302
+#: lib/lemmings_os_web/live/instance_live.ex:474
 #, elixir-autogen, elixir-format
 msgid "unknown"
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.html.heex:185
+#, elixir-autogen, elixir-format
+msgid "Active work backlog"
+msgstr ""
+
+#: lib/lemmings_os_web/components/instance_components.ex:175
+#, elixir-autogen, elixir-format
+msgid "Model %{model}"
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.ex:151
+#, elixir-autogen, elixir-format
+msgid "Only failed instances can be retried."
+msgstr ""
+
+#: lib/lemmings_os_web/components/instance_components.ex:114
+#, elixir-autogen, elixir-format
+msgid "Operator action"
+msgstr ""
+
+#: lib/lemmings_os_web/components/instance_components.ex:172
+#, elixir-autogen, elixir-format
+msgid "Provider %{provider}"
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.html.heex:106
+#, elixir-autogen, elixir-format
+msgid "Retry"
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.ex:145
+#, elixir-autogen, elixir-format
+msgid "Retry requested for this instance."
+msgstr ""
+
+#: lib/lemmings_os_web/components/instance_components.ex:117
+#, elixir-autogen, elixir-format
+msgid "Retry the latest failed request."
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.ex:155
+#, elixir-autogen, elixir-format
+msgid "There is no failed request to retry."
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.ex:138
+#: lib/lemmings_os_web/live/instance_live.ex:162
+#, elixir-autogen, elixir-format
+msgid "Unable to retry this instance right now."
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.ex:609
+#: lib/lemmings_os_web/live/instance_live.ex:612
+#, elixir-autogen, elixir-format
+msgid "Unknown model"
+msgstr ""
+
+#: lib/lemmings_os_web/live/instance_live.ex:618
+#: lib/lemmings_os_web/live/instance_live.ex:621
+#, elixir-autogen, elixir-format
+msgid "Unknown provider"
+msgstr ""
+
+#: lib/lemmings_os_web/components/instance_components.ex:193
+#, elixir-autogen, elixir-format
+msgid "Usage"
+msgstr ""
+
+#: lib/lemmings_os_web/components/instance_components.ex:423
+#, elixir-autogen, elixir-format
+msgid "now"
 msgstr ""

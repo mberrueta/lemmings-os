@@ -64,7 +64,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
             {dgettext("lemmings", "Current item")}
           </p>
           <p class="mt-1 break-words font-mono text-sm text-zinc-100">
-            {runtime_current_item_label(@runtime_state)}
+            {runtime_current_item_preview(@runtime_state)}
           </p>
         </div>
 
@@ -141,7 +141,10 @@ defmodule LemmingsOsWeb.InstanceComponents do
       class={["flex w-full", message_alignment(@message_role), @class]}
       data-role={@message_role}
     >
-      <div class={["grid w-full max-w-3xl gap-2", message_grid_alignment(@message_role)]}>
+      <div class={[
+        "grid w-fit max-w-[80%] min-w-[18rem] gap-2",
+        message_grid_alignment(@message_role)
+      ]}>
         <div class={[
           "flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500",
           message_meta_alignment(@message_role)
@@ -386,6 +389,24 @@ defmodule LemmingsOsWeb.InstanceComponents do
     do: current_item
 
   defp runtime_current_item_label(%{current_item: current_item}), do: inspect(current_item)
+
+  defp runtime_current_item_preview(runtime_state) do
+    runtime_state
+    |> runtime_current_item_label()
+    |> truncate_words(6)
+  end
+
+  defp truncate_words(value, max_words) when is_binary(value) and max_words > 0 do
+    words = String.split(value, ~r/\s+/, trim: true)
+
+    case Enum.split(words, max_words) do
+      {[], _rest} -> value
+      {visible_words, []} -> Enum.join(visible_words, " ")
+      {visible_words, _rest} -> Enum.join(visible_words, " ") <> " ..."
+    end
+  end
+
+  defp truncate_words(value, _max_words), do: value
 
   defp message_clock_label(%DateTime{} = inserted_at), do: Calendar.strftime(inserted_at, "%H:%M")
 

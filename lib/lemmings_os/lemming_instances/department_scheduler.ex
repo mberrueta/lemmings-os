@@ -23,6 +23,7 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
   @default_pool_mod LemmingsOs.LemmingInstances.ResourcePool
   @default_ets_mod LemmingsOs.LemmingInstances.EtsStore
   alias LemmingsOs.LemmingInstances.PubSub
+  alias LemmingsOs.LemmingInstances.Telemetry
 
   @type admission_mode :: :auto | :manual
   @type selection_policy :: ([map()] -> [map()])
@@ -185,6 +186,11 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
 
       Logger.info("scheduler started",
         event: "instance.scheduler.started",
+        world_id: nil,
+        city_id: nil,
+        lemming_id: nil,
+        instance_id: nil,
+        resource_key: nil,
         department_id: department_id,
         admission_mode: state.admission_mode
       )
@@ -300,6 +306,8 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
       instance_id: instance_id,
       department_id: fetch_map_value(state, :department_id),
       world_id: fetch_map_value(state, :world_id),
+      city_id: fetch_map_value(state, :city_id),
+      lemming_id: fetch_map_value(state, :lemming_id),
       queue: fetch_map_value(state, :queue),
       work_item: queued_item(state),
       current_item: fetch_map_value(state, :current_item),
@@ -328,19 +336,41 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
          :ok <- checkout_pool(state, resource_key, executor_pid) do
       Logger.info("scheduler admitted instance",
         event: "instance.scheduler.admit",
+        world_id: Map.get(candidate, :world_id),
+        city_id: Map.get(candidate, :city_id),
+        lemming_id: Map.get(candidate, :lemming_id),
         department_id: state.department_id,
         instance_id: candidate.instance_id,
         resource_key: resource_key,
         executor_pid: inspect(executor_pid)
       )
 
+      _ =
+        Telemetry.execute(
+          [:lemmings_os, :scheduler, :admission_granted],
+          %{count: 1},
+          Telemetry.candidate_metadata(candidate, %{
+            department_id: state.department_id,
+            instance_id: candidate.instance_id,
+            resource_key: resource_key
+          })
+        )
+
       broadcast_admission(state, candidate, resource_key)
       :admitted
     else
-      {:error, :at_capacity} -> :at_capacity
-      {:error, :missing_resource_key} -> :skip
-      {:error, :executor_unavailable} -> :skip
-      {:error, _reason} -> :skip
+      {:error, :at_capacity} ->
+        log_admission_denied(candidate, state, :at_capacity)
+        :at_capacity
+
+      {:error, :missing_resource_key} ->
+        :skip
+
+      {:error, :executor_unavailable} ->
+        :skip
+
+      {:error, _reason} ->
+        :skip
     end
   end
 
@@ -427,6 +457,33 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
 
   defp broadcast_admission(state, candidate, resource_key) do
     PubSub.broadcast_scheduler_admit(state.department_id, candidate.instance_id, resource_key)
+  end
+
+  defp log_admission_denied(candidate, state, reason) do
+    reason_token = Telemetry.reason_token(reason)
+
+    Logger.warning("scheduler admission denied",
+      event: "instance.scheduler.admission_denied",
+      world_id: Map.get(candidate, :world_id),
+      city_id: Map.get(candidate, :city_id),
+      lemming_id: Map.get(candidate, :lemming_id),
+      department_id: state.department_id,
+      instance_id: Map.get(candidate, :instance_id),
+      resource_key: Map.get(candidate, :resource_key),
+      reason: reason_token
+    )
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :scheduler, :admission_denied],
+        %{count: 1},
+        Telemetry.candidate_metadata(candidate, %{
+          department_id: state.department_id,
+          instance_id: Map.get(candidate, :instance_id),
+          resource_key: Map.get(candidate, :resource_key),
+          reason: reason_token
+        })
+      )
   end
 
   defp subscribe_scheduler_topic(state) do

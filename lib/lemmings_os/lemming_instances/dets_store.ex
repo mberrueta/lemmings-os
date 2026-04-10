@@ -10,6 +10,8 @@ defmodule LemmingsOs.LemmingInstances.DetsStore do
 
   require Logger
 
+  alias LemmingsOs.LemmingInstances.Telemetry
+
   @table_name :lemming_instance_snapshots
   @file_name "lemming_instance_snapshots.dets"
 
@@ -153,8 +155,13 @@ defmodule LemmingsOs.LemmingInstances.DetsStore do
   def handle_call({:snapshot, instance_id, state_map}, _from, state) do
     reply =
       case safe_dets_call(fn -> :dets.insert(@table_name, {instance_id, state_map}) end) do
-        :ok -> :ok
-        {:error, reason} -> fail(:snapshot, instance_id, reason)
+        :ok ->
+          log_snapshot_written(instance_id)
+          emit_snapshot_written(instance_id)
+          :ok
+
+        {:error, reason} ->
+          fail(:snapshot, instance_id, reason)
       end
 
     {:reply, reply, state}
@@ -237,28 +244,66 @@ defmodule LemmingsOs.LemmingInstances.DetsStore do
   end
 
   defp log_failure(operation, instance_id, reason) do
-    Logger.error("lemming instance dets operation failed",
+    Logger.log(snapshot_failure_level(operation), "lemming instance dets operation failed",
       event: "lemming_instances.dets.#{operation}.failure",
+      world_id: nil,
+      city_id: nil,
+      department_id: nil,
+      lemming_id: nil,
       operation: operation,
       instance_id: instance_id,
       table: @table_name,
       path: file_path(),
-      reason: inspect(reason)
+      reason: Telemetry.reason_token(reason)
     )
   end
 
   defp emit_failure_telemetry(operation, instance_id, reason) do
-    :telemetry.execute(
-      [:lemmings_os, :lemming_instances, :dets_store, operation, :failure],
-      %{count: 1},
-      %{
-        instance_id: instance_id,
-        table: @table_name,
-        path: file_path(),
-        reason: reason
-      }
+    event =
+      case operation do
+        :snapshot -> [:lemmings_os, :dets, :snapshot_failed]
+        _other -> [:lemmings_os, :lemming_instances, :dets_store, operation, :failure]
+      end
+
+    _ =
+      Telemetry.execute(
+        event,
+        %{count: 1},
+        Telemetry.dets_metadata(instance_id, %{
+          table: @table_name,
+          path: file_path(),
+          reason: Telemetry.reason_token(reason)
+        })
+      )
+  end
+
+  defp log_snapshot_written(instance_id) do
+    Logger.info("lemming instance dets snapshot written",
+      event: "lemming_instances.dets.snapshot.written",
+      world_id: nil,
+      city_id: nil,
+      department_id: nil,
+      lemming_id: nil,
+      instance_id: instance_id,
+      table: @table_name,
+      path: file_path()
     )
   end
+
+  defp emit_snapshot_written(instance_id) do
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :dets, :snapshot_written],
+        %{count: 1},
+        Telemetry.dets_metadata(instance_id, %{
+          table: @table_name,
+          path: file_path()
+        })
+      )
+  end
+
+  defp snapshot_failure_level(:snapshot), do: :warning
+  defp snapshot_failure_level(_operation), do: :error
 
   defp directory do
     config = Application.get_env(:lemmings_os, :runtime_dets, [])

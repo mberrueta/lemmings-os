@@ -8,7 +8,10 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <div id="instance-session-page" class="flex w-full flex-col gap-6">
+  <div
+    id="instance-session-page"
+    class="flex min-h-0 w-full flex-col gap-6 xl:h-[calc(100vh-8rem)]"
+  >
     <section
       :if={@instance_not_found?}
       id="instance-session-not-found"
@@ -45,7 +48,7 @@
 
     <section
       :if={!@instance_not_found?}
-      class="instance-session-shell overflow-hidden border border-emerald-400/20 bg-zinc-950/95"
+      class="instance-session-shell flex min-h-0 flex-1 flex-col overflow-hidden border border-emerald-400/20 bg-zinc-950/95"
     >
       <div class="instance-session-hero relative border-b border-emerald-400/15">
         <div class="flex flex-col gap-5 px-5 py-5 xl:flex-row xl:items-start xl:justify-between">
@@ -63,10 +66,8 @@
                 </h1>
                 <.status kind={:instance} value={instance_status(@instance)} />
                 <.badge tone="info">{dgettext("lemmings", "Live")}</.badge>
-                <.badge tone="accent">{instance_model_label(@instance)}</.badge>
-                <.badge tone="muted" class="border-emerald-400/20 text-emerald-300">
-                  {instance_provider_label(@instance)}
-                </.badge>
+                <.badge :if={@conversation_provider} tone="info">{@conversation_provider}</.badge>
+                <.badge :if={@conversation_model} tone="accent">{@conversation_model}</.badge>
               </div>
 
               <p class="max-w-3xl text-sm leading-7 text-zinc-400">
@@ -185,11 +186,26 @@
                 {dgettext("lemmings", "Active work backlog")}
               </p>
             </div>
+
+            <div
+              id="instance-total-tokens"
+              class="w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 px-3 py-3.5"
+            >
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Total tokens")}
+              </p>
+              <p class="mt-2 truncate text-sm font-semibold text-zinc-100">
+                {if @total_tokens, do: Integer.to_string(@total_tokens), else: "-"}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                {dgettext("lemmings", "Across transcript")}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      <section id="instance-session-transcript" class="flex min-h-96 flex-col">
+      <section id="instance-session-transcript" class="flex min-h-0 flex-1 flex-col">
         <div class="flex items-center justify-between gap-3 border-b border-emerald-400/10 bg-zinc-950/80 px-5 py-4">
           <div class="min-w-0">
             <p class="font-mono text-base font-medium text-emerald-400">
@@ -275,7 +291,7 @@
             <.form
               for={@follow_up_form}
               id="instance-follow-up-form"
-              class="grid gap-4 lg:grid-cols-2"
+              class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]"
               phx-change="validate_follow_up_request"
               phx-submit="submit_follow_up_request"
             >
@@ -312,7 +328,7 @@
                 </p>
               </div>
 
-              <div class="flex flex-col justify-end gap-3">
+              <div class="flex flex-col items-end justify-end gap-3">
                 <button
                   id="instance-follow-up-submit"
                   type="submit"

@@ -146,6 +146,152 @@ defmodule LemmingsOs.LemmingInstancesTest do
            }
   end
 
+  test "S05: spawn_instance rejects blank initial requests and inactive lemmings" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "draft"
+      )
+
+    assert {:error, :empty_request_text} = LemmingInstances.spawn_instance(lemming, "   ")
+    assert {:error, :lemming_not_active} = LemmingInstances.spawn_instance(lemming, "Run now")
+  end
+
+  test "S06: list_instances/2 is world scoped and supports filters" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+    other_world = insert(:world)
+    other_city = insert(:city, world: other_world)
+    other_department = insert(:department, world: other_world, city: other_city)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    other_lemming =
+      insert(:lemming,
+        world: other_world,
+        city: other_city,
+        department: other_department,
+        status: "active"
+      )
+
+    assert {:ok, queued_instance} = LemmingInstances.spawn_instance(lemming, "First request")
+    assert {:ok, idle_instance} = LemmingInstances.spawn_instance(lemming, "Second request")
+    assert {:ok, _other_instance} = LemmingInstances.spawn_instance(other_lemming, "Other world")
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    assert {:ok, idle_instance} =
+             LemmingInstances.update_status(idle_instance, "idle", %{last_activity_at: now})
+
+    idle_instance_id = idle_instance.id
+    queued_instance_id = queued_instance.id
+
+    assert Enum.sort(Enum.map(LemmingInstances.list_instances(world), & &1.id)) ==
+             Enum.sort([idle_instance_id, queued_instance_id])
+
+    assert [%LemmingInstance{id: ^idle_instance_id}] =
+             LemmingInstances.list_instances(world, status: "idle")
+
+    assert [%LemmingInstance{id: ^queued_instance_id}] =
+             LemmingInstances.list_instances(world, lemming_id: lemming.id, status: "created")
+  end
+
+  test "S07: get_instance/2 enforces world scope" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+    other_world = insert(:world)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    assert {:ok, instance} = LemmingInstances.spawn_instance(lemming, "Scoped request")
+
+    instance_id = instance.id
+
+    assert {:ok, %LemmingInstance{id: ^instance_id}} =
+             LemmingInstances.get_instance(instance.id, world: world)
+
+    assert {:error, :not_found} = LemmingInstances.get_instance(instance.id, world: other_world)
+    assert {:error, :not_found} = LemmingInstances.get_instance(instance.id)
+  end
+
+  test "S08: list_messages/1 returns messages in chronological order" do
+    instance = spawn_idle_instance()
+    [initial_message] = LemmingInstances.list_messages(instance)
+    earlier = DateTime.utc_now() |> DateTime.add(-5, :second) |> DateTime.truncate(:second)
+
+    {1, _} =
+      Message
+      |> where([message], message.id == ^initial_message.id)
+      |> Repo.update_all(set: [inserted_at: earlier])
+
+    assert {:ok, ^instance} =
+             LemmingInstances.enqueue_work(instance, "Continue with risks",
+               executor_pid: self(),
+               executor_mod: FakeExecutor
+             )
+
+    assert_receive {:executor_enqueue, "Continue with risks"}
+
+    assert Enum.map(LemmingInstances.list_messages(instance), & &1.content) == [
+             "Investigate the outage",
+             "Continue with risks"
+           ]
+  end
+
+  test "S09: topology_summary/1 reports total and active instance counts" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    assert {:ok, active_instance} = LemmingInstances.spawn_instance(lemming, "Active")
+    assert {:ok, failed_instance} = LemmingInstances.spawn_instance(lemming, "Failed")
+    assert {:ok, expired_instance} = LemmingInstances.spawn_instance(lemming, "Expired")
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    assert {:ok, _} =
+             LemmingInstances.update_status(failed_instance, "failed", %{stopped_at: now})
+
+    assert {:ok, _} =
+             LemmingInstances.update_status(active_instance, "idle", %{last_activity_at: now})
+
+    assert {:ok, _} =
+             LemmingInstances.update_status(expired_instance, "expired", %{stopped_at: now})
+
+    assert LemmingInstances.topology_summary(world) == %{
+             instance_count: 3,
+             active_instance_count: 1
+           }
+  end
+
   defp spawn_idle_instance do
     world = insert(:world, name: "Ops World", slug: "ops-world")
     city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")

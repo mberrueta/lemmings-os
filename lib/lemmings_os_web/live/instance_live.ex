@@ -22,6 +22,9 @@ defmodule LemmingsOsWeb.InstanceLive do
       |> assign(:instance, nil)
       |> assign(:runtime_state, fallback_runtime_state())
       |> assign(:message_count, 0)
+      |> assign(:total_tokens, nil)
+      |> assign(:conversation_provider, nil)
+      |> assign(:conversation_model, nil)
       |> assign(:status_now, DateTime.utc_now() |> DateTime.truncate(:second))
       |> assign(:parent_lemming_path, nil)
       |> assign(:waiting_for_first_response?, false)
@@ -180,6 +183,9 @@ defmodule LemmingsOsWeb.InstanceLive do
             |> assign(:instance, instance)
             |> assign(:runtime_state, runtime_state)
             |> assign(:message_count, length(messages))
+            |> assign(:total_tokens, transcript_total_tokens(messages))
+            |> assign(:conversation_provider, transcript_provider(messages))
+            |> assign(:conversation_model, transcript_model(messages))
             |> assign(:status_now, status_now)
             |> assign(:parent_lemming_path, parent_lemming_path(instance))
             |> assign(:waiting_for_first_response?, waiting_for_first_response?(messages))
@@ -210,6 +216,9 @@ defmodule LemmingsOsWeb.InstanceLive do
     |> assign(:instance, nil)
     |> assign(:runtime_state, fallback_runtime_state())
     |> assign(:message_count, 0)
+    |> assign(:total_tokens, nil)
+    |> assign(:conversation_provider, nil)
+    |> assign(:conversation_model, nil)
     |> assign(:status_now, DateTime.utc_now() |> DateTime.truncate(:second))
     |> assign(:parent_lemming_path, nil)
     |> assign(:waiting_for_first_response?, false)
@@ -593,6 +602,37 @@ defmodule LemmingsOsWeb.InstanceLive do
     |> elem(0)
   end
 
+  defp transcript_total_tokens(messages) when is_list(messages) do
+    total =
+      Enum.reduce(messages, 0, fn
+        %{total_tokens: value}, acc when is_integer(value) and value > 0 -> acc + value
+        _message, acc -> acc
+      end)
+
+    if total > 0, do: total, else: nil
+  end
+
+  defp transcript_provider(messages) when is_list(messages) do
+    messages
+    |> Enum.reverse()
+    |> Enum.find_value(&assistant_metadata_value(&1, :provider))
+  end
+
+  defp transcript_model(messages) when is_list(messages) do
+    messages
+    |> Enum.reverse()
+    |> Enum.find_value(&assistant_metadata_value(&1, :model))
+  end
+
+  defp assistant_metadata_value(%{role: "assistant"} = message, field) do
+    case Map.get(message, field) do
+      value when is_binary(value) and value != "" -> value
+      _value -> nil
+    end
+  end
+
+  defp assistant_metadata_value(_message, _field), do: nil
+
   defp message_date(%{inserted_at: %DateTime{} = inserted_at}), do: DateTime.to_date(inserted_at)
   defp message_date(_message), do: nil
 
@@ -602,32 +642,4 @@ defmodule LemmingsOsWeb.InstanceLive do
   end
 
   defp transcript_day_label(_date), do: nil
-
-  defp instance_model_label(%{config_snapshot: config_snapshot}) when is_map(config_snapshot) do
-    nested_config_value(config_snapshot, [:models_config, :profiles, :default, :model]) ||
-      nested_config_value(config_snapshot, [:models_config, "profiles", "default", "model"]) ||
-      dgettext("lemmings", "Unknown model")
-  end
-
-  defp instance_model_label(_instance), do: dgettext("lemmings", "Unknown model")
-
-  defp instance_provider_label(%{config_snapshot: config_snapshot})
-       when is_map(config_snapshot) do
-    nested_config_value(config_snapshot, [:models_config, :profiles, :default, :provider]) ||
-      nested_config_value(config_snapshot, [:models_config, "profiles", "default", "provider"]) ||
-      dgettext("lemmings", "Unknown provider")
-  end
-
-  defp instance_provider_label(_instance), do: dgettext("lemmings", "Unknown provider")
-
-  defp nested_config_value(value, []), do: value
-
-  defp nested_config_value(map, [key | rest]) when is_map(map) do
-    case Map.get(map, key) do
-      nil -> nil
-      next -> nested_config_value(next, rest)
-    end
-  end
-
-  defp nested_config_value(_value, _path), do: nil
 end

@@ -20,6 +20,7 @@ defmodule LemmingsOs.LemmingInstances do
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.Telemetry
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
@@ -106,6 +107,16 @@ defmodule LemmingsOs.LemmingInstances do
               message_id: message.id,
               status: instance.status
             )
+
+            _ =
+              Telemetry.execute(
+                [:lemmings_os, :instance, :created],
+                %{count: 1},
+                Telemetry.instance_metadata(instance, %{
+                  status: instance.status,
+                  message_id: message.id
+                })
+              )
 
             _ =
               ActivityLog.record(:runtime, "instance", "Runtime instance spawned", %{

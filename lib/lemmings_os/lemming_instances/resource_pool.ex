@@ -15,6 +15,8 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
 
   require Logger
 
+  alias LemmingsOs.LemmingInstances.Telemetry
+
   @default_capacity 1
   @default_pubsub_mod Phoenix.PubSub
   @default_pubsub_name LemmingsOs.PubSub
@@ -314,6 +316,11 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
 
       Logger.info("resource pool started",
         event: "instance.pool.started",
+        world_id: nil,
+        city_id: nil,
+        department_id: nil,
+        lemming_id: nil,
+        instance_id: nil,
         resource_key: resource_key,
         pool_current: 0,
         pool_max: state.max
@@ -329,6 +336,34 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
   def handle_call({:checkout, holder_pid, department_id}, _from, state)
       when is_pid(holder_pid) do
     if state.gate == :closed or state.current >= state.max do
+      reason = Telemetry.reason_token(:at_capacity)
+
+      Logger.warning("resource pool checkout denied",
+        event: "instance.pool.exhausted",
+        world_id: nil,
+        city_id: nil,
+        department_id: department_id,
+        lemming_id: nil,
+        instance_id: nil,
+        resource_key: state.resource_key,
+        reason: reason,
+        pool_current: state.current,
+        pool_max: state.max
+      )
+
+      _ =
+        Telemetry.execute(
+          [:lemmings_os, :pool, :exhausted],
+          %{count: 1},
+          Telemetry.pool_metadata(%{
+            department_id: department_id,
+            resource_key: state.resource_key,
+            pool_current: state.current,
+            pool_max: state.max,
+            reason: reason
+          })
+        )
+
       {:reply, {:error, :at_capacity}, state}
     else
       monitor_ref = Process.monitor(holder_pid)
@@ -342,12 +377,26 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
 
       Logger.info("resource pool checkout granted",
         event: "instance.pool.checkout",
+        world_id: nil,
+        city_id: nil,
         resource_key: state.resource_key,
         holder_pid: inspect(holder_pid),
         department_id: department_id,
         pool_current: state.current,
         pool_max: state.max
       )
+
+      _ =
+        Telemetry.execute(
+          [:lemmings_os, :pool, :acquired],
+          %{count: 1},
+          Telemetry.pool_metadata(%{
+            department_id: department_id,
+            resource_key: state.resource_key,
+            pool_current: state.current,
+            pool_max: state.max
+          })
+        )
 
       {:reply, :ok, state}
     end
@@ -374,12 +423,26 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
 
         Logger.info("resource pool checkout released",
           event: "instance.pool.checkin",
+          world_id: nil,
+          city_id: nil,
           resource_key: state.resource_key,
           holder_pid: inspect(pid),
           department_id: holder.department_id,
           pool_current: state.current,
           pool_max: state.max
         )
+
+        _ =
+          Telemetry.execute(
+            [:lemmings_os, :pool, :released],
+            %{count: 1},
+            Telemetry.pool_metadata(%{
+              department_id: holder.department_id,
+              resource_key: state.resource_key,
+              pool_current: state.current,
+              pool_max: state.max
+            })
+          )
 
         {:reply, :ok, broadcast_capacity_released(state, holder.department_id)}
     end
@@ -518,6 +581,8 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
   defp log_holder_down(state, holder, reason) when reason in [:normal, :shutdown] do
     Logger.info("resource pool holder exited and capacity was reclaimed",
       event: "instance.pool.holder_down",
+      world_id: nil,
+      city_id: nil,
       resource_key: state.resource_key,
       holder_pid: inspect(holder.pid),
       department_id: holder.department_id,
@@ -525,11 +590,25 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
       pool_max: state.max,
       reason: inspect(reason)
     )
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :pool, :released],
+        %{count: 1},
+        Telemetry.pool_metadata(%{
+          department_id: holder.department_id,
+          resource_key: state.resource_key,
+          pool_current: state.current,
+          pool_max: state.max
+        })
+      )
   end
 
   defp log_holder_down(state, holder, {:shutdown, _detail} = reason) do
     Logger.info("resource pool holder exited and capacity was reclaimed",
       event: "instance.pool.holder_down",
+      world_id: nil,
+      city_id: nil,
       resource_key: state.resource_key,
       holder_pid: inspect(holder.pid),
       department_id: holder.department_id,
@@ -537,11 +616,25 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
       pool_max: state.max,
       reason: inspect(reason)
     )
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :pool, :released],
+        %{count: 1},
+        Telemetry.pool_metadata(%{
+          department_id: holder.department_id,
+          resource_key: state.resource_key,
+          pool_current: state.current,
+          pool_max: state.max
+        })
+      )
   end
 
   defp log_holder_down(state, holder, reason) do
     Logger.warning("resource pool holder crashed and capacity was reclaimed",
       event: "instance.pool.holder_down",
+      world_id: nil,
+      city_id: nil,
       resource_key: state.resource_key,
       holder_pid: inspect(holder.pid),
       department_id: holder.department_id,
@@ -549,6 +642,18 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
       pool_max: state.max,
       reason: inspect(reason)
     )
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :pool, :released],
+        %{count: 1},
+        Telemetry.pool_metadata(%{
+          department_id: holder.department_id,
+          resource_key: state.resource_key,
+          pool_current: state.current,
+          pool_max: state.max
+        })
+      )
   end
 
   defp pool_supervisor_running? do

@@ -12,6 +12,8 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Config.ToolsConfig
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
+  alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds.World
 
@@ -100,6 +102,42 @@ defmodule LemmingsOs.Factory do
       costs_config: %CostsConfig{budgets: %Budgets{}},
       models_config: %ModelsConfig{},
       tools_config: %ToolsConfig{}
+    }
+  end
+
+  def lemming_instance_factory do
+    lemming = build(:lemming)
+
+    %LemmingInstance{
+      lemming: lemming,
+      world: lemming.world,
+      city: lemming.city,
+      department: lemming.department,
+      status: "created",
+      config_snapshot: %{
+        "models" => %{},
+        "runtime" => %{}
+      },
+      started_at: nil,
+      stopped_at: nil,
+      last_activity_at: nil
+    }
+  end
+
+  def lemming_instance_message_factory do
+    instance = build(:lemming_instance)
+
+    %Message{
+      lemming_instance: instance,
+      world: instance.world,
+      role: "user",
+      content: Faker.Lorem.sentence(),
+      provider: nil,
+      model: nil,
+      input_tokens: nil,
+      output_tokens: nil,
+      total_tokens: nil,
+      usage: nil
     }
   end
 end

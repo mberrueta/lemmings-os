@@ -6,6 +6,12 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   single `LemmingInstance`. It updates durable status transitions via the
   `LemmingsOs.LemmingInstances` context, publishes status changes via PubSub,
   and delegates model execution through an injectable runtime module.
+
+  Test seams are opt-in keyword options passed to `start_link/1`:
+
+  - `:model_mod` injects a controlled model runtime implementation
+  - `:now_fun` injects a deterministic clock
+  - `:idle_timeout_ms` overrides the idle expiration timer for deterministic tests
   """
 
   use GenServer
@@ -18,6 +24,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.LemmingInstances.ResourcePool
+  alias LemmingsOs.LemmingInstances.Telemetry
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
 
@@ -57,7 +64,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           last_activity_at: DateTime.t(),
           idle_timer_ref: reference() | nil,
           idle_timer_token: reference() | nil,
-          idle_ttl_seconds: pos_integer() | nil,
+          idle_timeout_ms: pos_integer() | nil,
           context_mod: module() | nil,
           ets_mod: module() | nil,
           dets_mod: module() | nil,
@@ -86,6 +93,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   Starts an executor process for the given instance.
 
   Pass `name: nil` to skip registry-based naming (useful for tests).
+  Pass `idle_timeout_ms: nil` to disable idle expiration in tests, or a small
+  integer to force deterministic idle expiry without waiting on config-derived
+  seconds.
 
   ## Examples
 
@@ -359,7 +369,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         last_activity_at: now,
         idle_timer_ref: nil,
         idle_timer_token: nil,
-        idle_ttl_seconds: idle_ttl_seconds(config_snapshot),
+        idle_timeout_ms: idle_timeout_ms(opts, config_snapshot),
         context_mod: Keyword.get(opts, :context_mod, LemmingsOs.LemmingInstances),
         load_context_messages?: Keyword.get(opts, :load_context_messages, true),
         ets_mod: Keyword.get(opts, :ets_mod),
@@ -382,6 +392,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       Logger.info("executor started",
         event: "instance.executor.started",
         instance_id: state.instance_id,
+        lemming_id: instance_lemming_id(state.instance),
+        world_id: instance_world_id(state.instance),
+        city_id: instance_city_id(state.instance),
         department_id: state.department_id,
         status: state.status,
         queue_depth: :queue.len(state.queue),
@@ -389,6 +402,19 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         max_retries: state.max_retries,
         current_item_id: current_item_id(state.current_item)
       )
+
+      _ =
+        Telemetry.execute(
+          [:lemmings_os, :instance, :started],
+          %{count: 1},
+          Telemetry.instance_metadata(state.instance, %{
+            instance_id: state.instance_id,
+            status: state.status,
+            queue_depth: :queue.len(state.queue),
+            retry_count: state.retry_count,
+            max_retries: state.max_retries
+          })
+        )
 
       _ =
         ActivityLog.record(:runtime, "executor", "Executor started", %{
@@ -444,6 +470,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       Logger.info("executor ignored work for terminal instance",
         event: "instance.executor.enqueue",
         instance_id: state.instance_id,
+        lemming_id: instance_lemming_id(state.instance),
+        world_id: instance_world_id(state.instance),
+        city_id: instance_city_id(state.instance),
         department_id: state.department_id,
         resource_key: state.current_resource_key,
         status: state.status
@@ -735,6 +764,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     Logger.info("executor starting model task",
       event: "instance.executor.model_start",
       instance_id: state.instance_id,
+      lemming_id: instance_lemming_id(state.instance),
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
       department_id: state.department_id,
       resource_key: state.current_resource_key,
       queue_depth: :queue.len(state.queue),
@@ -805,6 +837,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       Logger.error("executor model task crashed",
         event: "instance.executor.model_crash",
         instance_id: state.instance_id,
+        lemming_id: instance_lemming_id(state.instance),
+        world_id: instance_world_id(state.instance),
+        city_id: instance_city_id(state.instance),
         department_id: state.department_id,
         resource_key: state.current_resource_key,
         current_item_id: current_item_id(state.current_item),
@@ -825,6 +860,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       Logger.error("executor model task exited",
         event: "instance.executor.model_exit",
         instance_id: state.instance_id,
+        lemming_id: instance_lemming_id(state.instance),
+        world_id: instance_world_id(state.instance),
+        city_id: instance_city_id(state.instance),
         department_id: state.department_id,
         resource_key: state.current_resource_key,
         current_item_id: current_item_id(state.current_item),
@@ -884,6 +922,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         Logger.error("executor failed to persist assistant message",
           event: "instance.executor.persist_message",
           instance_id: state.instance_id,
+          lemming_id: instance_lemming_id(state.instance),
+          world_id: instance_world_id(state.instance),
+          city_id: instance_city_id(state.instance),
           department_id: state.department_id,
           resource_key: state.current_resource_key,
           current_item_id: current_item_id(state.current_item),
@@ -953,9 +994,15 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp log_transition(state, previous_status, new_status) do
-    Logger.info("executor status transitioned",
+    level = transition_log_level(new_status)
+    reason = transition_reason(state, new_status)
+
+    metadata = %{
       event: "instance.executor.transition",
       instance_id: state.instance_id,
+      lemming_id: instance_lemming_id(state.instance),
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
       department_id: state.department_id,
       resource_key: state.current_resource_key,
       from_status: previous_status,
@@ -963,8 +1010,30 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       queue_depth: :queue.len(state.queue),
       retry_count: state.retry_count,
       max_retries: state.max_retries,
-      current_item_id: current_item_id(state.current_item)
-    )
+      current_item_id: current_item_id(state.current_item),
+      reason: reason
+    }
+
+    Logger.log(level, "executor status transitioned", metadata)
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :instance, status_atom(new_status)],
+        transition_measurements(state, new_status),
+        Telemetry.instance_metadata(state.instance, %{
+          instance_id: state.instance_id,
+          resource_key: state.current_resource_key,
+          from_status: previous_status,
+          to_status: new_status,
+          retry_count: state.retry_count,
+          max_retries: state.max_retries,
+          attempt: state.retry_count,
+          max_attempts: state.max_retries,
+          queue_depth: :queue.len(state.queue),
+          current_item_id: current_item_id(state.current_item),
+          reason: reason
+        })
+      )
 
     _ =
       ActivityLog.record(:runtime, "executor", "Status #{previous_status} -> #{new_status}", %{
@@ -978,6 +1047,28 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp notify_scheduler(state) do
     if is_binary(state.department_id) do
+      Logger.info("scheduler work announced",
+        event: "instance.scheduler.work_announced",
+        instance_id: state.instance_id,
+        lemming_id: instance_lemming_id(state.instance),
+        world_id: instance_world_id(state.instance),
+        city_id: instance_city_id(state.instance),
+        department_id: state.department_id,
+        queue_depth: :queue.len(state.queue),
+        current_item_id: current_item_id(state.current_item)
+      )
+
+      _ =
+        Telemetry.execute(
+          [:lemmings_os, :scheduler, :work_announced],
+          %{count: 1},
+          Telemetry.instance_metadata(state.instance, %{
+            instance_id: state.instance_id,
+            queue_depth: :queue.len(state.queue),
+            current_item_id: current_item_id(state.current_item)
+          })
+        )
+
       _ = PubSub.broadcast_work_available(state.department_id)
     end
 
@@ -993,10 +1084,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp start_idle_timer(state) do
-    case state.idle_ttl_seconds do
-      ttl when is_integer(ttl) and ttl > 0 ->
+    case state.idle_timeout_ms do
+      timeout_ms when is_integer(timeout_ms) and timeout_ms > 0 ->
         token = make_ref()
-        timer_ref = Process.send_after(self(), {:idle_timeout, token}, ttl * 1000)
+        timer_ref = Process.send_after(self(), {:idle_timeout, token}, timeout_ms)
         %{state | idle_timer_ref: timer_ref, idle_timer_token: token}
 
       _ ->
@@ -1108,6 +1199,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     %{
       department_id: instance_department_id(state.instance),
       world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      lemming_id: instance_lemming_id(state.instance),
       queue: state.queue,
       current_item: state.current_item,
       config_snapshot: state.config_snapshot,
@@ -1162,8 +1255,14 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp instance_world_id(%{world_id: world_id}), do: world_id
   defp instance_world_id(_instance), do: nil
 
+  defp instance_city_id(%{city_id: city_id}), do: city_id
+  defp instance_city_id(_instance), do: nil
+
   defp instance_department_id(%{department_id: department_id}), do: department_id
   defp instance_department_id(_instance), do: nil
+
+  defp instance_lemming_id(%{lemming_id: lemming_id}), do: lemming_id
+  defp instance_lemming_id(_instance), do: nil
 
   defp current_item_id(%{id: id}) when is_binary(id), do: id
   defp current_item_id(_current_item), do: nil
@@ -1251,6 +1350,29 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp terminal_status?(status), do: status in ["failed", "expired"]
 
+  defp transition_log_level("retrying"), do: :warning
+  defp transition_log_level("failed"), do: :error
+  defp transition_log_level(_status), do: :info
+
+  defp transition_reason(state, "retrying"), do: Telemetry.reason_token(state.last_error)
+  defp transition_reason(state, "failed"), do: Telemetry.reason_token(state.last_error)
+  defp transition_reason(_state, _status), do: nil
+
+  defp transition_measurements(state, "processing") do
+    %{count: 1, duration_ms: current_item_wait_ms(state)}
+  end
+
+  defp transition_measurements(_state, _status), do: %{count: 1}
+
+  defp current_item_wait_ms(%{
+         current_item: %{inserted_at: %DateTime{} = inserted_at},
+         now_fun: now_fun
+       }) do
+    DateTime.diff(now_fun.(), inserted_at, :millisecond)
+  end
+
+  defp current_item_wait_ms(_state), do: 0
+
   defp maybe_store_resource_key(state, resource_key) when is_binary(resource_key) do
     %{state | current_resource_key: resource_key}
   end
@@ -1292,8 +1414,23 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       )
   end
 
-  defp idle_ttl_seconds(config_snapshot) do
-    runtime_config_value(config_snapshot, :idle_ttl_seconds)
+  defp idle_timeout_ms(opts, config_snapshot) do
+    case Keyword.get(opts, :idle_timeout_ms, :use_config) do
+      timeout_ms when is_integer(timeout_ms) and timeout_ms > 0 ->
+        timeout_ms
+
+      nil ->
+        nil
+
+      :use_config ->
+        case runtime_config_value(config_snapshot, :idle_ttl_seconds) do
+          ttl when is_integer(ttl) and ttl > 0 -> ttl * 1000
+          _ -> nil
+        end
+
+      _other ->
+        nil
+    end
   end
 
   defp runtime_config_value(config_snapshot, key) when is_map(config_snapshot) do

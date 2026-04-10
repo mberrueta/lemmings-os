@@ -41,6 +41,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
      |> assign(:spawn_enabled?, false)
      |> assign(:spawn_disabled_reason, nil)
      |> assign(:lemming_instances, [])
+     |> assign(:recent_lemming_instances, [])
      |> assign(:overview_path, nil)
      |> assign(:edit_path, nil)}
   end
@@ -228,6 +229,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
         |> assign(:spawn_enabled?, false)
         |> assign(:spawn_disabled_reason, nil)
         |> assign(:lemming_instances, [])
+        |> assign(:recent_lemming_instances, [])
         |> assign(:overview_path, nil)
         |> assign(:edit_path, nil)
         |> put_shell_breadcrumb(default_shell_breadcrumb(:lemmings))
@@ -255,6 +257,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
     |> assign(:spawn_enabled?, false)
     |> assign(:spawn_disabled_reason, nil)
     |> assign(:lemming_instances, [])
+    |> assign(:recent_lemming_instances, [])
     |> assign(:overview_path, nil)
     |> assign(:edit_path, nil)
   end
@@ -276,6 +279,10 @@ defmodule LemmingsOsWeb.LemmingsLive do
     |> assign(:spawn_modal_open?, false)
     |> assign_spawn_state(lemming)
     |> assign(:lemming_instances, load_lemming_instances(socket.assigns.world, lemming))
+    |> assign(
+      :recent_lemming_instances,
+      load_recent_lemming_instances(socket.assigns.world, lemming)
+    )
     |> assign(:overview_path, detail_path(lemming, socket, "overview"))
     |> assign(:edit_path, detail_path(lemming, socket, "edit"))
   end
@@ -555,7 +562,9 @@ defmodule LemmingsOsWeb.LemmingsLive do
   defp refresh_lemming_instances(
          %{assigns: %{world: %World{} = world, selected_lemming: %Lemming{} = lemming}} = socket
        ) do
-    assign(socket, :lemming_instances, load_lemming_instances(world, lemming))
+    socket
+    |> assign(:lemming_instances, load_lemming_instances(world, lemming))
+    |> assign(:recent_lemming_instances, load_recent_lemming_instances(world, lemming))
   end
 
   defp refresh_lemming_instances(socket), do: socket
@@ -569,6 +578,15 @@ defmodule LemmingsOsWeb.LemmingsLive do
   end
 
   defp load_lemming_instances(_world, _lemming), do: []
+
+  defp load_recent_lemming_instances(%World{} = world, %Lemming{} = lemming) do
+    world
+    |> LemmingInstances.list_instances(lemming_id: lemming.id, statuses: ["failed", "expired"])
+    |> Enum.take(10)
+    |> Enum.map(&instance_view_model/1)
+  end
+
+  defp load_recent_lemming_instances(_world, _lemming), do: []
 
   defp subscribe_instance_topics(instances) when is_list(instances) do
     Enum.each(instances, fn %{id: instance_id} ->

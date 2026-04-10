@@ -159,6 +159,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
   attr :lemming_instances, :list, default: []
+  attr :recent_lemming_instances, :list, default: []
   attr :spawn_form, :any, default: nil
   attr :spawn_modal_open?, :boolean, default: false
   attr :spawn_enabled?, :boolean, default: false
@@ -290,6 +291,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <.lemming_instances_workspace
           lemming={@selected_lemming}
           instances={@lemming_instances}
+          recent_instances={@recent_lemming_instances}
           spawn_form={@spawn_form}
           spawn_modal_open?={@spawn_modal_open?}
           spawn_enabled?={@spawn_enabled?}
@@ -515,6 +517,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
 
   attr :lemming, :map, required: true
   attr :instances, :list, default: []
+  attr :recent_instances, :list, default: []
   attr :spawn_form, :any, default: nil
   attr :spawn_modal_open?, :boolean, default: false
   attr :spawn_enabled?, :boolean, default: false
@@ -674,6 +677,43 @@ defmodule LemmingsOsWeb.LemmingComponents do
                 </div>
 
                 <p class="truncate text-sm text-zinc-100">
+                  {instance.preview}
+                </p>
+              </div>
+
+              <div class="shrink-0 pt-0.5">
+                <.icon name="hero-arrow-top-right-on-square" class="size-4 text-zinc-500" />
+              </div>
+            </.link>
+          </div>
+        </div>
+
+        <div :if={@recent_instances != []} class="space-y-3 border-t border-zinc-800 pt-4">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+              Recent sessions
+            </p>
+            <p class="text-xs uppercase tracking-widest text-zinc-500">
+              {length(@recent_instances)} shown
+            </p>
+          </div>
+
+          <div id="lemming-recent-instances-list" class="grid gap-3">
+            <.link
+              :for={instance <- @recent_instances}
+              id={"lemming-recent-instance-#{instance.id}"}
+              navigate={instance_path(@lemming.world_id, instance.id)}
+              class="flex items-start justify-between gap-4 border border-zinc-800 bg-zinc-950/60 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-zinc-600"
+            >
+              <div class="min-w-0 space-y-2">
+                <div class="flex items-center gap-2">
+                  <.status kind={:instance} value={instance.status} />
+                  <span class="text-xs uppercase tracking-widest text-zinc-500">
+                    {Helpers.format_datetime(instance.inserted_at, nil_label: "Unknown")}
+                  </span>
+                </div>
+
+                <p class="truncate text-sm text-zinc-200">
                   {instance.preview}
                 </p>
               </div>

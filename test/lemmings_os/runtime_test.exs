@@ -195,6 +195,29 @@ defmodule LemmingsOs.RuntimeTest do
     assert eventually_status(failed_instance.id) == "queued"
   end
 
+  test "S06: spawn_session/3 returns created instance behind the runtime boundary" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    assert {:ok, instance} =
+             Runtime.spawn_session(lemming, "Boundary check",
+               scheduler_opts: [admission_mode: :manual]
+             )
+
+    assert %LemmingsOs.LemmingInstances.LemmingInstance{} = instance
+    assert instance.status == "created"
+    assert is_binary(instance.id)
+  end
+
   defp eventually_status(instance_id, attempts \\ 10)
 
   defp eventually_status(instance_id, 0), do: Executor.status(instance_id).status

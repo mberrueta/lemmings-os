@@ -85,4 +85,21 @@ defmodule LemmingsOs.ModelRuntime.Providers.OllamaTest do
                       )
            end) =~ "ollama provider returned a non-success response"
   end
+
+  test "S03: chat/2 returns a provider network error when the server is unavailable" do
+    assert capture_log(fn ->
+             assert {:error, {:provider_network_error, %{provider: "ollama", reason: reason}}} =
+                      Ollama.chat(
+                        %{
+                          model: "llama3.2",
+                          messages: [%{role: "user", content: "Hello"}],
+                          format: "json"
+                        },
+                        base_url: "http://127.0.0.1:1",
+                        timeout: 1_000
+                      )
+
+             assert is_binary(reason)
+           end) =~ "ollama provider request failed"
+  end
 end
