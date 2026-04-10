@@ -127,8 +127,8 @@ Active Lemming state never requires disk. ETS is sufficient for all in-execution
 
 The Phase 1 runtime slice uses this persistence contract in a constrained form:
 
-- Postgres stores durable `LemmingInstance` and transcript message records
-- ETS stores active per-instance runtime coordination state and queued work
+- Postgres stores durable `LemmingInstance` rows and `lemming_instance_messages` transcript records
+- ETS stores active per-instance runtime coordination state, queued work, retry state, and prompt-assembly context
 - DETS stores best-effort idle snapshots only
 - rehydration from DETS is deferred beyond Phase 1
 
@@ -144,6 +144,8 @@ Postgres stores only **durable conversational and case state**, similar to a cha
 
 Durable state includes:
 
+- `LemmingInstance` identity, hierarchy scope, status, frozen config snapshot, and lifecycle timestamps
+- `lemming_instance_messages` transcript rows, including the first user request
 - human messages
 - system responses visible to the user
 - promoted or accepted results
@@ -168,6 +170,16 @@ Postgres **must never store**:
 - raw tool outputs not promoted to the main thread
 - secrets
 
+Phase 1 deliberately keeps transcript persistence and execution queuing as
+separate representations of the same initial user request:
+
+- the first user request is durably persisted as a transcript row
+- the runtime also enqueues an ephemeral work item so execution can proceed from
+  ETS-backed state rather than polling the transcript table as a work queue
+
+This preserves a clean separation between durable conversation history and
+ephemeral execution mechanics.
+
 ---
 
 # 6. Ephemeral Runtime State (ETS / DETS)
@@ -184,10 +196,10 @@ All working context for a **running Lemming** lives exclusively in ETS.
 
 Active state includes:
 
-- working context
-- recent messages
-- in-progress tool results
-- partial outputs
+- per-instance work queue
+- current work item and retry metadata
+- prompt-assembly context and recent transcript state
+- in-progress tool or model coordination state
 - instance coordination metadata
 
 Active state must **not contain secret material**.
@@ -200,9 +212,10 @@ Purpose: enable rehydration if the node restarts before the Lemming is explicitl
 
 DETS snapshots:
 
-- are written once at idle transition
+- are written on transition into the reusable idle state
+- are best-effort; snapshot failure must not fail the instance lifecycle
 - are governed by TTL with activity renewal
-- are deleted on explicit dismissal or TTL expiry
+- are deleted on expiry, explicit dismissal, or other successful cleanup paths
 - must **not contain secret material**
 
 Active running Lemmings do not use DETS. DETS is exclusively the idle-rehydration store.
@@ -218,7 +231,7 @@ The runtime writes DETS snapshots at lifecycle boundaries, not continuously.
 Checkpoint triggers:
 
 1. when an instance transitions to `idle` or `paused`
-2. before instance termination (if instance was idle)
+2. before instance termination (if the instance was idle and a snapshot exists)
 
 Active running Lemmings do not checkpoint to DETS. Their working state lives in ETS and is considered recoverable-at-best. The long-term architecture allows rehydration from the most recent valid checkpoint. In Phase 1, rehydration is explicitly deferred; the runtime preserves durable records and idle snapshots without promising full automatic recovery.
 
@@ -306,6 +319,18 @@ If the original environment is unavailable, rehydration fails.
 
 Phase 1 explicitly defers this capability. Until rehydration is introduced, DETS snapshots exist as a persistence boundary and future extension point rather than an operator-facing recovery guarantee.
 
+### Phase 1 recovery semantics
+
+Until richer rehydration is introduced, the runtime's restart contract is narrower than full checkpoint restoration:
+
+- durable session identity and transcript survive restart
+- boot-time reconciliation may reattach persisted sessions to a fresh executor
+- if a trailing persisted `user` message exists, the runtime may replay that pending request
+- otherwise the session may be reattached as `idle`
+- exact in-flight provider work is recoverable-at-best only; it is not restored from the middle of an HTTP request or model call
+
+This is why DETS snapshots are a persistence boundary and future extension point in Phase 1, not a promise of exact runtime continuation after restart.
+
 Sub-lemmings are **not automatically revived** when the parent instance rehydrates.
 
 They may rehydrate independently if their state exists.
@@ -333,6 +358,7 @@ Behavior:
 
 - each context update refreshes TTL
 - runtime attempts best-effort cleanup on case completion
+- idle expiry deletes both active ETS state and any DETS snapshot on a best-effort basis
 - TTL guarantees eventual expiration even if cleanup fails
 
 ---

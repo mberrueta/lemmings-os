@@ -14,6 +14,7 @@ defmodule LemmingsOs.LemmingInstances do
   alias Ecto.Multi
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Helpers
+  alias LemmingsOs.LemmingInstances.ConfigSnapshot
   alias LemmingsOs.LemmingInstances.DetsStore
   alias LemmingsOs.LemmingInstances.EtsStore
   alias LemmingsOs.Lemmings.Lemming
@@ -71,7 +72,12 @@ defmodule LemmingsOs.LemmingInstances do
 
       true ->
         lemming = preload_lemming_for_snapshot(lemming, opts)
-        config_snapshot = lemming |> Resolver.resolve() |> snapshot_value()
+
+        config_snapshot =
+          lemming
+          |> Resolver.resolve()
+          |> snapshot_value()
+          |> ConfigSnapshot.enrich()
 
         transaction =
           Multi.new()

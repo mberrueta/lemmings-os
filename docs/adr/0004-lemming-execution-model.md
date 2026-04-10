@@ -215,8 +215,21 @@ The Phase 1 runtime slice uses the following operational statuses:
 
 These statuses are a constrained Phase 1 subset of the richer execution model above, not a replacement for it. They collapse several long-term states into operationally simpler buckets:
 
+| Phase 1 status | Long-term interpretation |
+|---|---|
+| `created` | persisted instance exists before scheduler admission; the long-term model keeps this as the pre-execution lifecycle boundary |
+| `queued` | ready-to-run work exists and is awaiting admission; later phases may split queue residency from more specialized waiting states |
+| `processing` | coarse operational bucket covering active `running` work and `waiting_model` provider execution |
+| `retrying` | operational form of `retry_backoff`; the instance is retrying the same work item under the configured retry policy |
+| `idle` | reusable waiting bucket used after successful work completion when no queued work remains; later phases may refine this into `waiting_message`, `paused`, or other quiescent states |
+| `failed` | terminal failure state aligned with the long-term `failed` outcome |
+| `expired` | Phase 1 terminal idle-timeout outcome; a specialized operational terminal state that future phases may model with richer terminal-reason semantics |
+
+The main mapping constraints are therefore:
+
 - `running` and `waiting_model` map to `processing`
 - `retry_backoff` maps to `retrying`
+- `idle` is the deliberate Phase 1 stand-in for reusable waiting states that are not yet split into finer-grained categories
 - `waiting_tool`, `waiting_message`, `paused`, `completed`, and `cancelled` are deferred beyond Phase 1
 
 Deferred states remain part of the intended long-term model and should be introduced explicitly in later phases rather than inferred from temporary implementation shortcuts.
@@ -268,6 +281,100 @@ Instead, it progresses by:
 - resuming when conditions are satisfied.
 
 This keeps the execution model OTP-native, observable, and restart-friendly.
+
+## 5.7 Phase 1 runtime control components
+
+Phase 1 formalizes a small runtime control layer around each `LemmingInstance`.
+
+### Executor
+
+The per-instance executor remains the orchestration process for a single runtime session.
+
+Responsibilities:
+
+- own the in-memory queue and current work item
+- drive status transitions for a single `LemmingInstance`
+- publish runtime updates for UI and observability
+- delegate provider work to `ModelRuntime`
+- never own provider-specific HTTP logic
+
+### DepartmentScheduler
+
+Phase 1 introduces a formal **DepartmentScheduler** runtime component. There is one scheduler per active Department.
+
+Responsibilities:
+
+- own scheduling truth for the Department's queued instances
+- react to runtime signals that work is available or capacity was released
+- select the oldest eligible queued instance first in Phase 1
+- request scarce execution capacity before an executor begins processing
+- remain focused on scheduling responsibility, not Department lifecycle management
+
+**Namespace clarification:** the implementation module lives under `LemmingsOs.LemmingInstances.DepartmentScheduler` because it is part of the instance runtime engine. Its **organizational scope** is the Department, but its **implementation namespace** is `LemmingInstances`. This is intentionally distinct from `Department.Manager`, which owns Department lifecycle and control-plane concerns rather than runtime admission control.
+
+### ResourcePool
+
+Scarce execution capacity is mediated by a runtime resource pool.
+
+Responsibilities:
+
+- gate concurrent model execution
+- key capacity by the scarce resource, not by organizational scope
+- allow many Departments to contend for the same model endpoint safely
+
+In Phase 1 the pool key is the **resource key**, for example `ollama:llama3.2`. This is intentionally not keyed by Department or City. The bottleneck is the model endpoint itself.
+
+That resource key must come from the same normalized active-model selection
+contract consumed by `ModelRuntime`. The scheduler does not define its own
+profile-selection heuristic; it consumes the resolved runtime snapshot.
+
+### ModelRuntime
+
+`ModelRuntime` is the dedicated model execution boundary for runtime orchestration.
+
+Responsibilities:
+
+- assemble prompts from structured runtime context
+- resolve the configured provider implementation
+- validate structured output
+- capture normalized token and usage data
+- keep provider-specific HTTP details outside the executor
+
+`Providers.Ollama` is the first provider implementation for Phase 1. Additional providers extend this boundary; they do not change the executor's orchestration role.
+
+## 5.8 Phase 1 boot recovery semantics
+
+Phase 1 recovery after application restart is intentionally narrow and must be read as an explicit contract, not as a vague promise of general rehydration.
+
+### Automatic boot reconciliation
+
+At boot, the runtime may call `recover_created_sessions/1` to sweep persisted instances in these statuses:
+
+- `created`
+- `queued`
+- `processing`
+- `retrying`
+- `idle`
+
+This sweep is bounded and best-effort. It is intended to reattach sessions that were persisted already but lost their in-memory executor due to process or node restart.
+
+### Automatic reattach vs recoverable-at-best
+
+The boot-time contract is:
+
+- if the latest persisted transcript row is a pending `user` message, the session is reattached and resumed as work to be processed again; the runtime normalizes the durable status back to `created` before re-entering the queue
+- if there is no pending trailing `user` message, the session is reattached as `idle` so it can accept follow-up input again
+- `queued`, `processing`, and `retrying` do not resume from an in-flight provider call; they are treated as recoverable-at-best and collapse either to "resume pending user work" or "reattach idle" depending on transcript state
+
+In other words, Phase 1 automatically recovers **session attachment**, not exact in-flight execution position.
+
+### States requiring explicit caller or operator action
+
+- `failed` is **not** auto-recovered at boot; it requires an explicit `retry_session/2` call
+- `retry_session/2` only succeeds when there is a pending trailing `user` message to replay; otherwise the failure remains terminal
+- `expired` is terminal for the session lifecycle and is not reattached automatically; callers must spawn a new session
+
+This is consistent with the broader Phase 1 design: durable session identity and transcript survive restart, while in-flight execution remains recoverable-at-best until richer rehydration semantics are introduced.
 
 ---
 

@@ -131,32 +131,48 @@ docs/architecture.md                            # Architecture overview
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
+Updated the runtime architecture documents to align the Phase 1 runtime-engine contract across ADR-0004, ADR-0008, ADR-0021, and `docs/architecture.md`.
 
 ### Work Performed
-- [What was actually done]
+- Updated ADR-0004 to make the v1 status taxonomy an explicit subset of the richer execution model and to document the Phase 1 runtime control components (`Executor`, `DepartmentScheduler`, `ResourcePool`, `ModelRuntime`).
+- Updated ADR-0008 to describe the runtime persistence split in concrete Phase 1 runtime terms: durable `LemmingInstance` and transcript rows in Postgres, active coordination state in ETS, and best-effort idle snapshots in DETS.
+- Updated ADR-0019 to make the active model-selection contract explicit so scheduler admission and `ModelRuntime` execution consume the same normalized snapshot contract.
+- Updated ADR-0021 to define the Phase 1 runtime table contract explicitly, including the `lemming_instance_messages` shape, deferred runtime columns, and the rationale for `total_tokens` and `usage`.
+- Rewrote `docs/architecture.md` so the architecture overview reflects the runtime engine layer, the `Lemming` to `LemmingInstance` relationship, the three-tier persistence split, and the `LemmingsOs.Runtime.spawn_session/3` orchestration boundary.
+- Updated `docs/adr/0023-error-handling-and-degradation-model.md` and `docs/roadmap.md` to remove stale pre-runtime-engine module references so the broader documentation set stays aligned with the branch terminology.
 
 ### Outputs Created
-- [List of files/artifacts created]
+- Modified `docs/adr/0004-lemming-execution-model.md`
+- Modified `docs/adr/0008-lemming-persistence-model.md`
+- Modified `docs/adr/0019-llm-model-provider-execution-model.md`
+- Modified `docs/adr/0023-error-handling-and-degradation-model.md`
+- Modified `docs/adr/0021-core-domain-schema.md`
+- Modified `docs/architecture.md`
+- Modified `docs/roadmap.md`
 
 ### Assumptions Made
 | Assumption | Rationale |
 |------------|-----------|
+- Existing ADR-0019 language for `ModelRuntime` and `Providers.Ollama` was already aligned with the Phase 1 contract | No additional update was needed there once ADR-0004 and `docs/architecture.md` referenced the boundary consistently |
+- The runtime state split belongs in ADR-0008 rather than a brand-new ADR for this task | ADR-0008 already owns the persistence-tier contract and was the narrowest place to document the Phase 1 split without scattering the decision |
 
 ### Decisions Made
 | Decision | Alternatives Considered | Rationale |
 |----------|------------------------|-----------|
+- Documented DepartmentScheduler in ADR-0004 instead of creating a new ADR | New standalone ADR for scheduler responsibilities | ADR-0004 is the parent execution-model ADR and already owns the runtime lifecycle contract |
+- Kept runtime-state persistence updates inside ADR-0008 instead of introducing another persistence ADR | New standalone ADR for ETS/DETS/Postgres split | ADR-0008 already defines the persistence model, so extending its Phase 1 section keeps the contract centralized |
+- Rewrote `docs/architecture.md` rather than patching isolated outdated paragraphs | Minimal point fixes to the existing architecture overview | The old document described a pre-runtime-engine model and would have remained internally inconsistent with smaller edits |
 
 ### Blockers Encountered
-- [Blocker 1] - Resolution: [How resolved or "Needs human input"]
+- None
 
 ### Questions for Human
-1. [Question needing human input]
+1. None
 
 ### Ready for Next Task
-- [ ] All outputs complete
-- [ ] Summary documented
-- [ ] Questions listed (if any)
+- [x] All outputs complete
+- [x] Summary documented
+- [x] Questions listed (if any)
 
 ---
 

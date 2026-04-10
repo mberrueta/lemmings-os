@@ -282,7 +282,7 @@ msgstr ""
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:68
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:86
 #: lib/lemmings_os/lemming_instances/message.ex:61
-#: lib/lemmings_os_web/live/instance_live.ex:528
+#: lib/lemmings_os_web/live/instance_live.ex:537
 #, elixir-autogen, elixir-format
 msgid ".required"
 msgstr ""

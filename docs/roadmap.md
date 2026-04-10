@@ -25,24 +25,26 @@ Goal: implement the World / City / Department / Lemming data model and context A
 
 ## Phase 2 — Runtime: Lemming Lifecycle
 
-Goal: Lemmings can be spawned, supervised, and terminated via OTP.
+Goal: Lemmings can be spawned, scheduled, supervised, and terminated through the runtime engine.
 
 - [ ] `LemmingsOs.Lemming.Behaviour` — pluggable agent behaviour
-- [ ] `LemmingsOs.Lemming.Executor` — supervised GenServer
-- [ ] `LemmingsOs.Department.Manager` — dynamic supervisor for Lemming pool
-- [ ] Lemming status tracking (running, stopped, crashed)
-- [ ] Crash/restart telemetry
+- [ ] `LemmingsOs.Runtime` — spawn/session orchestration boundary
+- [ ] `LemmingsOs.LemmingInstances.Executor` — supervised per-instance GenServer
+- [ ] `LemmingsOs.LemmingInstances.DepartmentScheduler` — per-Department admission control
+- [ ] `LemmingsOs.LemmingInstances.ResourcePool` — resource-key concurrency gate
+- [ ] LemmingInstance status tracking (`created`, `queued`, `processing`, `retrying`, `idle`, `failed`, `expired`)
+- [ ] Crash/retry/expiry telemetry
 
 ## Phase 2.5 — Messaging: The Nervous System
 
 Goal: Lemmings can communicate with each other and report results asynchronously.
 Without this layer, Lemmings are isolated processes with no coordination — useful but limited.
 
-- [ ] `LemmingsOs.Events` — City-scoped pub/sub event bus (backed by `Phoenix.PubSub`)
-- [ ] Topic naming convention enforced: `[world_id, city_id, department_id, event_type]`
-- [ ] `LemmingsOs.Lemming.Executor` message API: `dispatch/2`, `report_result/2`, `subscribe/2`
-- [ ] Inter-Lemming messaging within a Department (fan-out, point-to-point)
-- [ ] Inter-Department messaging within a City (routed through Department Manager)
+- [ ] `LemmingsOs.PubSub` — runtime pub/sub event bus
+- [ ] Topic naming convention enforced: `"department:<department_id>:scheduler"` and `"instance:<instance_id>:status"`
+- [ ] `LemmingsOs.LemmingInstances.Executor` session API for follow-up input, retry, and subscription flows
+- [ ] Inter-Lemming messaging within a Department (future delegation layer)
+- [ ] Inter-Department messaging within a City (future runtime routing layer)
 - [ ] Event bus scoping: events cannot cross World boundaries without explicit Gateway
 - [ ] Telemetry events for all message routing paths
 - [ ] Tests for back-pressure, dead subscribers, and ordering guarantees

@@ -125,4 +125,21 @@ defmodule LemmingsOs.ModelRuntimeTest do
 
     assert {:error, :missing_model} = ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
   end
+
+  test "S07: run/3 resolves the active model from the shared config-snapshot contract" do
+    config_snapshot = %{
+      provider_module: FakeProvider,
+      models_config: %{
+        profiles: %{
+          beta: %{provider: "ollama", model: "beta-model"},
+          alpha: %{provider: "ollama", model: "alpha-model"}
+        }
+      }
+    }
+
+    assert {:ok, %Response{model: "alpha-model"}} =
+             ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+
+    assert_receive {:provider_request, %{format: "json", model: "alpha-model"}}
+  end
 end

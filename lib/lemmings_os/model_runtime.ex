@@ -6,6 +6,7 @@ defmodule LemmingsOs.ModelRuntime do
   require Logger
 
   alias LemmingsOs.Helpers
+  alias LemmingsOs.LemmingInstances.ConfigSnapshot
   alias LemmingsOs.ModelRuntime.Providers.Ollama
   alias LemmingsOs.ModelRuntime.Response
 
@@ -205,6 +206,7 @@ defmodule LemmingsOs.ModelRuntime do
 
   defp provider_hint(config_snapshot) do
     response_field(config_snapshot, :provider_module) ||
+      ConfigSnapshot.provider(config_snapshot) ||
       response_field(config_snapshot, :provider) ||
       nested_field(config_snapshot, [:model_runtime, :provider]) ||
       nested_field(config_snapshot, [:model_runtime, :provider_module]) ||
@@ -224,12 +226,9 @@ defmodule LemmingsOs.ModelRuntime do
 
   defp resolve_model(config_snapshot) do
     candidates = [
+      ConfigSnapshot.model(config_snapshot),
       response_field(config_snapshot, :model),
       response_field(config_snapshot, :default_model),
-      nested_field(config_snapshot, [:models_config, :profiles, :default, :model]),
-      nested_field(config_snapshot, [:models_config, :profiles, :default, :name]),
-      nested_field(config_snapshot, [:models_config, :providers, :ollama, :model]),
-      nested_field(config_snapshot, [:models_config, :providers, :default, :model]),
       Application.get_env(:lemmings_os, :model_runtime, [])
       |> Keyword.get(:default_model)
     ]

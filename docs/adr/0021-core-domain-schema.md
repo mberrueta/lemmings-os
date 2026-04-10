@@ -231,6 +231,65 @@ The Mermaid diagram above represents the canonical relational model for the runt
 
 Operational timestamp columns such as `inserted_at` and `updated_at` are expected additions to runtime tables. They do not change the core schema contract described here.
 
+## 5.1 Phase 1 runtime table contract
+
+The Phase 1 runtime slice treats the runtime tables below as the canonical schema contract for the first runtime engine milestone. This section is normative for Phase 1.
+
+### `lemming_instances`
+
+Phase 1 columns:
+
+- `id` - UUID primary key and stable runtime identity
+- `lemming_id` - foreign key to the durable `lemmings` row
+- `world_id` - World isolation scope
+- `city_id` - City execution locality scope
+- `department_id` - Department scheduling scope
+- `status` - runtime lifecycle status using the Phase 1 subset from ADR-0004: `created`, `queued`, `processing`, `retrying`, `idle`, `failed`, `expired`
+- `config_snapshot` - frozen resolved runtime configuration captured at spawn time
+- `started_at` - runtime process birth time
+- `last_activity_at` - last meaningful runtime transition
+- `stopped_at` - terminal stop time only
+- `inserted_at` - durable record creation time
+- `updated_at` - last row mutation time
+
+Deferred beyond Phase 1:
+
+- `instance_ref` - not required while the UUID primary key is the stable runtime identity
+- `parent_instance_id` - reserved for future delegation and lineage workflows
+- `last_checkpoint_at` - deferred until rehydration becomes an active runtime feature
+
+These deferred fields remain valid future extensions, but they are not part of the Phase 1 contract and must not be implied by the schema today.
+
+### `lemming_instance_messages`
+
+Phase 1 columns:
+
+- `id` - UUID primary key
+- `lemming_instance_id` - foreign key to the owning runtime session
+- `world_id` - World isolation scope for transcript queries
+- `role` - transcript role, with Phase 1 values `user` and `assistant`
+- `content` - durable transcript content
+- `provider` - provider name for assistant messages when applicable
+- `model` - model identifier for assistant messages when applicable
+- `input_tokens` - normalized input token count when reported
+- `output_tokens` - normalized output token count when reported
+- `total_tokens` - aggregate token count when a provider reports only a total or when storing the convenience sum is useful
+- `usage` - nullable provider-specific usage metadata that does not belong in the normalized columns
+- `inserted_at` - transcript insertion time
+
+`lemming_instance_messages` is the single source of truth for runtime transcript content. The first user input is stored as the first `role = "user"` message and is not duplicated on `lemming_instances`.
+
+`total_tokens` and `usage` are intentional compatibility cushions. They allow the schema to preserve useful provider accounting data without forcing every provider to match a prematurely rigid normalized shape. Application logic must remain valid when either field is absent.
+
+For Phase 1, that first user input has a deliberate dual representation:
+
+- durable representation: the first `lemming_instance_messages` row with `role = "user"`
+- ephemeral execution representation: the first in-memory work item queued for the executor
+
+This is intentional. The transcript row is the durable record. The work item is
+the runtime execution unit. The executor does not consume work directly from the
+message table.
+
 ---
 
 # 6. Entity Responsibilities
@@ -467,6 +526,10 @@ The domain schema does not replace audit tables, but it gives them stable foreig
 - `last_activity_at` = last meaningful runtime transition
 - `stopped_at` = terminal stop only
 
+There may be a brief `created` window where the durable row already exists but
+the executor has not initialized yet. In that window, `inserted_at` is set and
+`started_at` remains `nil`.
+
 `lemming_instance_messages` is the canonical transcript table for runtime sessions. The initial user request belongs there, not on the instance row.
 
 ---
@@ -481,6 +544,7 @@ LemmingsOs.Cities.City
 LemmingsOs.Departments.Department
 LemmingsOs.Lemmings.Lemming
 LemmingsOs.LemmingInstances.LemmingInstance
+LemmingsOs.LemmingInstances.Message
 LemmingsOs.ToolRegistry.Tool
 LemmingsOs.ToolPolicies.ToolPolicy
 ```
