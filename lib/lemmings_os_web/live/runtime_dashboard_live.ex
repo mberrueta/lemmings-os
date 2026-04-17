@@ -13,7 +13,7 @@ defmodule LemmingsOsWeb.RuntimeDashboardLive do
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign_shell(:runtime, "Runtime Dashboard")
+      |> assign_shell(:runtime, dgettext("lemmings", ".title_runtime_dashboard"))
       |> refresh_dashboard()
 
     if connected?(socket) do
@@ -38,30 +38,56 @@ defmodule LemmingsOsWeb.RuntimeDashboardLive do
   end
 
   defp service_help(:activity_log),
-    do: "In-memory feed of recent runtime events used by the logs and operator views."
+    do: dgettext("lemmings", ".runtime_service_help_activity_log")
 
   defp service_help(:runtime_table_owner),
-    do: "Keeps the named ETS runtime table alive for active instance state."
+    do: dgettext("lemmings", ".runtime_service_help_runtime_table_owner")
 
   defp service_help(:executor_supervisor),
-    do: "DynamicSupervisor responsible for per-instance executor processes."
+    do: dgettext("lemmings", ".runtime_service_help_executor_supervisor")
 
   defp service_help(:pool_supervisor),
-    do: "DynamicSupervisor responsible for per-resource pool processes."
+    do: dgettext("lemmings", ".runtime_service_help_pool_supervisor")
 
   defp service_help(:scheduler_supervisor),
-    do: "DynamicSupervisor responsible for per-department scheduler processes."
+    do: dgettext("lemmings", ".runtime_service_help_scheduler_supervisor")
 
   defp service_help(:executor_registry),
-    do: "Registry that maps instance IDs to live executor processes."
+    do: dgettext("lemmings", ".runtime_service_help_executor_registry")
 
   defp service_help(:scheduler_registry),
-    do: "Registry that maps department IDs to live scheduler processes."
+    do: dgettext("lemmings", ".runtime_service_help_scheduler_registry")
 
   defp service_help(:pool_registry),
-    do: "Registry that maps resource keys to live resource pool processes."
+    do: dgettext("lemmings", ".runtime_service_help_pool_registry")
 
-  defp service_help(_service), do: "Runtime infrastructure service."
+  defp service_help(_service), do: dgettext("lemmings", ".runtime_service_help_default")
+
+  defp service_label(:activity_log),
+    do: dgettext("lemmings", ".runtime_service_label_activity_log")
+
+  defp service_label(:runtime_table_owner),
+    do: dgettext("lemmings", ".runtime_service_label_runtime_table_owner")
+
+  defp service_label(:executor_supervisor),
+    do: dgettext("lemmings", ".runtime_service_label_executor_supervisor")
+
+  defp service_label(:pool_supervisor),
+    do: dgettext("lemmings", ".runtime_service_label_pool_supervisor")
+
+  defp service_label(:scheduler_supervisor),
+    do: dgettext("lemmings", ".runtime_service_label_scheduler_supervisor")
+
+  defp service_label(:executor_registry),
+    do: dgettext("lemmings", ".runtime_service_label_executor_registry")
+
+  defp service_label(:scheduler_registry),
+    do: dgettext("lemmings", ".runtime_service_label_scheduler_registry")
+
+  defp service_label(:pool_registry),
+    do: dgettext("lemmings", ".runtime_service_label_pool_registry")
+
+  defp service_label(service), do: service |> to_string() |> String.replace("_", " ")
 
   defp bool_tone(true), do: "success"
   defp bool_tone(false), do: "danger"
@@ -71,17 +97,10 @@ defmodule LemmingsOsWeb.RuntimeDashboardLive do
   defp pool_tone(%{current: current, max: max}) when current >= max, do: "warning"
   defp pool_tone(_pool), do: "default"
 
-  defp entry_tone(%{executor_alive?: false}), do: "warning"
-  defp entry_tone(%{status: "failed"}), do: "danger"
-  defp entry_tone(%{status: "retrying"}), do: "warning"
-  defp entry_tone(%{status: "processing"}), do: "info"
-  defp entry_tone(%{status: "queued"}), do: "accent"
-  defp entry_tone(_entry), do: "default"
-
   defp queue_detail(%{queue_depth: queue_depth, current_item_id: current_item_id}) do
     [
-      "queue=#{queue_depth}",
-      current_item_id && "current=#{current_item_id}"
+      dgettext("lemmings", ".runtime_queue_detail", count: queue_depth),
+      current_item_id && dgettext("lemmings", ".runtime_current_detail", id: current_item_id)
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" | ")

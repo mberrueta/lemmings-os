@@ -537,7 +537,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
             </p>
             <p class="text-sm text-zinc-400">
               {if @spawn_enabled?,
-                do: "Create a new runtime session from this lemming.",
+                do: dgettext("lemmings", ".spawn_enabled_copy"),
                 else: @spawn_disabled_reason}
             </p>
           </div>
@@ -550,7 +550,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
               variant="secondary"
               phx-click="open_spawn_modal"
             >
-              Spawn
+              {dgettext("lemmings", ".button_spawn")}
             </.button>
 
             <button
@@ -561,7 +561,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
               title={@spawn_disabled_reason}
               class="inline-flex min-h-11 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/70 px-4 py-2 text-sm font-medium text-zinc-500"
             >
-              Spawn
+              {dgettext("lemmings", ".button_spawn")}
             </button>
           </div>
         </div>
@@ -585,10 +585,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
               <div class="flex items-start justify-between gap-4 border-b border-zinc-800 pb-4">
                 <div>
                   <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                    Spawn instance
+                    {dgettext("lemmings", ".title_spawn_instance")}
                   </p>
                   <p class="mt-1 text-sm text-zinc-400">
-                    Enter the first request for this session.
+                    {dgettext("lemmings", ".copy_spawn_instance")}
                   </p>
                 </div>
 
@@ -614,8 +614,8 @@ defmodule LemmingsOsWeb.LemmingComponents do
                   field={@spawn_form[:request_text]}
                   type="textarea"
                   rows="5"
-                  label="Initial request"
-                  placeholder="Tell the lemming what to work on..."
+                  label={dgettext("lemmings", ".label_initial_request")}
+                  placeholder={dgettext("lemmings", ".placeholder_spawn_request")}
                 />
 
                 <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -625,7 +625,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
                     variant="ghost"
                     phx-click="close_spawn_modal"
                   >
-                    Cancel
+                    {dgettext("lemmings", ".button_cancel")}
                   </.button>
 
                   <.button
@@ -633,9 +633,9 @@ defmodule LemmingsOsWeb.LemmingComponents do
                     type="submit"
                     variant="secondary"
                     disabled={Helpers.blank?(@spawn_form[:request_text].value)}
-                    phx-disable-with="Spawning..."
+                    phx-disable-with={dgettext("lemmings", ".button_spawning")}
                   >
-                    Confirm spawn
+                    {dgettext("lemmings", ".button_confirm_spawn")}
                   </.button>
                 </div>
               </.form>
@@ -646,18 +646,18 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-              Active instances
+              {dgettext("lemmings", ".title_active_instances")}
             </p>
             <p class="text-xs uppercase tracking-widest text-zinc-500">
-              {length(@instances)} total
+              {dgettext("lemmings", ".count_total", count: length(@instances))}
             </p>
           </div>
 
           <div :if={@instances == []} id="lemming-instances-empty-list">
             <.empty_state
               id="lemming-instances-empty-state-card"
-              title="No active instances"
-              copy="Spawn one to start a session."
+              title={dgettext("lemmings", ".empty_no_active_instances")}
+              copy={dgettext("lemmings", ".empty_no_active_instances_copy")}
             />
           </div>
 
@@ -672,7 +672,9 @@ defmodule LemmingsOsWeb.LemmingComponents do
                 <div class="flex items-center gap-2">
                   <.status kind={:instance} value={instance.status} />
                   <span class="text-xs uppercase tracking-widest text-zinc-500">
-                    {Helpers.format_datetime(instance.inserted_at, nil_label: "Unknown")}
+                    {Helpers.format_datetime(instance.inserted_at,
+                      nil_label: dgettext("lemmings", ".label_unknown")
+                    )}
                   </span>
                 </div>
 
@@ -691,10 +693,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <div :if={@recent_instances != []} class="space-y-3 border-t border-zinc-800 pt-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-              Recent sessions
+              {dgettext("lemmings", ".title_recent_sessions")}
             </p>
             <p class="text-xs uppercase tracking-widest text-zinc-500">
-              {length(@recent_instances)} shown
+              {dgettext("lemmings", ".count_shown", count: length(@recent_instances))}
             </p>
           </div>
 
@@ -709,7 +711,9 @@ defmodule LemmingsOsWeb.LemmingComponents do
                 <div class="flex items-center gap-2">
                   <.status kind={:instance} value={instance.status} />
                   <span class="text-xs uppercase tracking-widest text-zinc-500">
-                    {Helpers.format_datetime(instance.inserted_at, nil_label: "Unknown")}
+                    {Helpers.format_datetime(instance.inserted_at,
+                      nil_label: dgettext("lemmings", ".label_unknown")
+                    )}
                   </span>
                 </div>
 

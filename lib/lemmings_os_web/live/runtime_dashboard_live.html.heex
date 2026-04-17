@@ -11,33 +11,35 @@
   <.content_container>
     <section id="runtime-dashboard-page" class="flex flex-col gap-4">
       <.panel id="runtime-dashboard-overview" tone="accent">
-        <:title>Runtime Dashboard</:title>
-        <:subtitle>Dev-only operational view of runtime modules and live state.</:subtitle>
+        <:title>{dgettext("lemmings", ".title_runtime_dashboard")}</:title>
+        <:subtitle>
+          {dgettext("lemmings", ".subtitle_runtime_dashboard")}
+        </:subtitle>
 
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <.stat_item
             id="runtime-dashboard-pending"
-            label="Pending instances"
+            label={dgettext("lemmings", ".label_pending_instances")}
             value={to_string(@runtime_dashboard.overview.pending_instances)}
-            detail="created + queued + processing + retrying"
+            detail={dgettext("lemmings", ".detail_pending_instances")}
           />
           <.stat_item
             id="runtime-dashboard-executors"
-            label="Executors"
+            label={dgettext("lemmings", ".title_executors")}
             value={to_string(length(@runtime_dashboard.executors))}
-            detail="Registered live executors"
+            detail={dgettext("lemmings", ".detail_registered_live_executors")}
           />
           <.stat_item
             id="runtime-dashboard-schedulers"
-            label="Schedulers"
+            label={dgettext("lemmings", ".label_schedulers")}
             value={to_string(length(@runtime_dashboard.schedulers))}
-            detail="Registered department schedulers"
+            detail={dgettext("lemmings", ".detail_registered_department_schedulers")}
           />
           <.stat_item
             id="runtime-dashboard-pools"
-            label="Pools"
+            label={dgettext("lemmings", ".label_pools")}
             value={to_string(length(@runtime_dashboard.pools))}
-            detail="Registered resource pools"
+            detail={dgettext("lemmings", ".detail_registered_resource_pools")}
           />
         </div>
 
@@ -45,24 +47,28 @@
           <.badge tone={
             if @runtime_dashboard.overview.engine_enabled?, do: "success", else: "danger"
           }>
-            Runtime engine {if @runtime_dashboard.overview.engine_enabled?,
-              do: "enabled",
-              else: "disabled"}
+            {dgettext("lemmings", ".label_runtime_engine")} {if @runtime_dashboard.overview.engine_enabled?,
+              do: dgettext("lemmings", ".label_enabled"),
+              else: dgettext("lemmings", ".label_disabled")}
           </.badge>
           <.badge tone={
             if @runtime_dashboard.overview.attention_required?, do: "warning", else: "success"
           }>
-            Alerts {length(@runtime_dashboard.overview.alerts)}
+            {dgettext("lemmings", ".label_alerts")} {length(@runtime_dashboard.overview.alerts)}
           </.badge>
           <.badge tone="muted">
-            ETS entries {length(@runtime_dashboard.runtime_entries)}
+            {dgettext("lemmings", ".label_ets_entries")} {length(
+              @runtime_dashboard.runtime_entries
+            )}
           </.badge>
         </div>
       </.panel>
 
       <.panel id="runtime-dashboard-services">
-        <:title>Core Services</:title>
-        <:subtitle>Named processes that must exist for the engine to operate.</:subtitle>
+        <:title>{dgettext("lemmings", ".title_core_services")}</:title>
+        <:subtitle>
+          {dgettext("lemmings", ".subtitle_core_services")}
+        </:subtitle>
 
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <div
@@ -72,7 +78,7 @@
           >
             <div class="flex items-center justify-between gap-3">
               <div class="flex items-center gap-2">
-                <p class="font-mono text-sm text-zinc-100">{service.label}</p>
+                <p class="font-mono text-sm text-zinc-100">{service_label(service.id)}</p>
                 <span
                   class="inline-flex items-center text-zinc-500 hover:text-zinc-300"
                   title={service_help(service.id)}
@@ -82,24 +88,28 @@
                 </span>
               </div>
               <.badge tone={bool_tone(service.up?)}>
-                {if service.up?, do: "up", else: "down"}
+                {if service.up?,
+                  do: dgettext("lemmings", ".label_up"),
+                  else: dgettext("lemmings", ".label_down")}
               </.badge>
             </div>
-            <p class="mt-2 text-xs text-zinc-500">pid {service.pid}</p>
+            <p class="mt-2 text-xs text-zinc-500">
+              {dgettext("lemmings", ".label_pid")} {service.pid}
+            </p>
           </div>
         </div>
       </.panel>
 
       <.panel id="runtime-dashboard-schedulers-panel">
-        <:title>Department Schedulers</:title>
-        <:subtitle>Admission state per department.</:subtitle>
+        <:title>{dgettext("lemmings", ".title_department_schedulers")}</:title>
+        <:subtitle>{dgettext("lemmings", ".subtitle_department_schedulers")}</:subtitle>
 
         <div
           :if={@runtime_dashboard.schedulers == []}
           id="runtime-dashboard-schedulers-empty"
           class="text-sm text-zinc-400"
         >
-          No schedulers registered.
+          {dgettext("lemmings", ".empty_no_schedulers_registered")}
         </div>
 
         <div :if={@runtime_dashboard.schedulers != []} class="grid gap-3 lg:grid-cols-2">
@@ -112,16 +122,22 @@
               <p class="font-mono text-sm text-zinc-100">{scheduler.department_label}</p>
               <div class="flex flex-wrap gap-2">
                 <.badge tone={bool_tone(scheduler.alive?)}>
-                  {if scheduler.alive?, do: "alive", else: "down"}
+                  {if scheduler.alive?,
+                    do: dgettext("lemmings", ".label_alive"),
+                    else: dgettext("lemmings", ".label_down")}
                 </.badge>
                 <.badge tone="info">{scheduler.admission_mode}</.badge>
               </div>
             </div>
             <p class="mt-3 text-xs uppercase tracking-widest text-zinc-500">
-              queued {scheduler.queued_count}
+              {dgettext("lemmings", ".label_queued")} {scheduler.queued_count}
             </p>
-            <p class="mt-1 text-xs text-zinc-500">department id {scheduler.department_id}</p>
-            <p class="mt-1 text-xs text-zinc-500">pid {scheduler.pid}</p>
+            <p class="mt-1 text-xs text-zinc-500">
+              {dgettext("lemmings", ".label_department_id")} {scheduler.department_id}
+            </p>
+            <p class="mt-1 text-xs text-zinc-500">
+              {dgettext("lemmings", ".label_pid")} {scheduler.pid}
+            </p>
             <p class="mt-3 text-xs text-zinc-400 break-all">
               {Enum.join(scheduler.queued_instance_ids, ", ")}
             </p>
@@ -130,15 +146,17 @@
       </.panel>
 
       <.panel id="runtime-dashboard-pools-panel">
-        <:title>Resource Pools</:title>
-        <:subtitle>Capacity, gate, and holder pressure per resource key.</:subtitle>
+        <:title>{dgettext("lemmings", ".title_resource_pools")}</:title>
+        <:subtitle>
+          {dgettext("lemmings", ".subtitle_resource_pools")}
+        </:subtitle>
 
         <div
           :if={@runtime_dashboard.pools == []}
           id="runtime-dashboard-pools-empty"
           class="text-sm text-zinc-400"
         >
-          No pools registered.
+          {dgettext("lemmings", ".empty_no_pools_registered")}
         </div>
 
         <div :if={@runtime_dashboard.pools != []} class="grid gap-3 lg:grid-cols-2">
@@ -151,31 +169,41 @@
               <p class="font-mono text-sm text-zinc-100">{pool.resource_key}</p>
               <div class="flex flex-wrap gap-2">
                 <.badge tone={bool_tone(pool.alive?)}>
-                  {if pool.alive?, do: "alive", else: "down"}
+                  {if pool.alive?,
+                    do: dgettext("lemmings", ".label_alive"),
+                    else: dgettext("lemmings", ".label_down")}
                 </.badge>
                 <.badge tone={pool_tone(pool)}>
                   {pool.current}/{pool.max}
                 </.badge>
                 <.badge tone={if pool.gate == :open, do: "success", else: "warning"}>
-                  gate {pool.gate}
+                  {dgettext("lemmings", ".label_gate")} {pool.gate}
                 </.badge>
               </div>
             </div>
             <p class="mt-3 text-xs text-zinc-500">
-              holders {pool.holders_count} | available {to_string(pool.available?)}
+              {dgettext("lemmings", ".label_holders")} {pool.holders_count} | {dgettext(
+                "lemmings",
+                ".label_available"
+              )} {to_string(pool.available?)}
             </p>
-            <p class="mt-1 text-xs text-zinc-500">pid {pool.pid}</p>
+            <p class="mt-1 text-xs text-zinc-500">
+              {dgettext("lemmings", ".label_pid")} {pool.pid}
+            </p>
             <p class="mt-3 text-xs text-zinc-400 break-all">
-              departments {Enum.join(pool.holder_department_ids, ", ")}
+              {dgettext("lemmings", ".label_departments")} {Enum.join(
+                pool.holder_department_ids,
+                ", "
+              )}
             </p>
           </div>
         </div>
       </.panel>
 
       <.panel id="runtime-dashboard-executors-panel">
-        <:title>Executors</:title>
+        <:title>{dgettext("lemmings", ".title_executors")}</:title>
         <:subtitle>
-          Per-instance workers and their active runtime status. Showing latest 10.
+          {dgettext("lemmings", ".subtitle_executors")}
         </:subtitle>
 
         <div
@@ -183,7 +211,7 @@
           id="runtime-dashboard-executors-empty"
           class="text-sm text-zinc-400"
         >
-          No executors registered.
+          {dgettext("lemmings", ".empty_no_executors_registered")}
         </div>
 
         <div :if={@runtime_dashboard.executors != []} class="flex flex-col gap-3">
@@ -196,13 +224,18 @@
               <div class="min-w-0">
                 <p class="font-mono text-sm text-zinc-100 break-all">{executor.display_label}</p>
                 <p class="mt-1 text-xs text-zinc-500">
-                  department {executor.department_label || executor.department_id || "-"}
+                  {dgettext("lemmings", ".label_department")} {executor.department_label ||
+                    executor.department_id || "-"}
                 </p>
-                <p class="mt-1 text-xs text-zinc-500">instance id {executor.instance_id}</p>
+                <p class="mt-1 text-xs text-zinc-500">
+                  {dgettext("lemmings", ".label_instance_id")} {executor.instance_id}
+                </p>
               </div>
               <div class="flex flex-wrap gap-2">
                 <.badge tone={bool_tone(executor.alive?)}>
-                  {if executor.alive?, do: "alive", else: "down"}
+                  {if executor.alive?,
+                    do: dgettext("lemmings", ".label_alive"),
+                    else: dgettext("lemmings", ".label_down")}
                 </.badge>
                 <.status kind={:instance} value={executor.status} />
               </div>
@@ -210,38 +243,42 @@
             <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <.stat_item
                 id={"runtime-dashboard-executor-queue-#{executor.instance_id}"}
-                label="Queue"
+                label={dgettext("lemmings", ".label_queue")}
                 value={to_string(executor.queue_depth)}
-                detail={executor.current_item_id || "no current item"}
+                detail={
+                  executor.current_item_id || dgettext("lemmings", ".detail_no_current_item")
+                }
                 tone={if executor.queue_depth > 0, do: "accent", else: "default"}
               />
               <.stat_item
                 id={"runtime-dashboard-executor-retry-#{executor.instance_id}"}
-                label="Retry"
+                label={dgettext("lemmings", ".label_retry")}
                 value={"#{executor.retry_count}/#{executor.max_retries}"}
-                detail="current / max"
+                detail={dgettext("lemmings", ".detail_current_max")}
                 tone={if executor.retry_count > 0, do: "warning", else: "default"}
               />
               <.stat_item
                 id={"runtime-dashboard-executor-resource-#{executor.instance_id}"}
-                label="Resource"
+                label={dgettext("lemmings", ".label_resource")}
                 value={executor.current_resource_key || "-"}
-                detail="active pool assignment"
+                detail={dgettext("lemmings", ".detail_active_pool_assignment")}
                 tone="info"
               />
               <.stat_item
                 id={"runtime-dashboard-executor-pid-#{executor.instance_id}"}
-                label="PID"
+                label={dgettext("lemmings", ".label_pid_upper")}
                 value={executor.pid}
-                detail="registry target"
+                detail={dgettext("lemmings", ".detail_registry_target")}
               />
             </div>
             <div class="mt-3 grid gap-3 md:grid-cols-2">
               <div class="border border-zinc-800 bg-zinc-950/60 p-3 text-xs text-zinc-400">
-                started {format_dt(executor.started_at)}
+                {dgettext("lemmings", ".label_started")} {format_dt(executor.started_at)}
               </div>
               <div class="border border-zinc-800 bg-zinc-950/60 p-3 text-xs text-zinc-400">
-                last activity {format_dt(executor.last_activity_at)}
+                {dgettext("lemmings", ".label_last_activity")} {format_dt(
+                  executor.last_activity_at
+                )}
               </div>
             </div>
             <p
@@ -255,9 +292,9 @@
       </.panel>
 
       <.panel id="runtime-dashboard-runtime-entries-panel">
-        <:title>ETS Runtime Entries</:title>
+        <:title>{dgettext("lemmings", ".title_ets_runtime_entries")}</:title>
         <:subtitle>
-          Live runtime rows, including queue pressure and orphan detection. Showing latest 10.
+          {dgettext("lemmings", ".subtitle_ets_runtime_entries")}
         </:subtitle>
 
         <div
@@ -265,7 +302,7 @@
           id="runtime-dashboard-runtime-entries-empty"
           class="text-sm text-zinc-400"
         >
-          No ETS runtime entries.
+          {dgettext("lemmings", ".empty_no_ets_runtime_entries")}
         </div>
 
         <div :if={@runtime_dashboard.runtime_entries != []} class="flex flex-col gap-3">
@@ -278,27 +315,35 @@
               <div class="min-w-0">
                 <p class="font-mono text-sm text-zinc-100 break-all">{entry.display_label}</p>
                 <p class="mt-1 text-xs text-zinc-500">
-                  department {entry.department_label || entry.department_id || "-"}
+                  {dgettext("lemmings", ".label_department")} {entry.department_label ||
+                    entry.department_id || "-"}
                 </p>
-                <p class="mt-1 text-xs text-zinc-500">instance id {entry.instance_id}</p>
+                <p class="mt-1 text-xs text-zinc-500">
+                  {dgettext("lemmings", ".label_instance_id")} {entry.instance_id}
+                </p>
               </div>
               <div class="flex flex-wrap gap-2">
-                <.badge tone={entry_tone(entry)}>{entry.status}</.badge>
+                <.status kind={:instance} value={entry.status} />
                 <.badge tone={if entry.executor_alive?, do: "success", else: "warning"}>
-                  executor {if entry.executor_alive?, do: "attached", else: "missing"}
+                  {dgettext("lemmings", ".label_executor")} {if entry.executor_alive?,
+                    do: dgettext("lemmings", ".label_attached"),
+                    else: dgettext("lemmings", ".label_missing")}
                 </.badge>
               </div>
             </div>
             <p class="mt-3 text-xs text-zinc-400">{queue_detail(entry)}</p>
             <p class="mt-1 text-xs text-zinc-500">
-              resource {entry.resource_key || "-"} | retry {entry.retry_count}/{entry.max_retries}
+              {dgettext("lemmings", ".label_resource")} {entry.resource_key || "-"} | {dgettext(
+                "lemmings",
+                ".label_retry"
+              )} {entry.retry_count}/{entry.max_retries}
             </p>
             <div class="mt-3 grid gap-3 md:grid-cols-2">
               <div class="border border-zinc-800 bg-zinc-950/60 p-3 text-xs text-zinc-400">
-                started {format_dt(entry.started_at)}
+                {dgettext("lemmings", ".label_started")} {format_dt(entry.started_at)}
               </div>
               <div class="border border-zinc-800 bg-zinc-950/60 p-3 text-xs text-zinc-400">
-                last activity {format_dt(entry.last_activity_at)}
+                {dgettext("lemmings", ".label_last_activity")} {format_dt(entry.last_activity_at)}
               </div>
             </div>
             <p
