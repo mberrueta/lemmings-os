@@ -27,6 +27,8 @@ The design goal is to keep the mental model simple:
 
 This model must support multiple concurrent instances of the same agent type, iterative follow-up work on a delegated subtask, and safe routing boundaries aligned with World isolation.
 
+For the current runtime slice, this ADR should be read as the long-term routing model. Phase 1 adopts only the subset needed for direct runtime instance addressing and local runtime supervision; peer delegation, coordinated worker follow-up flows, and the broader `agent_type` spawn semantics remain deferred beyond Phase 1.
+
 ---
 
 # 2. Decision Drivers
@@ -137,6 +139,8 @@ Runtime addressing supports exactly two forms in v1:
    - `instance_ref` is stable and opaque.
    - Runtime internals such as PID or node placement are not exposed as the addressing contract.
 
+For Phase 1, only the `instance_ref` form is part of the active runtime slice. The `agent_type` addressing form remains part of the target routing model for a later phase.
+
 ## 4.2 Default addressing semantics
 
 The runtime applies the following default semantics:
@@ -145,6 +149,8 @@ The runtime applies the following default semantics:
 - `instance_ref` → **send to existing instance**
 
 This keeps routing predictable and avoids hidden reuse decisions in v1.
+
+These semantics describe the target routing contract. In the current Phase 1 slice, `instance_ref` addressing is active and `agent_type`-driven peer spawning is deferred.
 
 Example:
 

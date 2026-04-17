@@ -72,6 +72,8 @@ Deferred beyond Phase 1:
 - generalized checkpoint metadata columns on the relational runtime record
 - any separate opaque `instance_ref` beyond the UUID primary key, and only if future routing or interop needs justify it
 
+In Phase 1, `lemming_instances.id` acts as the runtime `instance_ref`.
+
 ---
 
 # 4. Domain Model Diagram

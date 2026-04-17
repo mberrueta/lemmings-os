@@ -348,7 +348,7 @@ Phase 1 recovery after application restart is intentionally narrow and must be r
 
 ### Automatic boot reconciliation
 
-At boot, the runtime may call `recover_created_sessions/1` to sweep persisted instances in these statuses:
+At boot, the runtime may run a bounded recovery sweep over persisted instances in these statuses:
 
 - `created`
 - `queued`
@@ -370,8 +370,8 @@ In other words, Phase 1 automatically recovers **session attachment**, not exact
 
 ### States requiring explicit caller or operator action
 
-- `failed` is **not** auto-recovered at boot; it requires an explicit `retry_session/2` call
-- `retry_session/2` only succeeds when there is a pending trailing `user` message to replay; otherwise the failure remains terminal
+- `failed` is **not** auto-recovered at boot; it requires an explicit caller or operator retry action
+- that retry action only succeeds when there is a pending trailing `user` message to replay; otherwise the failure remains terminal
 - `expired` is terminal for the session lifecycle and is not reattached automatically; callers must spawn a new session
 
 This is consistent with the broader Phase 1 design: durable session identity and transcript survive restart, while in-flight execution remains recoverable-at-best until richer rehydration semantics are introduced.
