@@ -7,6 +7,7 @@ defmodule LemmingsOsWeb.RuntimeDashboardLive do
   alias LemmingsOs.Runtime.Status
 
   @refresh_interval 10_000
+  @recent_runtime_limit 10
 
   @impl true
   def mount(_params, _session, socket) do
@@ -29,7 +30,11 @@ defmodule LemmingsOsWeb.RuntimeDashboardLive do
   end
 
   defp refresh_dashboard(socket) do
-    assign(socket, :runtime_dashboard, Status.dashboard_snapshot())
+    assign(
+      socket,
+      :runtime_dashboard,
+      Status.dashboard_snapshot(recent_limit: @recent_runtime_limit)
+    )
   end
 
   defp service_help(:activity_log),

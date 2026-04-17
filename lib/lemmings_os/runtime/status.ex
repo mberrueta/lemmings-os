@@ -39,26 +39,27 @@ defmodule LemmingsOs.Runtime.Status do
     }
   end
 
-  @spec dashboard_snapshot() :: map()
-  def dashboard_snapshot do
+  @spec dashboard_snapshot(keyword()) :: map()
+  def dashboard_snapshot(opts \\ []) do
     overview = snapshot()
     executors = executor_snapshots()
     runtime_entries = runtime_entries(executors)
     labels = runtime_labels(executors, runtime_entries)
     schedulers = scheduler_snapshots(labels.department_labels)
     pools = pool_snapshots()
+    recent_limit = Keyword.get(opts, :recent_limit)
 
     executors =
       executors
       |> attach_executor_labels(labels.instance_labels)
       |> latest_first()
-      |> Enum.take(10)
+      |> maybe_take(recent_limit)
 
     runtime_entries =
       runtime_entries
       |> attach_runtime_entry_labels(labels.instance_labels)
       |> latest_first()
-      |> Enum.take(10)
+      |> maybe_take(recent_limit)
 
     %{
       overview: overview,
@@ -417,6 +418,11 @@ defmodule LemmingsOs.Runtime.Status do
   defp latest_sort_value(%{last_activity_at: %DateTime{} = value}), do: value
   defp latest_sort_value(%{started_at: %DateTime{} = value}), do: value
   defp latest_sort_value(_entry), do: ~U[1970-01-01 00:00:00Z]
+
+  defp maybe_take(entries, limit) when is_integer(limit) and limit >= 0,
+    do: Enum.take(entries, limit)
+
+  defp maybe_take(entries, _limit), do: entries
 
   defp instance_display_label(%{lemming: %Lemming{} = lemming, id: instance_id}) do
     slug_or_name(lemming) || instance_id

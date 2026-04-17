@@ -67,12 +67,8 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshot do
   Extracts the selected provider name from a config snapshot.
   """
   @spec provider(map()) :: String.t() | nil
-  def provider(config_snapshot) when is_map(config_snapshot) do
-    case selection(config_snapshot) do
-      %{provider: provider} -> provider
-      _ -> nil
-    end
-  end
+  def provider(config_snapshot) when is_map(config_snapshot),
+    do: selection_value(selection(config_snapshot), :provider)
 
   def provider(_config_snapshot), do: nil
 
@@ -80,15 +76,8 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshot do
   Extracts the selected model name from a config snapshot.
   """
   @spec model(map()) :: String.t() | nil
-  def model(config_snapshot) when is_map(config_snapshot) do
-    case selection(config_snapshot) do
-      %{model: model} ->
-        model
-
-      _ ->
-        direct_model(config_snapshot)
-    end
-  end
+  def model(config_snapshot) when is_map(config_snapshot),
+    do: selection_value(selection(config_snapshot), :model) || direct_model(config_snapshot)
 
   def model(_config_snapshot), do: nil
 
@@ -116,12 +105,8 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshot do
       nil
   """
   @spec resource_key(map()) :: String.t() | nil
-  def resource_key(config_snapshot) when is_map(config_snapshot) do
-    case selection(config_snapshot) do
-      %{resource_key: resource_key} -> resource_key
-      _ -> nil
-    end
-  end
+  def resource_key(config_snapshot) when is_map(config_snapshot),
+    do: selection_value(selection(config_snapshot), :resource_key)
 
   def resource_key(_config_snapshot), do: nil
 
@@ -214,6 +199,11 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshot do
     direct_field(config_snapshot, :default_model) ||
       nested_field(config_snapshot, [:model_runtime, :default_model])
   end
+
+  defp selection_value(%{provider: provider}, :provider), do: provider
+  defp selection_value(%{model: model}, :model), do: model
+  defp selection_value(%{resource_key: resource_key}, :resource_key), do: resource_key
+  defp selection_value(_selection, _field), do: nil
 
   defp normalize_model_runtime_map(%{} = model_runtime) do
     Map.new(model_runtime, fn {key, value} -> {normalize_key(key), value} end)
