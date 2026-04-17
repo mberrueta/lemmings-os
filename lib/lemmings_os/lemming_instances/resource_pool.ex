@@ -335,7 +335,11 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
   @impl true
   def handle_call({:checkout, holder_pid, department_id}, _from, state)
       when is_pid(holder_pid) do
-    if state.gate == :closed or state.current >= state.max do
+    cond do
+      holder_registered?(state.holders, holder_pid) ->
+        {:reply, :ok, state}
+
+      state.gate == :closed or state.current >= state.max ->
       reason = Telemetry.reason_token(:at_capacity)
 
       Logger.warning("resource pool checkout denied",
@@ -365,40 +369,40 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
         )
 
       {:reply, {:error, :at_capacity}, state}
-    else
-      monitor_ref = Process.monitor(holder_pid)
+      true ->
+        monitor_ref = Process.monitor(holder_pid)
 
-      state = %{
-        state
-        | current: state.current + 1,
-          holders:
-            Map.put(state.holders, monitor_ref, %{pid: holder_pid, department_id: department_id})
-      }
+        state = %{
+          state
+          | current: state.current + 1,
+            holders:
+              Map.put(state.holders, monitor_ref, %{pid: holder_pid, department_id: department_id})
+        }
 
-      Logger.info("resource pool checkout granted",
-        event: "instance.pool.checkout",
-        world_id: nil,
-        city_id: nil,
-        resource_key: state.resource_key,
-        holder_pid: inspect(holder_pid),
-        department_id: department_id,
-        pool_current: state.current,
-        pool_max: state.max
-      )
-
-      _ =
-        Telemetry.execute(
-          [:lemmings_os, :pool, :acquired],
-          %{count: 1},
-          Telemetry.pool_metadata(%{
-            department_id: department_id,
-            resource_key: state.resource_key,
-            pool_current: state.current,
-            pool_max: state.max
-          })
+        Logger.info("resource pool checkout granted",
+          event: "instance.pool.checkout",
+          world_id: nil,
+          city_id: nil,
+          resource_key: state.resource_key,
+          holder_pid: inspect(holder_pid),
+          department_id: department_id,
+          pool_current: state.current,
+          pool_max: state.max
         )
 
-      {:reply, :ok, state}
+        _ =
+          Telemetry.execute(
+            [:lemmings_os, :pool, :acquired],
+            %{count: 1},
+            Telemetry.pool_metadata(%{
+              department_id: department_id,
+              resource_key: state.resource_key,
+              pool_current: state.current,
+              pool_max: state.max
+            })
+          )
+
+        {:reply, :ok, state}
     end
   end
 
@@ -695,6 +699,10 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
       {monitor_ref, holder} -> {monitor_ref, holder, Map.delete(holders, monitor_ref)}
       nil -> {nil, holders}
     end
+  end
+
+  defp holder_registered?(holders, pid) do
+    Enum.any?(holders, fn {_ref, holder} -> holder.pid == pid end)
   end
 
   defp broadcast_capacity_released(%{pubsub_mod: nil} = state, _department_id), do: state

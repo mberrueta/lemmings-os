@@ -103,6 +103,34 @@ defmodule LemmingsOs.LemmingInstances.ResourcePoolTest do
     GenServer.stop(pool_pid)
   end
 
+  test "S06: duplicate checkout for the same holder does not consume extra capacity" do
+    {:ok, pid} =
+      ResourcePool.start_link(
+        resource_key: "ollama:dedupe-holder",
+        name: nil,
+        gate: :open,
+        pubsub_mod: nil
+      )
+
+    holder =
+      spawn(fn ->
+        receive do
+          :stop -> :ok
+        end
+      end)
+
+    assert :ok = ResourcePool.checkout(pid, holder: holder, department_id: "dept-1")
+    assert :ok = ResourcePool.checkout(pid, holder: holder, department_id: "dept-1")
+    assert ResourcePool.status(pid) == {1, 1}
+
+    assert :ok = ResourcePool.checkin(pid, holder)
+    assert ResourcePool.status(pid) == {0, 1}
+    assert ResourcePool.available?(pid)
+
+    send(holder, :stop)
+    GenServer.stop(pid)
+  end
+
   defp ensure_registry!(name) do
     case Process.whereis(name) do
       pid when is_pid(pid) ->

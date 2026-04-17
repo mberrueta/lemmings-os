@@ -388,57 +388,61 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   test "S04a: provider failure keeps raw diagnostics internal while exposing sanitized copy", %{
     instance: instance
   } do
-    resource_key = "ollama:provider-http-error"
+    assert capture_log(fn ->
+             resource_key = "ollama:provider-http-error"
 
-    assert :ok = PubSub.subscribe_instance(instance.id)
+             assert :ok = PubSub.subscribe_instance(instance.id)
 
-    {:ok, pid} =
-      Executor.start_link(
-        instance: instance,
-        config_snapshot: %{
-          runtime_config: %{max_retries: 1},
-          models_config: %{
-            profiles: %{default: %{provider: "ollama", model: "provider-http-error"}}
-          }
-        },
-        context_mod: LemmingInstances,
-        model_mod: ProviderHttpErrorModelRuntime,
-        pool_mod: ResourcePool,
-        pubsub_mod: Phoenix.PubSub,
-        dets_mod: nil,
-        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
-        name: nil
-      )
+             {:ok, pid} =
+               Executor.start_link(
+                 instance: instance,
+                 config_snapshot: %{
+                   runtime_config: %{max_retries: 1},
+                   models_config: %{
+                     profiles: %{default: %{provider: "ollama", model: "provider-http-error"}}
+                   }
+                 },
+                 context_mod: LemmingInstances,
+                 model_mod: ProviderHttpErrorModelRuntime,
+                 pool_mod: ResourcePool,
+                 pubsub_mod: Phoenix.PubSub,
+                 dets_mod: nil,
+                 ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+                 name: nil
+               )
 
-    {:ok, _pool_pid} =
-      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+             {:ok, _pool_pid} =
+               start_supervised(
+                 {ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil}
+               )
 
-    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
-    assert :ok = Executor.enqueue_work(pid, "Trigger provider failure")
-    assert_receive {:status_changed, %{status: "queued"}}
+             assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+             assert :ok = Executor.enqueue_work(pid, "Trigger provider failure")
+             assert_receive {:status_changed, %{status: "queued"}}
 
-    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+             send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
 
-    assert_receive {:status_changed, %{status: "processing"}}
-    assert_receive {:status_changed, %{status: "failed"}}
+             assert_receive {:status_changed, %{status: "processing"}}
+             assert_receive {:status_changed, %{status: "failed"}}
 
-    assert %{
-             status: "failed",
-             last_error: "ollama request failed (HTTP 500). Retry or inspect logs.",
-             internal_error_details: %{
-               kind: :provider_http_error,
-               provider: "ollama",
-               status: 500,
-               detail: "boom"
-             }
-           } = Executor.status(pid)
+             assert %{
+                      status: "failed",
+                      last_error: "ollama request failed (HTTP 500). Retry or inspect logs.",
+                      internal_error_details: %{
+                        kind: :provider_http_error,
+                        provider: "ollama",
+                        status: 500,
+                        detail: "boom"
+                      }
+                    } = Executor.status(pid)
 
-    assert %{
-             last_error: "ollama request failed (HTTP 500). Retry or inspect logs.",
-             internal_error_details: %{detail: "boom"}
-           } = Executor.snapshot(pid)
+             assert %{
+                      last_error: "ollama request failed (HTTP 500). Retry or inspect logs.",
+                      internal_error_details: %{detail: "boom"}
+                    } = Executor.snapshot(pid)
 
-    GenServer.stop(pid)
+             GenServer.stop(pid)
+           end) =~ "executor status transitioned"
   end
 
   test "S04b: retry/1 requeues failed work on a live executor", %{instance: instance} do
@@ -490,61 +494,67 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   test "S04c: assistant message persistence failure does not count as successful completion", %{
     instance: instance
   } do
-    resource_key = "ollama:persist-failure"
+    assert capture_log(fn ->
+             resource_key = "ollama:persist-failure"
 
-    assert :ok = PubSub.subscribe_instance(instance.id)
+             assert :ok = PubSub.subscribe_instance(instance.id)
 
-    {:ok, pid} =
-      Executor.start_link(
-        instance: instance,
-        config_snapshot: %{
-          runtime_config: %{max_retries: 1},
-          model: "persist-failure",
-          observer_pid: self(),
-          models_config: %{profiles: %{default: %{provider: "ollama", model: "persist-failure"}}}
-        },
-        context_mod: LemmingInstances,
-        model_mod: FakeModelRuntime,
-        message_persist_mod: RejectingMessagePersistor,
-        pool_mod: ResourcePool,
-        pubsub_mod: Phoenix.PubSub,
-        dets_mod: nil,
-        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
-        name: nil
-      )
+             {:ok, pid} =
+               Executor.start_link(
+                 instance: instance,
+                 config_snapshot: %{
+                   runtime_config: %{max_retries: 1},
+                   model: "persist-failure",
+                   observer_pid: self(),
+                   models_config: %{
+                     profiles: %{default: %{provider: "ollama", model: "persist-failure"}}
+                   }
+                 },
+                 context_mod: LemmingInstances,
+                 model_mod: FakeModelRuntime,
+                 message_persist_mod: RejectingMessagePersistor,
+                 pool_mod: ResourcePool,
+                 pubsub_mod: Phoenix.PubSub,
+                 dets_mod: nil,
+                 ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+                 name: nil
+               )
 
-    {:ok, _pool_pid} =
-      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+             {:ok, _pool_pid} =
+               start_supervised(
+                 {ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil}
+               )
 
-    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
-    assert :ok = Executor.enqueue_work(pid, "Persist the assistant reply")
-    assert_receive {:status_changed, %{status: "queued"}}
+             assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+             assert :ok = Executor.enqueue_work(pid, "Persist the assistant reply")
+             assert_receive {:status_changed, %{status: "queued"}}
 
-    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+             send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
 
-    assert_receive {:status_changed, %{status: "processing"}}
+             assert_receive {:status_changed, %{status: "processing"}}
 
-    assert_receive {:model_run, _task_pid, %{model: "persist-failure"}, _context_messages,
-                    %{content: "Persist the assistant reply"}}
+             assert_receive {:model_run, _task_pid, %{model: "persist-failure"}, _context_messages,
+                             %{content: "Persist the assistant reply"}}
 
-    assert_receive {:status_changed, %{status: "failed"}}
-    assert ResourcePool.status(resource_key) == {0, 1}
+             assert_receive {:status_changed, %{status: "failed"}}
+             assert ResourcePool.status(resource_key) == {0, 1}
 
-    assert %{
-             status: "failed",
-             last_error: "Assistant response could not be persisted. Retry or inspect logs.",
-             internal_error_details: %{
-               kind: :assistant_message_persist_failed,
-               reason: ":forced_persist_failure"
-             }
-           } = Executor.status(pid)
+             assert %{
+                      status: "failed",
+                      last_error: "Assistant response could not be persisted. Retry or inspect logs.",
+                      internal_error_details: %{
+                        kind: :assistant_message_persist_failed,
+                        reason: ":forced_persist_failure"
+                      }
+                    } = Executor.status(pid)
 
-    refute Enum.any?(
-             LemmingInstances.list_messages(instance),
-             &(&1.role == "assistant" and &1.content == "processed")
-           )
+             refute Enum.any?(
+                      LemmingInstances.list_messages(instance),
+                      &(&1.role == "assistant" and &1.content == "processed")
+                    )
 
-    GenServer.stop(pid)
+             GenServer.stop(pid)
+           end) =~ "executor failed to persist assistant message"
   end
 
   test "S05: failed executions clear persisted DETS snapshots", %{instance: instance} do
@@ -648,6 +658,32 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     assert_receive {:status_changed, %{status: "idle"}}
     assert_receive {:status_changed, %{status: "expired"}}
+
+    assert Repo.get!(LemmingsOs.LemmingInstances.LemmingInstance, instance.id).status == "expired"
+  end
+
+  test "S06a: recovered idle executors start the idle timer during boot", %{instance: instance} do
+    assert :ok = PubSub.subscribe_instance(instance.id)
+    assert {:ok, idle_instance} = LemmingInstances.update_status(instance, "idle", %{})
+
+    assert {:ok, pid} =
+             Executor.start_link(
+               instance: idle_instance,
+               config_snapshot: %{},
+               context_mod: LemmingInstances,
+               model_mod: FakeModelRuntime,
+               pool_mod: ResourcePool,
+               pubsub_mod: Phoenix.PubSub,
+               dets_mod: nil,
+               ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+               idle_timeout_ms: 20,
+               name: nil
+             )
+
+    monitor_ref = Process.monitor(pid)
+
+    assert_receive {:status_changed, %{status: "expired"}}
+    assert_receive {:DOWN, ^monitor_ref, :process, ^pid, :normal}
 
     assert Repo.get!(LemmingsOs.LemmingInstances.LemmingInstance, instance.id).status == "expired"
   end

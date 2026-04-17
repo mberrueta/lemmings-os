@@ -392,6 +392,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
             |> persist_started_at()
             |> put_runtime_state()
             |> subscribe_scheduler()
+            |> maybe_start_idle_timer_on_init()
 
           Logger.info("executor started",
             event: "instance.executor.started",
@@ -1121,6 +1122,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
     state
   end
+
+  defp maybe_start_idle_timer_on_init(%{status: "idle"} = state), do: start_idle_timer(state)
+  defp maybe_start_idle_timer_on_init(state), do: state
 
   defp start_idle_timer(state) do
     case state.idle_timeout_ms do
