@@ -420,7 +420,10 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              assert :ok = Executor.enqueue_work(pid, "Trigger provider failure")
              assert_receive {:status_changed, %{status: "queued"}}
 
-             send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+             send(
+               pid,
+               {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}}
+             )
 
              assert_receive {:status_changed, %{status: "processing"}}
              assert_receive {:status_changed, %{status: "failed"}}
@@ -529,19 +532,23 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              assert :ok = Executor.enqueue_work(pid, "Persist the assistant reply")
              assert_receive {:status_changed, %{status: "queued"}}
 
-             send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+             send(
+               pid,
+               {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}}
+             )
 
              assert_receive {:status_changed, %{status: "processing"}}
 
-             assert_receive {:model_run, _task_pid, %{model: "persist-failure"}, _context_messages,
-                             %{content: "Persist the assistant reply"}}
+             assert_receive {:model_run, _task_pid, %{model: "persist-failure"},
+                             _context_messages, %{content: "Persist the assistant reply"}}
 
              assert_receive {:status_changed, %{status: "failed"}}
              assert ResourcePool.status(resource_key) == {0, 1}
 
              assert %{
                       status: "failed",
-                      last_error: "Assistant response could not be persisted. Retry or inspect logs.",
+                      last_error:
+                        "Assistant response could not be persisted. Retry or inspect logs.",
                       internal_error_details: %{
                         kind: :assistant_message_persist_failed,
                         reason: ":forced_persist_failure"

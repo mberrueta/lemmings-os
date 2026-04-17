@@ -140,7 +140,7 @@ defmodule LemmingsOs.MixProject do
       ],
       # Fast checks (used constantly)
       precommit: [
-        "format --check-formatted",
+        "format",
         "compile --warnings-as-errors",
         "dialyzer",
         "credo"

@@ -340,35 +340,36 @@ defmodule LemmingsOs.LemmingInstances.ResourcePool do
         {:reply, :ok, state}
 
       state.gate == :closed or state.current >= state.max ->
-      reason = Telemetry.reason_token(:at_capacity)
+        reason = Telemetry.reason_token(:at_capacity)
 
-      Logger.warning("resource pool checkout denied",
-        event: "instance.pool.exhausted",
-        world_id: nil,
-        city_id: nil,
-        department_id: department_id,
-        lemming_id: nil,
-        instance_id: nil,
-        resource_key: state.resource_key,
-        reason: reason,
-        pool_current: state.current,
-        pool_max: state.max
-      )
-
-      _ =
-        Telemetry.execute(
-          [:lemmings_os, :pool, :exhausted],
-          %{count: 1},
-          Telemetry.pool_metadata(%{
-            department_id: department_id,
-            resource_key: state.resource_key,
-            pool_current: state.current,
-            pool_max: state.max,
-            reason: reason
-          })
+        Logger.warning("resource pool checkout denied",
+          event: "instance.pool.exhausted",
+          world_id: nil,
+          city_id: nil,
+          department_id: department_id,
+          lemming_id: nil,
+          instance_id: nil,
+          resource_key: state.resource_key,
+          reason: reason,
+          pool_current: state.current,
+          pool_max: state.max
         )
 
-      {:reply, {:error, :at_capacity}, state}
+        _ =
+          Telemetry.execute(
+            [:lemmings_os, :pool, :exhausted],
+            %{count: 1},
+            Telemetry.pool_metadata(%{
+              department_id: department_id,
+              resource_key: state.resource_key,
+              pool_current: state.current,
+              pool_max: state.max,
+              reason: reason
+            })
+          )
+
+        {:reply, {:error, :at_capacity}, state}
+
       true ->
         monitor_ref = Process.monitor(holder_pid)
 
