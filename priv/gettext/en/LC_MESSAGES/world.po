@@ -44,7 +44,7 @@ msgstr "Unknown"
 #: lib/lemmings_os_web/components/world_components.ex:1135
 #: lib/lemmings_os_web/components/world_components.ex:1139
 #: lib/lemmings_os_web/components/world_components.ex:1160
-#: lib/lemmings_os_web/live/instance_live.ex:261
+#: lib/lemmings_os_web/live/instance_live.ex:277
 #, elixir-autogen, elixir-format
 msgid ".label_not_available"
 msgstr "Not available"
