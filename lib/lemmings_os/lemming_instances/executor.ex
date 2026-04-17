@@ -72,6 +72,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           dets_mod: module() | nil,
           pool_mod: module() | nil,
           model_mod: module() | nil,
+          message_persist_mod: module() | nil,
           pubsub_mod: module() | nil,
           pubsub_name: atom(),
           load_context_messages?: boolean(),
@@ -377,6 +378,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         dets_mod: Keyword.get(opts, :dets_mod),
         pool_mod: Keyword.get(opts, :pool_mod, ResourcePool),
         model_mod: Keyword.get(opts, :model_mod, LemmingsOs.ModelRuntime),
+        message_persist_mod: Keyword.get(opts, :message_persist_mod),
         pubsub_mod: Keyword.get(opts, :pubsub_mod, Phoenix.PubSub),
         pubsub_name: Keyword.get(opts, :pubsub_name, LemmingsOs.PubSub),
         now_fun: now_fun
@@ -660,12 +662,20 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp retry_failed(state), do: state
 
   defp handle_model_result(state, {:ok, %LemmingsOs.ModelRuntime.Response{} = response}) do
-    state
-    |> Map.put(:last_error, nil)
-    |> Map.put(:internal_error_details, nil)
-    |> persist_assistant_message(response)
-    |> clear_current_item()
-    |> advance_after_success()
+    state =
+      state
+      |> Map.put(:last_error, nil)
+      |> Map.put(:internal_error_details, nil)
+
+    case persist_assistant_message(state, response) do
+      {:ok, next_state} ->
+        next_state
+        |> clear_current_item()
+        |> advance_after_success()
+
+      {:error, reason, next_state} ->
+        handle_model_retry(next_state, {:assistant_message_persist_failed, reason})
+    end
   end
 
   defp handle_model_result(state, {:ok, _response}) do
@@ -921,9 +931,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       usage: response.usage
     }
 
-    %Message{}
-    |> Message.changeset(attrs)
-    |> Repo.insert()
+    attrs
+    |> insert_assistant_message(state)
     |> case do
       {:ok, message} ->
         _ = PubSub.broadcast_message_appended(state.instance_id, message.id, message.role)
@@ -931,9 +940,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         context_messages =
           state.context_messages ++ [%{role: "assistant", content: attrs.content}]
 
-        %{state | context_messages: context_messages}
+        {:ok, %{state | context_messages: context_messages}}
 
-      {:error, _changeset} ->
+      {:error, reason} ->
         Logger.error("executor failed to persist assistant message",
           event: "instance.executor.persist_message",
           instance_id: state.instance_id,
@@ -944,10 +953,25 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           resource_key: state.current_resource_key,
           current_item_id: current_item_id(state.current_item),
           retry_count: state.retry_count,
-          queue_depth: :queue.len(state.queue)
+          queue_depth: :queue.len(state.queue),
+          reason: inspect(reason)
         )
 
-        state
+        {:error, reason, state}
+    end
+  end
+
+  defp insert_assistant_message(attrs, %{message_persist_mod: nil}) do
+    %Message{}
+    |> Message.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  defp insert_assistant_message(attrs, %{message_persist_mod: mod}) when is_atom(mod) do
+    if function_exported?(mod, :insert, 1) do
+      mod.insert(attrs)
+    else
+      {:error, :message_persist_unavailable}
     end
   end
 
@@ -1283,6 +1307,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp last_error_message(:provider_error),
     do: "Model request failed. Retry or inspect logs."
 
+  defp last_error_message({:assistant_message_persist_failed, _reason}),
+    do: "Assistant response could not be persisted. Retry or inspect logs."
+
   defp last_error_message({:provider_http_error, %{provider: provider} = metadata}) do
     provider_label = provider_label(provider)
     status_copy = provider_status_copy(metadata)
@@ -1358,6 +1385,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp internal_error_details({:provider_invalid_response, metadata}) when is_map(metadata) do
     Map.put(metadata, :kind, :provider_invalid_response)
+  end
+
+  defp internal_error_details({:assistant_message_persist_failed, reason}) do
+    %{kind: :assistant_message_persist_failed, reason: inspect(reason)}
   end
 
   defp internal_error_details(reason) when is_atom(reason), do: %{kind: reason}
