@@ -18,6 +18,7 @@ config :lemmings_os, :runtime_city_heartbeat,
 config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
 config :lemmings_os, :runtime_engine_on_startup, true
 
+# TODO: temporary default selection
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,
   default_model: "qwen3.5:latest",

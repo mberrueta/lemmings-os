@@ -1,59 +1,12 @@
 import Config
 
-port_available? = fn port ->
-  case :gen_tcp.listen(port, [:binary, active: false, ip: {127, 0, 0, 1}, reuseaddr: true]) do
-    {:ok, socket} ->
-      :gen_tcp.close(socket)
-      true
-
-    {:error, _reason} ->
-      false
-  end
-end
-
-pick_free_port = fn preferred_port, fallback_ports, excluded_ports ->
-  Enum.find([preferred_port | fallback_ports], fn port ->
-    port not in excluded_ports and port_available?.(port)
-  end) || preferred_port
-end
-
-resolve_port = fn env_vars, default_port, fallback_ports, excluded_ports ->
-  configured_port =
-    env_vars
-    |> Enum.map(&System.get_env/1)
-    |> Enum.find(&(&1 not in [nil, ""]))
-    |> case do
-      nil -> default_port
-      value -> String.to_integer(value)
-    end
-
-  candidate_ports =
-    if configured_port == default_port do
-      fallback_ports
-    else
-      Enum.to_list((configured_port + 1)..(configured_port + 10)) ++ fallback_ports
-    end
-
-  resolved_port = pick_free_port.(configured_port, candidate_ports, excluded_ports)
-
-  if resolved_port != configured_port do
-    IO.warn(
-      "#{Enum.join(env_vars, "/")} requested port #{configured_port}, but it is unavailable in dev; falling back to #{resolved_port}"
-    )
-  end
-
-  resolved_port
-end
-
-live_debugger_port =
-  resolve_port.(["LIVE_DEBUGGER_PORT"], 4007, Enum.to_list(4008..4015), [])
+live_debugger_port = System.get_env("LIVE_DEBUGGER_PORT") || "4007"
 
 config :live_debugger,
   api_settings_storage: LemmingsOs.LiveDebuggerSettingsStorage,
-  port: live_debugger_port
+  port: String.to_integer(live_debugger_port)
 
-port =
-  resolve_port.(["PORT", "MIX_PORT"], 4000, Enum.to_list(4001..4010), [live_debugger_port])
+port = System.get_env("PORT") || System.get_env("MIX_PORT") || "4000"
 
 # Configure your database
 config :lemmings_os, LemmingsOs.Repo,
@@ -74,7 +27,7 @@ config :lemmings_os, LemmingsOs.Repo,
 config :lemmings_os, LemmingsOsWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: port],
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(port)],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
