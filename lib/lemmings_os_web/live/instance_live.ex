@@ -18,21 +18,23 @@ defmodule LemmingsOsWeb.InstanceLive do
     socket =
       socket
       |> assign_shell(:lemmings, dgettext("lemmings", "Instance Session"))
-      |> assign(:world, nil)
-      |> assign(:instance, nil)
-      |> assign(:runtime_state, fallback_runtime_state())
-      |> assign(:message_count, 0)
-      |> assign(:total_tokens, nil)
-      |> assign(:conversation_provider, nil)
-      |> assign(:conversation_model, nil)
-      |> assign(:status_now, DateTime.utc_now() |> DateTime.truncate(:second))
-      |> assign(:parent_lemming_path, nil)
-      |> assign(:waiting_for_first_response?, false)
-      |> assign(:instance_not_found?, false)
-      |> assign(:follow_up_form, follow_up_form(%{}))
-      |> assign(:follow_up_submit_disabled?, true)
-      |> assign(:follow_up_error, nil)
-      |> assign(:status_tick_ref, nil)
+      |> assign(
+        world: nil,
+        instance: nil,
+        runtime_state: fallback_runtime_state(),
+        message_count: 0,
+        total_tokens: nil,
+        conversation_provider: nil,
+        conversation_model: nil,
+        status_now: DateTime.utc_now() |> DateTime.truncate(:second),
+        parent_lemming_path: nil,
+        waiting_for_first_response?: false,
+        instance_not_found?: false,
+        follow_up_form: follow_up_form(%{}),
+        follow_up_submit_disabled?: true,
+        follow_up_error: nil,
+        status_tick_ref: nil
+      )
       |> stream(:messages, [], reset: true)
 
     if connected?(socket) and is_binary(params["id"]) do
@@ -89,9 +91,11 @@ defmodule LemmingsOsWeb.InstanceLive do
 
     {:noreply,
      socket
-     |> assign(:follow_up_form, follow_up_form(params, :validate))
-     |> assign(:follow_up_submit_disabled?, Helpers.blank?(request_text))
-     |> assign(:follow_up_error, nil)}
+     |> assign(
+       follow_up_form: follow_up_form(params, :validate),
+       follow_up_submit_disabled?: Helpers.blank?(request_text),
+       follow_up_error: nil
+     )}
   end
 
   def handle_event("submit_follow_up_request", %{"follow_up_request" => params}, socket) do
@@ -103,25 +107,31 @@ defmodule LemmingsOsWeb.InstanceLive do
       Helpers.blank?(request_text) ->
         {:noreply,
          socket
-         |> assign(:follow_up_form, form)
-         |> assign(:follow_up_submit_disabled?, true)
-         |> assign(:follow_up_error, nil)}
+         |> assign(
+           follow_up_form: form,
+           follow_up_submit_disabled?: true,
+           follow_up_error: nil
+         )}
 
       not follow_up_input_enabled?(status) ->
         {:noreply,
          socket
-         |> assign(:follow_up_form, form)
-         |> assign(:follow_up_submit_disabled?, true)
-         |> assign(:follow_up_error, follow_up_submission_error(status))}
+         |> assign(
+           follow_up_form: form,
+           follow_up_submit_disabled?: true,
+           follow_up_error: follow_up_submission_error(status)
+         )}
 
       true ->
         case LemmingInstances.enqueue_work(socket.assigns.instance, request_text, []) do
           {:ok, _instance} ->
             socket =
               socket
-              |> assign(:follow_up_form, follow_up_form(%{}))
-              |> assign(:follow_up_submit_disabled?, true)
-              |> assign(:follow_up_error, nil)
+              |> assign(
+                follow_up_form: follow_up_form(%{}),
+                follow_up_submit_disabled?: true,
+                follow_up_error: nil
+              )
               |> load_instance(socket.assigns.instance.id, %{"world" => current_world_id(socket)})
 
             {:noreply, socket}
@@ -129,9 +139,11 @@ defmodule LemmingsOsWeb.InstanceLive do
           {:error, reason} ->
             {:noreply,
              socket
-             |> assign(:follow_up_form, form)
-             |> assign(:follow_up_submit_disabled?, Helpers.blank?(request_text))
-             |> assign(:follow_up_error, follow_up_error(reason))}
+             |> assign(
+               follow_up_form: form,
+               follow_up_submit_disabled?: Helpers.blank?(request_text),
+               follow_up_error: follow_up_error(reason)
+             )}
         end
     end
   end
@@ -179,18 +191,20 @@ defmodule LemmingsOsWeb.InstanceLive do
             status_now = DateTime.utc_now() |> DateTime.truncate(:second)
 
             socket
-            |> assign(:world, world)
-            |> assign(:instance, instance)
-            |> assign(:runtime_state, runtime_state)
-            |> assign(:message_count, length(messages))
-            |> assign(:total_tokens, transcript_total_tokens(messages))
-            |> assign(:conversation_provider, transcript_provider(messages))
-            |> assign(:conversation_model, transcript_model(messages))
-            |> assign(:status_now, status_now)
-            |> assign(:parent_lemming_path, parent_lemming_path(instance))
-            |> assign(:waiting_for_first_response?, waiting_for_first_response?(messages))
-            |> assign(:instance_not_found?, false)
-            |> assign(:status_tick_ref, nil)
+            |> assign(
+              world: world,
+              instance: instance,
+              runtime_state: runtime_state,
+              message_count: length(messages),
+              total_tokens: transcript_total_tokens(messages),
+              conversation_provider: transcript_provider(messages),
+              conversation_model: transcript_model(messages),
+              status_now: status_now,
+              parent_lemming_path: parent_lemming_path(instance),
+              waiting_for_first_response?: waiting_for_first_response?(messages),
+              instance_not_found?: false,
+              status_tick_ref: nil
+            )
             |> stream(:messages, transcript_entries(messages), reset: true)
             |> schedule_status_tick()
             |> put_shell_breadcrumb(build_shell_breadcrumb(instance))
@@ -212,21 +226,23 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp assign_not_found(socket) do
     socket
-    |> assign(:world, nil)
-    |> assign(:instance, nil)
-    |> assign(:runtime_state, fallback_runtime_state())
-    |> assign(:message_count, 0)
-    |> assign(:total_tokens, nil)
-    |> assign(:conversation_provider, nil)
-    |> assign(:conversation_model, nil)
-    |> assign(:status_now, DateTime.utc_now() |> DateTime.truncate(:second))
-    |> assign(:parent_lemming_path, nil)
-    |> assign(:waiting_for_first_response?, false)
-    |> assign(:instance_not_found?, true)
-    |> assign(:follow_up_form, follow_up_form(%{}))
-    |> assign(:follow_up_submit_disabled?, true)
-    |> assign(:follow_up_error, nil)
-    |> assign(:status_tick_ref, nil)
+    |> assign(
+      world: nil,
+      instance: nil,
+      runtime_state: fallback_runtime_state(),
+      message_count: 0,
+      total_tokens: nil,
+      conversation_provider: nil,
+      conversation_model: nil,
+      status_now: DateTime.utc_now() |> DateTime.truncate(:second),
+      parent_lemming_path: nil,
+      waiting_for_first_response?: false,
+      instance_not_found?: true,
+      follow_up_form: follow_up_form(%{}),
+      follow_up_submit_disabled?: true,
+      follow_up_error: nil,
+      status_tick_ref: nil
+    )
     |> stream(:messages, [], reset: true)
     |> cancel_status_tick()
     |> put_shell_breadcrumb(default_shell_breadcrumb(:lemmings))

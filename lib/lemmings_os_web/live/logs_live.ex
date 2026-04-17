@@ -29,9 +29,11 @@ defmodule LemmingsOsWeb.LogsLive do
   end
 
   defp refresh_runtime_state(socket) do
-    socket
-    |> assign(:runtime_snapshot, Status.snapshot())
-    |> assign(:activity_log, ActivityLog.recent_events(80))
+    assign(
+      socket,
+      runtime_snapshot: Status.snapshot(),
+      activity_log: ActivityLog.recent_events(80)
+    )
   end
 
   defp activity_class(:error), do: "text-red-400"

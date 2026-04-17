@@ -30,15 +30,17 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
     socket =
       socket
       |> assign_shell(:lemmings, dgettext("lemmings", ".page_title_import_lemming"))
-      |> assign(:world, nil)
-      |> assign(:city, nil)
-      |> assign(:department, nil)
-      |> assign(:step, :upload)
-      |> assign(:upload_error, nil)
-      |> assign(:conflicts, [])
-      |> assign(:pending_records, [])
-      |> assign(:existing_by_slug, %{})
-      |> assign(:confirm_error, nil)
+      |> assign(
+        world: nil,
+        city: nil,
+        department: nil,
+        step: :upload,
+        upload_error: nil,
+        conflicts: [],
+        pending_records: [],
+        existing_by_slug: %{},
+        confirm_error: nil
+      )
       |> allow_upload(:json_file,
         accept: ~w(.json),
         max_entries: 1,
@@ -134,12 +136,14 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
   def handle_event("cancel_import", _params, socket) do
     {:noreply,
      socket
-     |> assign(:step, :upload)
-     |> assign(:pending_records, [])
-     |> assign(:conflicts, [])
-     |> assign(:existing_by_slug, %{})
-     |> assign(:confirm_error, nil)
-     |> assign(:upload_error, nil)}
+     |> assign(
+       step: :upload,
+       pending_records: [],
+       conflicts: [],
+       existing_by_slug: %{},
+       confirm_error: nil,
+       upload_error: nil
+     )}
   end
 
   defp load_page(socket, %{"dept" => department_id}) when is_binary(department_id) do
@@ -151,9 +155,11 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
 
       department ->
         socket
-        |> assign(:world, department.world)
-        |> assign(:city, department.city)
-        |> assign(:department, department)
+        |> assign(
+          world: department.world,
+          city: department.city,
+          department: department
+        )
         |> put_shell_breadcrumb([
           shell_item(:cities, "/cities"),
           shell_item(
@@ -205,10 +211,12 @@ defmodule LemmingsOsWeb.ImportLemmingLive do
       else
         {:noreply,
          socket
-         |> assign(:step, :confirm)
-         |> assign(:pending_records, records)
-         |> assign(:existing_by_slug, existing_by_slug)
-         |> assign(:conflicts, conflicts)}
+         |> assign(
+           step: :confirm,
+           pending_records: records,
+           existing_by_slug: existing_by_slug,
+           conflicts: conflicts
+         )}
       end
     else
       {:error, %Jason.DecodeError{}} ->
