@@ -89,7 +89,7 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
     {:ok, create_view, _create_html} = live(conn, ~p"/lemmings/new")
 
     assert has_element?(tools_view, "#tools-page")
-    assert has_element?(logs_view, "#logs-page")
+    assert has_element?(logs_view, "#logs-runtime-page")
     assert has_element?(settings_view, "#settings-page")
     assert has_element?(create_view, "#create-lemming-missing-context")
   end

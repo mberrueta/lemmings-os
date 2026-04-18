@@ -1,6 +1,7 @@
 import Ecto.Query
 
-alias LemmingsOs.{Helpers, MockData, Repo, World, WorldCache, Worlds}
+alias LemmingsOs.{Helpers, MockData, Repo, World, Worlds}
+alias LemmingsOs.Worlds.Cache, as: WorldCache
 alias LemmingsOs.WorldBootstrap.{Importer, Loader, PathResolver, ShapeValidator}
 
 defmodule Dev do
@@ -8,7 +9,8 @@ defmodule Dev do
 
   import Ecto.Query
 
-  alias LemmingsOs.{Repo, World, WorldCache, Worlds}
+  alias LemmingsOs.{Repo, World, Worlds}
+  alias LemmingsOs.Worlds.Cache, as: WorldCache
   alias LemmingsOs.WorldBootstrap.{Importer, Loader, PathResolver, ShapeValidator}
 
   # Repo shortcuts for quick querying from the console.
@@ -64,7 +66,12 @@ defmodule Dev do
   # Domain helpers for the main persisted world flows.
   def worlds(opts \\ []), do: Worlds.list_worlds(opts)
 
-  def world!(id), do: Worlds.get_world!(id)
+  def world!(id) do
+    case Worlds.get_world(id) do
+      nil -> raise "world not found: #{inspect(id)}"
+      world -> world
+    end
+  end
 
   def default_world, do: Worlds.get_default_world()
 

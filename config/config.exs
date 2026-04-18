@@ -15,6 +15,16 @@ config :lemmings_os, :runtime_city_heartbeat,
   interval_ms: 30_000,
   freshness_threshold_seconds: 90
 
+config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
+config :lemmings_os, :runtime_engine_on_startup, true
+
+# TODO: temporary default selection
+config :lemmings_os, :model_runtime,
+  provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,
+  default_model: "qwen3.5:latest",
+  timeout: 120_000,
+  ollama: [base_url: System.get_env("OLLAMA_BASE_URL") || "http://localhost:11434"]
+
 # Configures the endpoint
 config :lemmings_os, LemmingsOsWeb.Endpoint,
   url: [host: "localhost"],
@@ -55,6 +65,27 @@ config :logger, :default_formatter,
     :event,
     :status,
     :reason,
+    :operation,
+    :instance_id,
+    :department_id,
+    :resource_key,
+    :admission_mode,
+    :queue_depth,
+    :current_item_id,
+    :from_status,
+    :to_status,
+    :retry_count,
+    :max_retries,
+    :holder_pid,
+    :executor_pid,
+    :pool_current,
+    :pool_max,
+    :message_id,
+    :lemming_id,
+    :recovered_count,
+    :skipped_count,
+    :table,
+    :path,
     :bootstrap_path,
     :issue_count,
     :world_id,

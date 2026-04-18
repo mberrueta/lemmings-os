@@ -44,6 +44,7 @@ msgstr "Desconocido"
 #: lib/lemmings_os_web/components/world_components.ex:1135
 #: lib/lemmings_os_web/components/world_components.ex:1139
 #: lib/lemmings_os_web/components/world_components.ex:1160
+#: lib/lemmings_os_web/live/instance_live.ex:277
 #, elixir-autogen, elixir-format
 msgid ".label_not_available"
 msgstr "No disponible"
@@ -347,22 +348,22 @@ msgstr "Credenciales del proveedor"
 msgid ".runtime_check_provider_reachability"
 msgstr "Alcance del proveedor"
 
-#: lib/lemmings_os_web/components/core_components.ex:578
-#: lib/lemmings_os_web/components/core_components.ex:581
+#: lib/lemmings_os_web/components/core_components.ex:586
+#: lib/lemmings_os_web/components/core_components.ex:589
 #: lib/lemmings_os_web/components/map_components.ex:205
 #, elixir-autogen, elixir-format
 msgid ".status_degraded"
 msgstr "Degradado"
 
-#: lib/lemmings_os_web/components/core_components.ex:579
-#: lib/lemmings_os_web/components/core_components.ex:582
+#: lib/lemmings_os_web/components/core_components.ex:587
+#: lib/lemmings_os_web/components/core_components.ex:590
 #: lib/lemmings_os_web/components/map_components.ex:206
 #, elixir-autogen, elixir-format
 msgid ".status_offline"
 msgstr "Desconectado"
 
-#: lib/lemmings_os_web/components/core_components.ex:577
-#: lib/lemmings_os_web/components/core_components.ex:580
+#: lib/lemmings_os_web/components/core_components.ex:585
+#: lib/lemmings_os_web/components/core_components.ex:588
 #: lib/lemmings_os_web/components/map_components.ex:204
 #, elixir-autogen, elixir-format
 msgid ".status_online"

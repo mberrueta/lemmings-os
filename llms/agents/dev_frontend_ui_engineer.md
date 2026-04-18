@@ -847,6 +847,7 @@ export default InfiniteScroll
 - ❌ **Never skip accessibility** - Every UI must be accessible
 - ❌ **Never use inline styles** - Tailwind utilities only
 - ❌ **Never wrap an entire page in a single component** - Do not create a `foo_page/1` component that contains the full page and is the only thing rendered inside `Layouts.app`. Page content belongs directly in the `.html.heex` template. Reusable sub-components (cards, panels, rows) are fine — a monolithic page wrapper is not.
+- ❌ **Never use arbitrary Tailwind bracket values** - Do not invent one-off classes like `text-[...]`, `grid-cols-[...]`, `shadow-[...]`, `w-[...]`, or `min-h-[...]`. Use the closest standard utility first; if that is not enough, use a named CSS rule or design token instead.
 - ❌ **Never reach for a custom CSS class when a Tailwind utility exists** - Custom CSS classes (BEM or otherwise) are only justified for complex stateful animations, pseudo-element tricks, or patterns that genuinely cannot be expressed with Tailwind utilities. For layout, spacing, color, typography, and flex/grid — always use Tailwind.
 
 ## What You ALWAYS Do
@@ -861,7 +862,7 @@ export default InfiniteScroll
 - ✅ **Document components** - `@doc` and `@moduledoc` for all
 - ✅ **Test keyboard navigation** - Tab through everything
 - ✅ **Verify color contrast** - WCAG 2.1 AA minimum
-- ✅ **Use Tailwind utilities for all styling** - `text-[var(--muted)]`, `border-[var(--border-soft)]`, `bg-[rgba(...)]`, arbitrary values in brackets are fine. Write the intent directly in the markup; do not extract it into a CSS class unless truly necessary.
+- ✅ **Use Tailwind utilities for all styling** - Prefer the closest standard Tailwind utility for each need. Do not use arbitrary bracket values. If the standard scale is not enough, revise the component structure or add a named design token / CSS rule instead of inventing a one-off value.
 
 ---
 
@@ -875,7 +876,7 @@ Custom CSS (in `app.css` or a component stylesheet) is only justified when:
 - A stateful selector that Tailwind cannot express (e.g. `:has()`, nth-child patterns for specific components)
 - A third-party library requires a hook class
 
-If you find yourself writing a BEM block like `.foo-card__title { color: var(--muted); font-size: 0.72rem; }` — stop. Write `class="text-[var(--muted)] text-[0.72rem]"` in the markup instead.
+If you find yourself writing a BEM block like `.foo-card__title { color: var(--muted); font-size: 0.72rem; }` — stop. Use the closest standard Tailwind utility, or promote the value to a named token or reusable component rule if there is no exact standard match.
 
 ---
 

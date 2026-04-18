@@ -273,8 +273,6 @@ defmodule LemmingsOsWeb.PageData.WorldPageSnapshot do
     }
   end
 
-  defp declared_config_snapshot(_config), do: nil
-
   defp normalize_providers(providers) when is_map(providers) do
     providers
     |> Enum.sort_by(fn {name, _config} -> name end)
@@ -354,8 +352,8 @@ defmodule LemmingsOsWeb.PageData.WorldPageSnapshot do
     }
   end
 
-  defp immediate_import_snapshot({status, result}) when status in [:ok, :error],
-    do: immediate_import_snapshot(result)
+  defp immediate_import_snapshot({:ok, result}), do: immediate_import_snapshot(result)
+  defp immediate_import_snapshot({:error, result}), do: immediate_import_snapshot(result)
 
   defp immediate_import_snapshot(%{} = result) do
     persisted_status =

@@ -9,37 +9,51 @@ defmodule LemmingsOsWeb.LemmingsLive do
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
+  alias LemmingsOs.LemmingInstances
   alias LemmingsOs.Lemmings
   alias LemmingsOs.Lemmings.ImportExport
   alias LemmingsOs.Lemmings.Lemming
+  alias LemmingsOs.LemmingInstances.PubSub
+  alias LemmingsOs.Runtime
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
 
+  @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign_shell(:lemmings, dgettext("layout", ".page_title_lemmings"))
-     |> assign(:world, nil)
-     |> assign(:cities, [])
-     |> assign(:departments, [])
-     |> assign(:selected_city, nil)
-     |> assign(:selected_department, nil)
-     |> assign(:filters_form, filters_form(nil, nil))
-     |> assign(:lemmings, [])
-     |> assign(:selected_lemming, nil)
-     |> assign(:selected_lemming_effective_config, nil)
-     |> assign(:selected_lemming_inheriting?, false)
-     |> assign(:lemming_not_found?, false)
-     |> assign(:active_detail_tab, "overview")
-     |> assign(:settings_form, nil)
-     |> assign(:overview_path, nil)
-     |> assign(:edit_path, nil)}
+     |> assign(
+       world: nil,
+       cities: [],
+       departments: [],
+       selected_city: nil,
+       selected_department: nil,
+       filters_form: filters_form(nil, nil),
+       lemmings: [],
+       selected_lemming: nil,
+       selected_lemming_effective_config: nil,
+       selected_lemming_inheriting?: false,
+       lemming_not_found?: false,
+       active_detail_tab: "overview",
+       settings_form: nil,
+       spawn_form: nil,
+       spawn_modal_open?: false,
+       spawn_enabled?: false,
+       spawn_disabled_reason: nil,
+       lemming_instances: [],
+       recent_lemming_instances: [],
+       overview_path: nil,
+       edit_path: nil
+     )}
   end
 
+  @impl true
   def handle_params(params, _uri, socket) do
     {:noreply, load_page(socket, params)}
   end
 
+  @impl true
   def handle_event("change_filters", %{"filters" => filters}, socket) do
     params =
       %{}
@@ -113,6 +127,59 @@ defmodule LemmingsOsWeb.LemmingsLive do
     {:noreply, put_flash(socket, :error, dgettext("lemmings", ".flash_export_no_lemming"))}
   end
 
+  def handle_event("open_spawn_modal", _params, socket) do
+    if socket.assigns.spawn_enabled? do
+      {:noreply,
+       socket
+       |> assign(spawn_modal_open?: true, spawn_form: blank_spawn_form())}
+    else
+      {:noreply, put_flash(socket, :error, spawn_error_message(:lemming_not_active))}
+    end
+  end
+
+  def handle_event("close_spawn_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(spawn_modal_open?: false, spawn_form: blank_spawn_form())}
+  end
+
+  def handle_event("validate_spawn", %{"spawn" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(spawn_modal_open?: true, spawn_form: spawn_form(params))}
+  end
+
+  def handle_event("submit_spawn", %{"spawn" => params}, socket) do
+    changeset = spawn_changeset(params)
+
+    if changeset.valid? and socket.assigns.spawn_enabled? do
+      request_text = Ecto.Changeset.get_field(changeset, :request_text)
+
+      case Runtime.spawn_session(socket.assigns.selected_lemming, request_text,
+             world: socket.assigns.world
+           ) do
+        {:ok, instance} ->
+          {:noreply,
+           push_navigate(socket, to: instance_session_path(instance, socket.assigns.world.id))}
+
+        {:error, reason} ->
+          {:noreply,
+           socket
+           |> assign(spawn_modal_open?: true, spawn_form: spawn_form(params))
+           |> put_flash(:error, spawn_error_message(reason))}
+      end
+    else
+      {:noreply,
+       socket
+       |> assign(spawn_modal_open?: true, spawn_form: to_form(changeset, as: :spawn))}
+    end
+  end
+
+  @impl true
+  def handle_info({:status_changed, _payload}, socket) do
+    {:noreply, refresh_lemming_instances(socket)}
+  end
+
   defp load_page(socket, params) do
     case Worlds.get_default_world() do
       %World{} = world ->
@@ -125,15 +192,17 @@ defmodule LemmingsOsWeb.LemmingsLive do
         selected_lemming = selected_lemming(socket, lemmings, selected_lemming, params)
 
         socket
-        |> assign(:world, world)
-        |> assign(:cities, cities)
-        |> assign(:departments, departments)
-        |> assign(:selected_city, selected_city)
-        |> assign(:selected_department, selected_department)
-        |> assign(:filters_form, filters_form(selected_city, selected_department))
-        |> assign(:lemmings, lemmings)
-        |> assign(:lemming_not_found?, lemming_not_found?(socket, params, selected_lemming))
-        |> assign(:active_detail_tab, active_detail_tab(socket, params))
+        |> assign(
+          world: world,
+          cities: cities,
+          departments: departments,
+          selected_city: selected_city,
+          selected_department: selected_department,
+          filters_form: filters_form(selected_city, selected_department),
+          lemmings: lemmings,
+          lemming_not_found?: lemming_not_found?(socket, params, selected_lemming),
+          active_detail_tab: active_detail_tab(socket, params)
+        )
         |> assign_selected_lemming(selected_lemming)
         |> put_shell_breadcrumb(
           build_shell_breadcrumb(world, selected_city, selected_department, selected_lemming)
@@ -141,21 +210,29 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
       nil ->
         socket
-        |> assign(:world, nil)
-        |> assign(:cities, [])
-        |> assign(:departments, [])
-        |> assign(:selected_city, nil)
-        |> assign(:selected_department, nil)
-        |> assign(:filters_form, filters_form(nil, nil))
-        |> assign(:lemmings, [])
-        |> assign(:selected_lemming, nil)
-        |> assign(:selected_lemming_effective_config, nil)
-        |> assign(:selected_lemming_inheriting?, false)
-        |> assign(:lemming_not_found?, false)
-        |> assign(:active_detail_tab, "overview")
-        |> assign(:settings_form, nil)
-        |> assign(:overview_path, nil)
-        |> assign(:edit_path, nil)
+        |> assign(
+          world: nil,
+          cities: [],
+          departments: [],
+          selected_city: nil,
+          selected_department: nil,
+          filters_form: filters_form(nil, nil),
+          lemmings: [],
+          selected_lemming: nil,
+          selected_lemming_effective_config: nil,
+          selected_lemming_inheriting?: false,
+          lemming_not_found?: false,
+          active_detail_tab: "overview",
+          settings_form: nil,
+          spawn_form: nil,
+          spawn_modal_open?: false,
+          spawn_enabled?: false,
+          spawn_disabled_reason: nil,
+          lemming_instances: [],
+          recent_lemming_instances: [],
+          overview_path: nil,
+          edit_path: nil
+        )
         |> put_shell_breadcrumb(default_shell_breadcrumb(:lemmings))
     end
   end
@@ -172,12 +249,20 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   defp assign_selected_lemming(socket, nil) do
     socket
-    |> assign(:selected_lemming, nil)
-    |> assign(:selected_lemming_effective_config, nil)
-    |> assign(:selected_lemming_inheriting?, false)
-    |> assign(:settings_form, nil)
-    |> assign(:overview_path, nil)
-    |> assign(:edit_path, nil)
+    |> assign(
+      selected_lemming: nil,
+      selected_lemming_effective_config: nil,
+      selected_lemming_inheriting?: false,
+      settings_form: nil,
+      spawn_form: nil,
+      spawn_modal_open?: false,
+      spawn_enabled?: false,
+      spawn_disabled_reason: nil,
+      lemming_instances: [],
+      recent_lemming_instances: [],
+      overview_path: nil,
+      edit_path: nil
+    )
   end
 
   defp assign_selected_lemming(socket, %Lemming{} = lemming) do
@@ -189,12 +274,21 @@ defmodule LemmingsOsWeb.LemmingsLive do
       |> build_settings_changeset(nil)
 
     socket
-    |> assign(:selected_lemming, lemming)
-    |> assign(:selected_lemming_effective_config, Resolver.resolve(lemming))
-    |> assign(:selected_lemming_inheriting?, inheriting_all_configuration?(lemming))
-    |> assign(:settings_form, to_form(changeset, as: :lemming))
-    |> assign(:overview_path, detail_path(lemming, socket, "overview"))
-    |> assign(:edit_path, detail_path(lemming, socket, "edit"))
+    |> assign(
+      selected_lemming: lemming,
+      selected_lemming_effective_config: Resolver.resolve(lemming),
+      selected_lemming_inheriting?: inheriting_all_configuration?(lemming),
+      settings_form: to_form(changeset, as: :lemming),
+      spawn_form: blank_spawn_form(),
+      spawn_modal_open?: false
+    )
+    |> assign_spawn_state(lemming)
+    |> assign(
+      lemming_instances: load_lemming_instances(socket.assigns.world, lemming),
+      recent_lemming_instances: load_recent_lemming_instances(socket.assigns.world, lemming),
+      overview_path: detail_path(lemming, socket, "overview"),
+      edit_path: detail_path(lemming, socket, "edit")
+    )
   end
 
   defp load_selected_lemming(nil), do: nil
@@ -267,6 +361,14 @@ defmodule LemmingsOsWeb.LemmingsLive do
     [
       shell_item(:cities, "/cities"),
       shell_item(world.name || world.id, "/lemmings")
+    ]
+  end
+
+  defp build_shell_breadcrumb(_world, nil, nil, %Lemming{} = lemming) do
+    [
+      shell_item(:cities, "/cities"),
+      shell_item(:lemmings, "/lemmings"),
+      shell_item(lemming.name || lemming.id, "/lemmings/#{lemming.id}")
     ]
   end
 
@@ -460,4 +562,98 @@ defmodule LemmingsOsWeb.LemmingsLive do
   end
 
   defp hydrate_resolver_chain(%Lemming{} = lemming, _world), do: lemming
+
+  defp refresh_lemming_instances(
+         %{assigns: %{world: %World{} = world, selected_lemming: %Lemming{} = lemming}} = socket
+       ) do
+    socket
+    |> assign(:lemming_instances, load_lemming_instances(world, lemming))
+    |> assign(:recent_lemming_instances, load_recent_lemming_instances(world, lemming))
+  end
+
+  defp refresh_lemming_instances(socket), do: socket
+
+  defp load_lemming_instances(%World{} = world, %Lemming{} = lemming) do
+    world
+    |> LemmingInstances.list_instances(lemming_id: lemming.id)
+    |> Enum.reject(&terminal_instance?/1)
+    |> Enum.map(&instance_view_model/1)
+    |> tap(&subscribe_instance_topics/1)
+  end
+
+  defp load_lemming_instances(_world, _lemming), do: []
+
+  defp load_recent_lemming_instances(%World{} = world, %Lemming{} = lemming) do
+    world
+    |> LemmingInstances.list_instances(lemming_id: lemming.id, statuses: ["failed", "expired"])
+    |> Enum.take(10)
+    |> Enum.map(&instance_view_model/1)
+  end
+
+  defp load_recent_lemming_instances(_world, _lemming), do: []
+
+  defp subscribe_instance_topics(instances) when is_list(instances) do
+    Enum.each(instances, fn %{id: instance_id} ->
+      _ = PubSub.subscribe_instance(instance_id)
+    end)
+  end
+
+  defp instance_view_model(instance) do
+    %{
+      id: instance.id,
+      status: instance.status,
+      inserted_at: instance.inserted_at,
+      preview: first_user_message_preview(instance)
+    }
+  end
+
+  defp first_user_message_preview(instance) do
+    instance
+    |> LemmingsOs.LemmingInstances.list_messages([])
+    |> Enum.find(&(&1.role == "user"))
+    |> case do
+      nil ->
+        "No message yet"
+
+      message ->
+        Helpers.truncate_value(message.content,
+          max_length: 120,
+          unavailable_label: "No message yet"
+        )
+    end
+  end
+
+  defp terminal_instance?(%{status: status}), do: status in ["failed", "expired"]
+
+  defp spawn_form(params) when is_map(params), do: to_form(spawn_changeset(params), as: :spawn)
+  defp blank_spawn_form, do: spawn_form(%{})
+
+  defp spawn_changeset(params) when is_map(params) do
+    {%{}, %{request_text: :string}}
+    |> Ecto.Changeset.cast(params, [:request_text])
+    |> Ecto.Changeset.validate_required([:request_text])
+  end
+
+  defp spawn_error_message(:lemming_not_active), do: "The lemming must be active before spawning."
+  defp spawn_error_message(:empty_request_text), do: "Enter a request before spawning."
+  defp spawn_error_message(_reason), do: "Failed to create instance."
+
+  defp assign_spawn_state(socket, %Lemming{status: "active"}) do
+    socket
+    |> assign(:spawn_enabled?, true)
+    |> assign(:spawn_disabled_reason, nil)
+  end
+
+  defp assign_spawn_state(socket, %Lemming{} = lemming) do
+    socket
+    |> assign(:spawn_enabled?, false)
+    |> assign(
+      :spawn_disabled_reason,
+      "Spawn is available when this lemming is active. Current status: #{lemming.status}."
+    )
+  end
+
+  defp instance_session_path(%{id: instance_id}, world_id) do
+    ~p"/lemmings/instances/#{instance_id}?#{%{world: world_id}}"
+  end
 end

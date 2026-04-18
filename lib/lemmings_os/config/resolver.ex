@@ -223,8 +223,6 @@ defmodule LemmingsOs.Config.Resolver do
 
   defp embed_to_map(%_{} = config), do: Map.from_struct(config)
 
-  defp prune_nil_values(map) when map in [%{}, nil], do: %{}
-
   defp prune_nil_values(map) when is_map(map) do
     map
     |> Enum.reduce(%{}, fn
@@ -241,9 +239,6 @@ defmodule LemmingsOs.Config.Resolver do
         Map.put(acc, key, value)
     end)
   end
-
-  defp deep_merge_maps(parent, child) when child in [nil, %{}], do: parent || %{}
-  defp deep_merge_maps(nil, child) when is_map(child), do: child
 
   defp deep_merge_maps(parent, child) when is_map(parent) and is_map(child) do
     Map.merge(parent, child, fn _key, parent_value, child_value ->

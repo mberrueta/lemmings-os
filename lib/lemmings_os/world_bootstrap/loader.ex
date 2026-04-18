@@ -54,9 +54,6 @@ defmodule LemmingsOs.WorldBootstrap.Loader do
 
       {:error, %YamlElixir.ParsingError{} = error} ->
         {:error, normalized_error(resolved_path, parsing_issue(path, error))}
-
-      {:error, error} ->
-        {:error, normalized_error(resolved_path, malformed_yaml_issue(path, error))}
     end
   end
 
@@ -83,17 +80,6 @@ defmodule LemmingsOs.WorldBootstrap.Loader do
   end
 
   defp parsing_issue(path, error) do
-    normalized_issue(
-      "bootstrap_yaml_parse_error",
-      Gettext.dgettext(AppGettext, "errors", ".bootstrap_yaml_parse_error_summary"),
-      Exception.message(error),
-      "bootstrap_file",
-      path,
-      Gettext.dgettext(AppGettext, "errors", ".bootstrap_yaml_parse_error_action_hint")
-    )
-  end
-
-  defp malformed_yaml_issue(path, error) do
     normalized_issue(
       "bootstrap_yaml_parse_error",
       Gettext.dgettext(AppGettext, "errors", ".bootstrap_yaml_parse_error_summary"),

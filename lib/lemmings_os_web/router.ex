@@ -30,6 +30,7 @@ defmodule LemmingsOsWeb.Router do
     live "/lemmings/import", ImportLemmingLive, :import
     live "/lemmings", LemmingsLive, :index
     live "/lemmings/:id", LemmingsLive, :show
+    live "/lemmings/instances/:id", InstanceLive, :show
     live "/tools", ToolsLive, :index
     live "/logs", LogsLive, :index
     live "/settings", SettingsLive, :index
@@ -52,6 +53,7 @@ defmodule LemmingsOsWeb.Router do
     scope "/dev" do
       pipe_through :browser
 
+      live "/runtime", LemmingsOsWeb.RuntimeDashboardLive, :index
       live_dashboard "/dashboard", metrics: LemmingsOsWeb.Telemetry
     end
   end

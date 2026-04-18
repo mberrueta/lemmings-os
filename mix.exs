@@ -10,6 +10,14 @@ defmodule LemmingsOs.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      dialyzer: [
+        plt_add_apps: [:mix, :ex_unit],
+        plt_ignore_apps: [:xmerl],
+        ignore_warnings: ".dialyzer_ignore.exs",
+        # Ecto uses opaque types (e.g., Ecto.Multi.t()) which cause noisy warnings.
+        # Suppress opaque warnings to keep precommit signal clean.
+        flags: [:no_opaque]
+      ],
       releases: releases(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
@@ -84,9 +92,15 @@ defmodule LemmingsOs.MixProject do
       {:yaml_elixir, "~> 2.12"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      {:req, "~> 0.5"},
 
       # Dev tooling
+      {:live_debugger, "~> 0.6.0", only: :dev},
+      {:usage_rules, "~> 1.2", only: :dev},
       {:tidewave, "~> 0.4", only: :dev},
+      # Keep the dialyzer task available in environments that run `mix precommit`
+      # outside of plain `:dev` (for example, editor integrations or CI).
+      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.8", only: [:dev, :test]},
       {:ex_doc, "~> 0.27", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
@@ -126,8 +140,9 @@ defmodule LemmingsOs.MixProject do
       ],
       # Fast checks (used constantly)
       precommit: [
-        "format --check-formatted",
+        "format",
         "compile --warnings-as-errors",
+        "dialyzer",
         "credo"
       ],
       # Full validation (before PR)

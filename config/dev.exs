@@ -1,5 +1,11 @@
 import Config
 
+live_debugger_port = System.get_env("LIVE_DEBUGGER_PORT") || "4007"
+
+config :live_debugger,
+  api_settings_storage: LemmingsOs.LiveDebuggerSettingsStorage,
+  port: String.to_integer(live_debugger_port)
+
 port = System.get_env("PORT") || System.get_env("MIX_PORT") || "4000"
 
 # Configure your database

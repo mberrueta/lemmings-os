@@ -40,6 +40,7 @@ LemmingsOS adopts a canonical relational core domain schema centered on the foll
 - `departments`
 - `lemmings`
 - `lemming_instances`
+- `lemming_instance_messages`
 - `tool_registry`
 - `tool_policies`
 
@@ -50,9 +51,28 @@ The model distinguishes clearly between:
 - **structural entities** - `worlds`, `cities`, `departments`
 - **agent entities** - `lemmings`
 - **runtime entities** - `lemming_instances`
+- **runtime transcript entities** - `lemming_instance_messages`
 - **governance entities** - `tool_registry`, `tool_policies`
 
 If the product later introduces a reusable template layer, that layer must be modeled as an explicit extension of the core schema, not as a replacement for `lemmings` or `lemming_instances`.
+
+## 3.1 Phase 1 Runtime Slice
+
+This ADR defines the intended core schema. The Phase 1 runtime slice adopts a narrower runtime schema contract that is still part of the canonical architecture.
+
+Phase 1 runtime scope:
+
+- `lemming_instances` records runtime session identity, hierarchy scope, lifecycle status, frozen config snapshot, and temporal markers
+- `lemming_instance_messages` stores the durable transcript for each runtime session
+- the first user request is stored as the first `lemming_instance_messages` row, not duplicated on `lemming_instances`
+
+Deferred beyond Phase 1:
+
+- parent/child instance lineage for delegation workflows
+- generalized checkpoint metadata columns on the relational runtime record
+- any separate opaque `instance_ref` beyond the UUID primary key, and only if future routing or interop needs justify it
+
+In Phase 1, `lemming_instances.id` acts as the runtime `instance_ref`.
 
 ---
 
@@ -91,6 +111,7 @@ erDiagram
     DEPARTMENTS ||--o{ LEMMING_INSTANCES : contains
 
     LEMMINGS ||--o{ LEMMING_INSTANCES : executes_as
+    LEMMING_INSTANCES ||--o{ LEMMING_INSTANCE_MESSAGES : contains
 
     TOOL_REGISTRY ||--o{ TOOL_POLICIES : governed_by
 
@@ -165,13 +186,25 @@ erDiagram
         uuid world_id
         uuid city_id
         uuid department_id
-        uuid parent_instance_id
-        string instance_ref
         string status
-        jsonb config_jsonb
+        jsonb config_snapshot
         timestamp started_at
         timestamp stopped_at
-        timestamp last_checkpoint_at
+        timestamp last_activity_at
+    }
+
+    LEMMING_INSTANCE_MESSAGES {
+        uuid id
+        uuid lemming_instance_id
+        uuid world_id
+        string role
+        text content
+        string provider
+        string model
+        integer input_tokens
+        integer output_tokens
+        integer total_tokens
+        jsonb usage
     }
 
     TOOL_REGISTRY {
@@ -198,7 +231,66 @@ erDiagram
 
 The Mermaid diagram above represents the canonical relational model for the runtime domain.
 
-Actual database migrations may include additional operational columns such as inserted_at, updated_at, and other runtime metadata.
+Operational timestamp columns such as `inserted_at` and `updated_at` are expected additions to runtime tables. They do not change the core schema contract described here.
+
+## 5.1 Phase 1 runtime table contract
+
+The Phase 1 runtime slice treats the runtime tables below as the canonical schema contract for the first runtime engine milestone. This section is normative for Phase 1.
+
+### `lemming_instances`
+
+Phase 1 columns:
+
+- `id` - UUID primary key and stable runtime identity
+- `lemming_id` - foreign key to the durable `lemmings` row
+- `world_id` - World isolation scope
+- `city_id` - City execution locality scope
+- `department_id` - Department scheduling scope
+- `status` - runtime lifecycle status using the Phase 1 subset from ADR-0004: `created`, `queued`, `processing`, `retrying`, `idle`, `failed`, `expired`
+- `config_snapshot` - frozen resolved runtime configuration captured at spawn time
+- `started_at` - runtime process birth time
+- `last_activity_at` - last meaningful runtime transition
+- `stopped_at` - terminal stop time only
+- `inserted_at` - durable record creation time
+- `updated_at` - last row mutation time
+
+Deferred beyond Phase 1:
+
+- `instance_ref` - not required while the UUID primary key is the stable runtime identity
+- `parent_instance_id` - reserved for future delegation and lineage workflows
+- `last_checkpoint_at` - deferred until rehydration becomes an active runtime feature
+
+These deferred fields remain valid future extensions, but they are not part of the Phase 1 contract and must not be implied by the schema today.
+
+### `lemming_instance_messages`
+
+Phase 1 columns:
+
+- `id` - UUID primary key
+- `lemming_instance_id` - foreign key to the owning runtime session
+- `world_id` - World isolation scope for transcript queries
+- `role` - transcript role, with Phase 1 values `user` and `assistant`
+- `content` - durable transcript content
+- `provider` - provider name for assistant messages when applicable
+- `model` - model identifier for assistant messages when applicable
+- `input_tokens` - normalized input token count when reported
+- `output_tokens` - normalized output token count when reported
+- `total_tokens` - aggregate token count when a provider reports only a total or when storing the convenience sum is useful
+- `usage` - nullable provider-specific usage metadata that does not belong in the normalized columns
+- `inserted_at` - transcript insertion time
+
+`lemming_instance_messages` is the single source of truth for runtime transcript content. The first user input is stored as the first `role = "user"` message and is not duplicated on `lemming_instances`.
+
+`total_tokens` and `usage` are intentional compatibility cushions. They allow the schema to preserve useful provider accounting data without forcing every provider to match a prematurely rigid normalized shape. Application logic must remain valid when either field is absent.
+
+For Phase 1, that first user input has a deliberate dual representation:
+
+- durable representation: the first `lemming_instance_messages` row with `role = "user"`
+- ephemeral execution representation: the first in-memory work item queued for the executor
+
+This is intentional. The transcript row is the durable record. The work item is
+the runtime execution unit. The executor does not consume work directly from the
+message table.
 
 ---
 
@@ -260,8 +352,19 @@ Responsibilities:
 - records a concrete execution lifecycle
 - binds a Lemming to a specific runtime occurrence
 - provides the stable identity used by routing and persistence
-- stores runtime status and execution timestamps
+- stores runtime status, temporal markers, and frozen configuration snapshot
 - enables auditability and observability of execution history
+
+## Lemming Instance Message
+
+A Lemming Instance Message is a durable transcript record attached to a single runtime session.
+
+Responsibilities:
+
+- stores user-visible conversation turns for a runtime session
+- acts as the durable transcript source of truth for runtime interactions
+- stores normalized provider/model/token metadata for assistant responses
+- allows the first user request to be modeled uniformly with later follow-up turns
 
 ## Tool Registry
 
@@ -291,8 +394,9 @@ For runtime-facing entities, especially `lemming_instances`, stable identity mus
 Recommendations:
 
 - database `id` remains the durable primary key
-- `instance_ref` may also be stored as a stable opaque logical execution reference
 - runtime PIDs or node-local process identifiers must never be treated as canonical durable identity
+
+Phase 1 explicitly uses the UUID primary key as the stable runtime identity. An additional opaque `instance_ref` is an optional future extension only if routing or interop needs justify it; it is not implied by the current design and is not part of the Phase 1 runtime slice.
 
 ## Hierarchy References Always Stored
 
@@ -324,6 +428,8 @@ The core runtime relationships are:
 - `lemmings` also belong to `cities` and `worlds`
 - `lemming_instances` belong to `lemmings`
 - `lemming_instances` belong to `departments`, `cities`, and `worlds`
+- `lemming_instance_messages` belong to `lemming_instances`
+- `lemming_instance_messages` also belong to `worlds`
 - `tool_policies` reference `tool_registry`
 - `tool_policies` attach to hierarchy scopes and optionally to Lemmings or runtime instances
 
@@ -366,10 +472,13 @@ The schema should be indexed according to common runtime, audit, routing, and co
 - `lemming_instances(city_id)`
 - `lemming_instances(department_id)`
 - `lemming_instances(lemming_id)`
+- `lemming_instance_messages(world_id)`
+- `lemming_instance_messages(lemming_instance_id)`
 
 ### Runtime state indexes
 
 - `lemming_instances(status)`
+- `lemming_instance_messages(role)`
 - `cities(status)`
 - `departments(status)`
 
@@ -379,8 +488,9 @@ The schema should be indexed according to common runtime, audit, routing, and co
 - unique composite index on `cities(world_id, slug)`
 - unique composite index on `departments(city_id, slug)`
 - unique composite index on `lemmings(department_id, slug)`
-- unique index on `lemming_instances(instance_ref)`
 - unique index on `tool_registry.slug`
+
+Phase 1 does not require a unique `instance_ref` index because the UUID primary key is the stable runtime identifier. If `instance_ref` is introduced later, it should be treated as an optional extension justified by routing or interop needs, and its uniqueness contract must be defined explicitly at that time.
 
 ### Policy indexes
 
@@ -409,6 +519,21 @@ The schema supports direct operational inspection.
 
 The domain schema does not replace audit tables, but it gives them stable foreign keys and scope references.
 
+## Runtime table semantics for Phase 1
+
+`lemming_instances` temporal markers have explicit semantics:
+
+- `inserted_at` = durable record creation time
+- `started_at` = runtime process birth
+- `last_activity_at` = last meaningful runtime transition
+- `stopped_at` = terminal stop only
+
+There may be a brief `created` window where the durable row already exists but
+the executor has not initialized yet. In that window, `inserted_at` is set and
+`started_at` remains `nil`.
+
+`lemming_instance_messages` is the canonical transcript table for runtime sessions. The initial user request belongs there, not on the instance row.
+
 ---
 
 # 11. Implementation Notes
@@ -421,6 +546,7 @@ LemmingsOs.Cities.City
 LemmingsOs.Departments.Department
 LemmingsOs.Lemmings.Lemming
 LemmingsOs.LemmingInstances.LemmingInstance
+LemmingsOs.LemmingInstances.Message
 LemmingsOs.ToolRegistry.Tool
 LemmingsOs.ToolPolicies.ToolPolicy
 ```

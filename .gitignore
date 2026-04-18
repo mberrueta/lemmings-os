@@ -10,3 +10,7 @@ _build
 # Docker compose env file (contains secrets)
 .env
 /cover/
+/tmp/
+*.dets
+/erl_crash.dump
+/.codex

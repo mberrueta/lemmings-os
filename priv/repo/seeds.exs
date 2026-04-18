@@ -234,8 +234,8 @@ lemming_seeds = %{
   ]
 }
 
-create_department! = fn world, city, attrs ->
-  case Departments.create_department(world, city, attrs) do
+create_department! = fn city, attrs ->
+  case Departments.create_department(city, attrs) do
     {:ok, department} ->
       department
 
@@ -262,8 +262,8 @@ end
 
 {:ok, world} =
   case Worlds.get_default_world() do
-    {:ok, %World{} = world} -> {:ok, world}
-    {:error, :not_found} -> Worlds.upsert_world(default_world_attrs)
+    %World{} = world -> {:ok, world}
+    nil -> Worlds.upsert_world(default_world_attrs)
   end
 
 runtime_city_attrs = RuntimeCities.runtime_city_attrs()
@@ -288,8 +288,8 @@ runtime_city
 |> Lemmings.list_lemmings()
 |> Enum.each(fn lemming -> Repo.delete!(lemming) end)
 
-world
-|> Departments.list_departments(runtime_city)
+runtime_city
+|> Departments.list_departments()
 |> Enum.each(fn department -> Repo.delete!(department) end)
 
 seeded =
@@ -298,7 +298,7 @@ seeded =
     %{key: :runtime, departments: departments} ->
       seeded_departments =
         Enum.map(departments, fn department_attrs ->
-          department = create_department!.(world, runtime_city, department_attrs)
+          department = create_department!.(runtime_city, department_attrs)
 
           lemming_seeds
           |> Map.get({:runtime, department.slug}, [])
@@ -316,7 +316,7 @@ seeded =
 
       seeded_departments =
         Enum.map(departments, fn department_attrs ->
-          department = create_department!.(world, city, department_attrs)
+          department = create_department!.(city, department_attrs)
 
           lemming_seeds
           |> Map.get({key, department.slug}, [])

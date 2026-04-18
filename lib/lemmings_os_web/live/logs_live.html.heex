@@ -8,5 +8,134 @@
   shell_breadcrumb={@shell_breadcrumb}
   summary={@summary}
 >
-  <SystemComponents.logs_page activity_log={@activity_log} />
+  <.content_container>
+    <section id="logs-runtime-page" class="flex flex-col gap-4">
+      <.panel id="logs-runtime-overview" tone="accent">
+        <:title>{dgettext("layout", ".title_activity_logs")}</:title>
+        <:subtitle>Runtime status, alerts, and recent engine activity.</:subtitle>
+
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <.stat_item
+            id="logs-runtime-pending"
+            label="Pending instances"
+            value={to_string(@runtime_snapshot.pending_instances)}
+            detail="created + queued + processing + retrying"
+          />
+          <.stat_item
+            id="logs-runtime-executors"
+            label="Executors running"
+            value={to_string(@runtime_snapshot.active_processes.executors)}
+            detail="Attached runtime workers"
+          />
+          <.stat_item
+            id="logs-runtime-schedulers"
+            label="Schedulers running"
+            value={to_string(@runtime_snapshot.active_processes.schedulers)}
+            detail="Department schedulers"
+          />
+          <.stat_item
+            id="logs-runtime-failed"
+            label="Failed instances"
+            value={to_string(@runtime_snapshot.persisted_instances.failed)}
+            detail="Persisted failed sessions"
+          />
+        </div>
+
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <.badge tone={if @runtime_snapshot.engine_enabled?, do: "success", else: "danger"}>
+            Runtime engine {if @runtime_snapshot.engine_enabled?, do: "enabled", else: "disabled"}
+          </.badge>
+          <.badge tone={
+            if @runtime_snapshot.services.runtime_table_owner, do: "success", else: "danger"
+          }>
+            ETS owner {if @runtime_snapshot.services.runtime_table_owner, do: "up", else: "down"}
+          </.badge>
+          <.badge tone={
+            if @runtime_snapshot.services.executor_supervisor, do: "success", else: "danger"
+          }>
+            Executor supervisor {if @runtime_snapshot.services.executor_supervisor,
+              do: "up",
+              else: "down"}
+          </.badge>
+          <.badge tone={
+            if @runtime_snapshot.services.scheduler_supervisor, do: "success", else: "danger"
+          }>
+            Scheduler supervisor {if @runtime_snapshot.services.scheduler_supervisor,
+              do: "up",
+              else: "down"}
+          </.badge>
+          <.badge tone={
+            if @runtime_snapshot.services.executor_registry, do: "success", else: "danger"
+          }>
+            Executor registry {if @runtime_snapshot.services.executor_registry,
+              do: "up",
+              else: "down"}
+          </.badge>
+          <.badge tone={
+            if @runtime_snapshot.services.scheduler_registry, do: "success", else: "danger"
+          }>
+            Scheduler registry {if @runtime_snapshot.services.scheduler_registry,
+              do: "up",
+              else: "down"}
+          </.badge>
+        </div>
+      </.panel>
+
+      <.panel id="logs-runtime-alerts">
+        <:title>Alerts</:title>
+        <:subtitle>Operator-facing warnings from the current runtime snapshot.</:subtitle>
+
+        <div
+          :if={@runtime_snapshot.alerts == []}
+          id="logs-alerts-empty-state"
+          class="text-sm text-zinc-400"
+        >
+          No active runtime alerts.
+        </div>
+
+        <div :if={@runtime_snapshot.alerts != []} class="flex flex-col gap-3">
+          <article
+            :for={alert <- @runtime_snapshot.alerts}
+            id={"logs-alert-#{alert.code}"}
+            class="border-2 border-zinc-700 bg-zinc-950/70 p-4"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-base font-medium text-zinc-100">{alert.summary}</p>
+                <p class="text-sm text-zinc-400">{alert.detail}</p>
+              </div>
+              <.status kind={:issue} value={alert.severity} />
+            </div>
+            <p
+              :if={alert.action_hint}
+              class="mt-3 text-xs uppercase tracking-widest text-zinc-500"
+            >
+              {alert.action_hint}
+            </p>
+          </article>
+        </div>
+      </.panel>
+
+      <.panel id="logs-feed-panel">
+        <:title>Activity Feed</:title>
+        <:subtitle>Recent runtime events captured in this node.</:subtitle>
+
+        <div id="logs-activity-feed" class="flex flex-col gap-3 font-mono">
+          <div :if={@activity_log == []} class="text-sm text-zinc-400">
+            Waiting for runtime activity...
+          </div>
+
+          <div
+            :for={item <- @activity_log}
+            id={"logs-feed-item-#{item.id}"}
+            class="flex flex-wrap items-start gap-3 text-sm"
+          >
+            <span class="text-xs tracking-widest text-zinc-400">[{item.time}]</span>
+            <span class={["font-medium", activity_class(item.type)]}>{item.agent}</span>
+            <span class="text-zinc-200">{item.action}</span>
+          </div>
+        </div>
+      </.panel>
+    </section>
+  </.content_container>
 </Layouts.app>

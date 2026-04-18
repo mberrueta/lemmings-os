@@ -45,7 +45,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <:subtitle>{dgettext("lemmings", ".subtitle_filters")}</:subtitle>
 
         <.form for={@filters_form} id="lemmings-filters-form" phx-change="change_filters">
-          <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <div class="grid gap-4 lg:grid-cols-3">
             <div
               id="lemmings-selected-world"
               class="flex flex-col gap-1.5 border-2 border-zinc-800 bg-zinc-950/70 px-3 py-2.5"
@@ -102,9 +102,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
             navigate={
               ~p"/lemmings/#{lemming.id}?#{card_params(@selected_city, @selected_department)}"
             }
-            class={[
-              "flex min-h-40 flex-col gap-4 border-2 border-zinc-800 bg-zinc-950/80 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400 hover:bg-emerald-400/5"
-            ]}
+            class="flex min-h-40 flex-col gap-4 border-2 border-zinc-800 bg-zinc-950/80 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400 hover:bg-emerald-400/5"
           >
             <div class="flex items-start justify-between gap-4">
               <p class="min-w-0 text-base leading-tight text-zinc-100">{lemming.name}</p>
@@ -160,6 +158,12 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :settings_form, :any, default: nil
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
+  attr :lemming_instances, :list, default: []
+  attr :recent_lemming_instances, :list, default: []
+  attr :spawn_form, :any, default: nil
+  attr :spawn_modal_open?, :boolean, default: false
+  attr :spawn_enabled?, :boolean, default: false
+  attr :spawn_disabled_reason, :string, default: nil
 
   def lemming_detail_page(assigns) do
     ~H"""
@@ -284,7 +288,15 @@ defmodule LemmingsOsWeb.LemmingComponents do
           edit_path={@edit_path}
         />
 
-        <.lemming_instances_workspace lemming={@selected_lemming} />
+        <.lemming_instances_workspace
+          lemming={@selected_lemming}
+          instances={@lemming_instances}
+          recent_instances={@recent_lemming_instances}
+          spawn_form={@spawn_form}
+          spawn_modal_open?={@spawn_modal_open?}
+          spawn_enabled?={@spawn_enabled?}
+          spawn_disabled_reason={@spawn_disabled_reason}
+        />
       </.content_grid>
     </.content_container>
     """
@@ -503,7 +515,13 @@ defmodule LemmingsOsWeb.LemmingComponents do
     """
   end
 
-  attr :lemming, :map, default: nil
+  attr :lemming, :map, required: true
+  attr :instances, :list, default: []
+  attr :recent_instances, :list, default: []
+  attr :spawn_form, :any, default: nil
+  attr :spawn_modal_open?, :boolean, default: false
+  attr :spawn_enabled?, :boolean, default: false
+  attr :spawn_disabled_reason, :string, default: nil
 
   def lemming_instances_workspace(assigns) do
     ~H"""
@@ -511,18 +529,41 @@ defmodule LemmingsOsWeb.LemmingComponents do
       <:title>{dgettext("lemmings", ".title_instances_workspace")}</:title>
       <:subtitle>{dgettext("lemmings", ".subtitle_instances_workspace")}</:subtitle>
 
-      <div class="space-y-4">
-        <div class="grid gap-3 md:grid-cols-2">
-          <.stat_item
-            id="lemming-instances-running-count"
-            label={dgettext("lemmings", ".detail_running_instances")}
-            value={dgettext("lemmings", ".value_instances_unknown")}
-          />
-          <.stat_item
-            id="lemming-instances-spawn-capability"
-            label={dgettext("lemmings", ".detail_spawn_requests")}
-            value={dgettext("lemmings", ".value_future_capability")}
-          />
+      <div class="space-y-5">
+        <div class="flex flex-col gap-3 border-b border-zinc-800 pb-4 md:flex-row md:items-start md:justify-between">
+          <div class="space-y-1">
+            <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", ".detail_spawn_requests")}
+            </p>
+            <p class="text-sm text-zinc-400">
+              {if @spawn_enabled?,
+                do: dgettext("lemmings", ".spawn_enabled_copy"),
+                else: @spawn_disabled_reason}
+            </p>
+          </div>
+
+          <div class="flex shrink-0 items-center">
+            <.button
+              :if={@spawn_enabled?}
+              id="lemming-spawn-button"
+              type="button"
+              variant="secondary"
+              phx-click="open_spawn_modal"
+            >
+              {dgettext("lemmings", ".button_spawn")}
+            </.button>
+
+            <button
+              :if={!@spawn_enabled?}
+              id="lemming-spawn-button"
+              type="button"
+              disabled
+              title={@spawn_disabled_reason}
+              class="inline-flex min-h-11 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/70 px-4 py-2 text-sm font-medium text-zinc-500"
+            >
+              {dgettext("lemmings", ".button_spawn")}
+            </button>
+          </div>
         </div>
 
         <div :if={@lemming} id="lemming-instances-selected-copy" class="text-sm text-zinc-400">
@@ -537,23 +578,154 @@ defmodule LemmingsOsWeb.LemmingComponents do
           />
         </div>
 
-        <div :if={@lemming} id="lemming-instances-placeholder-stack" class="grid gap-4">
-          <div class="border-2 border-zinc-800 bg-zinc-950/70 p-4">
+        <div :if={@spawn_modal_open?} id="lemming-spawn-modal" class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/70" />
+          <div class="relative flex min-h-full items-center justify-center p-4">
+            <div class="w-full max-w-2xl border-2 border-emerald-400/40 bg-zinc-950 p-5 shadow-2xl">
+              <div class="flex items-start justify-between gap-4 border-b border-zinc-800 pb-4">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                    {dgettext("lemmings", ".title_spawn_instance")}
+                  </p>
+                  <p class="mt-1 text-sm text-zinc-400">
+                    {dgettext("lemmings", ".copy_spawn_instance")}
+                  </p>
+                </div>
+
+                <button
+                  id="lemming-spawn-modal-close"
+                  type="button"
+                  class="text-zinc-400 hover:text-zinc-100"
+                  phx-click="close_spawn_modal"
+                >
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <.form
+                for={@spawn_form}
+                id="lemming-spawn-form"
+                class="mt-4 space-y-4"
+                phx-change="validate_spawn"
+                phx-submit="submit_spawn"
+              >
+                <.input
+                  id="lemming-spawn-request-text"
+                  field={@spawn_form[:request_text]}
+                  type="textarea"
+                  rows="5"
+                  label={dgettext("lemmings", ".label_initial_request")}
+                  placeholder={dgettext("lemmings", ".placeholder_spawn_request")}
+                />
+
+                <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <.button
+                    id="lemming-spawn-cancel"
+                    type="button"
+                    variant="ghost"
+                    phx-click="close_spawn_modal"
+                  >
+                    {dgettext("lemmings", ".button_cancel")}
+                  </.button>
+
+                  <.button
+                    id="lemming-spawn-submit"
+                    type="submit"
+                    variant="secondary"
+                    disabled={Helpers.blank?(@spawn_form[:request_text].value)}
+                    phx-disable-with={dgettext("lemmings", ".button_spawning")}
+                  >
+                    {dgettext("lemmings", ".button_confirm_spawn")}
+                  </.button>
+                </div>
+              </.form>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-3">
             <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-              {dgettext("lemmings", ".title_instance_console_placeholder")}
+              {dgettext("lemmings", ".title_active_instances")}
             </p>
-            <p class="mt-2 text-sm text-zinc-400">
-              {dgettext("lemmings", ".copy_instance_console_placeholder")}
+            <p class="text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", ".count_total", count: length(@instances))}
             </p>
           </div>
 
-          <div class="border-2 border-zinc-800 bg-zinc-950/70 p-4">
+          <div :if={@instances == []} id="lemming-instances-empty-list">
+            <.empty_state
+              id="lemming-instances-empty-state-card"
+              title={dgettext("lemmings", ".empty_no_active_instances")}
+              copy={dgettext("lemmings", ".empty_no_active_instances_copy")}
+            />
+          </div>
+
+          <div :if={@instances != []} id="lemming-instances-list" class="grid gap-3">
+            <.link
+              :for={instance <- @instances}
+              id={"lemming-instance-#{instance.id}"}
+              navigate={instance_path(@lemming.world_id, instance.id)}
+              class="flex items-start justify-between gap-4 border-2 border-zinc-800 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
+            >
+              <div class="min-w-0 space-y-2">
+                <div class="flex items-center gap-2">
+                  <.status kind={:instance} value={instance.status} />
+                  <span class="text-xs uppercase tracking-widest text-zinc-500">
+                    {Helpers.format_datetime(instance.inserted_at,
+                      nil_label: dgettext("lemmings", ".label_unknown")
+                    )}
+                  </span>
+                </div>
+
+                <p class="truncate text-sm text-zinc-100">
+                  {instance.preview}
+                </p>
+              </div>
+
+              <div class="shrink-0 pt-0.5">
+                <.icon name="hero-arrow-top-right-on-square" class="size-4 text-zinc-500" />
+              </div>
+            </.link>
+          </div>
+        </div>
+
+        <div :if={@recent_instances != []} class="space-y-3 border-t border-zinc-800 pt-4">
+          <div class="flex items-center justify-between gap-3">
             <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">
-              {dgettext("lemmings", ".title_spawn_request_placeholder")}
+              {dgettext("lemmings", ".title_recent_sessions")}
             </p>
-            <p class="mt-2 text-sm text-zinc-400">
-              {dgettext("lemmings", ".copy_spawn_request_placeholder")}
+            <p class="text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", ".count_shown", count: length(@recent_instances))}
             </p>
+          </div>
+
+          <div id="lemming-recent-instances-list" class="grid gap-3">
+            <.link
+              :for={instance <- @recent_instances}
+              id={"lemming-recent-instance-#{instance.id}"}
+              navigate={instance_path(@lemming.world_id, instance.id)}
+              class="flex items-start justify-between gap-4 border border-zinc-800 bg-zinc-950/60 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-zinc-600"
+            >
+              <div class="min-w-0 space-y-2">
+                <div class="flex items-center gap-2">
+                  <.status kind={:instance} value={instance.status} />
+                  <span class="text-xs uppercase tracking-widest text-zinc-500">
+                    {Helpers.format_datetime(instance.inserted_at,
+                      nil_label: dgettext("lemmings", ".label_unknown")
+                    )}
+                  </span>
+                </div>
+
+                <p class="truncate text-sm text-zinc-200">
+                  {instance.preview}
+                </p>
+              </div>
+
+              <div class="shrink-0 pt-0.5">
+                <.icon name="hero-arrow-top-right-on-square" class="size-4 text-zinc-500" />
+              </div>
+            </.link>
           </div>
         </div>
       </div>
@@ -828,4 +1000,8 @@ defmodule LemmingsOsWeb.LemmingComponents do
   defp accent_style(color), do: "background-color: #{color};"
   defp sprite_size("sm"), do: nil
   defp sprite_size("md"), do: "sprite-card--md"
+
+  defp instance_path(world_id, instance_id) do
+    ~p"/lemmings/instances/#{instance_id}?#{%{world: world_id}}"
+  end
 end

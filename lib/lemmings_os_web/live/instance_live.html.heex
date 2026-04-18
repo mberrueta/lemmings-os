@@ -1,0 +1,352 @@
+<Layouts.app
+  flash={@flash}
+  current_scope={@current_scope}
+  page_key={@page_key}
+  page_title={@page_title}
+  shell_user={@shell_user}
+  shell_host={@shell_host}
+  shell_breadcrumb={@shell_breadcrumb}
+  summary={@summary}
+>
+  <div
+    id="instance-session-page"
+    class="flex min-h-0 w-full flex-col gap-6 xl:h-[calc(100vh-8rem)]"
+  >
+    <section
+      :if={@instance_not_found?}
+      id="instance-session-not-found"
+      class="border-2 border-amber-400/40 bg-zinc-950/85 p-6 shadow-xl"
+      role="alert"
+    >
+      <div class="flex items-start gap-4">
+        <div class="flex size-12 shrink-0 items-center justify-center border-2 border-amber-400/40 bg-amber-400/10">
+          <.icon name="hero-exclamation-triangle" class="size-6 text-amber-300" />
+        </div>
+        <div class="min-w-0 space-y-2">
+          <p class="text-lg font-semibold text-zinc-50">
+            {dgettext("lemmings", "Instance not found")}
+          </p>
+          <p class="text-sm leading-6 text-zinc-400">
+            {dgettext(
+              "lemmings",
+              "The requested runtime session could not be loaded for this world scope."
+            )}
+          </p>
+          <div class="pt-2">
+            <.link
+              :if={@parent_lemming_path}
+              navigate={@parent_lemming_path}
+              class="inline-flex items-center gap-2 text-sm font-medium text-sky-300 hover:text-sky-200"
+            >
+              <.icon name="hero-arrow-left" class="size-4" />
+              {dgettext("lemmings", "Return to parent lemming")}
+            </.link>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      :if={!@instance_not_found?}
+      class="instance-session-shell flex min-h-0 flex-1 flex-col overflow-hidden border border-emerald-400/20 bg-zinc-950/95"
+    >
+      <div class="instance-session-hero relative border-b border-emerald-400/15">
+        <div class="flex flex-col gap-5 px-5 py-5 xl:flex-row xl:items-start xl:justify-between">
+          <div class="min-w-0 space-y-4">
+            <div class="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-zinc-500">
+              <span>{world_label(@world)}</span>
+              <span class="text-zinc-700">/</span>
+              <span>{instance_label(@instance)}</span>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <h1 class="text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">
+                  {instance_heading(@instance)}
+                </h1>
+                <.status kind={:instance} value={instance_status(@instance)} />
+                <.badge tone="info">{dgettext("lemmings", "Live")}</.badge>
+                <.badge :if={@conversation_provider} tone="info">{@conversation_provider}</.badge>
+                <.badge :if={@conversation_model} tone="accent">{@conversation_model}</.badge>
+              </div>
+
+              <p class="max-w-3xl text-sm leading-7 text-zinc-400">
+                {instance_summary(@instance, @runtime_state)}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              <.link
+                :if={@parent_lemming_path}
+                id="instance-parent-lemming-link"
+                navigate={@parent_lemming_path}
+                class="inline-flex min-h-11 items-center gap-2 border border-sky-400/40 bg-sky-400/10 px-4 py-2 text-xs font-medium uppercase tracking-widest text-sky-300 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-200"
+              >
+                <.icon name="hero-arrow-left" class="size-4" />
+                {dgettext("lemmings", "Back to parent lemming")}
+              </.link>
+            </div>
+          </div>
+
+          <div class="w-full xl:ml-auto xl:max-w-lg">
+            <InstanceComponents.status_banner
+              id="instance-status-panel"
+              status={instance_status(@instance)}
+              runtime_state={@runtime_state}
+              status_now={@status_now}
+            >
+              <:actions :if={instance_status(@instance) == "failed"}>
+                <button
+                  id="instance-retry-button"
+                  type="button"
+                  phx-click="retry_instance"
+                  phx-disable-with={dgettext("lemmings", "Retrying...")}
+                  class="inline-flex min-h-11 items-center justify-center gap-2 border border-red-400/40 bg-red-400/10 px-4 py-2 text-sm font-medium uppercase tracking-widest text-red-300 transition duration-150 ease-out hover:-translate-y-px hover:border-red-300 hover:text-red-200"
+                >
+                  <.icon name="hero-arrow-path" class="size-4" />
+                  {dgettext("lemmings", "Retry")}
+                </button>
+              </:actions>
+            </InstanceComponents.status_banner>
+          </div>
+        </div>
+
+        <div class="instance-session-stats-scroll overflow-x-auto border-t border-emerald-400/10 px-4 py-4 sm:px-5">
+          <div class="grid min-w-max auto-cols-max grid-flow-col gap-3">
+            <div
+              id="instance-started-at"
+              class="w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 px-3 py-3.5"
+            >
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Started at")}
+              </p>
+              <p class="mt-2 truncate text-sm font-semibold text-zinc-100">
+                {Helpers.format_datetime(runtime_started_at(@instance, @runtime_state),
+                  nil_label: "-"
+                )}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                {instance_status_detail(@instance, @runtime_state, @status_now)}
+              </p>
+            </div>
+
+            <div
+              id="instance-last-activity-at"
+              class="w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 px-3 py-3.5"
+            >
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Last activity at")}
+              </p>
+              <p class="mt-2 truncate text-sm font-semibold text-zinc-100">
+                {Helpers.format_datetime(runtime_last_activity_at(@instance, @runtime_state),
+                  nil_label: "-"
+                )}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                {last_activity_detail(@runtime_state)}
+              </p>
+            </div>
+
+            <div class="w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 px-3 py-3.5">
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Current item")}
+              </p>
+              <p class="mt-2 truncate text-sm font-semibold text-zinc-100">
+                {if @runtime_state.current_item,
+                  do: runtime_current_item_label(@runtime_state),
+                  else: "-"}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                {dgettext("lemmings", "Chronological messages")} {Integer.to_string(
+                  @message_count
+                )}
+              </p>
+            </div>
+
+            <div class="w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 px-3 py-3.5">
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Retry state")}
+              </p>
+              <p class="mt-2 truncate text-sm font-semibold text-zinc-100">
+                {retry_info(@runtime_state) || "-"}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                {follow_up_status_copy(instance_status(@instance))}
+              </p>
+            </div>
+
+            <div class="w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 px-3 py-3.5">
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Queue depth")}
+              </p>
+              <p class="mt-2 truncate text-sm font-semibold text-zinc-100">
+                {Integer.to_string(Map.get(@runtime_state, :queue_depth, 0))}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                {dgettext("lemmings", "Active work backlog")}
+              </p>
+            </div>
+
+            <div
+              id="instance-total-tokens"
+              class="w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/75 px-3 py-3.5"
+            >
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Total tokens")}
+              </p>
+              <p class="mt-2 truncate text-sm font-semibold text-zinc-100">
+                {if @total_tokens, do: Integer.to_string(@total_tokens), else: "-"}
+              </p>
+              <p class="mt-1 truncate text-xs text-zinc-500">
+                {dgettext("lemmings", "Across transcript")}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section id="instance-session-transcript" class="flex min-h-0 flex-1 flex-col">
+        <div class="flex items-center justify-between gap-3 border-b border-emerald-400/10 bg-zinc-950/80 px-5 py-4">
+          <div class="min-w-0">
+            <p class="font-mono text-base font-medium text-emerald-400">
+              {dgettext("lemmings", "Conversation Transcript")}
+            </p>
+            <p class="text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", "Chronological messages")}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <.badge tone="muted">{Integer.to_string(@message_count)}</.badge>
+            <.badge tone="info">{dgettext("lemmings", "Live")}</.badge>
+          </div>
+        </div>
+
+        <div
+          id="instance-session-transcript-stream"
+          phx-update="stream"
+          class="instance-session-transcript-bg flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 sm:px-6"
+        >
+          <div :for={{dom_id, entry} <- @streams.messages} id={dom_id}>
+            <div
+              :if={entry.type == :day_divider}
+              class="my-1 flex items-center gap-3"
+            >
+              <div class="h-px flex-1 bg-zinc-800/70" />
+              <div class="rounded-full border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-xs uppercase tracking-widest text-zinc-500">
+                {transcript_day_label(entry.date)}
+              </div>
+              <div class="h-px flex-1 bg-zinc-800/70" />
+            </div>
+
+            <InstanceComponents.message_bubble
+              :if={entry.type == :message}
+              id={"bubble-#{dom_id}"}
+              message={entry.message}
+              display_now={@status_now}
+            />
+          </div>
+        </div>
+
+        <div
+          :if={@waiting_for_first_response?}
+          id="instance-session-waiting-state"
+          class="border-t border-emerald-400/10 bg-zinc-950/85 px-5 py-3 text-sm text-zinc-400"
+        >
+          {dgettext("lemmings", "Waiting for first response...")}
+        </div>
+
+        <div
+          id="instance-session-follow-up"
+          class="instance-session-follow-up-panel border-t border-emerald-400/15 px-4 py-4 sm:px-5"
+        >
+          <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div class="space-y-1">
+              <p class="font-mono text-base font-medium text-sky-400">
+                {dgettext("lemmings", "Follow-up request")}
+              </p>
+              <p
+                id="instance-follow-up-copy"
+                class="text-xs uppercase tracking-widest text-zinc-500"
+              >
+                {follow_up_status_copy(instance_status(@instance))}
+              </p>
+            </div>
+
+            <.badge tone="muted" class="px-3">
+              {follow_up_helper_copy(instance_status(@instance))}
+            </.badge>
+          </div>
+
+          <div
+            :if={follow_up_terminal?(instance_status(@instance))}
+            id="instance-follow-up-terminal-message"
+            class="rounded-2xl border border-zinc-800 bg-zinc-950/80 px-4 py-4 text-sm text-zinc-400"
+            role="status"
+          >
+            {follow_up_status_copy(instance_status(@instance))}
+          </div>
+
+          <div :if={!follow_up_terminal?(instance_status(@instance))}>
+            <.form
+              for={@follow_up_form}
+              id="instance-follow-up-form"
+              class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+              phx-change="validate_follow_up_request"
+              phx-submit="submit_follow_up_request"
+            >
+              <div class="instance-session-composer rounded-2xl border border-zinc-800 bg-zinc-950/75 p-3">
+                <div class="mb-2 flex items-center justify-between gap-3">
+                  <label
+                    for="instance-follow-up-request-text"
+                    class="text-xs uppercase tracking-widest text-zinc-500"
+                  >
+                    {dgettext("lemmings", "Follow-up request")}
+                  </label>
+                  <span class="text-xs uppercase tracking-widest text-zinc-600">
+                    {follow_up_status_copy(instance_status(@instance))}
+                  </span>
+                </div>
+
+                <.input
+                  id="instance-follow-up-request-text"
+                  field={@follow_up_form[:request_text]}
+                  type="textarea"
+                  class="min-h-28 border-0 bg-transparent px-0 py-0 text-sm text-zinc-100 focus:border-0 focus:ring-0"
+                  error_class="border-0"
+                  placeholder={dgettext("lemmings", "Ask the instance to continue...")}
+                  disabled={!follow_up_input_enabled?(instance_status(@instance))}
+                  rows="4"
+                />
+
+                <p
+                  :if={@follow_up_error}
+                  id="instance-follow-up-error"
+                  class="mt-3 text-sm text-red-400"
+                >
+                  {@follow_up_error}
+                </p>
+              </div>
+
+              <div class="flex flex-col items-end justify-end gap-3">
+                <button
+                  id="instance-follow-up-submit"
+                  type="submit"
+                  class="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-sky-400/40 bg-sky-400/10 px-5 py-3 text-sm font-medium uppercase tracking-widest text-sky-300 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-200 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/60 disabled:text-zinc-500"
+                  disabled={
+                    @follow_up_submit_disabled? ||
+                      !follow_up_input_enabled?(instance_status(@instance))
+                  }
+                  phx-disable-with={dgettext("lemmings", "Sending...")}
+                >
+                  <.icon name="hero-paper-airplane" class="size-4" />
+                  {dgettext("lemmings", "Send follow-up")}
+                </button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      </section>
+    </section>
+  </div>
+</Layouts.app>

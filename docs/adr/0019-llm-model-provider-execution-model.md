@@ -225,6 +225,17 @@ The Model Runtime is a peer of the Tool Runtime in the execution architecture.
 It is not a Tool. Tools are for external side effects. The Model Runtime is
 the internal reasoning engine boundary.
 
+## 4.1 Phase 1 Runtime Slice
+
+This ADR defines the long-term Model Runtime boundary. The Phase 1 runtime slice adopts that boundary with a deliberately narrow provider scope:
+
+- `ModelRuntime` is the only model execution entrypoint used by runtime orchestration
+- prompt assembly happens inside `ModelRuntime`
+- provider-specific HTTP logic lives behind a provider behaviour
+- `Providers.Ollama` is the first provider implementation for Phase 1
+
+Additional providers, richer streaming semantics, and broader output modes are extensions to this contract, not reasons to collapse model execution back into `LemmingInstances` or the web layer.
+
 ---
 
 # 5. Provider Abstraction
@@ -288,6 +299,31 @@ model: default
 The Model Runtime resolves `default` to a concrete provider and model
 identifier using the inherited model policy. Out of the box, `default`
 resolves to Ollama.
+
+### Phase 1 active model selection contract
+
+For the first runtime slice, the active provider/model choice must be read from
+the same resolved runtime snapshot by every runtime component that reasons about
+model execution.
+
+The normalized snapshot contract is:
+
+```text
+config_snapshot.model_runtime.profile      # optional profile label for observability
+config_snapshot.model_runtime.provider     # canonical provider name
+config_snapshot.model_runtime.model        # canonical model identifier
+config_snapshot.model_runtime.resource_key # "#{provider}:#{model}"
+```
+
+`ModelRuntime`, `DepartmentScheduler`, and executor-side runtime state must all
+consume this same contract. The scheduler must not invent its own local rule
+for choosing an active profile, because that would allow admission control and
+execution to disagree about the resource being scheduled.
+
+During the current transition period, the runtime may derive this normalized
+selection from `models_config.profiles.default` or a deterministic fallback
+when older snapshots lack explicit normalized fields. That fallback is a single
+shared runtime rule, not scheduler-local behavior.
 
 ---
 

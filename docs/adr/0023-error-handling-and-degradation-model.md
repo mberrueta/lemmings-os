@@ -336,14 +336,13 @@ Failure handling should be implemented with standard OTP patterns and small loca
 Illustrative modules include:
 
 ```elixir
-LemmingsOs.Lemming.Executor
-LemmingsOs.Lemming.Supervisor
-LemmingsOs.Tool.Runtime
-LemmingsOs.Tool.Breaker
-LemmingsOs.Model.Runtime
-LemmingsOs.Model.Breaker
-LemmingsOs.Department.Manager
-LemmingsOs.Runtime.Scheduler
+LemmingsOs.LemmingInstances.Executor
+LemmingsOs.LemmingInstances.ExecutorSupervisor
+LemmingsOs.LemmingInstances.DepartmentScheduler
+LemmingsOs.LemmingInstances.ResourcePool
+LemmingsOs.ModelRuntime
+LemmingsOs.ModelRuntime.Providers.Ollama
+LemmingsOs.Runtime
 ```
 
 Implementation guidance:

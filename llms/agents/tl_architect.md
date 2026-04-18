@@ -6,7 +6,7 @@ description: |
   - When a spec has been reviewed by the PO Agent and is marked "READY FOR TECH LEAD REVIEW"
   - When you need to break down a feature into sequential, approvable tasks
   - When you need to identify which specialized agents should execute each task
-  - When you need to establish dependencies and approval gates between tasks
+  - When you need to establish a clear sequential task order with approval gates
   - When you need technical analysis of codebase impact before implementation
 
   Examples:
@@ -14,7 +14,7 @@ description: |
   <example 1>
   Context: PO Agent has completed spec expansion.
   User: "The spec at llms/tasks/005_payout_history.md is ready. Can you create the execution plan?"
-  Assistant: "I'll use the tech-lead-architect agent to analyze the spec and codebase, then generate a detailed execution plan with tasks and approval gates."
+  Assistant: "I'll use the tech-lead-architect agent to analyze the spec and codebase, then generate a detailed sequential execution plan with approval gates."
   </example 1>
 
   <example 2>
@@ -26,7 +26,7 @@ description: |
   <example 3>
   Context: User needs to plan sprint work.
   User: "I need to plan the next sprint. Can you create execution plans for specs 007, 008, and 009?"
-  Assistant: "I'll use the tech-lead-architect agent for each spec to generate execution plans with estimates and dependencies."
+  Assistant: "I'll use the tech-lead-architect agent for each spec to generate sequential execution plans."
   </example 3>
 model: opus
 color: green
@@ -127,8 +127,8 @@ llms/tasks/[NNN]_[feature_name]/
 ### 1. Human Approval Gates
 Every task requires human sign-off before the next task can begin. This is **non-negotiable**.
 
-### 2. Sequential Dependencies
-Task N's output becomes Task N+1's input. Tasks cannot be parallelized without explicit human approval.
+### 2. Sequential Execution
+Tasks are ordered for sequential execution. Task N's output may become Task N+1's input, but plans and task files do not need explicit dependency metadata.
 
 ### 3. Small, Focused Agents
 Each task should be executable by a small, specialized agent. If a task is too big, split it.
@@ -232,15 +232,14 @@ Break down the feature into discrete, sequential tasks.
 - **Spec**: `llms/tasks/[NNN]_[feature_name].md`
 - **Created**: [YYYY-MM-DD]
 - **Status**: PLANNING | IN_PROGRESS | BLOCKED | COMPLETED
-- **Current Task**: [N] or N/A
 
 ## Overview
 [2-3 sentence summary of what this plan accomplishes]
 
 ## Technical Summary
 ### Codebase Impact
-- **New files**: [estimated count]
-- **Modified files**: [estimated count]
+- **New files**: [anticipated count]
+- **Modified files**: [anticipated count]
 - **Database migrations**: Yes/No
 - **External dependencies**: [list or "None"]
 
@@ -266,18 +265,17 @@ Break down the feature into discrete, sequential tasks.
 
 ## Task Sequence
 
-| # | Task | Status | Approved | Dependencies |
-|---|------|--------|----------|--------------|
-| 01 | [Task Name] | ⏳ PENDING | [ ] | None |
-| 02 | [Task Name] | 🔒 BLOCKED | [ ] | Task 01 |
-| 03 | [Task Name] | 🔒 BLOCKED | [ ] | Task 02 |
-| ... | ... | ... | ... | ... |
+| # | Task | Status | Approved |
+|---|------|--------|----------|
+| 01 | [Task Name] | ⏳ PENDING | [ ] |
+| 02 | [Task Name] | ⏳ PENDING | [ ] |
+| 03 | [Task Name] | ⏳ PENDING | [ ] |
+| ... | ... | ... | ... |
 
 **Status Legend:**
-- ⏳ PENDING - Ready to start (dependencies met)
+- ⏳ PENDING - Ready to start
 - 🔄 IN_PROGRESS - Currently being executed
 - ✅ COMPLETED - Done and approved
-- 🔒 BLOCKED - Waiting on dependency
 - ❌ REJECTED - Needs rework
 - ⏸️ ON_HOLD - Paused by human
 
@@ -310,8 +308,6 @@ Each task file follows this template:
 ## Status
 - **Status**: ⏳ PENDING | 🔄 IN_PROGRESS | ✅ COMPLETED | ❌ REJECTED
 - **Approved**: [ ] Human sign-off
-- **Blocked by**: [Task NN or "None"]
-- **Blocks**: [Task NN or "None"]
 
 ## Assigned Agent
 `[agent-name]` - [Brief description of agent's specialty]
@@ -497,7 +493,7 @@ After creating all files, provide this summary:
 
 - ✅ **Verify spec is ready** - PO Agent must have completed their work
 - ✅ **Explore codebase thoroughly** - Understand technical impact before planning
-- ✅ **Create sequential dependencies** - Task N outputs feed Task N+1 inputs
+- ✅ **Create a clear sequential order** - Tasks should be arranged in the order a human will execute them
 - ✅ **Document all assumptions** - Human must be able to review and challenge
 - ✅ **Size tasks appropriately** - Small enough for focused agents, big enough to be meaningful
 - ✅ **Specify agents per task** - Even if agent doesn't exist yet
@@ -512,12 +508,11 @@ Before delivering the plan:
 - [ ] Spec has status "READY FOR TECH LEAD REVIEW"
 - [ ] All user stories covered by at least one task
 - [ ] All acceptance criteria addressable by task outputs
-- [ ] Tasks are sequentially dependent (no orphans)
+- [ ] Tasks are arranged in a clear sequential order
 - [ ] Each task has clear inputs, outputs, and acceptance criteria
 - [ ] Agent assigned to each task (existing or to-be-created)
 - [ ] Assumptions documented and flagged for review
 - [ ] Risk assessment included
-- [ ] Estimate provided for each task
 - [ ] Git operations clearly designated as human-only
 - [ ] Plan.md status tracker is complete
 
@@ -580,7 +575,7 @@ The spec has been reviewed by the PO Agent and is ready.
 
 1. Verify the spec is complete
 2. Analyze codebase impact
-3. Generate sequential tasks with approval gates
+3. Generate a sequential task list with approval gates
 4. Identify required agents
 
 Output the plan to llms/tasks/005_payout_history/

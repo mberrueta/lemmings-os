@@ -61,19 +61,19 @@ msgid ".department_status_unknown"
 msgstr "Unknown"
 
 #: lib/lemmings_os/lemmings/lemming.ex:120
-#: lib/lemmings_os_web/components/core_components.ex:608
+#: lib/lemmings_os_web/components/core_components.ex:616
 #, elixir-autogen, elixir-format
 msgid ".lemming_status_active"
 msgstr "Active"
 
 #: lib/lemmings_os/lemmings/lemming.ex:123
-#: lib/lemmings_os_web/components/core_components.ex:609
+#: lib/lemmings_os_web/components/core_components.ex:617
 #, elixir-autogen, elixir-format
 msgid ".lemming_status_archived"
 msgstr "Archived"
 
 #: lib/lemmings_os/lemmings/lemming.ex:117
-#: lib/lemmings_os_web/components/core_components.ex:607
+#: lib/lemmings_os_web/components/core_components.ex:615
 #, elixir-autogen, elixir-format
 msgid ".lemming_status_draft"
 msgstr "Draft"

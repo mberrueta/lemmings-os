@@ -28,7 +28,7 @@ defmodule LemmingsOsWeb.CoreComponents do
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class={[
-        "grid min-w-[min(22rem,calc(100vw-2rem))] cursor-pointer grid-cols-[auto_1fr_auto] gap-3 border-2 bg-zinc-950/95 p-4 shadow-xl",
+        "grid w-full max-w-sm cursor-pointer grid-cols-3 gap-3 border-2 bg-zinc-950/95 p-4 shadow-xl",
         @kind == :info && "border-sky-400",
         @kind == :error && "border-red-400",
         @kind not in [:info, :error] && "border-zinc-700"
@@ -67,7 +67,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   def button(%{rest: rest} = assigns) do
     assigns =
       assign(assigns, :button_class, [
-        "inline-flex min-h-[2.8rem] items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 hover:-translate-y-px hover:brightness-110",
+        "inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 hover:-translate-y-px hover:brightness-110",
         button_variant(assigns.variant),
         assigns.class
       ])
@@ -359,7 +359,7 @@ defmodule LemmingsOsWeb.CoreComponents do
     <span
       id={@id}
       class={[
-        "inline-flex items-center justify-center min-h-[1.7rem] px-2 py-0.5 border text-xs uppercase tracking-widest font-medium bg-zinc-950/80",
+        "inline-flex items-center justify-center min-h-7 px-2 py-0.5 border text-xs uppercase tracking-widest font-medium bg-zinc-950/80",
         badge_tone(@tone),
         @class
       ]}
@@ -379,7 +379,7 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp badge_tone("muted"), do: "border-zinc-700 text-zinc-500"
 
   attr :id, :string, default: nil
-  attr :kind, :atom, required: true, values: [:world, :city, :lemming, :issue]
+  attr :kind, :atom, required: true, values: [:world, :city, :lemming, :instance, :issue]
   attr :value, :any, required: true
   attr :class, :string, default: nil
   attr :rest, :global
@@ -548,6 +548,14 @@ defmodule LemmingsOsWeb.CoreComponents do
     }
   end
 
+  defp status_details(:instance, status) do
+    %{
+      tone: instance_status_tone(status),
+      label: instance_status_label(status),
+      value: status_value(status)
+    }
+  end
+
   defp status_details(:issue, severity) do
     %{
       tone: issue_status_tone(severity),
@@ -614,6 +622,24 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   defp lemming_status_label(status) when is_binary(status), do: String.upcase(status)
 
+  defp instance_status_tone("created"), do: "info"
+  defp instance_status_tone("queued"), do: "warning"
+  defp instance_status_tone("processing"), do: "success"
+  defp instance_status_tone("retrying"), do: "warning"
+  defp instance_status_tone("idle"), do: "accent"
+  defp instance_status_tone("failed"), do: "danger"
+  defp instance_status_tone("expired"), do: "muted"
+  defp instance_status_tone(_status), do: "default"
+
+  defp instance_status_label(status) when is_atom(status),
+    do: status |> Atom.to_string() |> instance_status_label()
+
+  defp instance_status_label(status) when is_binary(status) do
+    status
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
   defp issue_status_tone("error"), do: "danger"
   defp issue_status_tone("warning"), do: "warning"
   defp issue_status_tone("info"), do: "info"
@@ -642,5 +668,5 @@ defmodule LemmingsOsWeb.CoreComponents do
   defp grid_variant("default"), do: nil
   defp grid_variant("two"), do: "md:grid-cols-2"
   defp grid_variant("three"), do: "md:grid-cols-3"
-  defp grid_variant("sidebar"), do: "lg:grid-cols-[minmax(0,1.4fr)_minmax(19rem,0.95fr)]"
+  defp grid_variant("sidebar"), do: "lg:grid-cols-2"
 end
