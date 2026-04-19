@@ -26,11 +26,15 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.LemmingInstances.ResourcePool
   alias LemmingsOs.LemmingInstances.RuntimeTableOwner
   alias LemmingsOs.LemmingInstances.Telemetry
+  alias LemmingsOs.LemmingTools
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
+  alias LemmingsOs.Tools.Runtime, as: ToolsRuntime
+  alias LemmingsOs.Worlds.World
 
   @runtime_table :lemming_instance_runtime
   @default_max_retries 3
+  @default_max_tool_iterations 8
   @default_model_timeout_ms 120_000
 
   @statuses ~w(created queued processing retrying idle failed expired)
@@ -55,6 +59,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           retry_count: non_neg_integer(),
           max_retries: pos_integer(),
           context_messages: [map()],
+          tool_iteration_count: non_neg_integer(),
           last_error: String.t() | nil,
           internal_error_details: map() | String.t() | nil,
           model_task_pid: pid() | nil,
@@ -73,6 +78,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           pool_mod: module() | nil,
           model_mod: module() | nil,
           message_persist_mod: module() | nil,
+          tools_context_mod: module() | nil,
+          tool_runtime_mod: module() | nil,
           pubsub_mod: module() | nil,
           pubsub_name: atom(),
           load_context_messages?: boolean(),
@@ -360,6 +367,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         retry_count: 0,
         max_retries: max_retries(config_snapshot),
         context_messages: [],
+        tool_iteration_count: 0,
         last_error: nil,
         internal_error_details: nil,
         model_task_pid: nil,
@@ -379,6 +387,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         pool_mod: Keyword.get(opts, :pool_mod, ResourcePool),
         model_mod: Keyword.get(opts, :model_mod, LemmingsOs.ModelRuntime),
         message_persist_mod: Keyword.get(opts, :message_persist_mod),
+        tools_context_mod: Keyword.get(opts, :tools_context_mod, LemmingTools),
+        tool_runtime_mod: Keyword.get(opts, :tool_runtime_mod, ToolsRuntime),
         pubsub_mod: Keyword.get(opts, :pubsub_mod, Phoenix.PubSub),
         pubsub_name: Keyword.get(opts, :pubsub_name, LemmingsOs.PubSub),
         now_fun: now_fun
@@ -454,6 +464,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       status: state.status,
       retry_count: state.retry_count,
       max_retries: state.max_retries,
+      tool_iteration_count: state.tool_iteration_count,
       queue_depth: :queue.len(state.queue),
       last_error: state.last_error,
       internal_error_details: state.internal_error_details
@@ -471,6 +482,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       queue_depth: :queue.len(state.queue),
       retry_count: state.retry_count,
       max_retries: state.max_retries,
+      tool_iteration_count: state.tool_iteration_count,
       current_item_id: current_item_id(state.current_item),
       current_resource_key: state.current_resource_key,
       last_error: state.last_error,
@@ -662,7 +674,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp retry_failed(state), do: state
 
-  defp handle_model_result(state, {:ok, %LemmingsOs.ModelRuntime.Response{} = response}) do
+  defp handle_model_result(
+         state,
+         {:ok, %LemmingsOs.ModelRuntime.Response{action: :reply} = response}
+       ) do
     state =
       state
       |> Map.put(:last_error, nil)
@@ -676,6 +691,24 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
       {:error, reason, next_state} ->
         handle_model_retry(next_state, {:assistant_message_persist_failed, reason})
+    end
+  end
+
+  defp handle_model_result(
+         state,
+         {:ok, %LemmingsOs.ModelRuntime.Response{action: :tool_call} = response}
+       ) do
+    state =
+      state
+      |> Map.put(:last_error, nil)
+      |> Map.put(:internal_error_details, nil)
+
+    case execute_tool_call(state, response) do
+      {:ok, next_state} ->
+        continue_tool_loop(next_state)
+
+      {:error, reason, next_state} ->
+        handle_model_retry(next_state, reason)
     end
   end
 
@@ -716,6 +749,240 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     end
   end
 
+  defp execute_tool_call(
+         state,
+         %LemmingsOs.ModelRuntime.Response{tool_name: tool_name, tool_args: tool_args}
+       )
+       when is_binary(tool_name) and is_map(tool_args) do
+    started_at = state.now_fun.()
+
+    with {:ok, tool_execution} <- create_tool_execution(state, tool_name, tool_args, started_at),
+         {:ok, world} <- runtime_world(state) do
+      state
+      |> persist_tool_outcome(
+        tool_execution,
+        execute_tool_runtime(state, world, tool_name, tool_args),
+        started_at
+      )
+      |> normalize_tool_outcome_result()
+    else
+      {:error, reason, next_state} ->
+        {:error, reason, next_state}
+
+      {:error, reason} ->
+        {:error, reason, state}
+    end
+  end
+
+  defp execute_tool_call(state, _response), do: {:error, :invalid_structured_output, state}
+
+  defp persist_tool_outcome(state, tool_execution, {:ok, execution_result}, started_at) do
+    persist_tool_success(state, tool_execution, execution_result, started_at)
+  end
+
+  defp persist_tool_outcome(state, tool_execution, {:error, execution_error}, started_at) do
+    persist_tool_error(state, tool_execution, execution_error, started_at)
+  end
+
+  defp normalize_tool_outcome_result({:ok, updated_tool_execution, next_state}) do
+    {:ok, append_tool_result_context(next_state, updated_tool_execution)}
+  end
+
+  defp normalize_tool_outcome_result({:error, reason, next_state}) do
+    {:error, reason, next_state}
+  end
+
+  defp continue_tool_loop(state) do
+    next_iteration_count = state.tool_iteration_count + 1
+
+    if next_iteration_count >= max_tool_iterations(state.config_snapshot) do
+      handle_model_retry(
+        %{state | tool_iteration_count: next_iteration_count},
+        :tool_iteration_limit_reached
+      )
+    else
+      state
+      |> Map.put(:tool_iteration_count, next_iteration_count)
+      |> put_runtime_state()
+      |> start_execution()
+    end
+  end
+
+  defp create_tool_execution(state, tool_name, tool_args, started_at) do
+    tool_attrs = %{
+      tool_name: tool_name,
+      status: "running",
+      args: tool_args,
+      started_at: started_at
+    }
+
+    tools_context = state.tools_context_mod
+
+    cond do
+      is_nil(tools_context) ->
+        {:error, :tool_execution_unavailable, state}
+
+      module_loaded_and_exports?(tools_context, :create_tool_execution, 3) ->
+        case tools_context.create_tool_execution(
+               runtime_world_struct(state),
+               state.instance,
+               tool_attrs
+             ) do
+          {:ok, tool_execution} ->
+            _ =
+              PubSub.broadcast_tool_execution_upserted(
+                state.instance_id,
+                tool_execution.id,
+                tool_execution.status
+              )
+
+            {:ok, tool_execution}
+
+          {:error, reason} ->
+            {:error, {:tool_execution_create_failed, reason}, state}
+        end
+
+      true ->
+        {:error, :tool_execution_unavailable, state}
+    end
+  end
+
+  defp execute_tool_runtime(state, world, tool_name, tool_args) do
+    tool_runtime_mod = state.tool_runtime_mod
+
+    if module_loaded_and_exports?(tool_runtime_mod, :execute, 4) do
+      tool_runtime_mod.execute(world, state.instance, tool_name, tool_args)
+    else
+      {:error,
+       %{
+         tool_name: tool_name,
+         code: "tool.runtime.unavailable",
+         message: "Tool runtime is unavailable",
+         details: %{}
+       }}
+    end
+  end
+
+  defp persist_tool_success(state, tool_execution, execution_result, started_at) do
+    completed_at = state.now_fun.()
+    duration_ms = DateTime.diff(completed_at, started_at, :millisecond)
+
+    attrs = %{
+      status: "ok",
+      result: execution_result.result,
+      summary: execution_result.summary,
+      preview: execution_result.preview,
+      completed_at: completed_at,
+      duration_ms: max(duration_ms, 0)
+    }
+
+    update_tool_execution(state, tool_execution, attrs)
+  end
+
+  defp persist_tool_error(state, tool_execution, execution_error, started_at) do
+    normalized_error = normalize_tool_error(execution_error)
+    completed_at = state.now_fun.()
+    duration_ms = DateTime.diff(completed_at, started_at, :millisecond)
+
+    attrs = %{
+      status: "error",
+      error: %{
+        code: normalized_error.code,
+        message: normalized_error.message,
+        details: normalized_error.details
+      },
+      summary: normalized_error.message,
+      completed_at: completed_at,
+      duration_ms: max(duration_ms, 0)
+    }
+
+    update_tool_execution(state, tool_execution, attrs)
+  end
+
+  defp update_tool_execution(state, tool_execution, attrs) do
+    tools_context = state.tools_context_mod
+
+    cond do
+      is_nil(tools_context) ->
+        {:error, :tool_execution_unavailable, state}
+
+      module_loaded_and_exports?(tools_context, :update_tool_execution, 4) ->
+        case tools_context.update_tool_execution(
+               runtime_world_struct(state),
+               state.instance,
+               tool_execution,
+               attrs
+             ) do
+          {:ok, updated_tool_execution} ->
+            _ =
+              PubSub.broadcast_tool_execution_upserted(
+                state.instance_id,
+                updated_tool_execution.id,
+                updated_tool_execution.status
+              )
+
+            {:ok, updated_tool_execution, state}
+
+          {:error, reason} ->
+            {:error, {:tool_execution_update_failed, reason}, state}
+        end
+
+      true ->
+        {:error, :tool_execution_unavailable, state}
+    end
+  end
+
+  defp append_tool_result_context(state, tool_execution) do
+    tool_message = %{
+      role: "assistant",
+      content:
+        "Tool #{tool_execution.tool_name} status=#{tool_execution.status} result=#{Jason.encode!(tool_result_payload(tool_execution))}"
+    }
+
+    %{state | context_messages: state.context_messages ++ [tool_message]}
+  end
+
+  defp tool_result_payload(%{status: "ok"} = tool_execution) do
+    %{
+      summary: tool_execution.summary,
+      preview: tool_execution.preview,
+      result: tool_execution.result
+    }
+  end
+
+  defp tool_result_payload(%{status: "error"} = tool_execution) do
+    %{
+      summary: tool_execution.summary,
+      error: tool_execution.error
+    }
+  end
+
+  defp tool_result_payload(tool_execution) do
+    %{
+      summary: tool_execution.summary,
+      result: tool_execution.result,
+      error: tool_execution.error
+    }
+  end
+
+  defp normalize_tool_error(%{code: code, message: message} = error)
+       when is_binary(code) and is_binary(message) do
+    %{code: code, message: message, details: Map.get(error, :details, %{})}
+  end
+
+  defp normalize_tool_error(other) do
+    %{
+      code: "tool.runtime.error",
+      message: "Tool execution failed",
+      details: %{reason: inspect(other)}
+    }
+  end
+
+  defp module_loaded_and_exports?(module, function_name, arity)
+       when is_atom(module) and is_atom(function_name) and is_integer(arity) do
+    Code.ensure_loaded?(module) and function_exported?(module, function_name, arity)
+  end
+
   defp advance_after_success(state) do
     state = release_resource(state)
 
@@ -739,7 +1006,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp clear_current_item(state) do
-    %{state | current_item: nil, retry_count: 0}
+    %{state | current_item: nil, retry_count: 0, tool_iteration_count: 0}
   end
 
   defp enqueue_work_item(state, content, opts) do
@@ -1247,6 +1514,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       resource_key:
         state.current_resource_key || ConfigSnapshot.resource_key(state.config_snapshot),
       retry_count: state.retry_count,
+      tool_iteration_count: state.tool_iteration_count,
       max_retries: state.max_retries,
       context_messages: state.context_messages,
       last_error: state.last_error,
@@ -1305,6 +1573,17 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp instance_lemming_id(%{lemming_id: lemming_id}), do: lemming_id
   defp instance_lemming_id(_instance), do: nil
 
+  defp runtime_world_struct(state) do
+    %World{id: instance_world_id(state.instance)}
+  end
+
+  defp runtime_world(state) do
+    case instance_world_id(state.instance) do
+      world_id when is_binary(world_id) -> {:ok, %World{id: world_id}}
+      _world_id -> {:error, :invalid_world_scope}
+    end
+  end
+
   defp current_item_id(%{id: id}) when is_binary(id), do: id
   defp current_item_id(_current_item), do: nil
 
@@ -1360,6 +1639,21 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp last_error_message(:invalid_provider_response),
     do: "Model provider returned an invalid response payload."
 
+  defp last_error_message(:tool_execution_unavailable),
+    do: "Tool execution persistence is unavailable."
+
+  defp last_error_message({:tool_execution_create_failed, _reason}),
+    do: "Tool execution could not be persisted."
+
+  defp last_error_message({:tool_execution_update_failed, _reason}),
+    do: "Tool execution could not be updated."
+
+  defp last_error_message(:tool_iteration_limit_reached),
+    do: "Tool iteration limit reached before final reply."
+
+  defp last_error_message(:invalid_world_scope),
+    do: "Runtime world scope is invalid."
+
   defp last_error_message(:unexpected_model_result),
     do: "Executor received an unexpected model result."
 
@@ -1393,6 +1687,14 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp internal_error_details({:assistant_message_persist_failed, reason}) do
     %{kind: :assistant_message_persist_failed, reason: inspect(reason)}
+  end
+
+  defp internal_error_details({:tool_execution_create_failed, reason}) do
+    %{kind: :tool_execution_create_failed, reason: inspect(reason)}
+  end
+
+  defp internal_error_details({:tool_execution_update_failed, reason}) do
+    %{kind: :tool_execution_update_failed, reason: inspect(reason)}
   end
 
   defp internal_error_details(reason) when is_atom(reason), do: %{kind: reason}
@@ -1475,6 +1777,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     runtime_config_value(config_snapshot, :max_retries) ||
       runtime_config_value(config_snapshot, :max_attempts) ||
       @default_max_retries
+  end
+
+  defp max_tool_iterations(config_snapshot) do
+    runtime_config_value(config_snapshot, :max_tool_iterations) || @default_max_tool_iterations
   end
 
   defp model_timeout_ms(config_snapshot) do

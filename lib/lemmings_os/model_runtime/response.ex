@@ -3,9 +3,12 @@ defmodule LemmingsOs.ModelRuntime.Response do
   Validated model runtime response.
   """
 
-  @enforce_keys [:reply, :provider, :model, :raw]
+  @enforce_keys [:action, :provider, :model, :raw]
   defstruct [
+    :action,
     :reply,
+    :tool_name,
+    :tool_args,
     :provider,
     :model,
     :input_tokens,
@@ -16,7 +19,10 @@ defmodule LemmingsOs.ModelRuntime.Response do
   ]
 
   @type t :: %__MODULE__{
-          reply: String.t(),
+          action: :reply | :tool_call,
+          reply: String.t() | nil,
+          tool_name: String.t() | nil,
+          tool_args: map() | nil,
           provider: String.t(),
           model: String.t() | nil,
           input_tokens: integer() | nil,
@@ -32,6 +38,7 @@ defmodule LemmingsOs.ModelRuntime.Response do
   ## Examples
 
       iex> response = LemmingsOs.ModelRuntime.Response.new(
+      ...>   action: :reply,
       ...>   reply: "hello",
       ...>   provider: "ollama",
       ...>   model: "llama3.2",

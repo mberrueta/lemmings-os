@@ -14,8 +14,10 @@ defmodule LemmingsOs.ModelRuntime do
   Return JSON only with this shape:
 
   {"action":"reply","reply":"visible user-facing text"}
+  or
+  {"action":"tool_call","tool_name":"fs.read_text_file","args":{"path":"notes.txt"}}
 
-  Only the "reply" action is supported in v1.
+  Only "reply" and "tool_call" actions are supported in this MVP.
   """
 
   @runtime_rules """
@@ -68,10 +70,13 @@ defmodule LemmingsOs.ModelRuntime do
        when is_map(provider_response) do
     with {:ok, content} <- provider_content(provider_response),
          {:ok, parsed} <- Jason.decode(content),
-         {:ok, reply} <- parse_structured_output(parsed) do
+         {:ok, action_payload} <- parse_structured_output(parsed) do
       {:ok,
        Response.new(
-         reply: reply,
+         action: action_payload.action,
+         reply: action_payload.reply,
+         tool_name: action_payload.tool_name,
+         tool_args: action_payload.tool_args,
          provider: provider_label(provider_response),
          model: response_field(provider_response, :model) || requested_model,
          input_tokens: response_field(provider_response, :input_tokens),
@@ -94,11 +99,27 @@ defmodule LemmingsOs.ModelRuntime do
     if Helpers.blank?(reply) do
       {:error, :invalid_structured_output}
     else
-      {:ok, reply}
+      {:ok, %{action: :reply, reply: reply, tool_name: nil, tool_args: nil}}
     end
   end
 
   defp parse_structured_output(%{"action" => "reply"}), do: {:error, :invalid_structured_output}
+
+  defp parse_structured_output(%{
+         "action" => "tool_call",
+         "tool_name" => tool_name,
+         "args" => args
+       })
+       when is_binary(tool_name) and is_map(args) do
+    if Helpers.blank?(tool_name) do
+      {:error, :invalid_structured_output}
+    else
+      {:ok, %{action: :tool_call, reply: nil, tool_name: tool_name, tool_args: args}}
+    end
+  end
+
+  defp parse_structured_output(%{"action" => "tool_call"}),
+    do: {:error, :invalid_structured_output}
 
   defp parse_structured_output(%{"action" => action}) when is_binary(action),
     do: {:error, :unknown_action}

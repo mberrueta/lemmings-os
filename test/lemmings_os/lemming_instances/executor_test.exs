@@ -8,7 +8,9 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.LemmingInstances.ResourcePool
   alias LemmingsOs.LemmingInstances.RuntimeTableOwner
+  alias LemmingsOs.LemmingTools
   alias LemmingsOs.ModelRuntime.Response
+  alias LemmingsOs.Worlds.World
 
   defmodule FakeModelRuntime do
     def run(config_snapshot, context_messages, current_item) do
@@ -20,6 +22,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
       {:ok,
        Response.new(
+         action: :reply,
          reply: "processed",
          provider: "fake",
          model: Map.get(config_snapshot, :model, "fake-model"),
@@ -46,6 +49,93 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   defmodule ProviderHttpErrorModelRuntime do
     def run(_config_snapshot, _context_messages, _current_item) do
       {:error, {:provider_http_error, %{provider: "ollama", status: 500, detail: "boom"}}}
+    end
+  end
+
+  defmodule ToolLoopModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:tool_loop_model_run, context_messages, current_item})
+      end
+
+      if Enum.any?(context_messages, &String.contains?(&1.content, "Tool web.fetch status=ok")) do
+        {:ok,
+         Response.new(
+           action: :reply,
+           reply: "final response with tool context",
+           provider: "fake",
+           model: "tool-loop-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      else
+        {:ok,
+         Response.new(
+           action: :tool_call,
+           tool_name: "web.fetch",
+           tool_args: %{"url" => "https://example.com"},
+           provider: "fake",
+           model: "tool-loop-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule ToolLoopErrorModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:tool_loop_error_model_run, context_messages, current_item})
+      end
+
+      if Enum.any?(context_messages, &String.contains?(&1.content, "status=error")) do
+        {:ok,
+         Response.new(
+           action: :reply,
+           reply: "final response after tool error",
+           provider: "fake",
+           model: "tool-loop-error-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      else
+        {:ok,
+         Response.new(
+           action: :tool_call,
+           tool_name: "web.fetch",
+           tool_args: %{"url" => "https://broken.example.invalid"},
+           provider: "fake",
+           model: "tool-loop-error-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule SuccessToolRuntime do
+    def execute(_world, _instance, "web.fetch", %{"url" => "https://example.com"}) do
+      {:ok,
+       %{
+         tool_name: "web.fetch",
+         args: %{"url" => "https://example.com"},
+         summary: "Fetched https://example.com",
+         preview: "example preview",
+         result: %{url: "https://example.com", status: 200, body: "example body"}
+       }}
+    end
+  end
+
+  defmodule ErrorToolRuntime do
+    def execute(_world, _instance, "web.fetch", _args) do
+      {:error,
+       %{
+         tool_name: "web.fetch",
+         code: "tool.web.request_failed",
+         message: "Web fetch request failed",
+         details: %{reason: "dns"}
+       }}
     end
   end
 
@@ -745,6 +835,119 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
                     %{content: "Second queued item"}}
 
     assert_receive {:status_changed, %{status: "idle"}}
+
+    GenServer.stop(pid)
+  end
+
+  test "S08: tool_call loop executes tool runtime and continues until final reply", %{
+    instance: instance
+  } do
+    resource_key = "ollama:tool-loop-model"
+    assert :ok = PubSub.subscribe_instance(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "tool-loop-model",
+          observer_pid: self(),
+          models_config: %{profiles: %{default: %{provider: "ollama", model: "tool-loop-model"}}}
+        },
+        context_mod: LemmingInstances,
+        model_mod: ToolLoopModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Use a tool then reply")
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+    assert_receive {:tool_execution_upserted, %{status: "running"}}
+    assert_receive {:tool_execution_upserted, %{status: "ok"}}
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    messages = LemmingInstances.list_messages(instance)
+
+    assert Enum.any?(
+             messages,
+             &(&1.role == "assistant" and &1.content == "final response with tool context")
+           )
+
+    executions =
+      LemmingTools.list_tool_executions(%World{id: instance.world_id}, instance)
+      |> Enum.filter(&(&1.tool_name == "web.fetch"))
+
+    assert [%{status: "ok", summary: "Fetched https://example.com", result: result}] = executions
+    assert result["status"] == 200
+
+    GenServer.stop(pid)
+  end
+
+  test "S09: tool_call errors are persisted and reasoning can continue", %{instance: instance} do
+    resource_key = "ollama:tool-loop-error-model"
+    assert :ok = PubSub.subscribe_instance(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "tool-loop-error-model",
+          observer_pid: self(),
+          models_config: %{
+            profiles: %{default: %{provider: "ollama", model: "tool-loop-error-model"}}
+          }
+        },
+        context_mod: LemmingInstances,
+        model_mod: ToolLoopErrorModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: ErrorToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Use a failing tool then reply")
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+    assert_receive {:tool_execution_upserted, %{status: "running"}}
+    assert_receive {:tool_execution_upserted, %{status: "error"}}
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    messages = LemmingInstances.list_messages(instance)
+
+    assert Enum.any?(
+             messages,
+             &(&1.role == "assistant" and &1.content == "final response after tool error")
+           )
+
+    executions =
+      LemmingTools.list_tool_executions(%World{id: instance.world_id}, instance)
+      |> Enum.filter(&(&1.tool_name == "web.fetch"))
+
+    assert [%{status: "error", error: %{"code" => "tool.web.request_failed"}}] = executions
 
     GenServer.stop(pid)
   end

@@ -41,7 +41,23 @@ defmodule LemmingsOs.ModelRuntimeTest do
     def chat(request, _opts) do
       {:ok,
        %{
-         content: ~s({"action":"tool_call","reply":"nope"}),
+         content: ~s({"action":"unknown"}),
+         provider: "fake",
+         model: request.model,
+         raw: request
+       }}
+    end
+  end
+
+  defmodule ToolCallProvider do
+    @behaviour LemmingsOs.ModelRuntime.Provider
+
+    @impl true
+    def chat(request, _opts) do
+      {:ok,
+       %{
+         content:
+           ~s({"action":"tool_call","tool_name":"web.fetch","args":{"url":"https://example.com"}}),
          provider: "fake",
          model: request.model,
          raw: request
@@ -63,6 +79,7 @@ defmodule LemmingsOs.ModelRuntimeTest do
              ModelRuntime.run(config_snapshot, history, current_request)
 
     assert response.reply == "ok"
+    assert response.action == :reply
     assert response.provider == "fake"
     assert response.model == "test-model"
     assert response.input_tokens == 1
@@ -86,7 +103,21 @@ defmodule LemmingsOs.ModelRuntimeTest do
              ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
   end
 
-  test "S03: run/3 rejects unknown actions" do
+  test "S03: run/3 supports tool_call structured output" do
+    config_snapshot = %{
+      provider_module: ToolCallProvider,
+      model: "test-model"
+    }
+
+    assert {:ok, %Response{} = response} =
+             ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+
+    assert response.action == :tool_call
+    assert response.tool_name == "web.fetch"
+    assert response.tool_args == %{"url" => "https://example.com"}
+  end
+
+  test "S03b: run/3 rejects unknown actions" do
     config_snapshot = %{
       provider_module: UnknownActionProvider,
       model: "test-model"
@@ -103,6 +134,7 @@ defmodule LemmingsOs.ModelRuntimeTest do
   test "S05: Response.new/1 builds a runtime response struct" do
     response =
       Response.new(
+        action: :reply,
         reply: "hello",
         provider: "ollama",
         model: "llama3.2",
