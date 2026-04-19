@@ -1,6 +1,7 @@
 defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   use LemmingsOs.DataCase, async: false
   import ExUnit.CaptureLog
+  require Logger
 
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.DetsStore
@@ -109,6 +110,40 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
            tool_args: %{"url" => "https://broken.example.invalid"},
            provider: "fake",
            model: "tool-loop-error-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule UnsupportedToolLoopModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:unsupported_tool_model_run, context_messages, current_item})
+      end
+
+      if Enum.any?(
+           context_messages,
+           &String.contains?(&1.content, "\"code\":\"tool.unsupported\"")
+         ) do
+        {:ok,
+         Response.new(
+           action: :reply,
+           reply: "final response after unsupported tool",
+           provider: "fake",
+           model: "unsupported-tool-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      else
+        {:ok,
+         Response.new(
+           action: :tool_call,
+           tool_name: "exec.run",
+           tool_args: %{},
+           provider: "fake",
+           model: "unsupported-tool-model",
            raw: %{current_item: current_item, context_messages: context_messages}
          )}
       end
@@ -1017,6 +1052,152 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end)
   end
 
+  test "S10: tool_call success emits structured started/completed lifecycle logs", %{
+    instance: instance
+  } do
+    log =
+      capture_info_log(fn ->
+        resource_key = "ollama:tool-loop-log-success"
+        assert :ok = PubSub.subscribe_instance(instance.id)
+        assert :ok = PubSub.subscribe_instance_messages(instance.id)
+
+        {:ok, pid} =
+          Executor.start_link(
+            instance: instance,
+            config_snapshot: %{
+              model: "tool-loop-log-success",
+              observer_pid: self(),
+              models_config: %{
+                profiles: %{default: %{provider: "ollama", model: "tool-loop-log-success"}}
+              }
+            },
+            context_mod: LemmingInstances,
+            model_mod: ToolLoopModelRuntime,
+            tools_context_mod: LemmingTools,
+            tool_runtime_mod: SuccessToolRuntime,
+            pool_mod: ResourcePool,
+            pubsub_mod: Phoenix.PubSub,
+            dets_mod: nil,
+            ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+            name: nil
+          )
+
+        {:ok, _pool_pid} =
+          start_supervised(
+            {ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil}
+          )
+
+        assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+        assert :ok = Executor.enqueue_work(pid, "Use a tool and log success")
+        assert_receive {:status_changed, %{status: "queued"}}
+
+        send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+        assert_receive {:status_changed, %{status: "processing"}}
+        assert_receive {:tool_execution_upserted, %{status: "running"}}
+        assert_receive {:tool_execution_upserted, %{status: "ok"}}
+        assert_receive {:status_changed, %{status: "idle"}}
+
+        GenServer.stop(pid)
+      end)
+
+    assert log =~ "event=instance.executor.tool_execution.started"
+    assert log =~ "event=instance.executor.tool_execution.completed"
+    assert log =~ "operation=web.fetch"
+    assert log =~ "status=running"
+    assert log =~ "status=ok"
+  end
+
+  test "S11: unsupported tool requests persist error and emit failed lifecycle logs", %{
+    instance: instance
+  } do
+    log =
+      capture_info_log(fn ->
+        started_ref = attach([:lemmings_os, :runtime, :tool_execution, :started])
+        failed_ref = attach([:lemmings_os, :runtime, :tool_execution, :failed])
+
+        resource_key = "ollama:unsupported-tool-model"
+        assert :ok = PubSub.subscribe_instance(instance.id)
+        assert :ok = PubSub.subscribe_instance_messages(instance.id)
+
+        {:ok, pid} =
+          Executor.start_link(
+            instance: instance,
+            config_snapshot: %{
+              model: "unsupported-tool-model",
+              observer_pid: self(),
+              models_config: %{
+                profiles: %{default: %{provider: "ollama", model: "unsupported-tool-model"}}
+              }
+            },
+            context_mod: LemmingInstances,
+            model_mod: UnsupportedToolLoopModelRuntime,
+            tools_context_mod: LemmingTools,
+            tool_runtime_mod: LemmingsOs.Tools.Runtime,
+            pool_mod: ResourcePool,
+            pubsub_mod: Phoenix.PubSub,
+            dets_mod: nil,
+            ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+            name: nil
+          )
+
+        {:ok, _pool_pid} =
+          start_supervised(
+            {ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil}
+          )
+
+        assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+        assert :ok = Executor.enqueue_work(pid, "Use unsupported tool then recover")
+        assert_receive {:status_changed, %{status: "queued"}}
+
+        send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+        assert_receive {:status_changed, %{status: "processing"}}
+        assert_receive {:tool_execution_upserted, %{status: "running"}}
+        assert_receive {:tool_execution_upserted, %{status: "error"}}
+
+        assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :started],
+                        %{count: 1}, started_metadata}
+
+        assert started_metadata.tool_name == "exec.run"
+        assert started_metadata.instance_id == instance.id
+
+        assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :failed],
+                        %{count: 1, duration_ms: duration_ms}, failed_metadata}
+
+        assert duration_ms >= 0
+        assert failed_metadata.tool_name == "exec.run"
+        assert failed_metadata.tool_status == "error"
+        assert failed_metadata.reason == "tool.unsupported"
+
+        assert_receive {:status_changed, %{status: "idle"}}
+
+        messages = LemmingInstances.list_messages(instance)
+
+        assert Enum.any?(
+                 messages,
+                 &(&1.role == "assistant" and
+                     &1.content == "final response after unsupported tool")
+               )
+
+        executions =
+          LemmingTools.list_tool_executions(%World{id: instance.world_id}, instance)
+          |> Enum.filter(&(&1.tool_name == "exec.run"))
+
+        assert [%{status: "error", error: %{"code" => "tool.unsupported"}}] = executions
+
+        detach(started_ref)
+        detach(failed_ref)
+        GenServer.stop(pid)
+      end)
+
+    assert log =~ "event=instance.executor.tool_execution.started"
+    assert log =~ "event=instance.executor.tool_execution.failed"
+    assert log =~ "operation=exec.run"
+    assert log =~ "reason=tool.unsupported"
+    assert log =~ "status=error"
+  end
+
   defp ensure_registry!(name) do
     case Process.whereis(name) do
       pid when is_pid(pid) ->
@@ -1087,5 +1268,19 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
   defp wait_for_pool_status(resource_key, expected_status, 0) do
     assert ResourcePool.status(resource_key) == expected_status
+  end
+
+  defp capture_info_log(fun) when is_function(fun, 0) do
+    previous_level = Logger.level()
+
+    try do
+      Logger.configure(level: :info)
+
+      capture_log([level: :info], fn ->
+        fun.()
+      end)
+    after
+      Logger.configure(level: previous_level)
+    end
   end
 end
