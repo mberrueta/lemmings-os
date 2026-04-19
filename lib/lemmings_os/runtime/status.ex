@@ -10,6 +10,7 @@ defmodule LemmingsOs.Runtime.Status do
   alias LemmingsOs.LemmingInstances.EtsStore
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.LemmingInstances.ToolExecution
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.LemmingInstances.ResourcePool
   alias LemmingsOs.Repo
@@ -61,13 +62,18 @@ defmodule LemmingsOs.Runtime.Status do
       |> latest_first()
       |> maybe_take(recent_limit)
 
+    tool_executions =
+      recent_tool_executions(recent_limit)
+      |> attach_tool_execution_labels(labels.instance_labels)
+
     %{
       overview: overview,
       services: service_rows(overview.services),
       executors: executors,
       schedulers: schedulers,
       pools: pools,
-      runtime_entries: runtime_entries
+      runtime_entries: runtime_entries,
+      tool_executions: tool_executions
     }
   end
 
@@ -294,6 +300,19 @@ defmodule LemmingsOs.Runtime.Status do
     end)
   end
 
+  defp attach_tool_execution_labels(tool_executions, instance_labels) do
+    Enum.map(tool_executions, fn tool_execution ->
+      labels = Map.get(instance_labels, tool_execution.instance_id, %{})
+
+      tool_execution
+      |> Map.put(:display_label, Map.get(labels, :display_label, tool_execution.instance_id))
+      |> Map.put(
+        :department_label,
+        Map.get(labels, :department_label, tool_execution.department_id)
+      )
+    end)
+  end
+
   defp runtime_labels(executors, runtime_entries) do
     instance_ids =
       executors
@@ -418,6 +437,39 @@ defmodule LemmingsOs.Runtime.Status do
   defp latest_sort_value(%{last_activity_at: %DateTime{} = value}), do: value
   defp latest_sort_value(%{started_at: %DateTime{} = value}), do: value
   defp latest_sort_value(_entry), do: ~U[1970-01-01 00:00:00Z]
+
+  defp recent_tool_executions(limit) do
+    query =
+      ToolExecution
+      |> join(:inner, [tool_execution], instance in LemmingInstance,
+        on: tool_execution.lemming_instance_id == instance.id
+      )
+      |> order_by([tool_execution, _instance], desc: tool_execution.inserted_at)
+      |> order_by([tool_execution, _instance], desc: tool_execution.id)
+      |> maybe_limit_tool_execution_query(limit)
+      |> select([tool_execution, instance], %{
+        id: tool_execution.id,
+        instance_id: tool_execution.lemming_instance_id,
+        department_id: instance.department_id,
+        tool_name: tool_execution.tool_name,
+        status: tool_execution.status,
+        summary: tool_execution.summary,
+        duration_ms: tool_execution.duration_ms,
+        started_at: tool_execution.started_at,
+        completed_at: tool_execution.completed_at,
+        inserted_at: tool_execution.inserted_at
+      })
+
+    Repo.all(query)
+  rescue
+    _ -> []
+  end
+
+  defp maybe_limit_tool_execution_query(query, limit) when is_integer(limit) and limit >= 0 do
+    limit(query, ^limit)
+  end
+
+  defp maybe_limit_tool_execution_query(query, _limit), do: query
 
   defp maybe_take(entries, limit) when is_integer(limit) and limit >= 0,
     do: Enum.take(entries, limit)

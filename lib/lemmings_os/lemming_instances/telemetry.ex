@@ -95,6 +95,23 @@ defmodule LemmingsOs.LemmingInstances.Telemetry do
   end
 
   @doc """
+  Builds tool-execution metadata with full hierarchy and tool identity keys.
+  """
+  @spec tool_execution_metadata(map() | struct() | nil, map(), map()) :: metadata()
+  def tool_execution_metadata(instance, tool_execution, extra \\ %{})
+      when is_map(tool_execution) and is_map(extra) do
+    instance
+    |> instance_metadata(%{
+      tool_name: fetch(tool_execution, :tool_name),
+      tool_execution_id: fetch(tool_execution, :id),
+      tool_status: fetch(tool_execution, :status),
+      duration_ms: fetch(tool_execution, :duration_ms),
+      reason: Map.get(extra, :reason)
+    })
+    |> Map.merge(extra)
+  end
+
+  @doc """
   Normalizes internal reasons into stable telemetry-friendly tokens.
   """
   @spec reason_token(term()) :: String.t() | nil

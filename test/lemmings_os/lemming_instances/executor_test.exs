@@ -10,6 +10,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   alias LemmingsOs.LemmingInstances.RuntimeTableOwner
   alias LemmingsOs.LemmingTools
   alias LemmingsOs.ModelRuntime.Response
+  alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Worlds.World
 
   defmodule FakeModelRuntime do
@@ -161,6 +162,8 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
   setup do
     start_supervised!(RuntimeTableOwner)
+    ensure_process_started!(ActivityLog)
+    ActivityLog.clear()
     ensure_registry!(LemmingsOs.LemmingInstances.ExecutorRegistry)
     ensure_registry!(LemmingsOs.LemmingInstances.PoolRegistry)
     ensure_dynamic_supervisor!(LemmingsOs.LemmingInstances.PoolSupervisor)
@@ -842,6 +845,9 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   test "S08: tool_call loop executes tool runtime and continues until final reply", %{
     instance: instance
   } do
+    started_ref = attach([:lemmings_os, :runtime, :tool_execution, :started])
+    completed_ref = attach([:lemmings_os, :runtime, :tool_execution, :completed])
+
     resource_key = "ollama:tool-loop-model"
     assert :ok = PubSub.subscribe_instance(instance.id)
     assert :ok = PubSub.subscribe_instance_messages(instance.id)
@@ -877,6 +883,25 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     assert_receive {:status_changed, %{status: "processing"}}
     assert_receive {:tool_execution_upserted, %{status: "running"}}
     assert_receive {:tool_execution_upserted, %{status: "ok"}}
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :started],
+                    %{count: 1}, started_metadata}
+
+    assert started_metadata.instance_id == instance.id
+    assert started_metadata.world_id == instance.world_id
+    assert started_metadata.city_id == instance.city_id
+    assert started_metadata.department_id == instance.department_id
+    assert started_metadata.lemming_id == instance.lemming_id
+    assert started_metadata.tool_name == "web.fetch"
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :completed],
+                    %{count: 1, duration_ms: duration_ms}, completed_metadata}
+
+    assert duration_ms >= 0
+    assert completed_metadata.instance_id == instance.id
+    assert completed_metadata.tool_name == "web.fetch"
+    assert completed_metadata.tool_status == "ok"
+
     assert_receive {:status_changed, %{status: "idle"}}
 
     messages = LemmingInstances.list_messages(instance)
@@ -893,10 +918,27 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     assert [%{status: "ok", summary: "Fetched https://example.com", result: result}] = executions
     assert result["status"] == 200
 
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "tool_execution" and &1.action == "Tool started" and
+                 &1.metadata[:tool_name] == "web.fetch")
+           )
+
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "tool_execution" and &1.action == "Tool completed" and
+                 &1.metadata[:tool_name] == "web.fetch")
+           )
+
+    detach(started_ref)
+    detach(completed_ref)
     GenServer.stop(pid)
   end
 
   test "S09: tool_call errors are persisted and reasoning can continue", %{instance: instance} do
+    started_ref = attach([:lemmings_os, :runtime, :tool_execution, :started])
+    failed_ref = attach([:lemmings_os, :runtime, :tool_execution, :failed])
+
     resource_key = "ollama:tool-loop-error-model"
     assert :ok = PubSub.subscribe_instance(instance.id)
     assert :ok = PubSub.subscribe_instance_messages(instance.id)
@@ -934,6 +976,19 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     assert_receive {:status_changed, %{status: "processing"}}
     assert_receive {:tool_execution_upserted, %{status: "running"}}
     assert_receive {:tool_execution_upserted, %{status: "error"}}
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :started],
+                    %{count: 1}, _started_metadata}
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :failed],
+                    %{count: 1, duration_ms: duration_ms}, failed_metadata}
+
+    assert duration_ms >= 0
+    assert failed_metadata.instance_id == instance.id
+    assert failed_metadata.tool_name == "web.fetch"
+    assert failed_metadata.tool_status == "error"
+    assert failed_metadata.reason == "tool.web.request_failed"
+
     assert_receive {:status_changed, %{status: "idle"}}
 
     messages = LemmingInstances.list_messages(instance)
@@ -949,6 +1004,14 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     assert [%{status: "error", error: %{"code" => "tool.web.request_failed"}}] = executions
 
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "tool_execution" and &1.action == "Tool failed" and
+                 &1.metadata[:reason] == "tool.web.request_failed")
+           )
+
+    detach(started_ref)
+    detach(failed_ref)
     GenServer.stop(pid)
   end
 
@@ -972,6 +1035,38 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
         start_supervised!({DynamicSupervisor, name: name, strategy: :one_for_one})
         :ok
     end
+  end
+
+  defp ensure_process_started!(child) do
+    case Process.whereis(child) do
+      pid when is_pid(pid) ->
+        :ok
+
+      nil ->
+        start_supervised!(child)
+        :ok
+    end
+  end
+
+  defp attach(event) do
+    ref = make_ref()
+    test_pid = self()
+
+    :ok =
+      :telemetry.attach(
+        "executor-telemetry-test-#{inspect(ref)}",
+        event,
+        fn event_name, measurements, metadata, _config ->
+          send(test_pid, {:telemetry_event, event_name, measurements, metadata})
+        end,
+        nil
+      )
+
+    ref
+  end
+
+  defp detach(ref) do
+    :telemetry.detach("executor-telemetry-test-#{inspect(ref)}")
   end
 
   defp wait_for_pool_status(resource_key, expected_status, attempts \\ 20)

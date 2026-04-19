@@ -794,7 +794,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp continue_tool_loop(state) do
     next_iteration_count = state.tool_iteration_count + 1
+    continue_tool_loop(state, next_iteration_count)
+  end
 
+  defp continue_tool_loop(state, next_iteration_count) do
     if next_iteration_count >= max_tool_iterations(state.config_snapshot) do
       handle_model_retry(
         %{state | tool_iteration_count: next_iteration_count},
@@ -808,7 +811,21 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     end
   end
 
-  defp create_tool_execution(state, tool_name, tool_args, started_at) do
+  defp create_tool_execution(
+         %{tools_context_mod: nil} = state,
+         _tool_name,
+         _tool_args,
+         _started_at
+       ) do
+    {:error, :tool_execution_unavailable, state}
+  end
+
+  defp create_tool_execution(
+         %{tools_context_mod: tools_context} = state,
+         tool_name,
+         tool_args,
+         started_at
+       ) do
     tool_attrs = %{
       tool_name: tool_name,
       status: "running",
@@ -816,50 +833,53 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       started_at: started_at
     }
 
-    tools_context = state.tools_context_mod
+    with true <- module_loaded_and_exports?(tools_context, :create_tool_execution, 3),
+         {:ok, tool_execution} <-
+           tools_context.create_tool_execution(
+             runtime_world_struct(state),
+             state.instance,
+             tool_attrs
+           ) do
+      log_tool_lifecycle(state, :started, tool_execution)
+      emit_tool_telemetry(state, :started, tool_execution)
+      record_tool_activity(:runtime, state, :started, tool_execution)
 
-    cond do
-      is_nil(tools_context) ->
+      _ =
+        PubSub.broadcast_tool_execution_upserted(
+          state.instance_id,
+          tool_execution.id,
+          tool_execution.status
+        )
+
+      {:ok, tool_execution}
+    else
+      false ->
         {:error, :tool_execution_unavailable, state}
 
-      module_loaded_and_exports?(tools_context, :create_tool_execution, 3) ->
-        case tools_context.create_tool_execution(
-               runtime_world_struct(state),
-               state.instance,
-               tool_attrs
-             ) do
-          {:ok, tool_execution} ->
-            _ =
-              PubSub.broadcast_tool_execution_upserted(
-                state.instance_id,
-                tool_execution.id,
-                tool_execution.status
-              )
-
-            {:ok, tool_execution}
-
-          {:error, reason} ->
-            {:error, {:tool_execution_create_failed, reason}, state}
-        end
-
-      true ->
-        {:error, :tool_execution_unavailable, state}
+      {:error, reason} ->
+        {:error, {:tool_execution_create_failed, reason}, state}
     end
   end
 
   defp execute_tool_runtime(state, world, tool_name, tool_args) do
     tool_runtime_mod = state.tool_runtime_mod
 
-    if module_loaded_and_exports?(tool_runtime_mod, :execute, 4) do
-      tool_runtime_mod.execute(world, state.instance, tool_name, tool_args)
-    else
-      {:error,
-       %{
-         tool_name: tool_name,
-         code: "tool.runtime.unavailable",
-         message: "Tool runtime is unavailable",
-         details: %{}
-       }}
+    execute_tool_runtime(tool_runtime_mod, state, world, tool_name, tool_args)
+  end
+
+  defp execute_tool_runtime(tool_runtime_mod, state, world, tool_name, tool_args) do
+    case module_loaded_and_exports?(tool_runtime_mod, :execute, 4) do
+      true ->
+        tool_runtime_mod.execute(world, state.instance, tool_name, tool_args)
+
+      false ->
+        {:error,
+         %{
+           tool_name: tool_name,
+           code: "tool.runtime.unavailable",
+           message: "Tool runtime is unavailable",
+           details: %{}
+         }}
     end
   end
 
@@ -876,7 +896,16 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       duration_ms: max(duration_ms, 0)
     }
 
-    update_tool_execution(state, tool_execution, attrs)
+    case update_tool_execution(state, tool_execution, attrs) do
+      {:ok, updated_tool_execution, next_state} ->
+        log_tool_lifecycle(next_state, :completed, updated_tool_execution)
+        emit_tool_telemetry(next_state, :completed, updated_tool_execution)
+        record_tool_activity(:runtime, next_state, :completed, updated_tool_execution)
+        {:ok, updated_tool_execution, next_state}
+
+      {:error, reason, next_state} ->
+        {:error, reason, next_state}
+    end
   end
 
   defp persist_tool_error(state, tool_execution, execution_error, started_at) do
@@ -896,39 +925,49 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       duration_ms: max(duration_ms, 0)
     }
 
-    update_tool_execution(state, tool_execution, attrs)
+    case update_tool_execution(state, tool_execution, attrs) do
+      {:ok, updated_tool_execution, next_state} ->
+        log_tool_lifecycle(next_state, :failed, updated_tool_execution)
+        emit_tool_telemetry(next_state, :failed, updated_tool_execution)
+        record_tool_activity(:error, next_state, :failed, updated_tool_execution)
+        {:ok, updated_tool_execution, next_state}
+
+      {:error, reason, next_state} ->
+        {:error, reason, next_state}
+    end
   end
 
-  defp update_tool_execution(state, tool_execution, attrs) do
-    tools_context = state.tools_context_mod
+  defp update_tool_execution(%{tools_context_mod: nil} = state, _tool_execution, _attrs) do
+    {:error, :tool_execution_unavailable, state}
+  end
 
-    cond do
-      is_nil(tools_context) ->
+  defp update_tool_execution(
+         %{tools_context_mod: tools_context} = state,
+         tool_execution,
+         attrs
+       ) do
+    with true <- module_loaded_and_exports?(tools_context, :update_tool_execution, 4),
+         {:ok, updated_tool_execution} <-
+           tools_context.update_tool_execution(
+             runtime_world_struct(state),
+             state.instance,
+             tool_execution,
+             attrs
+           ) do
+      _ =
+        PubSub.broadcast_tool_execution_upserted(
+          state.instance_id,
+          updated_tool_execution.id,
+          updated_tool_execution.status
+        )
+
+      {:ok, updated_tool_execution, state}
+    else
+      false ->
         {:error, :tool_execution_unavailable, state}
 
-      module_loaded_and_exports?(tools_context, :update_tool_execution, 4) ->
-        case tools_context.update_tool_execution(
-               runtime_world_struct(state),
-               state.instance,
-               tool_execution,
-               attrs
-             ) do
-          {:ok, updated_tool_execution} ->
-            _ =
-              PubSub.broadcast_tool_execution_upserted(
-                state.instance_id,
-                updated_tool_execution.id,
-                updated_tool_execution.status
-              )
-
-            {:ok, updated_tool_execution, state}
-
-          {:error, reason} ->
-            {:error, {:tool_execution_update_failed, reason}, state}
-        end
-
-      true ->
-        {:error, :tool_execution_unavailable, state}
+      {:error, reason} ->
+        {:error, {:tool_execution_update_failed, reason}, state}
     end
   end
 
@@ -977,6 +1016,118 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       details: %{reason: inspect(other)}
     }
   end
+
+  defp log_tool_lifecycle(state, :started, tool_execution) do
+    Logger.info("executor tool execution started",
+      event: "instance.executor.tool_execution.started",
+      operation: tool_execution.tool_name,
+      status: tool_execution.status,
+      instance_id: state.instance_id,
+      lemming_id: instance_lemming_id(state.instance),
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      department_id: state.department_id,
+      current_item_id: current_item_id(state.current_item)
+    )
+  end
+
+  defp log_tool_lifecycle(state, :completed, tool_execution) do
+    Logger.info("executor tool execution completed",
+      event: "instance.executor.tool_execution.completed",
+      operation: tool_execution.tool_name,
+      status: tool_execution.status,
+      instance_id: state.instance_id,
+      lemming_id: instance_lemming_id(state.instance),
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      department_id: state.department_id,
+      current_item_id: current_item_id(state.current_item)
+    )
+  end
+
+  defp log_tool_lifecycle(state, :failed, tool_execution) do
+    Logger.warning("executor tool execution failed",
+      event: "instance.executor.tool_execution.failed",
+      operation: tool_execution.tool_name,
+      status: tool_execution.status,
+      reason: tool_error_reason(tool_execution.error),
+      instance_id: state.instance_id,
+      lemming_id: instance_lemming_id(state.instance),
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      department_id: state.department_id,
+      current_item_id: current_item_id(state.current_item)
+    )
+  end
+
+  defp emit_tool_telemetry(state, :started, tool_execution) do
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :runtime, :tool_execution, :started],
+        %{count: 1},
+        Telemetry.tool_execution_metadata(
+          state.instance,
+          tool_execution,
+          %{instance_id: state.instance_id}
+        )
+      )
+
+    :ok
+  end
+
+  defp emit_tool_telemetry(state, :completed, tool_execution) do
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :runtime, :tool_execution, :completed],
+        %{count: 1, duration_ms: tool_execution.duration_ms || 0},
+        Telemetry.tool_execution_metadata(
+          state.instance,
+          tool_execution,
+          %{instance_id: state.instance_id}
+        )
+      )
+
+    :ok
+  end
+
+  defp emit_tool_telemetry(state, :failed, tool_execution) do
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :runtime, :tool_execution, :failed],
+        %{count: 1, duration_ms: tool_execution.duration_ms || 0},
+        Telemetry.tool_execution_metadata(
+          state.instance,
+          tool_execution,
+          %{
+            instance_id: state.instance_id,
+            reason: tool_error_reason(tool_execution.error)
+          }
+        )
+      )
+
+    :ok
+  end
+
+  defp record_tool_activity(type, state, phase, tool_execution) do
+    _ =
+      ActivityLog.record(type, "tool_execution", "Tool #{phase}", %{
+        instance_id: state.instance_id,
+        lemming_id: instance_lemming_id(state.instance),
+        world_id: instance_world_id(state.instance),
+        city_id: instance_city_id(state.instance),
+        department_id: state.department_id,
+        tool_execution_id: tool_execution.id,
+        tool_name: tool_execution.tool_name,
+        status: tool_execution.status,
+        reason: tool_error_reason(tool_execution.error)
+      })
+
+    :ok
+  end
+
+  defp tool_error_reason(%{"code" => code}) when is_binary(code), do: code
+  defp tool_error_reason(%{code: code}) when is_binary(code), do: code
+  defp tool_error_reason(_error), do: nil
 
   defp module_loaded_and_exports?(module, function_name, arity)
        when is_atom(module) and is_atom(function_name) and is_integer(arity) do
@@ -1274,19 +1425,21 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp persist_status(%{context_mod: nil} = state, _attrs), do: state
 
-  defp persist_status(%{context_mod: context_mod} = state, attrs) do
-    instance = state.instance
+  defp persist_status(
+         %{context_mod: context_mod, instance: %LemmingInstance{} = instance} = state,
+         attrs
+       ) do
     status = Map.get(attrs, :status, state.status)
 
-    if function_exported?(context_mod, :update_status, 3) and match?(%LemmingInstance{}, instance) do
-      case context_mod.update_status(instance, status, attrs) do
-        {:ok, updated_instance} -> %{state | instance: updated_instance}
-        {:error, _changeset} -> state
-      end
+    with true <- module_loaded_and_exports?(context_mod, :update_status, 3),
+         {:ok, updated_instance} <- context_mod.update_status(instance, status, attrs) do
+      %{state | instance: updated_instance}
     else
-      state
+      _other -> state
     end
   end
+
+  defp persist_status(state, _attrs), do: state
 
   defp broadcast_status(state) do
     metadata = %{
@@ -1528,19 +1681,25 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp maybe_load_context_messages(%{context_mod: nil} = state), do: state
   defp maybe_load_context_messages(%{load_context_messages?: false} = state), do: state
 
-  defp maybe_load_context_messages(%{context_mod: context_mod, instance: instance} = state) do
-    if function_exported?(context_mod, :list_messages, 2) and match?(%LemmingInstance{}, instance) do
-      messages =
-        context_mod.list_messages(instance, [])
-        |> Enum.map(fn message ->
-          %{role: message.role, content: message.content}
-        end)
+  defp maybe_load_context_messages(
+         %{context_mod: context_mod, instance: %LemmingInstance{} = instance} = state
+       ) do
+    case module_loaded_and_exports?(context_mod, :list_messages, 2) do
+      true ->
+        messages =
+          context_mod.list_messages(instance, [])
+          |> Enum.map(fn message ->
+            %{role: message.role, content: message.content}
+          end)
 
-      %{state | context_messages: messages}
-    else
-      state
+        %{state | context_messages: messages}
+
+      false ->
+        state
     end
   end
+
+  defp maybe_load_context_messages(state), do: state
 
   defp resolve_instance_id(opts) do
     cond do

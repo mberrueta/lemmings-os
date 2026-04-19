@@ -91,6 +91,11 @@ defmodule LemmingsOsWeb.Telemetry do
       last_value("lemmings_os.runtime.instances.expired"),
       sum("lemmings_os.runtime.session.spawn.count"),
       sum("lemmings_os.runtime.session.recovered.count"),
+      sum("lemmings_os.runtime.tool_execution.started.count"),
+      sum("lemmings_os.runtime.tool_execution.completed.count"),
+      sum("lemmings_os.runtime.tool_execution.failed.count"),
+      summary("lemmings_os.runtime.tool_execution.completed.duration_ms"),
+      summary("lemmings_os.runtime.tool_execution.failed.duration_ms"),
 
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
