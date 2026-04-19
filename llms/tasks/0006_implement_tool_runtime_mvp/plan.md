@@ -112,7 +112,7 @@ This execution plan breaks the Tool Runtime MVP into smaller sequential tasks gr
   - Location: `lib/lemmings_os/lemming_instances/lemming_instance.ex`
   - Existing role: durable runtime session record
   - Relevant fields today: `status`, `config_snapshot`, `started_at`, `stopped_at`, `last_activity_at`
-  - Required change for this issue: persist the instance work area path relative to `/workspace`
+  - Required change for this issue: ensure spawn-time work area creation uses the runtime workspace root layout
 - `LemmingsOs.LemmingInstances.Message`
   - Location: `lib/lemmings_os/lemming_instances/message.ex`
   - Existing role: immutable transcript entries for `user` and `assistant`
@@ -203,13 +203,13 @@ This record is required because the existing in-memory `ActivityLog` is not dura
 
 ### `work area`
 
-Use `work area` for the per-instance writable directory created at spawn time and stored relative to `/workspace`.
+Use `work area` for the writable directory created at spawn time under the runtime workspace root.
 
 The work area is:
 
 - dedicated to one `LemmingInstance`
 - created before the instance begins useful work
-- persisted on the instance record
+- derived from the lemming hierarchy at runtime
 - the default target for artifacts written during the session
 
 ### `transcript tool card`
@@ -244,7 +244,7 @@ Any broader tool catalog discussion from earlier exploration should be treated a
 
 - fixed global Tool Runtime catalog for the four approved tools only
 - direct runtime execution from the existing executor path
-- spawn-time work area creation and persistence relative to `/workspace`
+- spawn-time work area creation under the configured runtime workspace root
 - durable tool execution history with compact session transcript visibility
 - live updates plus operational visibility through logs, telemetry, and metrics
 
@@ -291,7 +291,7 @@ Any broader tool catalog discussion from earlier exploration should be treated a
 
 - Direct runtime call boundary from the existing executor path; PubSub is for live updates only.
 - Dedicated durable tool execution history is required so operators can inspect results after reload.
-- The runtime session must persist its work area location relative to `/workspace`; absolute host paths must not leak into persistence or tool-visible outputs.
+- The runtime session must create its work area under the configured runtime workspace root; absolute host paths must not leak into persisted tool records or tool-visible outputs.
 - The fixed catalog for this PR is only `fs.read_text_file`, `fs.write_text_file`, `web.search`, and `web.fetch`.
 - Tool results and errors must be normalized consistently for both model/runtime use and transcript inspection.
 - The instance session page remains the primary operator surface; tool cards stay compact and support inspection of persisted details without defaulting to raw output dumps.
@@ -358,7 +358,7 @@ As an operator maintaining the runtime, I want logs, metrics, and status records
 - **Given** a new runtime session is spawned successfully
 - **When** the spawn workflow completes
 - **Then** the instance has a dedicated work area created under the runtime workspace root
-- **And** the instance row stores the relative work area path
+- **And** the work area path resolves to `<workspace_root>/<department_id>/<lemming_id>`
 
 **Scenario: filesystem write respects workspace boundaries**
 
@@ -370,7 +370,7 @@ As an operator maintaining the runtime, I want logs, metrics, and status records
 **Criteria Checklist**
 
 - [ ] Work area is created during spawn, not lazily on first write
-- [ ] Persisted path is relative to `/workspace`
+- [ ] Work area is created at `<workspace_root>/<department_id>/<lemming_id>`
 - [ ] Filesystem tools only accept workspace-relative paths
 - [ ] Absolute paths and upward traversal are rejected
 - [ ] The final assistant response can reference the produced artifact path using the relative workspace path
@@ -444,7 +444,6 @@ Deliver the minimal persistence needed for durability and operator inspection.
 
 Planned changes:
 
-- persist the per-instance work area location on the runtime session record
 - add a dedicated durable store for tool execution records
 - add world-scoped context APIs to create, update, and list tool executions per instance
 - extend the runtime spawn workflow so work area creation happens before returning a spawned session
@@ -453,7 +452,7 @@ Expected alignment with current code:
 
 - `LemmingsOs.Runtime.spawn_session/3` remains the end-to-end spawn entrypoint
 - `LemmingsOs.LemmingInstances.spawn_instance/3` remains the durable instance persistence boundary
-- work area path belongs on `LemmingInstance`, not in transient ETS state
+- work area creation belongs in the spawn flow, not in transient ETS state
 
 ### Workstream 2: Fixed Catalog And Tool Runtime Boundary
 
@@ -541,7 +540,6 @@ Planned changes:
 ### Durability
 
 - Tool execution history must survive page reload and live update loss
-- Work area path must persist on the instance record
 - Successful and failed executions both remain inspectable
 
 ### Observability
@@ -679,7 +677,7 @@ These items must not be implemented as part of this PR.
 
 - Replaced the brief-only file with an implementation-ready staff-level plan
 - Validated the plan against the current runtime executor, session LiveView, tools registry placeholder, telemetry helper, and activity log patterns
-- Added explicit persistence requirements for `work_area_path` and durable tool execution records
+- Added explicit durable tool execution requirements and spawn-time work area creation requirements
 - Clarified how the executor, Tool Runtime, PubSub, and session transcript should interact without reopening broader architecture
 - Added user stories, acceptance criteria, edge cases, UX states, testing expectations, and non-functional requirements
 

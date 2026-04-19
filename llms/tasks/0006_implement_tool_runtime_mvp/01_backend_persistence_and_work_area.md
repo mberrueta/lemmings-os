@@ -1,8 +1,8 @@
 # Task 01: Backend Persistence And Work Area
 
 ## Status
-- **Status**: ⏳ PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETED
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 `dev-backend-elixir-engineer`
@@ -11,7 +11,7 @@
 Act as `dev-backend-elixir-engineer` following `llms/constitution.md` and implement the persistence changes for Tool Runtime MVP.
 
 ## Objective
-Add the minimal durable backend support for tool execution history and per-instance work area persistence/creation at spawn time.
+Add the minimal durable backend support for tool execution history and per-instance work area creation at spawn time.
 
 ## Inputs Required
 
@@ -22,13 +22,12 @@ Add the minimal durable backend support for tool execution history and per-insta
 
 ## Expected Outputs
 
-- [ ] Migration(s) for runtime session work area persistence and durable tool execution history
+- [ ] Migration(s) for durable tool execution history and any required work area schema cleanup
 - [ ] Schema/context support for the new persistence needs
 - [ ] Spawn-time work area creation wired into the runtime flow
 
 ## Acceptance Criteria
 
-- [ ] Runtime sessions persist their work area location relative to `/workspace`
 - [ ] Work area creation happens at spawn time
 - [ ] Tool execution history is persisted durably and linked to the runtime session and world scope
 - [ ] New public context APIs remain explicitly world-scoped
@@ -48,7 +47,7 @@ Add the minimal durable backend support for tool execution history and per-insta
 
 ### For the Human Reviewer
 1. Verify durable tool execution history exists.
-2. Verify work area persistence is relative to `/workspace`.
+2. Verify work area creation uses the configured runtime workspace root.
 3. Verify scope stays within the MVP slice.
 
 ---

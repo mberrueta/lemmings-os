@@ -60,6 +60,13 @@ defmodule LemmingsOs.RuntimeTest do
 
     assert instance.status == "created"
 
+    assert File.dir?(
+             Path.join(
+               Application.fetch_env!(:lemmings_os, :runtime_workspace_root),
+               Path.join([department.id, lemming.id])
+             )
+           )
+
     assert eventually_status(instance.id) == "queued"
 
     [message] = LemmingInstances.list_messages(instance)

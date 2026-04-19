@@ -28,6 +28,7 @@ config :lemmings_os, :runtime_city_heartbeat_on_startup, false
 config :lemmings_os, :runtime_engine_on_startup, false
 config :lemmings_os, dev_routes: true
 config :lemmings_os, :runtime_dets, directory: Path.expand("../tmp/runtime/dets", __DIR__)
+config :lemmings_os, :runtime_workspace_root, Path.expand("../tmp/runtime/workspace", __DIR__)
 
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,

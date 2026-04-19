@@ -14,6 +14,7 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.ToolExecution
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds.World
 
@@ -138,6 +139,25 @@ defmodule LemmingsOs.Factory do
       output_tokens: nil,
       total_tokens: nil,
       usage: nil
+    }
+  end
+
+  def tool_execution_factory do
+    instance = build(:lemming_instance)
+
+    %ToolExecution{
+      lemming_instance: instance,
+      world: instance.world,
+      tool_name: "fs.read_text_file",
+      status: "running",
+      args: %{"path" => "notes.txt"},
+      result: nil,
+      error: nil,
+      summary: nil,
+      preview: nil,
+      started_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      completed_at: nil,
+      duration_ms: nil
     }
   end
 end

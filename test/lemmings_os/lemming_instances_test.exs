@@ -9,10 +9,12 @@ defmodule LemmingsOs.LemmingInstancesTest do
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.LemmingInstances.DetsStore
+  alias LemmingsOs.LemmingTools
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.ToolExecution
   alias LemmingsOs.Repo
   alias LemmingsOs.Worlds.World
 
@@ -161,6 +163,32 @@ defmodule LemmingsOs.LemmingInstancesTest do
     assert is_map(instance.config_snapshot)
     refute Map.has_key?(instance.config_snapshot, :__meta__)
     refute Map.has_key?(instance.config_snapshot, "__meta__")
+  end
+
+  test "S03b: spawn_instance creates the lemming work area under the runtime workspace root" do
+    world = insert(:world, name: "Ops World", slug: "ops-world")
+    city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+    department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        name: "Incident Triage",
+        slug: "incident-triage",
+        status: "active"
+      )
+
+    assert {:ok, instance} =
+             LemmingInstances.spawn_instance(lemming, "Investigate the outage", preload: false)
+
+    assert instance.department_id == department.id
+    assert instance.lemming_id == lemming.id
+
+    work_area_root = Application.fetch_env!(:lemmings_os, :runtime_workspace_root)
+
+    assert File.dir?(Path.join(work_area_root, Path.join([department.id, lemming.id])))
   end
 
   test "S04: get_runtime_state/1 normalizes persisted runtime state from DETS" do
@@ -347,6 +375,50 @@ defmodule LemmingsOs.LemmingInstancesTest do
              "Investigate the outage",
              "Continue with risks"
            ]
+  end
+
+  test "S08b: tool execution APIs remain explicitly world scoped" do
+    instance = spawn_idle_instance()
+    world = Repo.preload(instance, :world).world
+    other_world = insert(:world)
+
+    assert {:ok, tool_execution} =
+             LemmingTools.create_tool_execution(world, instance, %{
+               tool_name: "fs.read_text_file",
+               status: "running",
+               args: %{"path" => "notes.txt"},
+               started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+             })
+
+    assert {:ok, %ToolExecution{id: id}} =
+             LemmingTools.get_tool_execution(world, instance, tool_execution.id)
+
+    assert id == tool_execution.id
+
+    assert [listed_execution] = LemmingTools.list_tool_executions(world, instance)
+    assert listed_execution.id == tool_execution.id
+
+    assert {:ok, updated_tool_execution} =
+             LemmingTools.update_tool_execution(world, instance, tool_execution, %{
+               status: "ok",
+               result: %{"content" => "notes"},
+               completed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+               duration_ms: 14
+             })
+
+    assert updated_tool_execution.status == "ok"
+    assert updated_tool_execution.result == %{"content" => "notes"}
+
+    assert [] = LemmingTools.list_tool_executions(other_world, instance)
+
+    assert {:error, :not_found} =
+             LemmingTools.get_tool_execution(other_world, instance, tool_execution.id)
+
+    assert {:error, :not_found} =
+             LemmingTools.create_tool_execution(other_world, instance, %{})
+
+    assert {:error, :not_found} =
+             LemmingTools.update_tool_execution(other_world, instance, tool_execution, %{})
   end
 
   test "S09: topology_summary/1 reports total and active instance counts" do

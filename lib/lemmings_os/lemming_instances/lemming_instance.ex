@@ -11,6 +11,7 @@ defmodule LemmingsOs.LemmingInstances.LemmingInstance do
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.ToolExecution
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds.World
 
@@ -38,6 +39,7 @@ defmodule LemmingsOs.LemmingInstances.LemmingInstance do
           stopped_at: DateTime.t() | nil,
           last_activity_at: DateTime.t() | nil,
           messages: [Message.t()] | Ecto.Association.NotLoaded.t(),
+          tool_executions: [ToolExecution.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -54,6 +56,7 @@ defmodule LemmingsOs.LemmingInstances.LemmingInstance do
     belongs_to :city, City
     belongs_to :department, Department
     has_many :messages, Message
+    has_many :tool_executions, ToolExecution
 
     timestamps(type: :utc_datetime)
   end
