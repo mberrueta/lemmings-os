@@ -936,83 +936,85 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   end
 
   test "S09: tool_call errors are persisted and reasoning can continue", %{instance: instance} do
-    started_ref = attach([:lemmings_os, :runtime, :tool_execution, :started])
-    failed_ref = attach([:lemmings_os, :runtime, :tool_execution, :failed])
+    capture_log(fn ->
+      started_ref = attach([:lemmings_os, :runtime, :tool_execution, :started])
+      failed_ref = attach([:lemmings_os, :runtime, :tool_execution, :failed])
 
-    resource_key = "ollama:tool-loop-error-model"
-    assert :ok = PubSub.subscribe_instance(instance.id)
-    assert :ok = PubSub.subscribe_instance_messages(instance.id)
+      resource_key = "ollama:tool-loop-error-model"
+      assert :ok = PubSub.subscribe_instance(instance.id)
+      assert :ok = PubSub.subscribe_instance_messages(instance.id)
 
-    {:ok, pid} =
-      Executor.start_link(
-        instance: instance,
-        config_snapshot: %{
-          model: "tool-loop-error-model",
-          observer_pid: self(),
-          models_config: %{
-            profiles: %{default: %{provider: "ollama", model: "tool-loop-error-model"}}
-          }
-        },
-        context_mod: LemmingInstances,
-        model_mod: ToolLoopErrorModelRuntime,
-        tools_context_mod: LemmingTools,
-        tool_runtime_mod: ErrorToolRuntime,
-        pool_mod: ResourcePool,
-        pubsub_mod: Phoenix.PubSub,
-        dets_mod: nil,
-        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
-        name: nil
-      )
+      {:ok, pid} =
+        Executor.start_link(
+          instance: instance,
+          config_snapshot: %{
+            model: "tool-loop-error-model",
+            observer_pid: self(),
+            models_config: %{
+              profiles: %{default: %{provider: "ollama", model: "tool-loop-error-model"}}
+            }
+          },
+          context_mod: LemmingInstances,
+          model_mod: ToolLoopErrorModelRuntime,
+          tools_context_mod: LemmingTools,
+          tool_runtime_mod: ErrorToolRuntime,
+          pool_mod: ResourcePool,
+          pubsub_mod: Phoenix.PubSub,
+          dets_mod: nil,
+          ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+          name: nil
+        )
 
-    {:ok, _pool_pid} =
-      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+      {:ok, _pool_pid} =
+        start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
 
-    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
-    assert :ok = Executor.enqueue_work(pid, "Use a failing tool then reply")
-    assert_receive {:status_changed, %{status: "queued"}}
+      assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+      assert :ok = Executor.enqueue_work(pid, "Use a failing tool then reply")
+      assert_receive {:status_changed, %{status: "queued"}}
 
-    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+      send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
 
-    assert_receive {:status_changed, %{status: "processing"}}
-    assert_receive {:tool_execution_upserted, %{status: "running"}}
-    assert_receive {:tool_execution_upserted, %{status: "error"}}
+      assert_receive {:status_changed, %{status: "processing"}}
+      assert_receive {:tool_execution_upserted, %{status: "running"}}
+      assert_receive {:tool_execution_upserted, %{status: "error"}}
 
-    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :started],
-                    %{count: 1}, _started_metadata}
+      assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :started],
+                      %{count: 1}, _started_metadata}
 
-    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :failed],
-                    %{count: 1, duration_ms: duration_ms}, failed_metadata}
+      assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :failed],
+                      %{count: 1, duration_ms: duration_ms}, failed_metadata}
 
-    assert duration_ms >= 0
-    assert failed_metadata.instance_id == instance.id
-    assert failed_metadata.tool_name == "web.fetch"
-    assert failed_metadata.tool_status == "error"
-    assert failed_metadata.reason == "tool.web.request_failed"
+      assert duration_ms >= 0
+      assert failed_metadata.instance_id == instance.id
+      assert failed_metadata.tool_name == "web.fetch"
+      assert failed_metadata.tool_status == "error"
+      assert failed_metadata.reason == "tool.web.request_failed"
 
-    assert_receive {:status_changed, %{status: "idle"}}
+      assert_receive {:status_changed, %{status: "idle"}}
 
-    messages = LemmingInstances.list_messages(instance)
+      messages = LemmingInstances.list_messages(instance)
 
-    assert Enum.any?(
-             messages,
-             &(&1.role == "assistant" and &1.content == "final response after tool error")
-           )
+      assert Enum.any?(
+               messages,
+               &(&1.role == "assistant" and &1.content == "final response after tool error")
+             )
 
-    executions =
-      LemmingTools.list_tool_executions(%World{id: instance.world_id}, instance)
-      |> Enum.filter(&(&1.tool_name == "web.fetch"))
+      executions =
+        LemmingTools.list_tool_executions(%World{id: instance.world_id}, instance)
+        |> Enum.filter(&(&1.tool_name == "web.fetch"))
 
-    assert [%{status: "error", error: %{"code" => "tool.web.request_failed"}}] = executions
+      assert [%{status: "error", error: %{"code" => "tool.web.request_failed"}}] = executions
 
-    assert Enum.any?(
-             ActivityLog.recent_events(),
-             &(&1.agent == "tool_execution" and &1.action == "Tool failed" and
-                 &1.metadata[:reason] == "tool.web.request_failed")
-           )
+      assert Enum.any?(
+               ActivityLog.recent_events(),
+               &(&1.agent == "tool_execution" and &1.action == "Tool failed" and
+                   &1.metadata[:reason] == "tool.web.request_failed")
+             )
 
-    detach(started_ref)
-    detach(failed_ref)
-    GenServer.stop(pid)
+      detach(started_ref)
+      detach(failed_ref)
+      GenServer.stop(pid)
+    end)
   end
 
   defp ensure_registry!(name) do
