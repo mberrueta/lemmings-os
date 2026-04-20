@@ -92,22 +92,33 @@ defmodule LemmingsOs.LemmingToolsTest do
       assert {:ok, updated_execution} =
                LemmingTools.update_tool_execution(world, instance, tool_execution, %{
                  status: "ok",
-                 summary: "Wrote file /workspace/report.md",
+                 summary: "Wrote file report.md",
                  preview: "done",
-                 result: %{"path" => "/workspace/report.md", "bytes" => 4},
+                 result: %{
+                   "path" => "report.md",
+                   "root_path" => "/workspace",
+                   "workspace_path" => "/workspace/report.md",
+                   "bytes" => 4
+                 },
                  completed_at: completed_at,
                  duration_ms: 19
                })
 
       assert updated_execution.status == "ok"
       assert updated_execution.duration_ms == 19
-      assert updated_execution.result == %{"path" => "/workspace/report.md", "bytes" => 4}
+
+      assert updated_execution.result == %{
+               "path" => "report.md",
+               "root_path" => "/workspace",
+               "workspace_path" => "/workspace/report.md",
+               "bytes" => 4
+             }
 
       assert {:ok, fetched_execution} =
                LemmingTools.get_tool_execution(world, instance, tool_execution.id)
 
       assert fetched_execution.status == "ok"
-      assert fetched_execution.summary == "Wrote file /workspace/report.md"
+      assert fetched_execution.summary == "Wrote file report.md"
       assert fetched_execution.completed_at == completed_at
     end
 

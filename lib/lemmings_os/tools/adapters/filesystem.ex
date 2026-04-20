@@ -33,15 +33,23 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
           {:ok, success_result()} | {:error, error_result()}
   def read_text_file(%LemmingInstance{} = instance, args) when is_map(args) do
     with {:ok, relative_path} <- validate_read_args(args),
-         {:ok, %{absolute_path: absolute_path, workspace_path: workspace_path}} <-
+         {:ok,
+          %{
+            absolute_path: absolute_path,
+            relative_path: normalized_relative_path,
+            root_path: root_path,
+            workspace_path: workspace_path
+          }} <-
            resolve_workspace_path(instance, relative_path),
          {:ok, content} <- read_utf8_file(absolute_path) do
       {:ok,
        %{
-         summary: "Read file #{workspace_path}",
+         summary: "Read file #{normalized_relative_path}",
          preview: String.slice(content, 0, 280),
          result: %{
-           path: workspace_path,
+           path: normalized_relative_path,
+           root_path: root_path,
+           workspace_path: workspace_path,
            content: content,
            bytes: byte_size(content)
          }
@@ -61,23 +69,32 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
       iex> LemmingsOs.Tools.Adapters.Filesystem.write_text_file(instance, %{"path" => "notes.txt", "content" => "hello"})
       {:ok,
       %{result: %{bytes: 5,
-  path: "/workspace/department-1/lemming-1/notes.txt"},
-  summary: "Wrote file /workspace/department-1/lemming-1/notes.txt", preview: "hello"}}
+  path: "notes.txt", root_path: "/workspace/department-1/lemming-1",
+  workspace_path: "/workspace/department-1/lemming-1/notes.txt"},
+  summary: "Wrote file notes.txt", preview: "hello"}}
   """
   @spec write_text_file(LemmingInstance.t(), map()) ::
           {:ok, success_result()} | {:error, error_result()}
   def write_text_file(%LemmingInstance{} = instance, args) when is_map(args) do
     with {:ok, {relative_path, content}} <- validate_write_args(args),
-         {:ok, %{absolute_path: absolute_path, workspace_path: workspace_path}} <-
+         {:ok,
+          %{
+            absolute_path: absolute_path,
+            relative_path: normalized_relative_path,
+            root_path: root_path,
+            workspace_path: workspace_path
+          }} <-
            resolve_workspace_path(instance, relative_path),
          :ok <- ensure_parent_directory(absolute_path),
          :ok <- write_utf8_file(absolute_path, content) do
       {:ok,
        %{
-         summary: "Wrote file #{workspace_path}",
+         summary: "Wrote file #{normalized_relative_path}",
          preview: String.slice(content, 0, 280),
          result: %{
-           path: workspace_path,
+           path: normalized_relative_path,
+           root_path: root_path,
+           workspace_path: workspace_path,
            bytes: byte_size(content)
          }
        }}
@@ -124,15 +141,17 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
       absolute_path = Path.expand(relative_path, work_area_root)
 
       if path_within_root?(absolute_path, work_area_root) do
-        workspace_path =
-          Path.join([
-            "/workspace",
-            department_id,
-            lemming_id,
-            Path.relative_to(absolute_path, work_area_root)
-          ])
+        root_path = Path.join(["/workspace", department_id, lemming_id])
+        normalized_relative_path = Path.relative_to(absolute_path, work_area_root)
+        workspace_path = Path.join([root_path, normalized_relative_path])
 
-        {:ok, %{absolute_path: absolute_path, workspace_path: workspace_path}}
+        {:ok,
+         %{
+           absolute_path: absolute_path,
+           relative_path: normalized_relative_path,
+           root_path: root_path,
+           workspace_path: workspace_path
+         }}
       else
         {:error,
          %{

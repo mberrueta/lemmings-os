@@ -48,9 +48,13 @@ defmodule LemmingsOs.Tools.Adapters.FilesystemTest do
                "content" => "hello filesystem"
              })
 
-    assert result.summary =~ "Wrote file"
+    assert result.summary == "Wrote file reports/out.txt"
+    assert result.result.path == "reports/out.txt"
 
-    assert result.result.path =~
+    assert result.result.root_path ==
+             "/workspace/#{instance.department_id}/#{instance.lemming_id}"
+
+    assert result.result.workspace_path ==
              "/workspace/#{instance.department_id}/#{instance.lemming_id}/reports/out.txt"
 
     assert result.result.bytes == byte_size("hello filesystem")
@@ -62,7 +66,15 @@ defmodule LemmingsOs.Tools.Adapters.FilesystemTest do
              Filesystem.write_text_file(instance, %{"path" => "notes.txt", "content" => "hello"})
 
     assert {:ok, result} = Filesystem.read_text_file(instance, %{"path" => "notes.txt"})
-    assert result.summary =~ "Read file"
+    assert result.summary == "Read file notes.txt"
+    assert result.result.path == "notes.txt"
+
+    assert result.result.root_path ==
+             "/workspace/#{instance.department_id}/#{instance.lemming_id}"
+
+    assert result.result.workspace_path ==
+             "/workspace/#{instance.department_id}/#{instance.lemming_id}/notes.txt"
+
     assert result.result.content == "hello"
     assert result.result.bytes == 5
     assert result.preview == "hello"

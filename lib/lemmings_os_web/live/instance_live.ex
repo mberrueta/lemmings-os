@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.PubSub
+  alias LemmingsOs.LemmingTools
   alias LemmingsOs.Helpers
   alias LemmingsOs.Runtime
   alias LemmingsOs.Worlds
@@ -78,6 +79,13 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   def handle_info(
         {:message_appended, %{instance_id: instance_id}},
+        %{assigns: %{instance: %{id: instance_id}}} = socket
+      ) do
+    {:noreply, load_instance(socket, instance_id, %{"world" => current_world_id(socket)})}
+  end
+
+  def handle_info(
+        {:tool_execution_upserted, %{instance_id: instance_id}},
         %{assigns: %{instance: %{id: instance_id}}} = socket
       ) do
     {:noreply, load_instance(socket, instance_id, %{"world" => current_world_id(socket)})}
@@ -187,6 +195,7 @@ defmodule LemmingsOsWeb.InstanceLive do
         case LemmingInstances.get_instance(id, world: world, preload: [:lemming]) do
           {:ok, instance} ->
             messages = LemmingInstances.list_messages(instance)
+            tool_executions = LemmingTools.list_tool_executions(world, instance)
             runtime_state = runtime_state(instance)
             status_now = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -205,7 +214,7 @@ defmodule LemmingsOsWeb.InstanceLive do
               instance_not_found?: false,
               status_tick_ref: nil
             )
-            |> stream(:messages, transcript_entries(messages), reset: true)
+            |> stream(:messages, transcript_entries(messages, tool_executions), reset: true)
             |> schedule_status_tick()
             |> put_shell_breadcrumb(build_shell_breadcrumb(instance))
 
@@ -268,6 +277,18 @@ defmodule LemmingsOsWeb.InstanceLive do
     do: ~p"/lemmings/#{lemming_id}"
 
   defp parent_lemming_path(_instance), do: ~p"/lemmings"
+
+  defp instance_raw_path(%{id: id}, %{id: world_id})
+       when is_binary(id) and is_binary(world_id) do
+    ~p"/lemmings/instances/#{id}/raw?#{%{world: world_id}}"
+  end
+
+  defp instance_raw_path(%{id: id, world_id: world_id}, _world)
+       when is_binary(id) and is_binary(world_id) do
+    ~p"/lemmings/instances/#{id}/raw?#{%{world: world_id}}"
+  end
+
+  defp instance_raw_path(_instance, _world), do: nil
 
   defp parent_lemming_name(%{lemming: %{name: name}}) when is_binary(name) and name != "",
     do: name
@@ -596,26 +617,13 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp follow_up_helper_copy(status), do: follow_up_status_copy(status)
 
-  defp transcript_entries(messages) when is_list(messages) do
+  defp transcript_entries(messages, tool_executions)
+       when is_list(messages) and is_list(tool_executions) do
     messages
-    |> Enum.reduce({[], nil}, fn message, {entries, previous_date} ->
-      current_date = message_date(message)
-
-      entries =
-        case current_date do
-          %Date{} = date when date != previous_date ->
-            separator = %{id: "day-#{Date.to_iso8601(date)}", type: :day_divider, date: date}
-
-            entries ++
-              [separator, %{id: "message-#{message.id}", type: :message, message: message}]
-
-          _ ->
-            entries ++ [%{id: "message-#{message.id}", type: :message, message: message}]
-        end
-
-      {entries, current_date || previous_date}
-    end)
-    |> elem(0)
+    |> transcript_message_entries()
+    |> Kernel.++(transcript_tool_execution_entries(tool_executions))
+    |> Enum.sort_by(&transcript_sort_key/1)
+    |> inject_transcript_day_dividers()
   end
 
   defp transcript_total_tokens(messages) when is_list(messages) do
@@ -651,6 +659,75 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp message_date(%{inserted_at: %DateTime{} = inserted_at}), do: DateTime.to_date(inserted_at)
   defp message_date(_message), do: nil
+
+  defp tool_execution_date(%{inserted_at: %DateTime{} = inserted_at}),
+    do: DateTime.to_date(inserted_at)
+
+  defp tool_execution_date(_tool_execution), do: nil
+
+  defp transcript_message_entries(messages) do
+    Enum.map(messages, fn message ->
+      %{
+        id: "message-#{message.id}",
+        type: :message,
+        inserted_at: Map.get(message, :inserted_at),
+        message: message
+      }
+    end)
+  end
+
+  defp transcript_tool_execution_entries(tool_executions) do
+    Enum.map(tool_executions, fn tool_execution ->
+      %{
+        id: "tool-execution-#{tool_execution.id}",
+        type: :tool_execution,
+        inserted_at: Map.get(tool_execution, :inserted_at),
+        tool_execution: tool_execution
+      }
+    end)
+  end
+
+  defp transcript_sort_key(%{type: type, inserted_at: inserted_at, id: id}) do
+    {transcript_timestamp_sort_value(inserted_at), transcript_type_rank(type), id}
+  end
+
+  defp transcript_timestamp_sort_value(%DateTime{} = inserted_at),
+    do: DateTime.to_unix(inserted_at, :microsecond)
+
+  defp transcript_timestamp_sort_value(_inserted_at), do: 0
+
+  defp transcript_type_rank(:day_divider), do: 0
+  defp transcript_type_rank(:message), do: 1
+  defp transcript_type_rank(:tool_execution), do: 2
+  defp transcript_type_rank(_type), do: 3
+
+  defp inject_transcript_day_dividers(entries) do
+    entries
+    |> Enum.reduce({[], nil}, fn entry, {acc, previous_date} ->
+      current_date = transcript_entry_date(entry)
+
+      next_entries =
+        case current_date do
+          %Date{} = date when date != previous_date ->
+            separator = %{id: "day-#{Date.to_iso8601(date)}", type: :day_divider, date: date}
+            acc ++ [separator, entry]
+
+          _date ->
+            acc ++ [entry]
+        end
+
+      {next_entries, current_date || previous_date}
+    end)
+    |> elem(0)
+  end
+
+  defp transcript_entry_date(%{type: :message, message: message}), do: message_date(message)
+
+  defp transcript_entry_date(%{type: :tool_execution, tool_execution: tool_execution}),
+    do: tool_execution_date(tool_execution)
+
+  defp transcript_entry_date(%{date: %Date{} = date}), do: date
+  defp transcript_entry_date(_entry), do: nil
 
   defp transcript_day_label(%Date{} = date) do
     Calendar.strftime(date, "%A · %b %-d")

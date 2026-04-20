@@ -183,6 +183,35 @@ The GenServer is responsible for:
 
 The GenServer is **not** the source of truth for all execution data.
 
+### 5.2.1 Simplified Phase 1 execution flow
+
+```mermaid
+flowchart LR
+    User[User request] --> Runtime[LemmingInstances / Runtime boundary]
+    Runtime --> Executor[Per-instance Executor]
+    Executor --> ModelRuntime[ModelRuntime]
+    ModelRuntime --> Provider[LLM provider]
+    Provider --> Executor
+    Executor -->|tool_call| ToolRuntime[Tool Runtime]
+    ToolRuntime --> Executor
+    Executor --> Transcript[(Transcript messages)]
+    Executor --> ToolRows[(Tool execution rows)]
+    Executor -. live only .-> Trace[Executor interaction trace]
+```
+
+Phase 1 should be read as this loop:
+
+1. a user request is persisted and assigned to a `LemmingInstance`
+2. the per-instance `Executor` builds the provider request from:
+   - the frozen config snapshot
+   - the current context history
+   - the current work item
+3. `ModelRuntime` performs the provider call and returns a structured `reply` or `tool_call`
+4. when a `tool_call` is returned, the `Executor` invokes `Tool Runtime`, records a durable tool-execution row, appends the normalized tool result back into context, and loops to the model again
+5. when a final `reply` is returned, the `Executor` persists the assistant transcript message and advances lifecycle state
+
+This loop makes the `Executor` the orchestration owner for one runtime session, while keeping model execution and tool execution behind dedicated boundaries.
+
 ## 5.3 State model
 
 Each Lemming instance behaves as an explicit stateful execution with states such as:
@@ -247,6 +276,18 @@ The GenServer should keep only lightweight runtime coordination state, such as:
 - references to config snapshot, context snapshot, and usage/accounting records
 
 Large or durable concerns must remain outside the process.
+
+The Phase 1 runtime keeps one additional explicitly ephemeral structure in process memory:
+
+- a bounded interaction trace for the live LLM/tool loop used by operator debug surfaces
+
+This trace is:
+
+- owned by the `Executor`
+- live-only and non-authoritative
+- safe to lose on process termination
+- not part of the durable transcript model
+- not a replacement for persisted tool execution rows or transcript messages
 
 ## 5.5 Persisted execution state
 

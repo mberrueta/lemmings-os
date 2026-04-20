@@ -67,6 +67,8 @@ defmodule LemmingsOs.ModelRuntimeTest do
 
   test "S01: run/3 assembles the prompt and validates the reply" do
     config_snapshot = %{
+      name: "Budget Brief",
+      description: "Creates budget artifacts for operators.",
       instructions: "Be concise.",
       provider_module: FakeProvider,
       model: "test-model"
@@ -87,8 +89,43 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert response.total_tokens == 3
     assert response.usage == %{prompt_eval_count: 1, eval_count: 2}
     assert %{role: "system", content: system_prompt} = Enum.at(response.raw.messages, 0)
-    assert String.contains?(system_prompt, "Be concise.")
+    assert String.contains?(system_prompt, "Platform Runtime Context:")
+    assert String.contains?(system_prompt, "Configured Lemming Identity:")
+    assert String.contains?(system_prompt, "Name: Budget Brief")
+    assert String.contains?(system_prompt, "Description: Creates budget artifacts for operators.")
+    assert String.contains?(system_prompt, "Instructions:\nBe concise.")
     assert String.contains?(system_prompt, "{\"action\":\"reply\"")
+    assert String.contains?(system_prompt, "fs.write_text_file")
+    assert String.contains?(system_prompt, "Loop State Semantics:")
+    assert String.contains?(system_prompt, "Assistant requested tool <tool_name> with arguments:")
+
+    assert String.contains?(
+             system_prompt,
+             "Tool result for <tool_name>: status=<status> payload=<json>"
+           )
+
+    assert String.contains?(system_prompt, "Immediate Response Instruction:")
+
+    assert String.contains?(
+             system_prompt,
+             "Return exactly one JSON object matching the output contract below."
+           )
+
+    assert String.contains?(system_prompt, "IMPORTANT: RESPOND WITH JSON ONLY.")
+
+    assert String.contains?(
+             system_prompt,
+             "Decide what to do next by returning exactly one of these two JSON shapes:"
+           )
+
+    assert String.contains?(system_prompt, "Option A: final reply to the user.")
+    assert String.contains?(system_prompt, "Option B: one tool call for the runtime to execute.")
+
+    assert String.contains?(
+             system_prompt,
+             "For file creation or file updates, use fs.write_text_file."
+           )
+
     assert %{role: "user", content: "Hello"} = List.last(response.raw.messages)
     assert_receive {:provider_request, %{format: "json", model: "test-model"}}
   end
@@ -99,7 +136,15 @@ defmodule LemmingsOs.ModelRuntimeTest do
       model: "test-model"
     }
 
-    assert {:error, :invalid_structured_output} =
+    assert {:error,
+            {:invalid_structured_output,
+             %{
+               provider: "fake",
+               model: "test-model",
+               content: "not-json",
+               raw: %{messages: _, format: "json", model: "test-model"},
+               reason: _
+             }}} =
              ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
   end
 
@@ -123,7 +168,14 @@ defmodule LemmingsOs.ModelRuntimeTest do
       model: "test-model"
     }
 
-    assert {:error, :unknown_action} = ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+    assert {:error,
+            {:unknown_action,
+             %{
+               provider: "fake",
+               model: "test-model",
+               content: ~s({"action":"unknown"}),
+               raw: %{messages: _, format: "json", model: "test-model"}
+             }}} = ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
   end
 
   test "S04: exposes the structured output contract and runtime rules" do
@@ -173,5 +225,84 @@ defmodule LemmingsOs.ModelRuntimeTest do
              ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
 
     assert_receive {:provider_request, %{format: "json", model: "alpha-model"}}
+  end
+
+  test "S08: debug_request/3 exposes the assembled provider payload" do
+    config_snapshot = %{
+      name: "Writer",
+      description: "Writes files on request.",
+      instructions: "Be concise.",
+      provider_module: FakeProvider,
+      model: "test-model",
+      tools_config: %{
+        allowed_tools: ["fs.write_text_file", "web.fetch"],
+        denied_tools: ["fs.read_text_file"]
+      }
+    }
+
+    history = [%{role: "user", content: "Create the file"}]
+    current_request = %{content: "Write notes/output.md"}
+
+    assert {:ok,
+            %{
+              provider: "Elixir.LemmingsOs.ModelRuntimeTest.FakeProvider",
+              model: "test-model",
+              request: request
+            }} =
+             ModelRuntime.debug_request(config_snapshot, history, current_request)
+
+    assert request.format == "json"
+    assert %{role: "system", content: system_prompt} = Enum.at(request.messages, 0)
+
+    assert String.contains?(
+             system_prompt,
+             "Available Tools:\n- fs.write_text_file: Write UTF-8 text files inside the instance work area.\n- web.fetch: Fetch HTTP(S) content from a single URL."
+           )
+
+    assert List.last(request.messages) == %{role: "user", content: "Write notes/output.md"}
+  end
+
+  test "S09: debug_request/3 keeps one user message when current request already exists in history" do
+    config_snapshot = %{
+      name: "Budget Brief",
+      instructions: "Write useful budget examples.",
+      provider_module: FakeProvider,
+      model: "test-model"
+    }
+
+    history = [
+      %{role: "user", content: "Create sample.md", request_id: "req-1"},
+      %{
+        role: "assistant",
+        content:
+          "Assistant requested tool fs.write_text_file with arguments: {\"path\":\"sample.md\"}"
+      },
+      %{
+        role: "assistant",
+        content:
+          "As response to your previous tool request, the runtime executed fs.write_text_file. Tool result for fs.write_text_file: status=ok payload={\"summary\":\"Wrote file sample.md\",\"path\":\"sample.md\",\"preview\":\"sample preview\"}. Decide what to do next."
+      }
+    ]
+
+    current_request = %{content: "Create sample.md", request_id: "req-1"}
+
+    assert {:ok, %{request: request}} =
+             ModelRuntime.debug_request(config_snapshot, history, current_request)
+
+    user_messages = Enum.filter(request.messages, &(&1.role == "user"))
+
+    assert [%{role: "user", content: "Create sample.md"}] = user_messages
+
+    assert Enum.any?(
+             request.messages,
+             &(&1.role == "assistant" and
+                 String.contains?(&1.content, "Assistant requested tool fs.write_text_file"))
+           )
+
+    assert Enum.any?(
+             request.messages,
+             &(&1.role == "assistant" and
+                 String.contains?(&1.content, "As response to your previous tool request"))
+           )
   end
 end

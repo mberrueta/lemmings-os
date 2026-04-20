@@ -225,8 +225,11 @@ defmodule LemmingsOs.LemmingInstancesTest do
              retry_count: 1,
              max_retries: 3,
              queue_depth: 1,
+             tool_iteration_count: 0,
              current_item: %{id: "msg-current", content: "Investigate the outage"},
+             context_messages: [],
              last_error: "provider timeout",
+             internal_error_details: nil,
              status: "retrying",
              started_at: started_at,
              last_activity_at: last_activity_at

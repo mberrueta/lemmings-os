@@ -3,6 +3,8 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   import ExUnit.CaptureLog
   require Logger
 
+  @moduletag capture_log: true
+
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.DetsStore
   alias LemmingsOs.LemmingInstances.Executor
@@ -54,6 +56,19 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
   end
 
+  defmodule InvalidStructuredOutputModelRuntime do
+    def run(_config_snapshot, _context_messages, _current_item) do
+      {:error,
+       {:invalid_structured_output,
+        %{
+          provider: "fake",
+          model: "broken-model",
+          content: "not-json",
+          raw: %{content: "not-json", provider: "fake", model: "broken-model"}
+        }}}
+    end
+  end
+
   defmodule ToolLoopModelRuntime do
     def run(config_snapshot, context_messages, current_item) do
       observer_pid = Map.get(config_snapshot, :observer_pid)
@@ -62,7 +77,10 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
         send(observer_pid, {:tool_loop_model_run, context_messages, current_item})
       end
 
-      if Enum.any?(context_messages, &String.contains?(&1.content, "Tool web.fetch status=ok")) do
+      if Enum.any?(
+           context_messages,
+           &String.contains?(&1.content, "As response to your previous tool request")
+         ) do
         {:ok,
          Response.new(
            action: :reply,
@@ -79,6 +97,143 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
            tool_args: %{"url" => "https://example.com"},
            provider: "fake",
            model: "tool-loop-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule FinalizationAwareModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:finalization_model_run, context_messages, current_item})
+      end
+
+      if String.contains?(current_item.content, "Finalization Phase:") do
+        {:ok,
+         Response.new(
+           action: :reply,
+           reply: "Created sample.md with mock budget data for your boss.",
+           provider: "fake",
+           model: "finalization-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      else
+        {:ok,
+         Response.new(
+           action: :tool_call,
+           tool_name: "fs.write_text_file",
+           tool_args: %{"path" => "sample.md", "content" => "# Sample budget"},
+           provider: "fake",
+           model: "finalization-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule RepairOnceModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:repair_model_run, context_messages, current_item})
+      end
+
+      cond do
+        String.contains?(current_item.content, "Repair Notice:") ->
+          {:ok,
+           Response.new(
+             action: :reply,
+             reply: "Created sample.md successfully. It now contains mock budget data.",
+             provider: "fake",
+             model: "repair-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
+
+        String.contains?(current_item.content, "Finalization Phase:") ->
+          {:error,
+           {:invalid_structured_output,
+            %{
+              provider: "fake",
+              model: "repair-model",
+              content: "",
+              raw: %{content: "", provider: "fake", model: "repair-model"}
+            }}}
+
+        true ->
+          {:ok,
+           Response.new(
+             action: :tool_call,
+             tool_name: "fs.write_text_file",
+             tool_args: %{"path" => "sample.md", "content" => "# Sample budget"},
+             provider: "fake",
+             model: "repair-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
+      end
+    end
+  end
+
+  defmodule RepairFailsModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:repair_fails_model_run, context_messages, current_item})
+      end
+
+      if String.contains?(current_item.content, "Finalization Phase:") do
+        {:error,
+         {:invalid_structured_output,
+          %{
+            provider: "fake",
+            model: "repair-fails-model",
+            content: "",
+            raw: %{content: "", provider: "fake", model: "repair-fails-model"}
+          }}}
+      else
+        {:ok,
+         Response.new(
+           action: :tool_call,
+           tool_name: "fs.write_text_file",
+           tool_args: %{"path" => "sample.md", "content" => "# Sample budget"},
+           provider: "fake",
+           model: "repair-fails-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule MoreWorkFinalizationModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:more_work_model_run, context_messages, current_item})
+      end
+
+      if String.contains?(current_item.content, "Finalization Phase:") do
+        {:ok,
+         Response.new(
+           action: :reply,
+           reply:
+             "sample.md is ready. The next step is to review the figures and adjust them to your real budget before presenting.",
+           provider: "fake",
+           model: "more-work-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      else
+        {:ok,
+         Response.new(
+           action: :tool_call,
+           tool_name: "fs.write_text_file",
+           tool_args: %{"path" => "sample.md", "content" => "# Sample budget"},
+           provider: "fake",
+           model: "more-work-model",
            raw: %{current_item: current_item, context_messages: context_messages}
          )}
       end
@@ -159,6 +314,25 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
          summary: "Fetched https://example.com",
          preview: "example preview",
          result: %{url: "https://example.com", status: 200, body: "example body"}
+       }}
+    end
+
+    def execute(_world, _instance, "fs.write_text_file", %{
+          "path" => "sample.md",
+          "content" => content
+        }) do
+      {:ok,
+       %{
+         tool_name: "fs.write_text_file",
+         args: %{"path" => "sample.md", "content" => content},
+         summary: "Wrote file sample.md",
+         preview: String.slice(content, 0, 80),
+         result: %{
+           path: "sample.md",
+           workspace_path: "/workspace/test/sample.md",
+           root_path: "/workspace/test",
+           bytes: byte_size(content)
+         }
        }}
     end
   end
@@ -939,6 +1113,36 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     assert_receive {:status_changed, %{status: "idle"}}
 
+    assert_receive {:tool_loop_model_run, first_context_messages,
+                    %{content: "Use a tool then reply"}}
+
+    assert_receive {:tool_loop_model_run, second_context_messages, second_current_item}
+
+    assert String.contains?(second_current_item.content, "Finalization Phase:")
+    assert String.contains?(second_current_item.content, "Original user goal:")
+    assert String.contains?(second_current_item.content, "Use a tool then reply")
+    assert String.contains?(second_current_item.content, "Return action=reply")
+
+    assert Enum.count(
+             first_context_messages,
+             &(&1.role == "user" and &1.content == "Use a tool then reply")
+           ) == 1
+
+    assert Enum.count(
+             second_context_messages,
+             &(&1.role == "user" and &1.content == "Use a tool then reply")
+           ) == 1
+
+    assert Enum.any?(
+             second_context_messages,
+             &String.contains?(&1.content, "Assistant requested tool web.fetch with arguments:")
+           )
+
+    assert Enum.any?(
+             second_context_messages,
+             &String.contains?(&1.content, "As response to your previous tool request")
+           )
+
     messages = LemmingInstances.list_messages(instance)
 
     assert Enum.any?(
@@ -952,6 +1156,27 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     assert [%{status: "ok", summary: "Fetched https://example.com", result: result}] = executions
     assert result["status"] == 200
+
+    model_steps = Executor.snapshot(pid).model_steps
+
+    assert [
+             %{
+               step_index: 1,
+               status: "ok",
+               parsed_output: %{"action" => "tool_call", "tool_name" => "web.fetch"},
+               tool_execution_id: tool_execution_id
+             },
+             %{
+               step_index: 2,
+               status: "ok",
+               parsed_output: %{
+                 "action" => "reply",
+                 "reply" => "final response with tool context"
+               }
+             }
+           ] = model_steps
+
+    assert is_binary(tool_execution_id)
 
     assert Enum.any?(
              ActivityLog.recent_events(),
@@ -967,6 +1192,137 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     detach(started_ref)
     detach(completed_ref)
+    GenServer.stop(pid)
+  end
+
+  test "S08b: tool success enters finalization phase and returns normal final response", %{
+    instance: instance
+  } do
+    resource_key = "ollama:finalization-model"
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{observer_pid: self(), model: "finalization-model"},
+        context_mod: LemmingInstances,
+        model_mod: FinalizationAwareModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Create sample.md for my boss")
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_status(pid, "idle")
+
+    assert_receive {:finalization_model_run, _first_context_messages,
+                    %{content: "Create sample.md for my boss"}}
+
+    assert_receive {:finalization_model_run, _second_context_messages, finalization_item}
+    assert String.contains?(finalization_item.content, "Finalization Phase:")
+    assert String.contains?(finalization_item.content, "Artifacts created:")
+    assert String.contains?(finalization_item.content, "- sample.md")
+
+    assert Enum.any?(
+             LemmingInstances.list_messages(instance),
+             &(&1.role == "assistant" and
+                 &1.content == "Created sample.md with mock budget data for your boss.")
+           )
+
+    GenServer.stop(pid)
+  end
+
+  test "S08c: tool success empty final response triggers one repair retry", %{instance: instance} do
+    resource_key = "ollama:repair-model"
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{observer_pid: self(), model: "repair-model"},
+        context_mod: LemmingInstances,
+        model_mod: RepairOnceModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Create sample.md for my boss")
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_status(pid, "idle")
+
+    assert_receive {:repair_model_run, _context_messages,
+                    %{content: "Create sample.md for my boss"}}
+
+    assert_receive {:repair_model_run, _context_messages, finalization_item}
+    assert String.contains?(finalization_item.content, "Finalization Phase:")
+    refute String.contains?(finalization_item.content, "Repair Notice:")
+
+    assert_receive {:repair_model_run, _context_messages, repaired_item}
+    assert String.contains?(repaired_item.content, "Repair Notice:")
+
+    assert Enum.any?(
+             LemmingInstances.list_messages(instance),
+             &(&1.role == "assistant" and
+                 &1.content == "Created sample.md successfully. It now contains mock budget data.")
+           )
+
+    model_steps = Executor.snapshot(pid).model_steps
+    assert length(model_steps) == 3
+    assert Enum.at(model_steps, 1).status == "error"
+    assert Enum.at(model_steps, 2).status == "ok"
+
+    GenServer.stop(pid)
+  end
+
+  test "S08d: final response can communicate next step after tool success", %{instance: instance} do
+    resource_key = "ollama:more-work-model"
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{observer_pid: self(), model: "more-work-model"},
+        context_mod: LemmingInstances,
+        model_mod: MoreWorkFinalizationModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Create sample.md for my boss")
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_status(pid, "idle")
+
+    assert Enum.any?(
+             LemmingInstances.list_messages(instance),
+             &(&1.role == "assistant" and
+                 String.contains?(&1.content, "The next step is to review the figures"))
+           )
+
     GenServer.stop(pid)
   end
 
@@ -1050,6 +1406,103 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
       detach(failed_ref)
       GenServer.stop(pid)
     end)
+  end
+
+  test "S10: invalid structured output keeps raw provider content in model steps", %{
+    instance: instance
+  } do
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{observer_pid: self(), model: "broken-model"},
+        context_mod: LemmingInstances,
+        model_mod: InvalidStructuredOutputModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil
+      )
+
+    assert :ok = Executor.enqueue_work(pid, "Break structured output")
+    Executor.admit(pid)
+    assert eventually_status(pid, "failed")
+
+    assert %{
+             status: "failed",
+             last_error: "Model returned invalid structured output."
+           } = Executor.snapshot(pid)
+
+    assert [
+             %{
+               step_index: 1,
+               status: "error",
+               response_payload: %{"content" => "not-json"},
+               error: %{"kind" => "invalid_structured_output", "content" => "not-json"}
+             },
+             %{
+               step_index: 2,
+               status: "error",
+               response_payload: %{"content" => "not-json"},
+               error: %{"kind" => "invalid_structured_output", "content" => "not-json"}
+             },
+             %{
+               step_index: 3,
+               status: "error",
+               response_payload: %{"content" => "not-json"},
+               error: %{"kind" => "invalid_structured_output", "content" => "not-json"}
+             }
+           ] = Executor.snapshot(pid).model_steps
+
+    GenServer.stop(pid)
+  end
+
+  test "S10b: finalization repair runs only once and does not loop forever", %{instance: instance} do
+    resource_key = "ollama:repair-fails-model"
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{observer_pid: self(), model: "repair-fails-model"},
+        context_mod: LemmingInstances,
+        model_mod: RepairFailsModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Create sample.md for my boss")
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_status(pid, "failed")
+
+    assert_receive {:repair_fails_model_run, _context_messages,
+                    %{content: "Create sample.md for my boss"}}
+
+    assert_receive {:repair_fails_model_run, _context_messages, finalization_item}
+    assert String.contains?(finalization_item.content, "Finalization Phase:")
+    refute String.contains?(finalization_item.content, "Repair Notice:")
+
+    assert_receive {:repair_fails_model_run, _context_messages, repaired_item}
+    assert String.contains?(repaired_item.content, "Repair Notice:")
+
+    refute_receive {:repair_fails_model_run, _context_messages, _current_item}, 100
+
+    model_steps = Executor.snapshot(pid).model_steps
+    assert length(model_steps) == 3
+    assert Enum.at(model_steps, 0).status == "ok"
+    assert Enum.at(model_steps, 1).status == "error"
+    assert Enum.at(model_steps, 2).status == "error"
+
+    GenServer.stop(pid)
   end
 
   test "S10: tool_call success emits structured started/completed lifecycle logs", %{
@@ -1268,6 +1721,21 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
   defp wait_for_pool_status(resource_key, expected_status, 0) do
     assert ResourcePool.status(resource_key) == expected_status
+  end
+
+  defp eventually_status(pid, expected_status, attempts \\ 20)
+
+  defp eventually_status(pid, expected_status, attempts) when attempts > 0 do
+    if Executor.status(pid).status == expected_status do
+      true
+    else
+      Process.sleep(10)
+      eventually_status(pid, expected_status, attempts - 1)
+    end
+  end
+
+  defp eventually_status(pid, expected_status, 0) do
+    assert Executor.status(pid).status == expected_status
   end
 
   defp capture_info_log(fun) when is_function(fun, 0) do

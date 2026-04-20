@@ -572,6 +572,42 @@ defmodule LemmingsOs.LemmingInstances do
     Path.join([department_id, lemming_id])
   end
 
+  @doc """
+  Resolves a workspace-relative artifact path for an instance into an absolute path.
+  """
+  @spec artifact_absolute_path(LemmingInstance.t(), String.t()) ::
+          {:ok, %{absolute_path: String.t(), relative_path: String.t()}} | {:error, term()}
+  def artifact_absolute_path(
+        %LemmingInstance{department_id: department_id, lemming_id: lemming_id},
+        relative_path
+      )
+      when is_binary(department_id) and is_binary(lemming_id) and is_binary(relative_path) do
+    cond do
+      relative_path == "" ->
+        {:error, :invalid_path}
+
+      Path.type(relative_path) == :absolute ->
+        {:error, :path_outside_workspace}
+
+      true ->
+        workspace_root = workspace_root()
+        work_area_root = Path.join([workspace_root, department_id, lemming_id])
+        absolute_path = Path.expand(relative_path, work_area_root)
+
+        if path_within_root?(absolute_path, work_area_root) do
+          {:ok,
+           %{
+             absolute_path: absolute_path,
+             relative_path: Path.relative_to(absolute_path, work_area_root)
+           }}
+        else
+          {:error, :path_outside_workspace}
+        end
+    end
+  end
+
+  def artifact_absolute_path(_instance, _relative_path), do: {:error, :invalid_path}
+
   defp create_work_area(work_area_path) when is_binary(work_area_path) do
     workspace_root()
     |> Path.join(work_area_path)
@@ -609,6 +645,15 @@ defmodule LemmingsOs.LemmingInstances do
 
   defp work_area_absolute_path(work_area_path) do
     Path.join(workspace_root(), work_area_path)
+  end
+
+  defp path_within_root?(absolute_path, root_path)
+       when is_binary(absolute_path) and is_binary(root_path) do
+    normalized_absolute = Path.expand(absolute_path)
+    normalized_root = Path.expand(root_path)
+
+    normalized_absolute == normalized_root or
+      String.starts_with?(normalized_absolute, normalized_root <> "/")
   end
 
   defp persist_user_message(%LemmingInstance{} = instance, request_text) do
@@ -669,8 +714,11 @@ defmodule LemmingsOs.LemmingInstances do
       retry_count: Map.get(state, :retry_count, 0),
       max_retries: Map.get(state, :max_retries, 3),
       queue_depth: runtime_queue_depth(Map.get(state, :queue)),
+      tool_iteration_count: Map.get(state, :tool_iteration_count, 0),
       current_item: Map.get(state, :current_item),
+      context_messages: normalize_context_messages(Map.get(state, :context_messages)),
       last_error: Map.get(state, :last_error),
+      internal_error_details: Map.get(state, :internal_error_details),
       status: runtime_status(Map.get(state, :status)),
       started_at: Map.get(state, :started_at),
       last_activity_at: Map.get(state, :last_activity_at)
@@ -683,6 +731,9 @@ defmodule LemmingsOs.LemmingInstances do
 
   defp runtime_queue_depth(queue) when is_list(queue), do: length(queue)
   defp runtime_queue_depth(_queue), do: 0
+
+  defp normalize_context_messages(messages) when is_list(messages), do: messages
+  defp normalize_context_messages(_messages), do: []
 
   defp runtime_status(status) when is_atom(status), do: Atom.to_string(status)
   defp runtime_status(status) when is_binary(status), do: status

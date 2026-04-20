@@ -53,8 +53,10 @@ defmodule LemmingsOs.Tools.RuntimeTest do
                })
 
       assert write_result.tool_name == "fs.write_text_file"
+      assert write_result.summary == "Wrote file reports/result.md"
+      assert write_result.result.path == "reports/result.md"
 
-      assert write_result.result.path =~
+      assert write_result.result.workspace_path ==
                "/workspace/#{instance.department_id}/#{instance.lemming_id}/reports/result.md"
 
       assert {:ok, read_result} =
@@ -63,6 +65,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
                })
 
       assert read_result.tool_name == "fs.read_text_file"
+      assert read_result.summary == "Read file reports/result.md"
+      assert read_result.result.path == "reports/result.md"
       assert read_result.result.content == "hello from tools runtime"
     end
 

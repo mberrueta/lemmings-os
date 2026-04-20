@@ -258,6 +258,29 @@ Any broader tool catalog discussion from earlier exploration should be treated a
 - any broader filesystem catalog beyond `fs.read_text_file` and `fs.write_text_file`
 - git branches, worktrees, or cleanup jobs
 - generated `LEMMINGS.md`, `task_context.md`, or similar per-task artifacts
+- durable persistence of every intermediate LLM/tool loop turn; the raw interaction trace for this MVP stays live-only in the executor
+
+---
+
+## Runtime Loop Notes
+
+### Live interaction trace
+
+The MVP now includes a live-only executor trace for the LLM/tool loop.
+
+- Owner: `LemmingsOs.LemmingInstances.Executor`
+- Surface: raw context LiveView timeline
+- Persistence: none beyond the lifetime of the running executor
+
+This trace exists to debug token use, repeated tool calls, and prompt/tool handoff behavior without changing the durable transcript model.
+
+### ADR follow-up
+
+Task 11 should update `ADR-0004` with:
+
+- a simplified execution-flow diagram for the Phase 1 model/tool loop
+- explicit ownership boundaries for `Executor`, `ModelRuntime`, and `Tool Runtime`
+- clarification that the live interaction trace is ephemeral executor state, not a durable audit log
 - separate operator pages for tool audit beyond what is needed on the instance page and existing runtime surfaces
 
 ---
