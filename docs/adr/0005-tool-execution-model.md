@@ -148,6 +148,39 @@ Tools are:
 
 The runtime includes a **Tool Registry** responsible for tracking installed, registered, and enabled tools.
 
+## 4.1 v1 Implementation Constraints
+
+The v1 implementation establishes the Tool Runtime boundary, durable tool history, and operator-visible execution lifecycle while deferring the broader registry, policy, package, MCP, and sandbox-governance layers.
+
+The v1 implementation has the following constraints:
+
+- the executable catalog is fixed in code to these four tools:
+  - `fs.read_text_file`
+  - `fs.write_text_file`
+  - `web.search`
+  - `web.fetch`
+- the `Executor` invokes `LemmingsOs.Tools.Runtime.execute/4` directly after `ModelRuntime` returns a structured `tool_call`
+- tool execution is performed inline in the executor loop for the current runtime session
+- each attempted invocation creates a durable `lemming_instance_tool_executions` row
+- each row is scoped to the `World` and `LemmingInstance`
+- each row stores the tool name, args, status, summary, preview, normalized result or normalized error, timestamps, and duration
+- supported tool execution statuses are `running`, `ok`, and `error`
+- PubSub and telemetry expose lifecycle visibility but do not own tool execution
+- the tools page reads the same fixed catalog used by the runtime
+
+Deferred beyond v1:
+
+- Hex package discovery
+- dynamic tool registration
+- hierarchical tool policy enforcement
+- approvals
+- MCP adapters
+- Docker or external-process sandboxing
+- generic shell or command execution
+- git/worktree tools
+
+The fixed catalog is not the general registry model. It is the v1 catalog contract used to establish that model-selected tool calls cross the controlled execution boundary, produce durable history, and continue the reasoning loop.
+
 ---
 
 # 5. Tool Model
@@ -182,22 +215,24 @@ Lemming Instance
    ↓
 Tool Request
    ↓
-Policy Check
+Catalog and scope check
    ↓
 Tool Adapter Execution
    ↓
 Result
    ↓
-Audit/Event Log
+Durable Tool Execution Row + Runtime Signals
 ```
 
 This boundary ensures that:
 
-- tool permissions can be enforced
-- connection access can be enforced
-- tool usage can be audited
-- resource limits can be applied
+- unsupported tools are rejected before adapter execution
+- instance and World scope are checked before execution
+- tool usage leaves durable runtime history
+- normalized results and errors are returned to the executor
 - failures can be isolated
+
+Hierarchical policy, connection access, resource limits, approvals, and broader audit enforcement are deferred beyond v1. They extend this boundary; they do not replace it.
 
 ---
 
@@ -245,13 +280,13 @@ This architecture ensures that all side effects pass through a controlled runtim
 
 # 8. Tool Invocation Model
 
-From the perspective of a Lemming instance, tool execution is always modeled as asynchronous.
+The Tool Runtime boundary is mandatory. The invocation transport may be direct or asynchronous depending on the tool class, execution duration, and isolation adapter.
 
-A Lemming submits a tool request to the Tool Runtime and later receives completion through a runtime callback event.
+Bounded trusted first-party tools may execute through a direct runtime call. Long-running tools, external runners, approval waits, and callback-driven integrations require an asynchronous invocation contract.
 
-This remains true even when the underlying tool implementation may execute quickly or synchronously internally.
+In both cases, the Lemming interacts with the Tool Runtime rather than with the tool implementation directly.
 
-This model aligns with OTP-style runtime design and provides a consistent contract for:
+The asynchronous invocation contract supports:
 
 - long-running tool calls
 - external callbacks
@@ -259,7 +294,29 @@ This model aligns with OTP-style runtime design and provides a consistent contra
 - waiting states in agent execution
 - audit and event tracing
 
-The runtime may internally optimize specific tool adapters, but that does not change the external contract seen by the Lemming.
+The runtime may optimize specific tool adapters, but adapter optimization must not bypass the Tool Runtime boundary.
+
+## 8.1 v1 Direct Invocation Contract
+
+The v1 implementation uses a direct runtime-call contract. This is the supported v1 execution path and does not weaken the architectural requirement that all external effects pass through the Tool Runtime.
+
+v1 flow:
+
+```text
+Executor
+  -> ModelRuntime returns action = :tool_call
+  -> Executor creates durable tool execution row with status = "running"
+  -> Executor calls Tools.Runtime.execute/4 directly
+  -> Tool Runtime validates fixed catalog membership and scope
+  -> Tool adapter executes
+  -> Executor updates the same durable row to "ok" or "error"
+  -> Executor appends a normalized tool-result context message
+  -> Executor calls ModelRuntime again until final reply or bounded failure
+```
+
+PubSub is used only to notify LiveViews that a persisted tool row changed. It is not the tool execution transport.
+
+Asynchronous callbacks for long-running tools, approval waits, external runners, and richer supervision semantics are deferred beyond v1 and must preserve the same Tool Runtime boundary.
 
 ---
 

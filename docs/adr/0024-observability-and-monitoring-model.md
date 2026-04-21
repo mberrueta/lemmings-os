@@ -250,6 +250,16 @@ Possible metrics include:
 - queue depth
 - failure rates
 
+The v1 Tool Runtime implementation emits concrete telemetry metrics for the fixed tool catalog:
+
+- `lemmings_os.runtime.tool_execution.started.count`
+- `lemmings_os.runtime.tool_execution.completed.count`
+- `lemmings_os.runtime.tool_execution.failed.count`
+- `lemmings_os.runtime.tool_execution.completed.duration_ms`
+- `lemmings_os.runtime.tool_execution.failed.duration_ms`
+
+These metrics are emitted from executor-owned lifecycle transitions and tagged with hierarchy metadata plus `tool_name` and `tool_execution_id`. They measure runtime execution visibility only. The broader audit store, approval workflow, policy engine, and sandbox-resource metrics are deferred beyond v1.
+
 Operators may export these metrics to systems such as:
 
 - Prometheus
@@ -330,4 +340,3 @@ Telemetry hooks may emit metrics and integrate with Phoenix LiveDashboard when a
 ## Mitigations
 
 Optional telemetry exporters and log collectors can be integrated when deeper observability is required without modifying the core runtime architecture.
-

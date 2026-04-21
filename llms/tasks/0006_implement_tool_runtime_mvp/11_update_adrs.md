@@ -1,8 +1,8 @@
 # Task 11: Update ADRs
 
 ## Status
-- **Status**: ⏳ PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: ✅ COMPLETE
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 `docs-feature-documentation-author`
@@ -44,7 +44,16 @@ Document the Tool Runtime MVP slice as implemented, without expanding into out-o
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
+Updated ADRs and architecture docs to match the implemented Tool Runtime MVP slice:
+
+- `docs/adr/0005-tool-execution-model.md` now documents the fixed four-tool catalog, direct executor-to-runtime call path, durable tool execution rows, and explicit out-of-scope governance layers.
+- `docs/adr/0016-tool-execution-isolation-model.md` now documents the MVP work-area/filesystem boundary and clarifies that the four first-party tools run in-process.
+- `docs/adr/0018-audit-log-event-model.md` now documents implemented tool lifecycle logs, telemetry, PubSub notification, activity-log entries, and the distinction between MVP runtime history and future audit-event storage.
+- `docs/adr/0021-core-domain-schema.md` now includes `lemming_instance_tool_executions` as a Phase 1 runtime-history table.
+- `docs/adr/0024-observability-and-monitoring-model.md` now lists the implemented tool execution telemetry metrics.
+- `docs/architecture.md` now includes the Tool Runtime layer, direct tool-call flow, persistence table, and live-only interaction trace behavior.
+
+Scope kept to the implemented MVP. Did not reintroduce approvals, MCP, Docker sandboxing, generic command execution, broader policy hierarchy, or worktree/git scope as implemented behavior.
 
 ## Human Review
 *[Filled by human reviewer]*
