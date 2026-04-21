@@ -6,6 +6,7 @@ defmodule LemmingsOs.ModelRuntime.ResponseTest do
   test "S01: builds a response struct from attrs" do
     response =
       Response.new(
+        action: :reply,
         reply: "hello",
         provider: "ollama",
         model: "llama3.2",

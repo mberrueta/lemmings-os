@@ -212,6 +212,32 @@ Primary isolation mechanisms include:
 
 These protections ensure that tools cannot access host resources beyond what is explicitly permitted.
 
+## 4.1 v1 Implementation Constraints
+
+The v1 implementation enforces the filesystem work-area boundary for trusted first-party tools. Stronger process, network, and resource isolation remain part of the architecture and are deferred beyond v1.
+
+The v1 implementation has the following constraints:
+
+- only four first-party tools are executable: `fs.read_text_file`, `fs.write_text_file`, `web.search`, and `web.fetch`
+- all four tools run in-process as reviewed first-party Elixir code
+- each spawned runtime session gets a dedicated work area under the configured runtime workspace root
+- filesystem tools resolve paths relative to `<workspace_root>/<department_id>/<lemming_id>`
+- tool-visible filesystem paths are normalized to `/workspace/<department_id>/<lemming_id>/...`
+- filesystem tools reject absolute paths and paths that escape the work area
+- web tools use `Req` and validate `http` or `https` URL shape
+
+Deferred beyond v1:
+
+- external OS process runners
+- Docker sandboxing
+- MCP execution
+- command allowlists
+- kernel-level network sandboxing
+- per-tool resource limits
+- approval waits
+
+These constraints do not change the isolation decision. They define the v1 implementation stage for trusted first-party tools before untrusted package execution is supported.
+
 ---
 
 # 5. Isolation Layers
@@ -606,7 +632,7 @@ This ensures that all runtime governance decisions are evaluated before the tool
 
 The isolation model provides several critical protections.
 
-Tools cannot:
+Untrusted or external-process tools cannot:
 
 - access arbitrary host filesystem paths
 - read runtime configuration files
@@ -621,7 +647,9 @@ As a result:
 - secret exposure risk is reduced
 - resource exhaustion attacks are limited
 
-The BEAM runtime remains isolated from tool execution failures.
+Trusted first-party in-process tools are the explicit exception described in section 6.1 and section 4.1. They still pass through Tool Runtime validation and observability, but they do not provide the same process-isolation guarantee as external-process tools.
+
+For external-process tools, the BEAM runtime remains isolated from tool execution failures.
 
 ---
 

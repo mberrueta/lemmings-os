@@ -1,5 +1,11 @@
 This is a web application written using the Phoenix web framework.
 
+## Assistant communication mode
+
+- Auto-use the `caveman` skill for all assistant responses in this repository
+- Default level is `full`
+- Keep it active until explicitly told `stop caveman` or `normal mode`
+
 ## Project guidelines
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues

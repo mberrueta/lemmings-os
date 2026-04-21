@@ -198,6 +198,34 @@ defmodule LemmingsOs.LemmingInstances.PubSub do
   end
 
   @doc """
+  Broadcasts that a tool execution lifecycle row was created or updated.
+  """
+  @spec broadcast_tool_execution_upserted(binary(), binary(), binary()) :: :ok | {:error, term()}
+  def broadcast_tool_execution_upserted(instance_id, tool_execution_id, status)
+      when is_binary(instance_id) and is_binary(tool_execution_id) and is_binary(status) do
+    Phoenix.PubSub.broadcast(
+      @pubsub_server,
+      instance_messages_topic(instance_id),
+      {:tool_execution_upserted,
+       %{instance_id: instance_id, tool_execution_id: tool_execution_id, status: status}}
+    )
+  end
+
+  @doc """
+  Broadcasts that a model-step lifecycle row was created or updated.
+  """
+  @spec broadcast_model_step_upserted(binary(), binary(), binary()) :: :ok | {:error, term()}
+  def broadcast_model_step_upserted(instance_id, model_step_id, status)
+      when is_binary(instance_id) and is_binary(model_step_id) and is_binary(status) do
+    Phoenix.PubSub.broadcast(
+      @pubsub_server,
+      instance_messages_topic(instance_id),
+      {:model_step_upserted,
+       %{instance_id: instance_id, model_step_id: model_step_id, status: status}}
+    )
+  end
+
+  @doc """
   Broadcasts a scheduler admission signal to an executor.
 
   ## Examples

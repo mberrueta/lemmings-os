@@ -196,11 +196,19 @@ lemming_seeds = %{
     %{
       slug: "budget-brief",
       name: "Budget Brief",
-      status: "draft",
+      status: "active",
       description: "Builds concise budget summaries for operators.",
       instructions:
-        "Summarize budget status, upcoming risks, and the biggest current cost drivers.",
-      tools_config: %{"allowed_tools" => ["github"], "denied_tools" => []}
+        "Summarize budget status, upcoming risks, and the biggest current cost drivers. When the user asks you to create or update a file, use fs.write_text_file with a workspace-relative path instead of only describing the content. When you need external context, use web.search or web.fetch.",
+      tools_config: %{
+        "allowed_tools" => [
+          "fs.read_text_file",
+          "fs.write_text_file",
+          "web.search",
+          "web.fetch"
+        ],
+        "denied_tools" => []
+      }
     },
     %{
       slug: "variance-review",
@@ -277,8 +285,8 @@ world
   |> Lemmings.list_lemmings()
   |> Enum.each(fn lemming -> Repo.delete!(lemming) end)
 
-  world
-  |> Departments.list_departments(city)
+  city
+  |> Departments.list_departments()
   |> Enum.each(fn department -> Repo.delete!(department) end)
 
   Repo.delete!(city)

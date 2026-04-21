@@ -9,13 +9,14 @@ defmodule LemmingsOs.ModelRuntime do
   alias LemmingsOs.LemmingInstances.ConfigSnapshot
   alias LemmingsOs.ModelRuntime.Providers.Ollama
   alias LemmingsOs.ModelRuntime.Response
+  alias LemmingsOs.Tools.Catalog
 
   @structured_output_contract """
   Return JSON only with this shape:
 
   {"action":"reply","reply":"visible user-facing text"}
-
-  Only the "reply" action is supported in v1.
+  or
+  {"action":"tool_call","tool_name":"fs.read_text_file","args":{"path":"notes.txt"}}
   """
 
   @runtime_rules """
@@ -56,6 +57,26 @@ defmodule LemmingsOs.ModelRuntime do
 
   def run(_config_snapshot, _history, _current_request), do: {:error, :invalid_request}
 
+  @doc """
+  Builds the exact provider request payload that would be sent to the model.
+
+  This is intended for operator/debug surfaces that need to inspect the
+  assembled system prompt, normalized history, and current request before the
+  provider call happens.
+  """
+  @spec debug_request(map(), [map()], map() | String.t()) ::
+          {:ok, %{provider: String.t() | nil, model: String.t(), request: map()}}
+          | {:error, term()}
+  def debug_request(config_snapshot, history, current_request)
+      when is_map(config_snapshot) and is_list(history) do
+    with {:ok, model} <- resolve_model(config_snapshot),
+         {:ok, request} <- build_request(config_snapshot, history, current_request, model) do
+      {:ok, %{provider: provider_hint_label(config_snapshot), model: model, request: request}}
+    end
+  end
+
+  def debug_request(_config_snapshot, _history, _current_request), do: {:error, :invalid_request}
+
   @doc false
   @spec structured_output_contract() :: String.t()
   def structured_output_contract, do: @structured_output_contract
@@ -68,10 +89,13 @@ defmodule LemmingsOs.ModelRuntime do
        when is_map(provider_response) do
     with {:ok, content} <- provider_content(provider_response),
          {:ok, parsed} <- Jason.decode(content),
-         {:ok, reply} <- parse_structured_output(parsed) do
+         {:ok, action_payload} <- parse_structured_output(parsed) do
       {:ok,
        Response.new(
-         reply: reply,
+         action: action_payload.action,
+         reply: action_payload.reply,
+         tool_name: action_payload.tool_name,
+         tool_args: action_payload.tool_args,
          provider: provider_label(provider_response),
          model: response_field(provider_response, :model) || requested_model,
          input_tokens: response_field(provider_response, :input_tokens),
@@ -81,8 +105,11 @@ defmodule LemmingsOs.ModelRuntime do
          raw: response_field(provider_response, :raw) || provider_response
        )}
     else
-      {:error, :unknown_action} -> {:error, :unknown_action}
-      {:error, _reason} -> {:error, :invalid_structured_output}
+      {:error, :unknown_action} ->
+        {:error, unknown_action_error(provider_response, requested_model)}
+
+      {:error, reason} ->
+        {:error, invalid_structured_output_error(provider_response, requested_model, reason)}
     end
   end
 
@@ -94,11 +121,27 @@ defmodule LemmingsOs.ModelRuntime do
     if Helpers.blank?(reply) do
       {:error, :invalid_structured_output}
     else
-      {:ok, reply}
+      {:ok, %{action: :reply, reply: reply, tool_name: nil, tool_args: nil}}
     end
   end
 
   defp parse_structured_output(%{"action" => "reply"}), do: {:error, :invalid_structured_output}
+
+  defp parse_structured_output(%{
+         "action" => "tool_call",
+         "tool_name" => tool_name,
+         "args" => args
+       })
+       when is_binary(tool_name) and is_map(args) do
+    if Helpers.blank?(tool_name) do
+      {:error, :invalid_structured_output}
+    else
+      {:ok, %{action: :tool_call, reply: nil, tool_name: tool_name, tool_args: args}}
+    end
+  end
+
+  defp parse_structured_output(%{"action" => "tool_call"}),
+    do: {:error, :invalid_structured_output}
 
   defp parse_structured_output(%{"action" => action}) when is_binary(action),
     do: {:error, :unknown_action}
@@ -115,11 +158,33 @@ defmodule LemmingsOs.ModelRuntime do
     end
   end
 
+  defp invalid_structured_output_error(provider_response, requested_model, reason) do
+    {:invalid_structured_output,
+     %{
+       reason: inspect(reason),
+       provider: provider_label(provider_response),
+       model: response_field(provider_response, :model) || requested_model,
+       content: response_field(provider_response, :content),
+       raw: response_field(provider_response, :raw) || provider_response
+     }}
+  end
+
+  defp unknown_action_error(provider_response, requested_model) do
+    {:unknown_action,
+     %{
+       provider: provider_label(provider_response),
+       model: response_field(provider_response, :model) || requested_model,
+       content: response_field(provider_response, :content),
+       raw: response_field(provider_response, :raw) || provider_response
+     }}
+  end
+
   defp build_request(config_snapshot, history, current_request, model) do
     with {:ok, current_message} <- normalize_current_message(current_request) do
       messages =
         config_snapshot
         |> build_messages(history, current_message)
+        |> Enum.map(&provider_message/1)
 
       {:ok, %{model: model, messages: messages, format: "json"}}
     end
@@ -130,46 +195,216 @@ defmodule LemmingsOs.ModelRuntime do
     normalized_history = normalize_history(history)
 
     messages =
-      case List.last(normalized_history) do
-        ^current_message -> normalized_history
-        _ -> normalized_history ++ [current_message]
+      if current_message_in_history?(normalized_history, current_message) do
+        normalized_history
+      else
+        normalized_history ++ [current_message]
       end
 
     [system_message | messages]
   end
 
+  defp current_message_in_history?(history, %{request_id: request_id})
+       when is_binary(request_id) and request_id != "" do
+    Enum.any?(history, &(&1.request_id == request_id))
+  end
+
+  defp current_message_in_history?(history, current_message) do
+    List.last(history) == current_message
+  end
+
   defp system_message(config_snapshot) do
     [
-      instructions_from_snapshot(config_snapshot),
-      @structured_output_contract,
-      @runtime_rules
+      platform_runtime_context(),
+      configured_identity_message(config_snapshot),
+      available_tools_message(config_snapshot),
+      loop_state_semantics_message(),
+      @runtime_rules,
+      immediate_response_instruction(),
+      important_output_contract()
     ]
     |> Enum.reject(&Helpers.blank?/1)
     |> Enum.join("\n\n")
   end
 
+  defp platform_runtime_context do
+    """
+    Platform Runtime Context:
+    - You are running as a Lemming agent inside a multi-agent application runtime.
+    - Your administrator configures your identity, purpose, and expertise.
+    - The runtime adds tool availability, execution rules, and loop-state context.
+    - On each turn, choose exactly one next action: either return a final user-facing reply or request one tool call.
+    - When a tool call is returned, the app executes it and sends the result back in later assistant-context messages.
+    - If the latest tool result already satisfies the request, return a final reply instead of repeating the same successful tool call.
+    """
+  end
+
+  defp configured_identity_message(config_snapshot) do
+    identity_lines =
+      [
+        configured_identity_name(config_snapshot),
+        configured_identity_description(config_snapshot),
+        configured_identity_instructions(config_snapshot)
+      ]
+      |> Enum.reject(&Helpers.blank?/1)
+
+    case identity_lines do
+      [] ->
+        nil
+
+      lines ->
+        Enum.join(["Configured Lemming Identity:" | lines], "\n")
+    end
+  end
+
+  defp configured_identity_name(config_snapshot) do
+    case response_field(config_snapshot, :name) do
+      name when is_binary(name) and name != "" -> "Name: #{name}"
+      _name -> nil
+    end
+  end
+
+  defp configured_identity_description(config_snapshot) do
+    case response_field(config_snapshot, :description) do
+      description when is_binary(description) and description != "" ->
+        "Description: #{description}"
+
+      _description ->
+        nil
+    end
+  end
+
+  defp configured_identity_instructions(config_snapshot) do
+    case instructions_from_snapshot(config_snapshot) do
+      instructions when is_binary(instructions) and instructions != "" ->
+        "Instructions:\n#{instructions}"
+
+      _instructions ->
+        nil
+    end
+  end
+
+  defp available_tools_message(config_snapshot) do
+    tool_lines =
+      config_snapshot
+      |> available_tools()
+      |> Enum.map_join("\n", fn tool ->
+        "- #{tool.id}: #{tool.description}"
+      end)
+
+    [
+      "Available Tools:",
+      tool_lines,
+      "For file creation or file updates, use fs.write_text_file.",
+      "After a successful tool call, prefer returning a final reply instead of repeating the same tool call with the same arguments."
+    ]
+    |> Enum.join("\n")
+  end
+
+  defp loop_state_semantics_message do
+    """
+    Loop State Semantics:
+    - Prior assistant tool decisions appear in assistant-context messages.
+    - `Assistant requested tool <tool_name> with arguments: <json>` means you already chose that tool on a prior turn.
+    - `Tool result for <tool_name>: status=<status> payload=<json>` means the runtime executed your prior tool request and is returning the outcome to you now.
+    - Treat those assistant-context messages as prior execution history, not as new user requests.
+    - Use the configured identity, the original user request, and the latest tool result to decide the next action.
+    """
+  end
+
+  defp immediate_response_instruction do
+    """
+    Immediate Response Instruction:
+    - Read the conversation messages below and decide the next action now.
+    - If the latest tool result already satisfies the user request, return a final `reply`.
+    - If another tool action is still required, return one `tool_call`.
+    - Do not explain your reasoning.
+    - Do not add any text before or after the JSON object.
+    - Return exactly one JSON object matching the output contract below.
+    """
+  end
+
+  defp important_output_contract do
+    """
+    IMPORTANT: RESPOND WITH JSON ONLY.
+
+    Decide what to do next by returning exactly one of these two JSON shapes:
+
+    {"action":"reply","reply":"visible user-facing text"}
+    or
+    {"action":"tool_call","tool_name":"fs.read_text_file","args":{"path":"notes.txt"}}
+
+    Option A: final reply to the user.
+    Option B: one tool call for the runtime to execute.
+    """
+  end
+
+  defp available_tools(config_snapshot) do
+    catalog_tools = Catalog.list_tools()
+    allowed_tools = tools_config_list(config_snapshot, :allowed_tools)
+    denied_tools = MapSet.new(tools_config_list(config_snapshot, :denied_tools))
+
+    catalog_tools
+    |> maybe_filter_allowed_tools(allowed_tools)
+    |> Enum.reject(&MapSet.member?(denied_tools, &1.id))
+  end
+
+  defp maybe_filter_allowed_tools(tool_names, []), do: tool_names
+
+  defp maybe_filter_allowed_tools(tools, allowed_tools) do
+    Enum.filter(tools, &(&1.id in allowed_tools))
+  end
+
+  defp tools_config_list(config_snapshot, field) do
+    config_snapshot
+    |> tools_config_value(field)
+    |> normalize_tool_name_list()
+  end
+
+  defp tools_config_value(config_snapshot, field) do
+    config_snapshot
+    |> response_field(:tools_config)
+    |> case do
+      tools_config when is_map(tools_config) -> response_field(tools_config, field)
+      _tools_config -> nil
+    end
+  end
+
+  defp normalize_tool_name_list(tool_names) when is_list(tool_names) do
+    Enum.filter(tool_names, &is_binary/1)
+  end
+
+  defp normalize_tool_name_list(_tool_names), do: []
+
   defp normalize_history(history) do
     history
     |> Enum.flat_map(fn
-      %{role: role, content: content} when is_binary(content) ->
-        maybe_message(role, content)
+      %{role: role, content: content} = message when is_binary(content) ->
+        maybe_message(role, content, message)
 
-      %{"role" => role, "content" => content} when is_binary(content) ->
-        maybe_message(role, content)
+      %{"role" => role, "content" => content} = message when is_binary(content) ->
+        maybe_message(role, content, message)
 
       _ ->
         []
     end)
   end
 
-  defp maybe_message("system", _content), do: []
-  defp maybe_message(:system, _content), do: []
+  defp maybe_message("system", _content, _message), do: []
+  defp maybe_message(:system, _content, _message), do: []
 
-  defp maybe_message(role, content) when role in ["user", "assistant", :user, :assistant] do
-    [%{role: normalize_role(role), content: content}]
+  defp maybe_message(role, content, message)
+       when role in ["user", "assistant", :user, :assistant] do
+    [
+      %{
+        role: normalize_role(role),
+        content: content,
+        request_id: request_id(message)
+      }
+    ]
   end
 
-  defp maybe_message(_role, _content), do: []
+  defp maybe_message(_role, _content, _message), do: []
 
   defp normalize_role(role) when role in [:user, "user"], do: "user"
   defp normalize_role(role) when role in [:assistant, "assistant"], do: "assistant"
@@ -177,22 +412,30 @@ defmodule LemmingsOs.ModelRuntime do
   defp normalize_current_message(%{content: nil}), do: {:error, :invalid_request}
   defp normalize_current_message(%{content: ""}), do: {:error, :invalid_request}
 
-  defp normalize_current_message(%{content: content}) when is_binary(content),
-    do: {:ok, %{role: "user", content: content}}
+  defp normalize_current_message(%{content: content} = message) when is_binary(content),
+    do: {:ok, %{role: "user", content: content, request_id: request_id(message)}}
 
   defp normalize_current_message(%{"content" => nil}), do: {:error, :invalid_request}
   defp normalize_current_message(%{"content" => ""}), do: {:error, :invalid_request}
 
-  defp normalize_current_message(%{"content" => content}) when is_binary(content),
-    do: {:ok, %{role: "user", content: content}}
+  defp normalize_current_message(%{"content" => content} = message) when is_binary(content),
+    do: {:ok, %{role: "user", content: content, request_id: request_id(message)}}
 
   defp normalize_current_message(nil), do: {:error, :invalid_request}
   defp normalize_current_message(""), do: {:error, :invalid_request}
 
   defp normalize_current_message(content) when is_binary(content),
-    do: {:ok, %{role: "user", content: content}}
+    do: {:ok, %{role: "user", content: content, request_id: nil}}
 
   defp normalize_current_message(_other), do: {:error, :invalid_request}
+
+  defp provider_message(message), do: Map.take(message, [:role, :content])
+
+  defp request_id(%{request_id: request_id}) when is_binary(request_id), do: request_id
+  defp request_id(%{"request_id" => request_id}) when is_binary(request_id), do: request_id
+  defp request_id(%{id: id}) when is_binary(id), do: id
+  defp request_id(%{"id" => id}) when is_binary(id), do: id
+  defp request_id(_message), do: nil
 
   defp instructions_from_snapshot(config_snapshot) do
     response_field(config_snapshot, :instructions) ||
@@ -259,6 +502,14 @@ defmodule LemmingsOs.ModelRuntime do
 
   defp response_field(map, key) when is_map(map) do
     Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
+
+  defp provider_hint_label(config_snapshot) do
+    case provider_hint(config_snapshot) do
+      provider when is_atom(provider) -> Atom.to_string(provider)
+      provider when is_binary(provider) -> provider
+      _provider -> nil
+    end
   end
 
   defp nested_field(map, [key | rest]) when is_map(map) do

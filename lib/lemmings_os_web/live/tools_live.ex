@@ -3,6 +3,7 @@ defmodule LemmingsOsWeb.ToolsLive do
 
   import LemmingsOsWeb.MockShell
 
+  alias LemmingsOs.Helpers
   alias LemmingsOsWeb.PageData.ToolsPageSnapshot
 
   def mount(_params, _session, socket) do
@@ -19,26 +20,21 @@ defmodule LemmingsOsWeb.ToolsLive do
   end
 
   defp assign_tools_snapshot(socket, snapshot, query) do
+    filtered_tools = filter_tools(snapshot.tools, query)
+
     assign(socket,
       snapshot: snapshot,
       filter: query,
       filter_form: build_filter_form(query),
-      filtered_tools: filter_tools(snapshot.tools, query)
+      filtered_tools: filtered_tools,
+      grouped_tools: group_tools(filtered_tools)
     )
   end
 
   defp build_snapshot do
     ToolsPageSnapshot.build(
-      runtime_fetcher: runtime_fetcher(),
+      runtime_fetcher: LemmingsOs.Tools.DefaultRuntimeFetcher,
       policy_fetcher: policy_fetcher()
-    )
-  end
-
-  defp runtime_fetcher do
-    Application.get_env(
-      :lemmings_os,
-      :tools_runtime_fetcher,
-      LemmingsOs.Tools.DefaultRuntimeFetcher
     )
   end
 
@@ -65,6 +61,15 @@ defmodule LemmingsOsWeb.ToolsLive do
         |> String.downcase()
 
       String.contains?(searchable_text, normalized_query)
+    end)
+  end
+
+  defp group_tools(tools) do
+    tools
+    |> Enum.group_by(&Helpers.display_value(&1.category, unavailable_label: "uncategorized"))
+    |> Enum.sort_by(fn {category, _tools} -> category end)
+    |> Enum.map(fn {category, grouped_tools} ->
+      %{category: String.capitalize(category), tools: Enum.sort_by(grouped_tools, & &1.name)}
     end)
   end
 
@@ -158,4 +163,13 @@ defmodule LemmingsOsWeb.ToolsLive do
   defp mini_card_meta_class do
     "text-xs uppercase tracking-widest text-zinc-400"
   end
+
+  defp tool_list_item_copy(tool_name, risk) do
+    dgettext("layout", ".tools_list_item_copy", name: tool_name, risk: risk_label(risk))
+  end
+
+  defp risk_label("high"), do: dgettext("layout", ".tools_risk_high")
+  defp risk_label("medium"), do: dgettext("layout", ".tools_risk_medium")
+  defp risk_label("low"), do: dgettext("layout", ".tools_risk_low")
+  defp risk_label(_risk), do: dgettext("layout", ".tools_risk_unknown")
 end

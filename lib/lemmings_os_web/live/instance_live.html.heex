@@ -85,6 +85,16 @@
                 <.icon name="hero-arrow-left" class="size-4" />
                 {dgettext("lemmings", "Back to parent lemming")}
               </.link>
+
+              <.link
+                :if={instance_raw_path(@instance, @world)}
+                id="instance-raw-context-link"
+                navigate={instance_raw_path(@instance, @world)}
+                class="inline-flex min-h-11 items-center gap-2 border border-zinc-700 bg-zinc-950/70 px-4 py-2 text-xs font-medium uppercase tracking-widest text-zinc-300 transition duration-150 ease-out hover:-translate-y-px hover:border-zinc-500 hover:text-zinc-100"
+              >
+                <.icon name="hero-code-bracket-square" class="size-4" />
+                {dgettext("lemmings", "Raw context")}
+              </.link>
             </div>
           </div>
 
@@ -212,7 +222,7 @@
               {dgettext("lemmings", "Conversation Transcript")}
             </p>
             <p class="text-xs uppercase tracking-widest text-zinc-500">
-              {dgettext("lemmings", "Chronological messages")}
+              {dgettext("lemmings", "Chronological session activity")}
             </p>
           </div>
 
@@ -243,6 +253,14 @@
               :if={entry.type == :message}
               id={"bubble-#{dom_id}"}
               message={entry.message}
+              display_now={@status_now}
+            />
+
+            <InstanceComponents.tool_execution_card
+              :if={entry.type == :tool_execution}
+              id={"card-tool-execution-#{entry.tool_execution.id}"}
+              tool_execution={entry.tool_execution}
+              world_id={@world && @world.id}
               display_now={@status_now}
             />
           </div>

@@ -224,7 +224,7 @@ msgstr "Departamentos"
 msgid ".page_title_world"
 msgstr "Mundo"
 
-#: lib/lemmings_os_web/live/tools_live.ex:13
+#: lib/lemmings_os_web/live/tools_live.ex:14
 #, elixir-autogen
 msgid ".page_title_tools"
 msgstr "Herramientas"
@@ -324,12 +324,12 @@ msgstr " - Lemmings OS"
 msgid ".breadcrumb_new"
 msgstr "Nuevo"
 
-#: lib/lemmings_os_web/live/tools_live.html.heex:57
+#: lib/lemmings_os_web/live/tools_live.html.heex:56
 #, elixir-autogen, elixir-format
 msgid ".tools_capability_panel_subtitle"
 msgstr "Filtra el conjunto actual de herramientas del entorno sin implicar instalación ni completitud de política."
 
-#: lib/lemmings_os_web/live/tools_live.html.heex:56
+#: lib/lemmings_os_web/live/tools_live.html.heex:55
 #, elixir-autogen, elixir-format
 msgid ".tools_capability_panel_title"
 msgstr "Conjunto de herramientas del entorno"
@@ -355,48 +355,49 @@ msgid ".tools_card_usage_label"
 msgstr "Uso"
 
 #: lib/lemmings_os_web/components/system_components.ex:23
+#: lib/lemmings_os_web/live/tools_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid ".tools_description_unavailable"
 msgstr "No hay descripción disponible del entorno."
 
-#: lib/lemmings_os_web/live/tools_live.ex:107
+#: lib/lemmings_os_web/live/tools_live.ex:112
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_copy"
 msgstr "La fuente de capacidades del entorno está disponible, pero no devolvió ninguna herramienta."
 
-#: lib/lemmings_os_web/live/tools_live.ex:108
+#: lib/lemmings_os_web/live/tools_live.ex:113
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_filtered_copy"
 msgstr "Ajusta el filtro local para inspeccionar el conjunto actual de herramientas del entorno."
 
-#: lib/lemmings_os_web/live/tools_live.ex:103
+#: lib/lemmings_os_web/live/tools_live.ex:108
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_filtered_title"
 msgstr "Ningun tool coincide con este filtro"
 
-#: lib/lemmings_os_web/live/tools_live.ex:105
-#: lib/lemmings_os_web/live/tools_live.ex:106
+#: lib/lemmings_os_web/live/tools_live.ex:110
+#: lib/lemmings_os_web/live/tools_live.ex:111
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_runtime_copy"
 msgstr "La fuente de capacidades del entorno no está disponible, así que todavía no se pueden mostrar herramientas."
 
-#: lib/lemmings_os_web/live/tools_live.ex:100
-#: lib/lemmings_os_web/live/tools_live.ex:101
+#: lib/lemmings_os_web/live/tools_live.ex:105
+#: lib/lemmings_os_web/live/tools_live.ex:106
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_runtime_title"
 msgstr "Capacidad del entorno no disponible"
 
-#: lib/lemmings_os_web/live/tools_live.ex:102
+#: lib/lemmings_os_web/live/tools_live.ex:107
 #, elixir-autogen, elixir-format
 msgid ".tools_empty_title"
 msgstr "No hay herramientas del entorno registradas"
 
-#: lib/lemmings_os_web/live/tools_live.html.heex:69
+#: lib/lemmings_os_web/live/tools_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid ".tools_filter_label"
 msgstr "Filtro local"
 
-#: lib/lemmings_os_web/live/tools_live.html.heex:70
+#: lib/lemmings_os_web/live/tools_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid ".tools_filter_placeholder"
 msgstr "Buscar por nombre, categoria o riesgo"
@@ -406,97 +407,97 @@ msgstr "Buscar por nombre, categoria o riesgo"
 msgid ".tools_health_title"
 msgstr "Salud de la pagina"
 
-#: lib/lemmings_os_web/live/tools_live.ex:143
+#: lib/lemmings_os_web/live/tools_live.ex:148
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_partial_action"
 msgstr "Trata el estado de policy como parcial hasta que exista reconciliacion."
 
-#: lib/lemmings_os_web/live/tools_live.ex:129
+#: lib/lemmings_os_web/live/tools_live.ex:134
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_partial_detail"
 msgstr "%{count} tools runtime todavia tienen reconciliacion de policy diferida."
 
-#: lib/lemmings_os_web/live/tools_live.ex:118
+#: lib/lemmings_os_web/live/tools_live.ex:123
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_partial_summary"
 msgstr "La reconciliacion de policy es parcial"
 
-#: lib/lemmings_os_web/live/tools_live.ex:146
+#: lib/lemmings_os_web/live/tools_live.ex:151
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_unavailable_action"
 msgstr "Usa las capacidades runtime como fuente primaria hasta que exista el estado de policy."
 
-#: lib/lemmings_os_web/live/tools_live.ex:135
+#: lib/lemmings_os_web/live/tools_live.ex:140
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_unavailable_detail"
 msgstr "El set runtime de tools esta disponible, pero no se pudo cargar la reconciliacion de policy."
 
-#: lib/lemmings_os_web/live/tools_live.ex:121
+#: lib/lemmings_os_web/live/tools_live.ex:126
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_policy_unavailable_summary"
 msgstr "Estado de policy no disponible"
 
-#: lib/lemmings_os_web/live/tools_live.ex:140
+#: lib/lemmings_os_web/live/tools_live.ex:145
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_runtime_source_unavailable_action"
 msgstr "Verifica la fuente de capacidades runtime antes de confiar en la disponibilidad de tools."
 
-#: lib/lemmings_os_web/live/tools_live.ex:126
+#: lib/lemmings_os_web/live/tools_live.ex:131
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_runtime_source_unavailable_detail"
 msgstr "La pagina no pudo obtener datos de capacidades runtime desde la fuente actual."
 
-#: lib/lemmings_os_web/live/tools_live.ex:115
+#: lib/lemmings_os_web/live/tools_live.ex:120
 #, elixir-autogen, elixir-format
 msgid ".tools_issue_runtime_source_unavailable_summary"
 msgstr "Fuente de capacidades runtime no disponible"
 
-#: lib/lemmings_os_web/live/tools_live.ex:112
+#: lib/lemmings_os_web/live/tools_live.ex:117
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_many"
 msgstr "Se detectaron %{count} incidencias"
 
-#: lib/lemmings_os_web/live/tools_live.ex:111
+#: lib/lemmings_os_web/live/tools_live.ex:116
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_one"
 msgstr "Se detectó 1 incidencia"
 
-#: lib/lemmings_os_web/live/tools_live.html.heex:94
+#: lib/lemmings_os_web/live/tools_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_panel_subtitle"
 msgstr "Los estados unknown y degraded se listan explicitamente."
 
-#: lib/lemmings_os_web/live/tools_live.html.heex:93
+#: lib/lemmings_os_web/live/tools_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_panel_title"
 msgstr "Incidencias"
 
-#: lib/lemmings_os_web/live/tools_live.ex:110
+#: lib/lemmings_os_web/live/tools_live.ex:115
 #, elixir-autogen, elixir-format
 msgid ".tools_issues_zero"
 msgstr "No se detectaron incidencias"
 
-#: lib/lemmings_os_web/live/tools_live.html.heex:100
+#: lib/lemmings_os_web/live/tools_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid ".tools_no_issues"
 msgstr "No se detectaron incidencias."
 
-#: lib/lemmings_os_web/live/tools_live.ex:78
+#: lib/lemmings_os_web/live/tools_live.ex:83
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_deferred"
 msgstr "La reconciliacion de policy sigue diferida."
 
-#: lib/lemmings_os_web/live/tools_live.ex:83
+#: lib/lemmings_os_web/live/tools_live.ex:88
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_known"
 msgstr "Los datos del entorno y de política están alineados."
 
-#: lib/lemmings_os_web/live/tools_live.ex:81
+#: lib/lemmings_os_web/live/tools_live.ex:86
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_partial"
 msgstr "Algunas herramientas del entorno siguen con estado de política parcial."
 
-#: lib/lemmings_os_web/live/tools_live.ex:84
+#: lib/lemmings_os_web/live/tools_live.ex:89
 #, elixir-autogen, elixir-format
 msgid ".tools_policy_copy_unknown"
 msgstr "El estado de policy todavia no esta disponible."
@@ -524,23 +525,23 @@ msgstr "Parcial"
 msgid ".tools_policy_title"
 msgstr "Reconciliacion de Policy"
 
-#: lib/lemmings_os_web/live/tools_live.ex:90
+#: lib/lemmings_os_web/live/tools_live.ex:95
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_many"
 msgstr "Se observaron %{count} herramientas del entorno"
 
-#: lib/lemmings_os_web/live/tools_live.ex:96
+#: lib/lemmings_os_web/live/tools_live.ex:101
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_unavailable"
 msgstr "Fuente del entorno no disponible"
 
-#: lib/lemmings_os_web/live/tools_live.ex:93
 #: lib/lemmings_os_web/live/tools_live.ex:98
+#: lib/lemmings_os_web/live/tools_live.ex:103
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_unknown"
 msgstr "Fuente del entorno no implementada"
 
-#: lib/lemmings_os_web/live/tools_live.ex:87
+#: lib/lemmings_os_web/live/tools_live.ex:92
 #, elixir-autogen, elixir-format
 msgid ".tools_runtime_count_zero"
 msgstr "Fuente del entorno disponible sin herramientas"
@@ -824,3 +825,28 @@ msgstr "Topologia persistida"
 #, elixir-autogen, elixir-format
 msgid ".home_card_topology_lemming_count_label"
 msgstr ""
+
+#: lib/lemmings_os_web/live/tools_live.ex:168
+#, elixir-autogen, elixir-format
+msgid ".tools_list_item_copy"
+msgstr "%{name} (riesgo %{risk})"
+
+#: lib/lemmings_os_web/live/tools_live.ex:171
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_high"
+msgstr "alto"
+
+#: lib/lemmings_os_web/live/tools_live.ex:173
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_low"
+msgstr "bajo"
+
+#: lib/lemmings_os_web/live/tools_live.ex:172
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_medium"
+msgstr "medio"
+
+#: lib/lemmings_os_web/live/tools_live.ex:174
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_unknown"
+msgstr "desconocido"

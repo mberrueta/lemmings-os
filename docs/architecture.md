@@ -89,7 +89,7 @@ Responsibilities:
 
 ### Runtime engine layer
 
-The Phase 1 runtime engine is a formal architectural layer. It sits below contexts and above infrastructure.
+The v1 runtime engine is a formal architectural layer. It sits below contexts and above infrastructure.
 
 #### Executor
 
@@ -113,7 +113,7 @@ Responsibilities:
 
 - one scheduler per active Department
 - own scheduling truth for queued instances in that Department
-- select the oldest eligible instance first in Phase 1
+- select the oldest eligible instance first in v1
 - request scarce execution capacity before the executor begins processing
 
 Namespace clarification:
@@ -133,7 +133,7 @@ Responsibilities:
 - key capacity by resource key, not by Department or City
 - allow many Departments to contend safely for the same model endpoint
 
-Phase 1 resource keys look like `ollama:llama3.2`. The scarce thing is the model endpoint itself, so the pool is keyed by resource identity rather than organization.
+v1 resource keys look like `ollama:llama3.2`. The scarce thing is the model endpoint itself, so the pool is keyed by resource identity rather than organization.
 
 The key detail is where that resource key comes from: scheduler admission and
 model execution both read the same normalized active-model contract from the
@@ -154,12 +154,43 @@ Responsibilities:
 - validate structured output
 - normalize provider, model, token, and usage metadata
 
-`ModelRuntime` is the dedicated model execution boundary. It is parallel to future Tool Runtime concerns, not a helper hidden inside `LemmingInstances`.
+`ModelRuntime` is the dedicated model execution boundary. It is parallel to the Tool Runtime boundary, not a helper hidden inside `LemmingInstances`.
 
-For Phase 1, `ModelRuntime` shares the same active-model selection contract used
+For v1, `ModelRuntime` shares the same active-model selection contract used
 by the scheduler: `config_snapshot.model_runtime.{profile, provider, model,
 resource_key}`. This avoids drift between admission control and actual provider
 execution.
+
+#### Tool Runtime
+
+Current implementation references:
+
+- `LemmingsOs.Tools.Catalog`
+- `LemmingsOs.Tools.Runtime`
+- `LemmingsOs.Tools.Adapters.Filesystem`
+- `LemmingsOs.Tools.Adapters.Web`
+- `LemmingsOs.LemmingTools`
+- `LemmingsOs.LemmingInstances.ToolExecution`
+
+Responsibilities:
+
+- expose the fixed v1 catalog to both runtime and UI
+- accept direct executor calls for supported tool names
+- validate catalog membership and World/instance scope
+- execute the four v1 adapters only
+- normalize success and error payloads
+- persist per-invocation history through `lemming_instance_tool_executions`
+
+The executable v1 catalog is exactly:
+
+- `fs.read_text_file`
+- `fs.write_text_file`
+- `web.search`
+- `web.fetch`
+
+The executor owns orchestration. It creates a `running` tool-execution row, calls `Tools.Runtime.execute/4`, updates that same row to `ok` or `error`, broadcasts the changed row, appends a normalized tool-result context message, then calls `ModelRuntime` again until a final reply or bounded failure.
+
+This is a direct runtime-call path. PubSub is only a UI update mechanism, not a tool transport.
 
 #### Runtime state stores
 
@@ -188,6 +219,7 @@ Responsibilities:
 - broadcast scheduler and per-instance runtime signals
 - expose runtime status for read models and diagnostics
 - emit structured lifecycle and failure events with hierarchy metadata
+- emit tool-execution lifecycle telemetry and activity-log entries
 
 ---
 
@@ -231,7 +263,7 @@ Executor
   -> queue empty => idle
 ```
 
-The Phase 1 runtime status taxonomy is:
+The v1 runtime status taxonomy is:
 
 - `created`
 - `queued`
@@ -241,7 +273,24 @@ The Phase 1 runtime status taxonomy is:
 - `failed`
 - `expired`
 
-This is the deliberate Phase 1 subset of the richer execution taxonomy defined in ADR-0004.
+This is the deliberate v1 subset of the richer execution taxonomy defined in ADR-0004.
+
+### Tool-call flow
+
+```text
+Executor
+  -> ModelRuntime returns structured action = tool_call
+  -> lemming_instance_tool_executions row inserted with status = running
+  -> Tools.Runtime.execute/4 validates fixed catalog and World scope
+  -> adapter executes
+  -> same tool row updated to status = ok or error
+  -> PubSub broadcasts :tool_execution_upserted
+  -> telemetry and activity log record lifecycle outcome
+  -> normalized tool result is appended to model context
+  -> Executor asks ModelRuntime for the next action
+```
+
+This loop is the supported v1 tool-call path. Approval waits, MCP, Docker sandboxing, dynamic tool discovery, generic command execution, and hierarchical tool policy enforcement are deferred beyond v1.
 
 ---
 
@@ -260,7 +309,7 @@ Durable relational records:
 - `lemming_instances`
 - `lemming_instance_messages`
 
-Phase 1 runtime columns of note:
+v1 runtime columns of note:
 
 ```text
 lemming_instances
@@ -272,9 +321,14 @@ lemming_instance_messages
   id, lemming_instance_id, world_id, role, content,
   provider, model, input_tokens, output_tokens, total_tokens, usage,
   inserted_at
+
+lemming_instance_tool_executions
+  id, lemming_instance_id, world_id, tool_name, status, args,
+  result, error, summary, preview, started_at, completed_at,
+  duration_ms, inserted_at, updated_at
 ```
 
-Deferred beyond Phase 1:
+Deferred beyond v1:
 
 - `instance_ref`
 - `parent_instance_id`
@@ -289,9 +343,12 @@ Active runtime state:
 - retry count and retry metadata
 - prompt-assembly context
 - active runtime status snapshot
+- live-only executor interaction trace for raw model/tool debugging
 
 The executor consumes work from this ephemeral queue. It does not treat the
 `lemming_instance_messages` table as its execution queue.
+
+The interaction trace is non-authoritative and safe to lose on process termination. Durable session history comes from `lemming_instance_messages` and `lemming_instance_tool_executions`.
 
 ### DETS
 
@@ -302,7 +359,7 @@ Best-effort idle snapshots:
 - deleted on expiry or other successful cleanup paths
 - failure-tolerant; snapshot failure does not fail the runtime session
 
-Automatic rehydration from DETS is explicitly out of scope for Phase 1.
+Automatic rehydration from DETS is deferred beyond v1.
 
 ---
 
@@ -313,7 +370,7 @@ Automatic rehydration from DETS is explicitly out of scope for Phase 1.
 - the runtime session remains represented by its durable `lemming_instances` row
 - supervision can restart the executor process
 - runtime state recovery is bounded by the persisted row and any available idle snapshot
-- Phase 1 does not promise full automatic rehydration from DETS
+- v1 does not support full automatic rehydration from DETS
 
 ### Retry exhaustion
 
@@ -332,11 +389,11 @@ Automatic rehydration from DETS is explicitly out of scope for Phase 1.
 
 - City liveness is derived from `last_seen_at` freshness
 - the administrative City `status` is not rewritten automatically by heartbeat loss
-- idle DETS snapshots remain a future extension point for recovery, not a Phase 1 operator guarantee
+- idle DETS snapshots remain a future extension point for recovery, not a v1 operator guarantee
 
 ### Boot recovery contract
 
-After application restart, Phase 1 recovery is intentionally limited.
+After application restart, v1 recovery is intentionally limited.
 
 - `recover_created_sessions/1` performs a bounded best-effort sweep of persisted instances in `created`, `queued`, `processing`, `retrying`, and `idle`
 - if the latest transcript row is a pending `user` message, the runtime reattaches the session and replays that pending work by normalizing the durable state back to `created` and queueing it again
@@ -345,7 +402,7 @@ After application restart, Phase 1 recovery is intentionally limited.
 - `failed` is not auto-recovered at boot; it requires explicit `retry_session/2`
 - `expired` is terminal and requires a new spawn rather than reattach
 
-For a new reader, the practical rule is simple: Phase 1 preserves durable session identity and transcript across restart, but not exact in-flight provider execution state.
+For a new reader, the practical rule is simple: v1 preserves durable session identity and transcript across restart, but not exact in-flight provider execution state.
 
 ---
 
@@ -366,9 +423,9 @@ For a new reader, the practical rule is simple: Phase 1 preserves durable sessio
 
 ## Future work
 
-- richer execution taxonomy beyond the Phase 1 subset
+- richer execution taxonomy beyond the v1 subset
 - explicit rehydration from DETS idle snapshots
 - delegation and lineage tracking across runtime sessions
 - broader model provider set beyond `Providers.Ollama`
-- future Tool Runtime concerns layered beside `ModelRuntime`
+- broader Tool Runtime governance beyond the fixed four-tool v1 catalog
 - distributed runtime coordination across multiple Cities

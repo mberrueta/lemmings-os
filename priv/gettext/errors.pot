@@ -267,22 +267,32 @@ msgstr ""
 msgid ".lemming_delete_denied_safety_indeterminate"
 msgstr ""
 
-#: lib/lemmings_os/lemming_instances/lemming_instance.ex:69
-#: lib/lemmings_os/lemming_instances/lemming_instance.ex:87
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:72
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:90
 #: lib/lemmings_os/lemming_instances/message.ex:62
+#: lib/lemmings_os/lemming_instances/tool_execution.ex:84
+#: lib/lemmings_os/lemming_instances/tool_execution.ex:113
 #, elixir-autogen, elixir-format
 msgid ".invalid_choice"
 msgstr ""
 
-#: lib/lemmings_os/lemming_instances/lemming_instance.ex:99
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:102
+#: lib/lemmings_os/lemming_instances/tool_execution.ex:142
 #, elixir-autogen, elixir-format
 msgid ".invalid_value_type"
 msgstr ""
 
-#: lib/lemmings_os/lemming_instances/lemming_instance.ex:68
-#: lib/lemmings_os/lemming_instances/lemming_instance.ex:86
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:71
+#: lib/lemmings_os/lemming_instances/lemming_instance.ex:89
 #: lib/lemmings_os/lemming_instances/message.ex:61
-#: lib/lemmings_os_web/live/instance_live.ex:553
+#: lib/lemmings_os/lemming_instances/tool_execution.ex:83
+#: lib/lemmings_os_web/live/instance_live.ex:574
 #, elixir-autogen, elixir-format
 msgid ".required"
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/tool_execution.ex:88
+#: lib/lemmings_os/lemming_instances/tool_execution.ex:117
+#, elixir-autogen, elixir-format
+msgid ".invalid_value"
 msgstr ""

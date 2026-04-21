@@ -4,21 +4,83 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
   import LemmingsOs.Factory
   import Phoenix.LiveViewTest
 
+  @moduletag capture_log: true
+
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.EtsStore
+  alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.ToolExecution
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.PubSub
+  alias LemmingsOs.LemmingInstances.ResourcePool
+  alias LemmingsOs.LemmingTools
+  alias LemmingsOs.ModelRuntime.Response
   alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Repo
   alias LemmingsOsWeb.InstanceComponents
   alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.Worlds.World
 
+  defmodule RawTraceToolLoopModelRuntime do
+    def run(_config_snapshot, context_messages, current_item) do
+      if Enum.any?(
+           context_messages,
+           &String.contains?(&1.content, "As response to your previous tool request")
+         ) do
+        {:ok,
+         Response.new(
+           action: :reply,
+           reply: "File created successfully!",
+           provider: "fake",
+           model: "tool-loop-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      else
+        {:ok,
+         Response.new(
+           action: :tool_call,
+           tool_name: "web.fetch",
+           tool_args: %{"url" => "https://example.com"},
+           provider: "fake",
+           model: "tool-loop-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule RawTraceSuccessToolRuntime do
+    def execute(_world, _instance, "web.fetch", %{"url" => "https://example.com"}) do
+      {:ok,
+       %{
+         tool_name: "web.fetch",
+         args: %{"url" => "https://example.com"},
+         summary: "Fetched https://example.com",
+         preview: "example preview",
+         result: %{url: "https://example.com", status: 200, body: "example body"}
+       }}
+    end
+  end
+
+  defmodule RawTraceInvalidOutputModelRuntime do
+    def run(_config_snapshot, _context_messages, _current_item) do
+      {:error,
+       {:invalid_structured_output,
+        %{
+          provider: "fake",
+          model: "broken-model",
+          content: "not-json",
+          raw: %{content: "not-json", provider: "fake", model: "broken-model"}
+        }}}
+    end
+  end
+
   setup do
+    Repo.delete_all(ToolExecution)
     Repo.delete_all(Message)
     Repo.delete_all(LemmingInstance)
     Repo.delete_all(Lemming)
@@ -458,6 +520,332 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
            )
   end
 
+  test "S08b: historical transcript renders compact tool cards in chronological order", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Repo.insert!(%Message{
+      lemming_instance_id: instance.id,
+      world_id: world.id,
+      role: "assistant",
+      content: "Initial assistant reply",
+      inserted_at: DateTime.add(now, 1, :second)
+    })
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{"path" => "notes/output.md", "content" => "artifact"},
+        summary: "Wrote artifact to workspace.",
+        preview: "notes/output.md",
+        result: %{"path" => "notes/output.md", "bytes" => 32},
+        started_at: DateTime.add(now, 2, :second),
+        completed_at: DateTime.add(now, 2, :second),
+        duration_ms: 18
+      })
+
+    Repo.update!(
+      Ecto.Changeset.change(tool_execution, inserted_at: DateTime.add(now, 2, :second))
+    )
+
+    Repo.insert!(%Message{
+      lemming_instance_id: instance.id,
+      world_id: world.id,
+      role: "user",
+      content: "Follow-up question",
+      inserted_at: DateTime.add(now, 3, :second)
+    })
+
+    {:ok, view, html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#card-tool-execution-#{tool_execution.id}")
+    assert has_element?(view, "#tool-execution-summary-#{tool_execution.id}", "notes/output.md")
+    assert has_element?(view, "#tool-execution-preview-#{tool_execution.id}", "notes/output.md")
+    assert has_element?(view, "#tool-execution-details-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#tool-execution-args-#{tool_execution.id}",
+             "\"path\": \"notes/output.md\""
+           )
+
+    assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"bytes\": 32")
+
+    assert html =~
+             ~s(/lemmings/instances/#{instance.id}/artifacts/notes/output.md?world=#{world.id})
+
+    assert text_position(html, "Initial assistant reply") <
+             text_position(html, "notes/output.md")
+
+    assert text_position(html, "notes/output.md") <
+             text_position(html, "Follow-up question")
+  end
+
+  test "S08d: tool execution artifact link opens workspace file content", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(instance, "sample.md")
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, "# Sample artifact\n")
+
+    {:ok, _tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{"path" => "sample.md", "content" => "# Sample artifact\n"},
+        summary: "Wrote file sample.md",
+        preview: "# Sample artifact",
+        result: %{"path" => "sample.md", "bytes" => 18}
+      })
+
+    response =
+      conn
+      |> get(
+        ~p"/lemmings/instances/#{instance.id}/artifacts/#{["sample.md"]}?#{%{world: world.id}}"
+      )
+
+    assert response.status == 200
+    assert response.resp_body == "# Sample artifact\n"
+    assert get_resp_header(response, "content-type") == ["application/octet-stream"]
+
+    assert get_resp_header(response, "content-disposition") == [
+             ~s(attachment; filename="sample.md")
+           ]
+
+    assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
+  end
+
+  test "S08h: html and svg artifacts download without inline rendering", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    assert_artifact_download_headers(
+      conn,
+      world,
+      instance,
+      "report.html",
+      "<script>alert(1)</script>"
+    )
+
+    assert_artifact_download_headers(conn, world, instance, "diagram.svg", "<svg></svg>")
+  end
+
+  test "S08g: artifact download rejects symlink targets outside workspace", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, %{absolute_path: safe_path}} =
+      LemmingInstances.artifact_absolute_path(instance, "safe.md")
+
+    work_area = Path.dirname(safe_path)
+    outside_path = Path.join(Path.dirname(work_area), "outside-artifact.md")
+    File.mkdir_p!(work_area)
+    File.mkdir_p!(Path.dirname(outside_path))
+    File.write!(outside_path, "# Secret artifact\n")
+    assert :ok = File.ln_s(outside_path, Path.join(work_area, "artifact-link.md"))
+
+    assert {:error, :path_outside_workspace} =
+             LemmingInstances.artifact_absolute_path(instance, "artifact-link.md")
+
+    response =
+      conn
+      |> get(
+        ~p"/lemmings/instances/#{instance.id}/artifacts/#{["artifact-link.md"]}?#{%{world: world.id}}"
+      )
+
+    assert response.status == 404
+    assert response.resp_body == "Artifact not found"
+  end
+
+  test "S08c: tool execution broadcasts update transcript cards without remount", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_idle_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "web.fetch",
+        status: "running",
+        args: %{"url" => "https://example.com"},
+        summary: "Fetching source page.",
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    assert :ok =
+             PubSub.broadcast_tool_execution_upserted(
+               instance.id,
+               tool_execution.id,
+               tool_execution.status
+             )
+
+    assert eventually_has_element?(
+             view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='running']"
+           )
+
+    {:ok, _updated_tool_execution} =
+      LemmingTools.update_tool_execution(world, instance, tool_execution, %{
+        status: "ok",
+        summary: "Fetched source page.",
+        preview: "https://example.com",
+        result: %{"url" => "https://example.com", "status" => 200},
+        completed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        duration_ms: 45
+      })
+
+    assert :ok = PubSub.broadcast_tool_execution_upserted(instance.id, tool_execution.id, "ok")
+
+    assert eventually_has_element?(
+             view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='ok']"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "Fetched source page."
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-preview-#{tool_execution.id}",
+             "https://example.com"
+           )
+  end
+
+  test "S08e: tool execution broadcasts failed lifecycle updates without remount", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_idle_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "web.fetch",
+        status: "running",
+        args: %{"url" => "https://example.invalid"},
+        summary: "Fetching source page.",
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    assert :ok =
+             PubSub.broadcast_tool_execution_upserted(
+               instance.id,
+               tool_execution.id,
+               tool_execution.status
+             )
+
+    assert eventually_has_element?(
+             view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='running']"
+           )
+
+    {:ok, _updated_tool_execution} =
+      LemmingTools.update_tool_execution(world, instance, tool_execution, %{
+        status: "error",
+        summary: "Failed to fetch source page.",
+        error: %{
+          "code" => "tool.runtime_timeout",
+          "message" => "Request timed out while fetching URL"
+        },
+        completed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        duration_ms: 75
+      })
+
+    assert :ok =
+             PubSub.broadcast_tool_execution_upserted(
+               instance.id,
+               tool_execution.id,
+               "error"
+             )
+
+    assert eventually_has_element?(
+             view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='error']"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "Failed to fetch source page."
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-preview-#{tool_execution.id}",
+             "Request timed out while fetching URL"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-error-#{tool_execution.id}",
+             "\"code\": \"tool.runtime_timeout\""
+           )
+  end
+
+  test "S08f: persisted failed tool execution details render after page reload", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "web.fetch",
+        status: "error",
+        args: %{"url" => "https://example.invalid"},
+        summary: "Unable to fetch source page.",
+        error: %{
+          "code" => "tool.runtime_timeout",
+          "message" => "Request timed out while fetching URL"
+        },
+        started_at: now,
+        completed_at: DateTime.add(now, 1, :second),
+        duration_ms: 1000
+      })
+
+    Repo.update!(
+      Ecto.Changeset.change(tool_execution, inserted_at: DateTime.add(now, 2, :second))
+    )
+
+    {:ok, _initial_view, _initial_html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    {:ok, reloaded_view, _reloaded_html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(
+             reloaded_view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='error']"
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "Unable to fetch source page."
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-details-#{tool_execution.id}"
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-args-#{tool_execution.id}",
+             "\"url\": \"https://example.invalid\""
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-error-#{tool_execution.id}",
+             "\"message\": \"Request timed out while fetching URL\""
+           )
+  end
+
   test "S09: session header shows aggregate total tokens across transcript", %{conn: conn} do
     %{world: world, instance: instance} = spawn_runtime_session()
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -521,6 +909,238 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     refute has_element?(view, "#bubble-message-2", "openai")
   end
 
+  test "S11: session page links to raw context view", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_idle_runtime_session()
+
+    {:ok, view, html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-raw-context-link", "Raw context")
+    assert html =~ ~s(/lemmings/instances/#{instance.id}/raw?world=#{world.id})
+  end
+
+  test "S12: raw context view renders persisted runtime context and config snapshot", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    assert {:ok, _state} =
+             EtsStore.put(instance.id, %{
+               department_id: instance.department_id,
+               queue: :queue.new(),
+               current_item: %{id: "msg-current", content: "Create budget file"},
+               retry_count: 0,
+               tool_iteration_count: 2,
+               max_retries: 3,
+               context_messages: [
+                 %{role: "user", content: "Create a budget file"},
+                 %{
+                   role: "assistant",
+                   content:
+                     "As response to your previous tool request, the runtime executed fs.write_text_file. Tool result for fs.write_text_file: status=ok payload={}. Decide what to do next."
+                 }
+               ],
+               last_error: nil,
+               internal_error_details: nil,
+               status: :idle,
+               started_at: now,
+               last_activity_at: now
+             })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}/raw?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-raw-page")
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline-source",
+             "persisted transcript/tool history only"
+           )
+
+    assert has_element?(view, "#instance-raw-model-request", "\"format\": \"json\"")
+    assert has_element?(view, "#instance-raw-model-request", "fs.write_text_file")
+    assert has_element?(view, "#instance-raw-model-request-source", "live executor snapshot")
+
+    assert has_element?(
+             view,
+             "#instance-raw-model-request",
+             "\"content\": \"Create budget file\""
+           )
+
+    assert has_element?(view, "#instance-raw-context-messages", "Create a budget file")
+    assert has_element?(view, "#instance-raw-runtime-state", "\"tool_iteration_count\": 2")
+    assert has_element?(view, "#instance-raw-current-item", "Create budget file")
+    assert has_element?(view, "#instance-raw-config-snapshot", "\"tools_config\"")
+    assert has_element?(view, "#instance-raw-session-link", "Back to session")
+  end
+
+  test "S12b: raw context view reconstructs the provider request from persisted transcript", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    Repo.insert!(%Message{
+      lemming_instance_id: instance.id,
+      world_id: world.id,
+      role: "assistant",
+      content: "I can help with that."
+    })
+
+    Repo.insert!(%Message{
+      lemming_instance_id: instance.id,
+      world_id: world.id,
+      role: "user",
+      content: "Create a file at notes/budget_brief_example.md"
+    })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}/raw?#{%{world: world.id}}")
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline-source",
+             "persisted transcript/tool history only"
+           )
+
+    assert has_element?(view, "#instance-raw-model-request-source", "persisted transcript")
+
+    assert has_element?(
+             view,
+             "#instance-raw-model-request",
+             "\"content\": \"Create a file at notes/budget_brief_example.md\""
+           )
+
+    refute has_element?(view, "#instance-raw-model-request", ":invalid_request")
+  end
+
+  test "S12c: raw context view renders live model interaction timeline", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    resource_key = "ollama:tool-loop-model"
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          name: "Incident Triage",
+          description: "Handles incident follow-up and operator requests.",
+          instructions: "Stay concise and use tools when needed.",
+          model: "tool-loop-model",
+          models_config: %{profiles: %{default: %{provider: "ollama", model: "tool-loop-model"}}}
+        },
+        context_mod: LemmingsOs.LemmingInstances,
+        model_mod: RawTraceToolLoopModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: RawTraceSuccessToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: EtsStore
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Use a tool then reply")
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_executor_status(pid, "idle")
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}/raw?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-raw-interaction-timeline-source", "live executor trace")
+    assert has_element?(view, "#instance-raw-model-request-source", "exact latest live request")
+    assert has_element?(view, "#instance-raw-model-request", "\"model\": \"tool-loop-model\"")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "1. User -> App")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "2. App -> LLM")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "SYSTEM")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Platform Runtime Context")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Configured Lemming Identity")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Name: Incident Triage")
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline",
+             "Description: Handles incident follow-up and operator requests."
+           )
+
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Instructions:")
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline",
+             "Stay concise and use tools when needed."
+           )
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline",
+             "Available Tools"
+           )
+
+    assert has_element?(view, "#instance-raw-interaction-timeline", "USER")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Use a tool then reply")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Loop State Semantics")
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline",
+             "Immediate Response Instruction"
+           )
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline",
+             "LLM requested tool web.fetch"
+           )
+
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Execute web.fetch")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "web.fetch completed")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "File created successfully!")
+
+    GenServer.stop(pid)
+  end
+
+  test "S12d: raw context view shows malformed provider content on invalid structured output", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{model: "broken-model"},
+        context_mod: LemmingsOs.LemmingInstances,
+        model_mod: RawTraceInvalidOutputModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: RawTraceSuccessToolRuntime,
+        pool_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: EtsStore
+      )
+
+    assert :ok = Executor.enqueue_work(pid, "Trigger malformed output")
+    Executor.admit(pid)
+    assert eventually_executor_status(pid, "failed")
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}/raw?#{%{world: world.id}}")
+
+    assert has_element?(
+             view,
+             "#instance-raw-interaction-timeline",
+             "LLM returned an unexpected payload"
+           )
+
+    assert has_element?(view, "#instance-raw-interaction-timeline", "not-json")
+
+    GenServer.stop(pid)
+  end
+
   defp spawn_runtime_session do
     unique = System.unique_integer([:positive])
     world = insert(:world, name: "Ops World #{unique}", slug: "ops-world-#{unique}")
@@ -547,6 +1167,8 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
         city: city,
         department: department,
         name: "Incident Triage #{unique}",
+        description: "Handles incident follow-up and operator requests.",
+        instructions: "Stay concise and use tools when needed.",
         slug: "incident-triage-#{unique}",
         status: "active"
       )
@@ -610,10 +1232,47 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     end
   end
 
+  defp eventually_executor_status(pid, expected_status, attempts \\ 20)
+
+  defp eventually_executor_status(pid, expected_status, 0) do
+    Executor.status(pid).status == expected_status
+  end
+
+  defp eventually_executor_status(pid, expected_status, attempts) do
+    if Executor.status(pid).status == expected_status do
+      true
+    else
+      Process.sleep(50)
+      eventually_executor_status(pid, expected_status, attempts - 1)
+    end
+  end
+
   defp text_position(html, text) when is_binary(html) and is_binary(text) do
     case :binary.match(html, text) do
       {position, _length} -> position
       :nomatch -> nil
     end
+  end
+
+  defp assert_artifact_download_headers(conn, world, instance, path, content) do
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(instance, path)
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, content)
+
+    response =
+      conn
+      |> get(~p"/lemmings/instances/#{instance.id}/artifacts/#{[path]}?#{%{world: world.id}}")
+
+    assert response.status == 200
+    assert response.resp_body == content
+    assert get_resp_header(response, "content-type") == ["application/octet-stream"]
+
+    assert get_resp_header(response, "content-disposition") == [
+             ~s(attachment; filename="#{path}")
+           ]
+
+    assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
   end
 end

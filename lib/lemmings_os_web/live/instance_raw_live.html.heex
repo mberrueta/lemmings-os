@@ -1,0 +1,237 @@
+<Layouts.app
+  flash={@flash}
+  current_scope={@current_scope}
+  page_key={@page_key}
+  page_title={@page_title}
+  shell_user={@shell_user}
+  shell_host={@shell_host}
+  shell_breadcrumb={@shell_breadcrumb}
+  summary={@summary}
+>
+  <div id="instance-raw-page" class="flex min-h-0 w-full flex-col gap-6">
+    <section
+      :if={@instance_not_found?}
+      id="instance-raw-not-found"
+      class="border-2 border-amber-400/40 bg-zinc-950/85 p-6 shadow-xl"
+      role="alert"
+    >
+      <p class="text-lg font-semibold text-zinc-50">
+        {dgettext("lemmings", "Instance not found")}
+      </p>
+      <p class="mt-2 text-sm leading-6 text-zinc-400">
+        {dgettext(
+          "lemmings",
+          "The requested runtime session could not be loaded for this world scope."
+        )}
+      </p>
+    </section>
+
+    <section
+      :if={!@instance_not_found?}
+      class="flex min-h-0 flex-col gap-6 border border-emerald-400/20 bg-zinc-950/95 p-5"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-4 border-b border-emerald-400/10 pb-4">
+        <div class="space-y-2">
+          <p class="text-xs uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", "Runtime debug surface")}
+          </p>
+          <h1 class="text-2xl font-semibold tracking-tight text-zinc-50">
+            {dgettext("lemmings", "Raw Context")}
+          </h1>
+          <p class="max-w-3xl text-sm leading-7 text-zinc-400">
+            {dgettext(
+              "lemmings",
+              "Shows the live LLM and tool loop as a readable timeline. Raw payloads stay collapsed under each step."
+            )}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <.link
+            :if={@session_path}
+            id="instance-raw-session-link"
+            navigate={@session_path}
+            class="inline-flex min-h-11 items-center gap-2 border border-sky-400/40 bg-sky-400/10 px-4 py-2 text-xs font-medium uppercase tracking-widest text-sky-300 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-200"
+          >
+            <.icon name="hero-arrow-left" class="size-4" />
+            {dgettext("lemmings", "Back to session")}
+          </.link>
+        </div>
+      </div>
+
+      <section id="instance-raw-interaction-timeline" class="space-y-4">
+        <div class="space-y-2">
+          <p class="text-xs uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", "Interaction timeline")}
+          </p>
+          <p
+            id="instance-raw-interaction-timeline-source"
+            class="text-xs leading-6 text-zinc-500"
+          >
+            {interaction_timeline_source_copy(@interaction_timeline_source)}
+          </p>
+          <p
+            :if={@interaction_timeline_source == :persisted_history_only}
+            id="instance-raw-interaction-timeline-warning"
+            class="text-xs leading-6 text-amber-200"
+          >
+            {dgettext(
+              "lemmings",
+              "Live executor trace is unavailable. This fallback only shows persisted transcript and tool rows, not every intermediate LLM turn."
+            )}
+          </p>
+        </div>
+
+        <div
+          :if={Enum.empty?(@interaction_timeline)}
+          id="instance-raw-interaction-empty"
+          class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 text-sm leading-7 text-zinc-500"
+        >
+          {dgettext("lemmings", "No interaction trace is available yet.")}
+        </div>
+
+        <div :if={!Enum.empty?(@interaction_timeline)} class="space-y-4">
+          <article
+            :for={entry <- @interaction_timeline}
+            id={"timeline-entry-#{entry.id}"}
+            class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center gap-3">
+                  <p class="text-sm font-semibold tracking-wide text-zinc-50">{entry.title}</p>
+                  <p
+                    :if={entry.timestamp}
+                    class="text-[11px] uppercase tracking-[0.25em] text-zinc-500"
+                  >
+                    {timeline_timestamp(entry.timestamp)}
+                  </p>
+                </div>
+                <p class="text-sm text-emerald-200">{entry.summary}</p>
+              </div>
+
+              <span
+                :if={entry.status}
+                class={[
+                  "inline-flex items-center border px-2 py-1 text-[10px] uppercase tracking-[0.3em]",
+                  timeline_entry_status_class(entry.status)
+                ]}
+              >
+                {entry.status}
+              </span>
+            </div>
+
+            <div
+              :if={entry.body}
+              class="mt-3 whitespace-pre-wrap text-sm leading-7 text-zinc-300"
+            >
+              {entry.body}
+            </div>
+
+            <div :if={entry.meta != []} class="mt-4 flex flex-wrap gap-2">
+              <span
+                :for={meta <- entry.meta}
+                class="inline-flex items-center border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] uppercase tracking-[0.25em] text-zinc-400"
+              >
+                {meta}
+              </span>
+            </div>
+
+            <details :if={entry.raw_sections != []} class="mt-4 border-t border-zinc-800 pt-4">
+              <summary class="cursor-pointer list-none text-xs uppercase tracking-[0.25em] text-zinc-500">
+                {dgettext("lemmings", "Inspect raw details")}
+              </summary>
+
+              <div class="mt-4 space-y-4">
+                <div
+                  :for={section <- entry.raw_sections}
+                  :if={not is_nil(section.payload)}
+                  class="space-y-2"
+                >
+                  <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                    {section.label}
+                  </p>
+                  <pre
+                    class="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs leading-6 text-zinc-300"
+                    phx-no-curly-interpolation
+                  ><%= json_payload(section.payload) %></pre>
+                </div>
+              </div>
+            </details>
+          </article>
+        </div>
+      </section>
+
+      <div class="grid gap-6 xl:grid-cols-2">
+        <section id="instance-raw-model-request" class="space-y-3 xl:col-span-2">
+          <details class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <summary class="cursor-pointer list-none">
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Latest provider request")}
+              </p>
+              <p
+                id="instance-raw-model-request-source"
+                class="mt-2 text-xs leading-6 text-zinc-500"
+              >
+                {model_request_source_copy(@model_request_source)}
+              </p>
+            </summary>
+
+            <pre
+              class="mt-4 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-xs leading-6 text-zinc-300"
+              phx-no-curly-interpolation
+            ><%= json_payload(@model_request) %></pre>
+          </details>
+        </section>
+
+        <section id="instance-raw-context-messages" class="space-y-3">
+          <details class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <summary class="cursor-pointer list-none text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", "Context messages")}
+            </summary>
+            <pre
+              class="mt-4 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-xs leading-6 text-zinc-300"
+              phx-no-curly-interpolation
+            ><%= json_payload(@runtime_state[:context_messages]) %></pre>
+          </details>
+        </section>
+
+        <section id="instance-raw-current-item" class="space-y-3">
+          <details class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <summary class="cursor-pointer list-none text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", "Current item")}
+            </summary>
+            <pre
+              class="mt-4 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-xs leading-6 text-zinc-300"
+              phx-no-curly-interpolation
+            ><%= json_payload(@runtime_state[:current_item]) %></pre>
+          </details>
+        </section>
+
+        <section id="instance-raw-runtime-state" class="space-y-3">
+          <details class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <summary class="cursor-pointer list-none text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", "Runtime state")}
+            </summary>
+            <pre
+              class="mt-4 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-xs leading-6 text-zinc-300"
+              phx-no-curly-interpolation
+            ><%= json_payload(@runtime_state) %></pre>
+          </details>
+        </section>
+
+        <section id="instance-raw-config-snapshot" class="space-y-3">
+          <details class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <summary class="cursor-pointer list-none text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", "Config snapshot")}
+            </summary>
+            <pre
+              class="mt-4 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-xs leading-6 text-zinc-300"
+              phx-no-curly-interpolation
+            ><%= json_payload(@instance.config_snapshot) %></pre>
+          </details>
+        </section>
+      </div>
+    </section>
+  </div>
+</Layouts.app>

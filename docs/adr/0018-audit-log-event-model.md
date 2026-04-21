@@ -274,7 +274,37 @@ Telemetry events are intended to answer:
 - how long it took
 - where performance or reliability problems exist
 
-## 5.3 Shared Envelope, Distinct Semantics
+## 5.3 Tool Runtime v1 Events
+
+The v1 Tool Runtime implementation emits operational signals through the existing structured logger, in-memory activity log, PubSub, and Elixir Telemetry. Durable canonical audit events for tool execution are not supported yet.
+
+Implemented v1 signals:
+
+- structured log event `instance.executor.tool_execution.started`
+- structured log event `instance.executor.tool_execution.completed`
+- structured log event `instance.executor.tool_execution.failed`
+- telemetry event `[:lemmings_os, :runtime, :tool_execution, :started]`
+- telemetry event `[:lemmings_os, :runtime, :tool_execution, :completed]`
+- telemetry event `[:lemmings_os, :runtime, :tool_execution, :failed]`
+- PubSub notification `:tool_execution_upserted` for instance transcript refresh
+- in-memory activity-log entries in the `tool_execution` category
+
+Telemetry metadata includes the hierarchy and tool identity needed for runtime diagnostics:
+
+- `world_id`
+- `city_id`
+- `department_id`
+- `lemming_id`
+- `instance_id`
+- `tool_execution_id`
+- `tool_name`
+- `tool_status`
+- `duration_ms`
+- `reason` on failure
+
+The durable v1 history is the `lemming_instance_tool_executions` table, not the platform audit-event table. That table is runtime history scoped to one instance; it supports transcript reconstruction and operator inspection but does not replace the canonical append-only audit envelope.
+
+## 5.4 Shared Envelope, Distinct Semantics
 
 Audit and telemetry use the same base envelope so that infrastructure remains simple and query patterns remain consistent.
 

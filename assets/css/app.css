@@ -3,6 +3,7 @@
 @source "../css";
 @source "../js";
 @source "../../lib/lemmings_os_web";
+@source inline("hero-document-text hero-pencil-square hero-globe-alt hero-magnifying-glass hero-minus-small");
 
 @plugin "../vendor/heroicons";
 

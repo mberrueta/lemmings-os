@@ -17,12 +17,12 @@ defmodule LemmingsOs.LemmingInstances do
   alias LemmingsOs.LemmingInstances.ConfigSnapshot
   alias LemmingsOs.LemmingInstances.DetsStore
   alias LemmingsOs.LemmingInstances.EtsStore
-  alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
-  alias LemmingsOs.LemmingInstances.Telemetry
   alias LemmingsOs.LemmingInstances.PubSub
+  alias LemmingsOs.LemmingInstances.Telemetry
+  alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Worlds.World
@@ -79,62 +79,51 @@ defmodule LemmingsOs.LemmingInstances do
           |> snapshot_value()
           |> ConfigSnapshot.enrich()
 
-        transaction =
-          Multi.new()
-          |> Multi.insert(
-            :instance,
-            LemmingInstance.create_changeset(%LemmingInstance{}, %{
-              lemming_id: lemming.id,
-              world_id: lemming.world_id,
-              city_id: lemming.city_id,
-              department_id: lemming.department_id,
-              status: "created",
-              config_snapshot: config_snapshot
-            })
-          )
-          |> Multi.insert(:message, fn %{instance: instance} ->
-            Message.changeset(%Message{}, %{
-              lemming_instance_id: instance.id,
-              world_id: instance.world_id,
-              role: "user",
-              content: first_request_text
-            })
-          end)
+        work_area_path = build_work_area_path(lemming)
 
-        case Repo.transaction(transaction) do
-          {:ok, %{instance: instance, message: message}} ->
-            Logger.info("runtime instance spawned",
-              event: "instance.spawn",
-              instance_id: instance.id,
-              lemming_id: instance.lemming_id,
-              world_id: instance.world_id,
-              city_id: instance.city_id,
-              department_id: instance.department_id,
-              message_id: message.id,
-              status: instance.status
+        with :ok <- create_work_area(work_area_path),
+             {:ok, %{instance: instance, message: message}} <-
+               persist_spawn(
+                 lemming,
+                 config_snapshot,
+                 first_request_text
+               ) do
+          Logger.info("runtime instance spawned",
+            event: "instance.spawn",
+            instance_id: instance.id,
+            lemming_id: instance.lemming_id,
+            world_id: instance.world_id,
+            city_id: instance.city_id,
+            department_id: instance.department_id,
+            message_id: message.id,
+            status: instance.status,
+            path: work_area_path
+          )
+
+          _ =
+            Telemetry.execute(
+              [:lemmings_os, :instance, :created],
+              %{count: 1},
+              Telemetry.instance_metadata(instance, %{
+                status: instance.status,
+                message_id: message.id,
+                work_area_path: work_area_path
+              })
             )
 
-            _ =
-              Telemetry.execute(
-                [:lemmings_os, :instance, :created],
-                %{count: 1},
-                Telemetry.instance_metadata(instance, %{
-                  status: instance.status,
-                  message_id: message.id
-                })
-              )
+          _ =
+            ActivityLog.record(:runtime, "instance", "Runtime instance spawned", %{
+              instance_id: instance.id,
+              lemming_id: instance.lemming_id,
+              message_id: message.id,
+              work_area_path: work_area_path
+            })
 
-            _ =
-              ActivityLog.record(:runtime, "instance", "Runtime instance spawned", %{
-                instance_id: instance.id,
-                lemming_id: instance.lemming_id,
-                message_id: message.id
-              })
-
-            {:ok, instance}
-
-          {:error, _step, reason, _changes} ->
-            {:error, reason}
+          {:ok, instance}
+        else
+          {:error, _reason} = error ->
+            cleanup_work_area(work_area_path)
+            error
         end
     end
   end
@@ -478,19 +467,23 @@ defmodule LemmingsOs.LemmingInstances do
   end
 
   defp filter_query(query, [{:status, status} | rest]),
-    do: filter_query(from(item in query, where: item.status == ^status), rest)
+    do: filter_query(from(item in query, where: field(item, ^:status) == ^status), rest)
 
   defp filter_query(query, [{:statuses, statuses} | rest]) when is_list(statuses),
-    do: filter_query(from(item in query, where: item.status in ^statuses), rest)
+    do: filter_query(from(item in query, where: field(item, ^:status) in ^statuses), rest)
 
   defp filter_query(query, [{:lemming_id, lemming_id} | rest]),
-    do: filter_query(from(item in query, where: item.lemming_id == ^lemming_id), rest)
+    do: filter_query(from(item in query, where: field(item, ^:lemming_id) == ^lemming_id), rest)
 
   defp filter_query(query, [{:department_id, department_id} | rest]),
-    do: filter_query(from(item in query, where: item.department_id == ^department_id), rest)
+    do:
+      filter_query(
+        from(item in query, where: field(item, ^:department_id) == ^department_id),
+        rest
+      )
 
   defp filter_query(query, [{:ids, ids} | rest]) when is_list(ids),
-    do: filter_query(from(item in query, where: item.id in ^ids), rest)
+    do: filter_query(from(item in query, where: field(item, ^:id) in ^ids), rest)
 
   defp filter_query(query, [{:preload, preloads} | rest]),
     do: filter_query(preload(query, ^preloads), rest)
@@ -542,6 +535,168 @@ defmodule LemmingsOs.LemmingInstances do
 
   defp snapshot_value(list) when is_list(list), do: Enum.map(list, &snapshot_value/1)
   defp snapshot_value(value), do: value
+
+  defp persist_spawn(lemming, config_snapshot, first_request_text) do
+    Multi.new()
+    |> Multi.insert(
+      :instance,
+      LemmingInstance.create_changeset(%LemmingInstance{}, %{
+        lemming_id: lemming.id,
+        world_id: lemming.world_id,
+        city_id: lemming.city_id,
+        department_id: lemming.department_id,
+        status: "created",
+        config_snapshot: config_snapshot
+      })
+    )
+    |> Multi.insert(:message, fn %{instance: instance} ->
+      Message.changeset(%Message{}, %{
+        lemming_instance_id: instance.id,
+        world_id: instance.world_id,
+        role: "user",
+        content: first_request_text
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{instance: instance, message: message}} ->
+        {:ok, %{instance: instance, message: message}}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
+  end
+
+  defp build_work_area_path(%Lemming{department_id: department_id, id: lemming_id})
+       when is_binary(department_id) and is_binary(lemming_id) do
+    Path.join([department_id, lemming_id])
+  end
+
+  @doc """
+  Resolves a workspace-relative artifact path for an instance into an absolute path.
+  """
+  @spec artifact_absolute_path(LemmingInstance.t(), String.t()) ::
+          {:ok, %{absolute_path: String.t(), relative_path: String.t()}} | {:error, term()}
+  def artifact_absolute_path(
+        %LemmingInstance{department_id: department_id, lemming_id: lemming_id},
+        relative_path
+      )
+      when is_binary(department_id) and is_binary(lemming_id) and is_binary(relative_path) do
+    cond do
+      relative_path == "" ->
+        {:error, :invalid_path}
+
+      Path.type(relative_path) == :absolute ->
+        {:error, :path_outside_workspace}
+
+      true ->
+        resolve_valid_artifact_path(department_id, lemming_id, relative_path)
+    end
+  end
+
+  def artifact_absolute_path(_instance, _relative_path), do: {:error, :invalid_path}
+
+  defp resolve_valid_artifact_path(department_id, lemming_id, relative_path) do
+    workspace_root = workspace_root() |> Path.expand()
+    work_area_root = Path.join([workspace_root, department_id, lemming_id])
+    absolute_path = Path.expand(relative_path, work_area_root)
+
+    if path_within_root?(absolute_path, work_area_root) do
+      build_artifact_path_info(work_area_root, absolute_path)
+    else
+      {:error, :path_outside_workspace}
+    end
+  end
+
+  defp build_artifact_path_info(work_area_root, absolute_path) do
+    normalized_relative_path = Path.relative_to(absolute_path, work_area_root)
+
+    with :ok <- validate_no_symlink_components(work_area_root, normalized_relative_path) do
+      {:ok,
+       %{
+         absolute_path: absolute_path,
+         relative_path: normalized_relative_path
+       }}
+    end
+  end
+
+  defp create_work_area(work_area_path) when is_binary(work_area_path) do
+    workspace_root()
+    |> Path.expand()
+    |> Path.join(work_area_path)
+    |> File.mkdir_p()
+    |> case do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error("runtime instance work area could not be created",
+          event: "instance.work_area.create_failed",
+          path: work_area_path,
+          reason: inspect(reason)
+        )
+
+        {:error, :work_area_unavailable}
+    end
+  end
+
+  defp cleanup_work_area(work_area_path) when is_binary(work_area_path) do
+    work_area_path
+    |> work_area_absolute_path()
+    |> File.rm_rf()
+
+    :ok
+  end
+
+  defp workspace_root do
+    Application.get_env(
+      :lemmings_os,
+      :runtime_workspace_root,
+      Path.expand("../../../priv/runtime/workspace", __DIR__)
+    )
+  end
+
+  defp work_area_absolute_path(work_area_path) do
+    workspace_root()
+    |> Path.expand()
+    |> Path.join(work_area_path)
+  end
+
+  defp path_within_root?(absolute_path, root_path)
+       when is_binary(absolute_path) and is_binary(root_path) do
+    normalized_absolute = Path.expand(absolute_path)
+    normalized_root = Path.expand(root_path)
+
+    normalized_absolute == normalized_root or
+      String.starts_with?(normalized_absolute, normalized_root <> "/")
+  end
+
+  defp validate_no_symlink_components(root_path, relative_path)
+       when is_binary(root_path) and is_binary(relative_path) do
+    root_path
+    |> Path.expand()
+    |> validate_no_symlink_components(Path.split(relative_path))
+  end
+
+  defp validate_no_symlink_components(_current_path, []), do: :ok
+
+  defp validate_no_symlink_components(current_path, [segment | rest]) do
+    next_path = Path.join(current_path, segment)
+
+    case File.lstat(next_path) do
+      {:ok, %File.Stat{type: :symlink}} ->
+        {:error, :path_outside_workspace}
+
+      {:ok, _stat} ->
+        validate_no_symlink_components(next_path, rest)
+
+      {:error, :enoent} ->
+        :ok
+
+      {:error, _reason} ->
+        :ok
+    end
+  end
 
   defp persist_user_message(%LemmingInstance{} = instance, request_text) do
     %Message{}
@@ -601,8 +756,11 @@ defmodule LemmingsOs.LemmingInstances do
       retry_count: Map.get(state, :retry_count, 0),
       max_retries: Map.get(state, :max_retries, 3),
       queue_depth: runtime_queue_depth(Map.get(state, :queue)),
+      tool_iteration_count: Map.get(state, :tool_iteration_count, 0),
       current_item: Map.get(state, :current_item),
+      context_messages: normalize_context_messages(Map.get(state, :context_messages)),
       last_error: Map.get(state, :last_error),
+      internal_error_details: Map.get(state, :internal_error_details),
       status: runtime_status(Map.get(state, :status)),
       started_at: Map.get(state, :started_at),
       last_activity_at: Map.get(state, :last_activity_at)
@@ -615,6 +773,9 @@ defmodule LemmingsOs.LemmingInstances do
 
   defp runtime_queue_depth(queue) when is_list(queue), do: length(queue)
   defp runtime_queue_depth(_queue), do: 0
+
+  defp normalize_context_messages(messages) when is_list(messages), do: messages
+  defp normalize_context_messages(_messages), do: []
 
   defp runtime_status(status) when is_atom(status), do: Atom.to_string(status)
   defp runtime_status(status) when is_binary(status), do: status

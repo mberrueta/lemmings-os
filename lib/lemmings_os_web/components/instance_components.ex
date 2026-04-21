@@ -196,9 +196,152 @@ defmodule LemmingsOsWeb.InstanceComponents do
     """
   end
 
+  attr :id, :string, required: true
+  attr :tool_execution, :map, required: true
+  attr :world_id, :string, default: nil
+  attr :display_now, :any, default: nil
+  attr :class, :string, default: nil
+
+  def tool_execution_card(assigns) do
+    status = normalize_tool_status(assigns.tool_execution.status)
+
+    assigns =
+      assigns
+      |> assign(:tool_status, status)
+      |> assign(:tool_details_id, "tool-execution-details-#{assigns.tool_execution.id}")
+      |> assign(:args_payload, tool_payload_json(assigns.tool_execution.args))
+      |> assign(:result_payload, tool_payload_json(assigns.tool_execution.result))
+      |> assign(:error_payload, tool_payload_json(assigns.tool_execution.error))
+      |> assign(:artifact_link, tool_artifact_link(assigns.tool_execution, assigns.world_id))
+
+    ~H"""
+    <article
+      id={@id}
+      class={["flex w-full justify-start", @class]}
+      data-role="tool"
+      data-status={@tool_status}
+    >
+      <div class="grid w-full max-w-[80%] min-w-[18rem] justify-items-start gap-2">
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class={[
+            "inline-flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
+            tool_avatar_tone(@tool_status)
+          ]}>
+            {dgettext("lemmings", "Tool")}
+          </span>
+          <span>{dgettext("lemmings", "Tool run")}</span>
+          <.badge tone={tool_status_badge_tone(@tool_status)}>
+            {tool_status_label(@tool_status)}
+          </.badge>
+        </div>
+
+        <div class={[
+          "w-full rounded-2xl border px-4 py-3",
+          tool_card_tone(@tool_status)
+        ]}>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0 space-y-1">
+              <p class="font-mono text-sm font-semibold text-zinc-100">
+                {@tool_execution.tool_name}
+              </p>
+              <p
+                id={"tool-execution-summary-#{@tool_execution.id}"}
+                class="text-sm leading-6 text-zinc-200"
+              >
+                <%= if @artifact_link do %>
+                  {tool_summary_prefix(@tool_execution)}
+                  <.link
+                    href={@artifact_link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-mono text-sky-300 underline decoration-sky-400/40 underline-offset-4 hover:text-sky-200"
+                  >
+                    {@artifact_link.label}
+                  </.link>
+                <% else %>
+                  {tool_summary(@tool_execution)}
+                <% end %>
+              </p>
+            </div>
+
+            <div class="flex shrink-0 flex-wrap justify-end gap-2">
+              <.badge tone="muted">
+                {tool_argument_count_label(@tool_execution.args)}
+              </.badge>
+              <.badge :if={tool_duration_label(@tool_execution)} tone="muted">
+                {tool_duration_label(@tool_execution)}
+              </.badge>
+            </div>
+          </div>
+
+          <p
+            :if={tool_preview(@tool_execution)}
+            id={"tool-execution-preview-#{@tool_execution.id}"}
+            class="mt-3 border-t border-zinc-800 pt-3 text-sm leading-6 text-zinc-400"
+          >
+            {tool_preview(@tool_execution)}
+          </p>
+
+          <details id={@tool_details_id} class="mt-3 border-t border-zinc-800 pt-3">
+            <summary class="cursor-pointer text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", "Inspect persisted details")}
+            </summary>
+
+            <div class="mt-3 grid gap-3">
+              <div>
+                <p class="text-xs uppercase tracking-widest text-zinc-500">
+                  {dgettext("lemmings", "Arguments")}
+                </p>
+                <pre
+                  id={"tool-execution-args-#{@tool_execution.id}"}
+                  class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs leading-6 text-zinc-300"
+                  phx-no-curly-interpolation
+                ><%= @args_payload %></pre>
+              </div>
+
+              <div :if={@tool_execution.result}>
+                <p class="text-xs uppercase tracking-widest text-zinc-500">
+                  {dgettext("lemmings", "Result")}
+                </p>
+                <pre
+                  id={"tool-execution-result-#{@tool_execution.id}"}
+                  class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs leading-6 text-zinc-300"
+                  phx-no-curly-interpolation
+                ><%= @result_payload %></pre>
+              </div>
+
+              <div :if={@tool_execution.error}>
+                <p class="text-xs uppercase tracking-widest text-zinc-500">
+                  {dgettext("lemmings", "Error")}
+                </p>
+                <pre
+                  id={"tool-execution-error-#{@tool_execution.id}"}
+                  class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs leading-6 text-zinc-300"
+                  phx-no-curly-interpolation
+                ><%= @error_payload %></pre>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class="text-zinc-400">{message_clock_label(@tool_execution.inserted_at)}</span>
+          <span class="text-zinc-600">
+            {message_age_label(@tool_execution.inserted_at, @display_now)}
+          </span>
+        </div>
+      </div>
+    </article>
+    """
+  end
+
   defp normalize_status(status) when is_binary(status), do: status
   defp normalize_status(status) when is_atom(status), do: Atom.to_string(status)
   defp normalize_status(_status), do: "created"
+
+  defp normalize_tool_status(status) when is_binary(status), do: status
+  defp normalize_tool_status(status) when is_atom(status), do: Atom.to_string(status)
+  defp normalize_tool_status(_status), do: "running"
 
   defp normalize_role(role) when is_binary(role), do: role
   defp normalize_role(role) when is_atom(role), do: Atom.to_string(role)
@@ -371,6 +514,151 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   defp message_avatar_label(role) when role in ["assistant", :assistant], do: "AI"
   defp message_avatar_label(_role), do: "You"
+
+  defp tool_card_tone("running"),
+    do: "border-amber-400/20 bg-gradient-to-b from-amber-950/30 to-zinc-950/95"
+
+  defp tool_card_tone("ok"),
+    do: "border-emerald-400/20 bg-gradient-to-b from-emerald-950/30 to-zinc-950/95"
+
+  defp tool_card_tone("error"),
+    do: "border-red-400/20 bg-gradient-to-b from-red-950/25 to-zinc-950/95"
+
+  defp tool_card_tone(_status), do: "border-zinc-800 bg-zinc-950/95"
+
+  defp tool_avatar_tone("running"), do: "border-amber-400/30 bg-amber-400/10 text-amber-200"
+  defp tool_avatar_tone("ok"), do: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+  defp tool_avatar_tone("error"), do: "border-red-400/30 bg-red-400/10 text-red-300"
+  defp tool_avatar_tone(_status), do: "border-zinc-700 bg-zinc-900/80 text-zinc-300"
+
+  defp tool_status_badge_tone("running"), do: "warning"
+  defp tool_status_badge_tone("ok"), do: "success"
+  defp tool_status_badge_tone("error"), do: "danger"
+  defp tool_status_badge_tone(_status), do: "muted"
+
+  defp tool_status_label("running"), do: dgettext("lemmings", "Running")
+  defp tool_status_label("ok"), do: dgettext("lemmings", "Completed")
+  defp tool_status_label("error"), do: dgettext("lemmings", "Failed")
+  defp tool_status_label(status), do: status
+
+  defp tool_summary(%{summary: summary}) when is_binary(summary) and summary != "", do: summary
+
+  defp tool_summary(%{status: "running"}),
+    do: dgettext("lemmings", "Tool execution is still running.")
+
+  defp tool_summary(%{status: "ok"}),
+    do: dgettext("lemmings", "Tool execution completed successfully.")
+
+  defp tool_summary(%{status: "error"} = tool_execution) do
+    tool_error_code = tool_execution |> Map.get(:error, %{}) |> Map.get("code")
+
+    if is_binary(tool_error_code) and tool_error_code != "" do
+      dgettext("lemmings", "Tool execution failed with code %{code}.", code: tool_error_code)
+    else
+      dgettext("lemmings", "Tool execution failed.")
+    end
+  end
+
+  defp tool_summary(_tool_execution), do: dgettext("lemmings", "Tool execution recorded.")
+
+  defp tool_summary_prefix(%{summary: summary} = tool_execution)
+       when is_binary(summary) and summary != "" do
+    case tool_execution.tool_name do
+      "fs.write_text_file" ->
+        "Wrote file "
+
+      "fs.read_text_file" ->
+        "Read file "
+
+      _tool_name ->
+        case tool_artifact_label(tool_execution) do
+          label when is_binary(label) ->
+            String.replace(summary, label, "")
+            |> String.trim()
+            |> ensure_trailing_space()
+
+          _label ->
+            ensure_trailing_space(summary)
+        end
+    end
+  end
+
+  defp tool_summary_prefix(tool_execution),
+    do: ensure_trailing_space(tool_summary(tool_execution))
+
+  defp tool_preview(%{preview: preview}) when is_binary(preview) and preview != "", do: preview
+
+  defp tool_preview(%{status: "error", error: error}) when is_map(error) do
+    error
+    |> Map.get("message")
+    |> normalize_preview_copy()
+  end
+
+  defp tool_preview(%{result: result}) when is_map(result) do
+    result
+    |> Map.get("path")
+    |> normalize_preview_copy()
+  end
+
+  defp tool_preview(_tool_execution), do: nil
+
+  defp tool_artifact_link(tool_execution, world_id) do
+    with true <- tool_execution.tool_name == "fs.write_text_file",
+         true <- is_binary(world_id) and world_id != "",
+         label when is_binary(label) <- tool_artifact_label(tool_execution),
+         true <- Path.type(label) == :relative,
+         path_segments when is_list(path_segments) <- String.split(label, "/", trim: true),
+         true <- path_segments != [] do
+      %{
+        label: label,
+        href:
+          ~p"/lemmings/instances/#{tool_execution.lemming_instance_id}/artifacts/#{path_segments}?#{%{world: world_id}}"
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp tool_artifact_label(%{args: %{"path" => path}}) when is_binary(path) and path != "",
+    do: path
+
+  defp tool_artifact_label(%{args: %{path: path}}) when is_binary(path) and path != "", do: path
+
+  defp tool_artifact_label(%{result: %{"path" => path}}) when is_binary(path) and path != "",
+    do: path
+
+  defp tool_artifact_label(%{result: %{path: path}}) when is_binary(path) and path != "", do: path
+  defp tool_artifact_label(_tool_execution), do: nil
+
+  defp ensure_trailing_space(value) when is_binary(value) and value != "" do
+    if String.ends_with?(value, " "), do: value, else: value <> " "
+  end
+
+  defp ensure_trailing_space(_value), do: ""
+
+  defp normalize_preview_copy(value) when is_binary(value) and value != "", do: value
+  defp normalize_preview_copy(_value), do: nil
+
+  defp tool_duration_label(%{duration_ms: duration_ms})
+       when is_integer(duration_ms) and duration_ms >= 0 do
+    dgettext("lemmings", "%{count} ms", count: duration_ms)
+  end
+
+  defp tool_duration_label(_tool_execution), do: nil
+
+  defp tool_argument_count_label(args) when is_map(args) do
+    dgettext("lemmings", "%{count} args", count: map_size(args))
+  end
+
+  defp tool_argument_count_label(_args), do: dgettext("lemmings", "0 args")
+
+  defp tool_payload_json(nil), do: "{}"
+
+  defp tool_payload_json(payload) when is_map(payload) do
+    Jason.encode!(payload, pretty: true)
+  end
+
+  defp tool_payload_json(payload), do: inspect(payload, pretty: true)
 
   defp assistant_metadata?(role) when role in ["assistant", :assistant], do: true
   defp assistant_metadata?(_role), do: false
