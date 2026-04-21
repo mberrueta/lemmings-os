@@ -672,6 +672,134 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
            )
   end
 
+  test "S08e: tool execution broadcasts failed lifecycle updates without remount", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_idle_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "web.fetch",
+        status: "running",
+        args: %{"url" => "https://example.invalid"},
+        summary: "Fetching source page.",
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    assert :ok =
+             PubSub.broadcast_tool_execution_upserted(
+               instance.id,
+               tool_execution.id,
+               tool_execution.status
+             )
+
+    assert eventually_has_element?(
+             view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='running']"
+           )
+
+    {:ok, _updated_tool_execution} =
+      LemmingTools.update_tool_execution(world, instance, tool_execution, %{
+        status: "error",
+        summary: "Failed to fetch source page.",
+        error: %{
+          "code" => "tool.runtime_timeout",
+          "message" => "Request timed out while fetching URL"
+        },
+        completed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        duration_ms: 75
+      })
+
+    assert :ok =
+             PubSub.broadcast_tool_execution_upserted(
+               instance.id,
+               tool_execution.id,
+               "error"
+             )
+
+    assert eventually_has_element?(
+             view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='error']"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "Failed to fetch source page."
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-preview-#{tool_execution.id}",
+             "Request timed out while fetching URL"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#tool-execution-error-#{tool_execution.id}",
+             "\"code\": \"tool.runtime_timeout\""
+           )
+  end
+
+  test "S08f: persisted failed tool execution details render after page reload", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "web.fetch",
+        status: "error",
+        args: %{"url" => "https://example.invalid"},
+        summary: "Unable to fetch source page.",
+        error: %{
+          "code" => "tool.runtime_timeout",
+          "message" => "Request timed out while fetching URL"
+        },
+        started_at: now,
+        completed_at: DateTime.add(now, 1, :second),
+        duration_ms: 1000
+      })
+
+    Repo.update!(
+      Ecto.Changeset.change(tool_execution, inserted_at: DateTime.add(now, 2, :second))
+    )
+
+    {:ok, _initial_view, _initial_html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    {:ok, reloaded_view, _reloaded_html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(
+             reloaded_view,
+             "#card-tool-execution-#{tool_execution.id}[data-status='error']"
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "Unable to fetch source page."
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-details-#{tool_execution.id}"
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-args-#{tool_execution.id}",
+             "\"url\": \"https://example.invalid\""
+           )
+
+    assert has_element?(
+             reloaded_view,
+             "#tool-execution-error-#{tool_execution.id}",
+             "\"message\": \"Request timed out while fetching URL\""
+           )
+  end
+
   test "S09: session header shows aggregate total tokens across transcript", %{conn: conn} do
     %{world: world, instance: instance} = spawn_runtime_session()
     now = DateTime.utc_now() |> DateTime.truncate(:second)

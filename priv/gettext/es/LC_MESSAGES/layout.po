@@ -555,6 +555,31 @@ msgstr "Capacidad del entorno"
 msgid ".tools_usage_unknown"
 msgstr "Desconocido"
 
+#: lib/lemmings_os_web/live/tools_live.ex:179
+#, elixir-autogen, elixir-format
+msgid ".tools_list_item_copy"
+msgstr "%{name} (riesgo %{risk})"
+
+#: lib/lemmings_os_web/live/tools_live.ex:182
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_high"
+msgstr "alto"
+
+#: lib/lemmings_os_web/live/tools_live.ex:183
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_medium"
+msgstr "medio"
+
+#: lib/lemmings_os_web/live/tools_live.ex:184
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_low"
+msgstr "bajo"
+
+#: lib/lemmings_os_web/live/tools_live.ex:185
+#, elixir-autogen, elixir-format
+msgid ".tools_risk_unknown"
+msgstr "desconocido"
+
 #: lib/lemmings_os_web/components/home_components.ex:260
 #: lib/lemmings_os_web/page_data/home_dashboard_snapshot.ex:263
 #, elixir-autogen, elixir-format
