@@ -7,6 +7,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
   setup do
     old_workspace_root = Application.get_env(:lemmings_os, :runtime_workspace_root)
+    old_allow_private_hosts = Application.fetch_env(:lemmings_os, :tools_web_allow_private_hosts)
 
     workspace_root =
       Path.join(
@@ -15,6 +16,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       )
 
     Application.put_env(:lemmings_os, :runtime_workspace_root, workspace_root)
+    Application.put_env(:lemmings_os, :tools_web_allow_private_hosts, true)
     File.mkdir_p!(workspace_root)
 
     on_exit(fn ->
@@ -23,6 +25,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       else
         Application.delete_env(:lemmings_os, :runtime_workspace_root)
       end
+
+      restore_env(:tools_web_allow_private_hosts, old_allow_private_hosts)
 
       File.rm_rf(workspace_root)
     end)
@@ -152,4 +156,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
                Runtime.execute(world, instance, "web.fetch", %{"url" => "https://example.com"})
     end
   end
+
+  defp restore_env(key, {:ok, value}), do: Application.put_env(:lemmings_os, key, value)
+  defp restore_env(key, :error), do: Application.delete_env(:lemmings_os, key)
 end

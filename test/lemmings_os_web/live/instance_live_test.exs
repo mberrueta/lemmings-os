@@ -612,7 +612,53 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
     assert response.status == 200
     assert response.resp_body == "# Sample artifact\n"
-    assert get_resp_header(response, "content-type") == ["text/markdown; charset=utf-8"]
+    assert get_resp_header(response, "content-type") == ["application/octet-stream"]
+
+    assert get_resp_header(response, "content-disposition") == [
+             ~s(attachment; filename="sample.md")
+           ]
+
+    assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
+  end
+
+  test "S08h: html and svg artifacts download without inline rendering", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    assert_artifact_download_headers(
+      conn,
+      world,
+      instance,
+      "report.html",
+      "<script>alert(1)</script>"
+    )
+
+    assert_artifact_download_headers(conn, world, instance, "diagram.svg", "<svg></svg>")
+  end
+
+  test "S08g: artifact download rejects symlink targets outside workspace", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, %{absolute_path: safe_path}} =
+      LemmingInstances.artifact_absolute_path(instance, "safe.md")
+
+    work_area = Path.dirname(safe_path)
+    outside_path = Path.join(Path.dirname(work_area), "outside-artifact.md")
+    File.mkdir_p!(work_area)
+    File.mkdir_p!(Path.dirname(outside_path))
+    File.write!(outside_path, "# Secret artifact\n")
+    assert :ok = File.ln_s(outside_path, Path.join(work_area, "artifact-link.md"))
+
+    assert {:error, :path_outside_workspace} =
+             LemmingInstances.artifact_absolute_path(instance, "artifact-link.md")
+
+    response =
+      conn
+      |> get(
+        ~p"/lemmings/instances/#{instance.id}/artifacts/#{["artifact-link.md"]}?#{%{world: world.id}}"
+      )
+
+    assert response.status == 404
+    assert response.resp_body == "Artifact not found"
   end
 
   test "S08c: tool execution broadcasts update transcript cards without remount", %{conn: conn} do
@@ -1206,5 +1252,27 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
       {position, _length} -> position
       :nomatch -> nil
     end
+  end
+
+  defp assert_artifact_download_headers(conn, world, instance, path, content) do
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(instance, path)
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, content)
+
+    response =
+      conn
+      |> get(~p"/lemmings/instances/#{instance.id}/artifacts/#{[path]}?#{%{world: world.id}}")
+
+    assert response.status == 200
+    assert response.resp_body == content
+    assert get_resp_header(response, "content-type") == ["application/octet-stream"]
+
+    assert get_resp_header(response, "content-disposition") == [
+             ~s(attachment; filename="#{path}")
+           ]
+
+    assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
   end
 end

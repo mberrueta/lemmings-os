@@ -117,4 +117,50 @@ defmodule LemmingsOs.Tools.Adapters.FilesystemTest do
     assert {:error, %{code: "tool.fs.invalid_instance_scope"}} =
              Filesystem.read_text_file(%LemmingInstance{}, %{"path" => "notes.txt"})
   end
+
+  test "S08: read_text_file rejects symlink targets outside workspace", %{
+    instance: instance,
+    work_area: work_area
+  } do
+    outside_path = Path.join(Path.dirname(work_area), "outside-secret.txt")
+    File.write!(outside_path, "do not read")
+    assert :ok = File.ln_s(outside_path, Path.join(work_area, "secret-link.txt"))
+
+    assert {:error, %{code: "tool.fs.path_outside_workspace"}} =
+             Filesystem.read_text_file(instance, %{"path" => "secret-link.txt"})
+  end
+
+  test "S09: write_text_file rejects existing symlink file targets outside workspace", %{
+    instance: instance,
+    work_area: work_area
+  } do
+    outside_path = Path.join(Path.dirname(work_area), "outside-write.txt")
+    File.write!(outside_path, "unchanged")
+    assert :ok = File.ln_s(outside_path, Path.join(work_area, "write-link.txt"))
+
+    assert {:error, %{code: "tool.fs.path_outside_workspace"}} =
+             Filesystem.write_text_file(instance, %{
+               "path" => "write-link.txt",
+               "content" => "mutated"
+             })
+
+    assert File.read!(outside_path) == "unchanged"
+  end
+
+  test "S10: write_text_file rejects symlink parent directories outside workspace", %{
+    instance: instance,
+    work_area: work_area
+  } do
+    outside_dir = Path.join(Path.dirname(work_area), "outside-dir")
+    File.mkdir_p!(outside_dir)
+    assert :ok = File.ln_s(outside_dir, Path.join(work_area, "linked-dir"))
+
+    assert {:error, %{code: "tool.fs.path_outside_workspace"}} =
+             Filesystem.write_text_file(instance, %{
+               "path" => "linked-dir/output.txt",
+               "content" => "escaped"
+             })
+
+    refute File.exists?(Path.join(outside_dir, "output.txt"))
+  end
 end

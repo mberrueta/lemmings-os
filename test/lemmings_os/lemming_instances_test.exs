@@ -186,7 +186,10 @@ defmodule LemmingsOs.LemmingInstancesTest do
     assert instance.department_id == department.id
     assert instance.lemming_id == lemming.id
 
-    work_area_root = Application.fetch_env!(:lemmings_os, :runtime_workspace_root)
+    work_area_root =
+      :lemmings_os
+      |> Application.fetch_env!(:runtime_workspace_root)
+      |> Path.expand()
 
     assert File.dir?(Path.join(work_area_root, Path.join([department.id, lemming.id])))
   end

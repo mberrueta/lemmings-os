@@ -590,26 +590,39 @@ defmodule LemmingsOs.LemmingInstances do
         {:error, :path_outside_workspace}
 
       true ->
-        workspace_root = workspace_root()
-        work_area_root = Path.join([workspace_root, department_id, lemming_id])
-        absolute_path = Path.expand(relative_path, work_area_root)
-
-        if path_within_root?(absolute_path, work_area_root) do
-          {:ok,
-           %{
-             absolute_path: absolute_path,
-             relative_path: Path.relative_to(absolute_path, work_area_root)
-           }}
-        else
-          {:error, :path_outside_workspace}
-        end
+        resolve_valid_artifact_path(department_id, lemming_id, relative_path)
     end
   end
 
   def artifact_absolute_path(_instance, _relative_path), do: {:error, :invalid_path}
 
+  defp resolve_valid_artifact_path(department_id, lemming_id, relative_path) do
+    workspace_root = workspace_root() |> Path.expand()
+    work_area_root = Path.join([workspace_root, department_id, lemming_id])
+    absolute_path = Path.expand(relative_path, work_area_root)
+
+    if path_within_root?(absolute_path, work_area_root) do
+      build_artifact_path_info(work_area_root, absolute_path)
+    else
+      {:error, :path_outside_workspace}
+    end
+  end
+
+  defp build_artifact_path_info(work_area_root, absolute_path) do
+    normalized_relative_path = Path.relative_to(absolute_path, work_area_root)
+
+    with :ok <- validate_no_symlink_components(work_area_root, normalized_relative_path) do
+      {:ok,
+       %{
+         absolute_path: absolute_path,
+         relative_path: normalized_relative_path
+       }}
+    end
+  end
+
   defp create_work_area(work_area_path) when is_binary(work_area_path) do
     workspace_root()
+    |> Path.expand()
     |> Path.join(work_area_path)
     |> File.mkdir_p()
     |> case do
@@ -644,7 +657,9 @@ defmodule LemmingsOs.LemmingInstances do
   end
 
   defp work_area_absolute_path(work_area_path) do
-    Path.join(workspace_root(), work_area_path)
+    workspace_root()
+    |> Path.expand()
+    |> Path.join(work_area_path)
   end
 
   defp path_within_root?(absolute_path, root_path)
@@ -654,6 +669,33 @@ defmodule LemmingsOs.LemmingInstances do
 
     normalized_absolute == normalized_root or
       String.starts_with?(normalized_absolute, normalized_root <> "/")
+  end
+
+  defp validate_no_symlink_components(root_path, relative_path)
+       when is_binary(root_path) and is_binary(relative_path) do
+    root_path
+    |> Path.expand()
+    |> validate_no_symlink_components(Path.split(relative_path))
+  end
+
+  defp validate_no_symlink_components(_current_path, []), do: :ok
+
+  defp validate_no_symlink_components(current_path, [segment | rest]) do
+    next_path = Path.join(current_path, segment)
+
+    case File.lstat(next_path) do
+      {:ok, %File.Stat{type: :symlink}} ->
+        {:error, :path_outside_workspace}
+
+      {:ok, _stat} ->
+        validate_no_symlink_components(next_path, rest)
+
+      {:error, :enoent} ->
+        :ok
+
+      {:error, _reason} ->
+        :ok
+    end
   end
 
   defp persist_user_message(%LemmingInstance{} = instance, request_text) do

@@ -60,12 +60,12 @@ defmodule LemmingsOs.RuntimeTest do
 
     assert instance.status == "created"
 
-    assert File.dir?(
-             Path.join(
-               Application.fetch_env!(:lemmings_os, :runtime_workspace_root),
-               Path.join([department.id, lemming.id])
-             )
-           )
+    work_area_root =
+      :lemmings_os
+      |> Application.fetch_env!(:runtime_workspace_root)
+      |> Path.expand()
+
+    assert File.dir?(Path.join(work_area_root, Path.join([department.id, lemming.id])))
 
     assert eventually_status(instance.id) == "queued"
 

@@ -40,7 +40,8 @@ msgstr ""
 #: lib/lemmings_os_web/components/world_components.ex:1135
 #: lib/lemmings_os_web/components/world_components.ex:1139
 #: lib/lemmings_os_web/components/world_components.ex:1160
-#: lib/lemmings_os_web/live/instance_live.ex:277
+#: lib/lemmings_os_web/live/instance_live.ex:298
+#: lib/lemmings_os_web/live/instance_raw_live.ex:842
 #, elixir-autogen, elixir-format
 msgid ".label_not_available"
 msgstr ""

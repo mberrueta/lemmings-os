@@ -136,30 +136,7 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
        )
        when is_binary(department_id) and is_binary(lemming_id) and is_binary(relative_path) do
     with :ok <- validate_relative_path(relative_path) do
-      workspace_root = workspace_root()
-      work_area_root = Path.join([workspace_root, department_id, lemming_id])
-      absolute_path = Path.expand(relative_path, work_area_root)
-
-      if path_within_root?(absolute_path, work_area_root) do
-        root_path = Path.join(["/workspace", department_id, lemming_id])
-        normalized_relative_path = Path.relative_to(absolute_path, work_area_root)
-        workspace_path = Path.join([root_path, normalized_relative_path])
-
-        {:ok,
-         %{
-           absolute_path: absolute_path,
-           relative_path: normalized_relative_path,
-           root_path: root_path,
-           workspace_path: workspace_path
-         }}
-      else
-        {:error,
-         %{
-           code: "tool.fs.path_outside_workspace",
-           message: "Path escapes workspace boundary",
-           details: %{path: relative_path}
-         }}
-      end
+      resolve_valid_workspace_path(department_id, lemming_id, relative_path)
     end
   end
 
@@ -195,6 +172,43 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
     end
   end
 
+  defp resolve_valid_workspace_path(department_id, lemming_id, relative_path) do
+    workspace_root = workspace_root() |> Path.expand()
+    work_area_root = Path.join([workspace_root, department_id, lemming_id])
+    absolute_path = Path.expand(relative_path, work_area_root)
+
+    if path_within_root?(absolute_path, work_area_root) do
+      build_workspace_path_info(work_area_root, absolute_path, department_id, lemming_id)
+    else
+      path_outside_workspace_error(relative_path)
+    end
+  end
+
+  defp build_workspace_path_info(work_area_root, absolute_path, department_id, lemming_id) do
+    root_path = Path.join(["/workspace", department_id, lemming_id])
+    normalized_relative_path = Path.relative_to(absolute_path, work_area_root)
+    workspace_path = Path.join([root_path, normalized_relative_path])
+
+    with :ok <- validate_no_symlink_components(work_area_root, normalized_relative_path) do
+      {:ok,
+       %{
+         absolute_path: absolute_path,
+         relative_path: normalized_relative_path,
+         root_path: root_path,
+         workspace_path: workspace_path
+       }}
+    end
+  end
+
+  defp path_outside_workspace_error(relative_path) do
+    {:error,
+     %{
+       code: "tool.fs.path_outside_workspace",
+       message: "Path escapes workspace boundary",
+       details: %{path: relative_path}
+     }}
+  end
+
   defp path_within_root?(absolute_path, root_path)
        when is_binary(absolute_path) and is_binary(root_path) do
     normalized_absolute = Path.expand(absolute_path)
@@ -202,6 +216,38 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
 
     normalized_absolute == normalized_root or
       String.starts_with?(normalized_absolute, normalized_root <> "/")
+  end
+
+  defp validate_no_symlink_components(root_path, relative_path)
+       when is_binary(root_path) and is_binary(relative_path) do
+    root_path
+    |> Path.expand()
+    |> validate_no_symlink_components(Path.split(relative_path), relative_path)
+  end
+
+  defp validate_no_symlink_components(_current_path, [], _relative_path), do: :ok
+
+  defp validate_no_symlink_components(current_path, [segment | rest], relative_path) do
+    next_path = Path.join(current_path, segment)
+
+    case File.lstat(next_path) do
+      {:ok, %File.Stat{type: :symlink}} ->
+        {:error,
+         %{
+           code: "tool.fs.path_outside_workspace",
+           message: "Path escapes workspace boundary",
+           details: %{path: relative_path}
+         }}
+
+      {:ok, _stat} ->
+        validate_no_symlink_components(next_path, rest, relative_path)
+
+      {:error, :enoent} ->
+        :ok
+
+      {:error, _reason} ->
+        :ok
+    end
   end
 
   defp read_utf8_file(path) when is_binary(path) do

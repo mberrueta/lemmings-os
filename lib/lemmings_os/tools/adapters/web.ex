@@ -93,9 +93,9 @@ defmodule LemmingsOs.Tools.Adapters.Web do
 
   defp validate_http_url(url) when is_binary(url) do
     case URI.parse(url) do
-      %URI{scheme: scheme, host: host} = _uri
+      %URI{scheme: scheme, host: host} = uri
       when scheme in ["http", "https"] and is_binary(host) ->
-        {:ok, url}
+        validate_egress_url(uri, url)
 
       _uri ->
         {:error,
@@ -108,32 +108,38 @@ defmodule LemmingsOs.Tools.Adapters.Web do
   end
 
   defp request_search(query) when is_binary(query) do
-    req_options = [url: search_endpoint(), params: [q: query, format: "json", no_html: 1]]
+    endpoint = search_endpoint()
 
-    case Req.get(req_options) do
-      {:ok, %Req.Response{} = response} when response.status in 200..299 ->
-        {:ok, response.body}
+    with :ok <- validate_endpoint_egress(endpoint) do
+      req_options =
+        [url: endpoint, params: [q: query, format: "json", no_html: 1]]
+        |> Keyword.merge(req_timeout_options())
 
-      {:ok, %Req.Response{} = response} ->
-        {:error,
-         %{
-           code: "tool.web.bad_status",
-           message: "Web search returned a non-success status",
-           details: %{status: response.status}
-         }}
+      case Req.get(req_options) do
+        {:ok, %Req.Response{} = response} when response.status in 200..299 ->
+          {:ok, response.body}
 
-      {:error, reason} ->
-        {:error,
-         %{
-           code: "tool.web.request_failed",
-           message: "Web search request failed",
-           details: %{reason: inspect(reason)}
-         }}
+        {:ok, %Req.Response{} = response} ->
+          {:error,
+           %{
+             code: "tool.web.bad_status",
+             message: "Web search returned a non-success status",
+             details: %{status: response.status}
+           }}
+
+        {:error, reason} ->
+          {:error,
+           %{
+             code: "tool.web.request_failed",
+             message: "Web search request failed",
+             details: %{reason: inspect(reason)}
+           }}
+      end
     end
   end
 
   defp request_fetch(url) when is_binary(url) do
-    case Req.get(url: url) do
+    case Req.get(Keyword.merge([url: url], req_timeout_options())) do
       {:ok, %Req.Response{} = response} when response.status in 200..299 ->
         {:ok, response}
 
@@ -153,6 +159,89 @@ defmodule LemmingsOs.Tools.Adapters.Web do
            details: %{reason: inspect(reason)}
          }}
     end
+  end
+
+  defp validate_endpoint_egress(endpoint) when is_binary(endpoint) do
+    case URI.parse(endpoint) do
+      %URI{scheme: scheme, host: host} = uri
+      when scheme in ["http", "https"] and is_binary(host) ->
+        uri
+        |> validate_egress_url(endpoint)
+        |> case do
+          {:ok, _url} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+
+      _uri ->
+        {:error,
+         %{
+           code: "tool.web.invalid_url",
+           message: "Invalid URL",
+           details: %{url: endpoint}
+         }}
+    end
+  end
+
+  defp validate_egress_url(%URI{host: host}, url) when is_binary(host) and is_binary(url) do
+    if private_host_allowed?() or public_host?(host) do
+      {:ok, url}
+    else
+      {:error,
+       %{
+         code: "tool.web.egress_blocked",
+         message: "URL host is blocked by web egress policy",
+         details: %{host: host}
+       }}
+    end
+  end
+
+  defp public_host?(host) when is_binary(host) do
+    normalized_host = host |> String.trim("[]") |> String.downcase()
+
+    not localhost_name?(normalized_host) and
+      not private_ip_literal?(normalized_host)
+  end
+
+  defp localhost_name?("localhost"), do: true
+  defp localhost_name?(host), do: String.ends_with?(host, ".localhost")
+
+  defp private_ip_literal?(host) do
+    host
+    |> String.to_charlist()
+    |> :inet.parse_address()
+    |> case do
+      {:ok, address} -> private_ip?(address)
+      {:error, :einval} -> false
+    end
+  end
+
+  defp private_ip?({first, _second, _third, _fourth}) when first in [0, 10, 127], do: true
+  defp private_ip?({169, 254, _third, _fourth}), do: true
+  defp private_ip?({172, second, _third, _fourth}) when second in 16..31, do: true
+  defp private_ip?({192, 168, _third, _fourth}), do: true
+
+  defp private_ip?({first, _second, _third, _fourth})
+       when first >= 224,
+       do: true
+
+  defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
+  defp private_ip?({first, _b, _c, _d, _e, _f, _g, _h}) when first in 0xFC00..0xFDFF, do: true
+  defp private_ip?({first, _b, _c, _d, _e, _f, _g, _h}) when first in 0xFE80..0xFEBF, do: true
+  defp private_ip?(_address), do: false
+
+  defp private_host_allowed? do
+    Application.get_env(:lemmings_os, :tools_web_allow_private_hosts, false)
+  end
+
+  defp req_timeout_options do
+    timeout = Application.get_env(:lemmings_os, :tools_web_timeout_ms, 5_000)
+
+    [
+      retry: false,
+      receive_timeout: timeout,
+      connect_options: [timeout: timeout]
+    ]
   end
 
   defp extract_search_results(%{} = payload) do

@@ -13,10 +13,11 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
            LemmingInstances.artifact_absolute_path(instance, relative_path),
          {:ok, content} <- File.read(absolute_path) do
       conn
-      |> put_resp_content_type(content_type_for(normalized_path))
+      |> put_resp_header("content-type", "application/octet-stream")
+      |> put_resp_header("x-content-type-options", "nosniff")
       |> put_resp_header(
         "content-disposition",
-        ~s(inline; filename="#{Path.basename(normalized_path)}")
+        ~s(attachment; filename="#{Path.basename(normalized_path)}")
       )
       |> send_resp(200, content)
     else
@@ -36,8 +37,4 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
   end
 
   defp resolve_world(_params), do: Worlds.get_default_world()
-
-  defp content_type_for(path) do
-    MIME.from_path(path)
-  end
 end
