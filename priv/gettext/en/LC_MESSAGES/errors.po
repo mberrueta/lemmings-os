@@ -270,11 +270,14 @@ msgstr ""
 msgid ".lemming_delete_denied_safety_indeterminate"
 msgstr "Lemming deletion is not available because safety cannot yet be proven."
 
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:108
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:122
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:72
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:90
 #: lib/lemmings_os/lemming_instances/message.ex:62
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:84
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:113
+#: lib/lemmings_os/lemmings/lemming.ex:93
 #, elixir-autogen, elixir-format
 msgid ".invalid_choice"
 msgstr ""
@@ -285,6 +288,10 @@ msgstr ""
 msgid ".invalid_value_type"
 msgstr ""
 
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:107
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:121
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:133
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:140
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:71
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:89
 #: lib/lemmings_os/lemming_instances/message.ex:61
@@ -294,6 +301,7 @@ msgstr ""
 msgid ".required"
 msgstr ""
 
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:156
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:88
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:117
 #, elixir-autogen, elixir-format

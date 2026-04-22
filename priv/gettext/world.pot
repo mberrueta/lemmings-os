@@ -32,8 +32,8 @@ msgstr ""
 msgid ".world_status_unknown"
 msgstr ""
 
-#: lib/lemmings_os/helpers.ex:76
-#: lib/lemmings_os/helpers.ex:90
+#: lib/lemmings_os/helpers.ex:100
+#: lib/lemmings_os/helpers.ex:114
 #: lib/lemmings_os_web/components/world_components.ex:1071
 #: lib/lemmings_os_web/components/world_components.ex:1101
 #: lib/lemmings_os_web/components/world_components.ex:1118
@@ -46,7 +46,7 @@ msgstr ""
 msgid ".label_not_available"
 msgstr ""
 
-#: lib/lemmings_os/helpers.ex:116
+#: lib/lemmings_os/helpers.ex:140
 #, elixir-autogen, elixir-format
 msgid ".label_not_imported"
 msgstr ""

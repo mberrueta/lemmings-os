@@ -12,6 +12,7 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Config.ToolsConfig
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
+  alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.ToolExecution
@@ -96,6 +97,7 @@ defmodule LemmingsOs.Factory do
       slug: "#{slug_base}-#{unique_value}",
       name: name,
       status: "draft",
+      collaboration_role: "worker",
       description: "Lemming #{unique_value} description",
       instructions: "Follow the department instructions carefully.",
       limits_config: %LimitsConfig{},
@@ -104,6 +106,14 @@ defmodule LemmingsOs.Factory do
       models_config: %ModelsConfig{},
       tools_config: %ToolsConfig{}
     }
+  end
+
+  def manager_lemming_factory do
+    struct!(
+      lemming_factory(),
+      collaboration_role: "manager",
+      name: "Manager #{sequence(:manager_lemming_unique, & &1)}"
+    )
   end
 
   def lemming_instance_factory do
@@ -158,6 +168,46 @@ defmodule LemmingsOs.Factory do
       started_at: DateTime.utc_now() |> DateTime.truncate(:second),
       completed_at: nil,
       duration_ms: nil
+    }
+  end
+
+  def lemming_call_factory do
+    caller_instance = build(:lemming_instance)
+
+    callee_department =
+      build(:department, world: caller_instance.world, city: caller_instance.city)
+
+    callee_lemming =
+      build(:lemming,
+        world: caller_instance.world,
+        city: caller_instance.city,
+        department: callee_department
+      )
+
+    callee_instance =
+      build(:lemming_instance,
+        lemming: callee_lemming,
+        world: caller_instance.world,
+        city: caller_instance.city,
+        department: callee_lemming.department
+      )
+
+    %LemmingCall{
+      world: caller_instance.world,
+      city: caller_instance.city,
+      caller_department: caller_instance.department,
+      callee_department: callee_instance.department,
+      caller_lemming: caller_instance.lemming,
+      callee_lemming: callee_instance.lemming,
+      caller_instance: caller_instance,
+      callee_instance: callee_instance,
+      request_text: Faker.Lorem.sentence(),
+      status: "accepted",
+      result_summary: nil,
+      error_summary: nil,
+      recovery_status: nil,
+      started_at: nil,
+      completed_at: nil
     }
   end
 end

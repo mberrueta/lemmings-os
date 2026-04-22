@@ -25,8 +25,9 @@ defmodule LemmingsOs.Lemmings.Lemming do
 
   @description_max_length 280
   @statuses ~w(draft active archived)
+  @collaboration_roles ~w(manager worker)
   @required ~w(slug name status)a
-  @optional ~w(description instructions)a
+  @optional ~w(description instructions collaboration_role)a
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -39,6 +40,7 @@ defmodule LemmingsOs.Lemmings.Lemming do
           slug: String.t() | nil,
           name: String.t() | nil,
           status: String.t() | nil,
+          collaboration_role: String.t() | nil,
           description: String.t() | nil,
           instructions: String.t() | nil,
           limits_config: LimitsConfig.t() | nil,
@@ -54,6 +56,7 @@ defmodule LemmingsOs.Lemmings.Lemming do
     field :slug, :string
     field :name, :string
     field :status, :string
+    field :collaboration_role, :string, default: "worker"
     field :description, :string
     field :instructions, :string
     embeds_one :limits_config, LimitsConfig, on_replace: :update, defaults_to_struct: true
@@ -86,6 +89,9 @@ defmodule LemmingsOs.Lemmings.Lemming do
     |> cast_embed(:models_config, with: &ModelsConfig.changeset/2)
     |> cast_embed(:tools_config, with: &ToolsConfig.changeset/2)
     |> validate_inclusion(:status, @statuses)
+    |> validate_inclusion(:collaboration_role, @collaboration_roles,
+      message: dgettext("errors", ".invalid_choice")
+    )
     |> validate_length(:description, max: @description_max_length)
     |> assoc_constraint(:world)
     |> assoc_constraint(:city)
@@ -98,6 +104,12 @@ defmodule LemmingsOs.Lemmings.Lemming do
   """
   @spec statuses() :: [String.t()]
   def statuses, do: @statuses
+
+  @doc """
+  Canonical collaboration role values for lemmings.
+  """
+  @spec collaboration_roles() :: [String.t()]
+  def collaboration_roles, do: @collaboration_roles
 
   @doc """
   Returns lemming lifecycle status options suitable for form selects and filters.
