@@ -65,6 +65,22 @@ defmodule LemmingsOs.ModelRuntimeTest do
     end
   end
 
+  defmodule LemmingCallProvider do
+    @behaviour LemmingsOs.ModelRuntime.Provider
+
+    @impl true
+    def chat(request, _opts) do
+      {:ok,
+       %{
+         content:
+           ~s({"action":"lemming_call","target":"researcher","request":"Find three risks","continue_call_id":null}),
+         provider: "fake",
+         model: request.model,
+         raw: request
+       }}
+    end
+  end
+
   test "S01: run/3 assembles the prompt and validates the reply" do
     config_snapshot = %{
       name: "Budget Brief",
@@ -115,7 +131,7 @@ defmodule LemmingsOs.ModelRuntimeTest do
 
     assert String.contains?(
              system_prompt,
-             "Decide what to do next by returning exactly one of these two JSON shapes:"
+             "Decide what to do next by returning exactly one JSON shape:"
            )
 
     assert String.contains?(system_prompt, "Option A: final reply to the user.")
@@ -160,6 +176,34 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert response.action == :tool_call
     assert response.tool_name == "web.fetch"
     assert response.tool_args == %{"url" => "https://example.com"}
+  end
+
+  test "S03a: run/3 supports lemming_call structured output for manager targets" do
+    config_snapshot = %{
+      provider_module: LemmingCallProvider,
+      model: "test-model",
+      lemming_call_targets: [
+        %{
+          slug: "researcher",
+          capability: "ops/researcher",
+          role: "worker",
+          department_slug: "ops",
+          description: "Research bounded tasks"
+        }
+      ]
+    }
+
+    assert {:ok, %Response{} = response} =
+             ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+
+    assert response.action == :lemming_call
+    assert response.lemming_target == "researcher"
+    assert response.lemming_request == "Find three risks"
+    assert response.continue_call_id == nil
+
+    assert %{role: "system", content: system_prompt} = Enum.at(response.raw.messages, 0)
+    assert String.contains?(system_prompt, "Available Lemming Calls:")
+    assert String.contains?(system_prompt, "ops/researcher")
   end
 
   test "S03b: run/3 rejects unknown actions" do

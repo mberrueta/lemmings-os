@@ -103,6 +103,70 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
   end
 
+  defmodule LemmingCallLoopModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(
+          observer_pid,
+          {:lemming_call_model_run, config_snapshot, context_messages, current_item}
+        )
+      end
+
+      if Enum.any?(context_messages, &String.contains?(&1.content, "Lemming call result:")) do
+        {:ok,
+         Response.new(
+           action: :reply,
+           reply: "Delegated to child call.",
+           provider: "fake",
+           model: "lemming-call-loop-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      else
+        {:ok,
+         Response.new(
+           action: :lemming_call,
+           lemming_target: "ops-worker",
+           lemming_request: "Draft child notes",
+           continue_call_id: nil,
+           provider: "fake",
+           model: "lemming-call-loop-model",
+           raw: %{current_item: current_item, context_messages: context_messages}
+         )}
+      end
+    end
+  end
+
+  defmodule FakeLemmingCalls do
+    def available_targets(_instance) do
+      [
+        %{
+          slug: "ops-worker",
+          capability: "ops/ops-worker",
+          role: "worker",
+          department_slug: "ops",
+          description: "Drafts notes"
+        }
+      ]
+    end
+
+    def request_call(instance, attrs, _opts) do
+      {:ok,
+       %LemmingsOs.LemmingCalls.LemmingCall{
+         id: Ecto.UUID.generate(),
+         world_id: instance.world_id,
+         city_id: instance.city_id,
+         caller_instance_id: instance.id,
+         callee_instance_id: Ecto.UUID.generate(),
+         request_text: attrs.request,
+         status: "running"
+       }}
+    end
+
+    def sync_child_instance_terminal(_instance, _status, _attrs), do: :ok
+  end
+
   defmodule FinalizationAwareModelRuntime do
     def run(config_snapshot, context_messages, current_item) do
       observer_pid = Map.get(config_snapshot, :observer_pid)
@@ -579,6 +643,65 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     assert Executor.status(pid).queue_depth == 1
 
     send(snapshot_pid, :release_snapshot)
+
+    GenServer.stop(pid)
+  end
+
+  test "S02b: lemming_call responses route through LemmingCalls and continue model loop", %{
+    instance: instance
+  } do
+    resource_key = "ollama:lemming-call-loop-model"
+
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "lemming-call-loop-model",
+          observer_pid: self(),
+          models_config: %{
+            profiles: %{default: %{provider: "ollama", model: "lemming-call-loop-model"}}
+          }
+        },
+        context_mod: LemmingInstances,
+        model_mod: LemmingCallLoopModelRuntime,
+        lemming_calls_mod: FakeLemmingCalls,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Delegate this")
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:lemming_call_model_run, %{lemming_call_targets: targets}, _messages,
+                    %{content: "Delegate this"}}
+
+    assert [%{slug: "ops-worker"}] = targets
+
+    assert_receive {:lemming_call_model_run, _config_snapshot, context_messages,
+                    %{content: "Delegate this"}}
+
+    assert Enum.any?(context_messages, &String.contains?(&1.content, "Lemming call result:"))
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    messages = LemmingInstances.list_messages(instance)
+
+    assert Enum.any?(
+             messages,
+             &(&1.role == "assistant" and &1.content == "Delegated to child call.")
+           )
 
     GenServer.stop(pid)
   end

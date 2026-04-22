@@ -17,6 +17,8 @@ defmodule LemmingsOs.ModelRuntime do
   {"action":"reply","reply":"visible user-facing text"}
   or
   {"action":"tool_call","tool_name":"fs.read_text_file","args":{"path":"notes.txt"}}
+  or, when lemming-call capabilities are listed in system context,
+  {"action":"lemming_call","target":"slug-or-capability","request":"bounded task text","continue_call_id":null}
   """
 
   @runtime_rules """
@@ -96,6 +98,9 @@ defmodule LemmingsOs.ModelRuntime do
          reply: action_payload.reply,
          tool_name: action_payload.tool_name,
          tool_args: action_payload.tool_args,
+         lemming_target: action_payload.lemming_target,
+         lemming_request: action_payload.lemming_request,
+         continue_call_id: action_payload.continue_call_id,
          provider: provider_label(provider_response),
          model: response_field(provider_response, :model) || requested_model,
          input_tokens: response_field(provider_response, :input_tokens),
@@ -121,7 +126,16 @@ defmodule LemmingsOs.ModelRuntime do
     if Helpers.blank?(reply) do
       {:error, :invalid_structured_output}
     else
-      {:ok, %{action: :reply, reply: reply, tool_name: nil, tool_args: nil}}
+      {:ok,
+       %{
+         action: :reply,
+         reply: reply,
+         tool_name: nil,
+         tool_args: nil,
+         lemming_target: nil,
+         lemming_request: nil,
+         continue_call_id: nil
+       }}
     end
   end
 
@@ -136,17 +150,63 @@ defmodule LemmingsOs.ModelRuntime do
     if Helpers.blank?(tool_name) do
       {:error, :invalid_structured_output}
     else
-      {:ok, %{action: :tool_call, reply: nil, tool_name: tool_name, tool_args: args}}
+      {:ok,
+       %{
+         action: :tool_call,
+         reply: nil,
+         tool_name: tool_name,
+         tool_args: args,
+         lemming_target: nil,
+         lemming_request: nil,
+         continue_call_id: nil
+       }}
     end
   end
 
   defp parse_structured_output(%{"action" => "tool_call"}),
     do: {:error, :invalid_structured_output}
 
+  defp parse_structured_output(
+         %{
+           "action" => "lemming_call",
+           "target" => target,
+           "request" => request
+         } = payload
+       )
+       when is_binary(target) and is_binary(request) do
+    continue_call_id = nil_if_blank(Map.get(payload, "continue_call_id"))
+
+    if Helpers.blank?(target) or Helpers.blank?(request) or
+         continue_call_id == :invalid_continue_call_id do
+      {:error, :invalid_structured_output}
+    else
+      {:ok,
+       %{
+         action: :lemming_call,
+         reply: nil,
+         tool_name: nil,
+         tool_args: nil,
+         lemming_target: target,
+         lemming_request: request,
+         continue_call_id: continue_call_id
+       }}
+    end
+  end
+
+  defp parse_structured_output(%{"action" => "lemming_call"}),
+    do: {:error, :invalid_structured_output}
+
   defp parse_structured_output(%{"action" => action}) when is_binary(action),
     do: {:error, :unknown_action}
 
   defp parse_structured_output(_other), do: {:error, :invalid_structured_output}
+
+  defp nil_if_blank(nil), do: nil
+
+  defp nil_if_blank(value) when is_binary(value),
+    do: if(Helpers.blank?(value), do: nil, else: value)
+
+  defp nil_if_blank(_value), do: :invalid_continue_call_id
 
   defp provider_content(provider_response) do
     case response_field(provider_response, :content) do
@@ -218,6 +278,7 @@ defmodule LemmingsOs.ModelRuntime do
       platform_runtime_context(),
       configured_identity_message(config_snapshot),
       available_tools_message(config_snapshot),
+      available_lemming_calls_message(config_snapshot),
       loop_state_semantics_message(),
       @runtime_rules,
       immediate_response_instruction(),
@@ -233,7 +294,7 @@ defmodule LemmingsOs.ModelRuntime do
     - You are running as a Lemming agent inside a multi-agent application runtime.
     - Your administrator configures your identity, purpose, and expertise.
     - The runtime adds tool availability, execution rules, and loop-state context.
-    - On each turn, choose exactly one next action: either return a final user-facing reply or request one tool call.
+    - On each turn, choose exactly one next action: either return a final user-facing reply, request one tool call, or request one listed lemming call when available.
     - When a tool call is returned, the app executes it and sends the result back in later assistant-context messages.
     - If the latest tool result already satisfies the request, return a final reply instead of repeating the same successful tool call.
     """
@@ -301,6 +362,29 @@ defmodule LemmingsOs.ModelRuntime do
     |> Enum.join("\n")
   end
 
+  defp available_lemming_calls_message(config_snapshot) do
+    targets = lemming_call_targets(config_snapshot)
+
+    case targets do
+      [] ->
+        nil
+
+      targets ->
+        target_lines =
+          Enum.map_join(targets, "\n", fn target ->
+            "- #{target.capability}: target=#{target.slug}; role=#{target.role}; department=#{target.department_slug}; #{target.description}"
+          end)
+
+        [
+          "Available Lemming Calls:",
+          target_lines,
+          "Managers may delegate one bounded task to a listed target.",
+          "Use continue_call_id only when refining a prior call id supplied by runtime context."
+        ]
+        |> Enum.join("\n")
+    end
+  end
+
   defp loop_state_semantics_message do
     """
     Loop State Semantics:
@@ -328,16 +412,51 @@ defmodule LemmingsOs.ModelRuntime do
     """
     IMPORTANT: RESPOND WITH JSON ONLY.
 
-    Decide what to do next by returning exactly one of these two JSON shapes:
+    Decide what to do next by returning exactly one JSON shape:
 
     {"action":"reply","reply":"visible user-facing text"}
     or
     {"action":"tool_call","tool_name":"fs.read_text_file","args":{"path":"notes.txt"}}
+    or, when Available Lemming Calls are listed,
+    {"action":"lemming_call","target":"slug-or-capability","request":"bounded task text","continue_call_id":null}
 
     Option A: final reply to the user.
     Option B: one tool call for the runtime to execute.
+    Option C: one lemming call for the runtime to execute within listed boundaries.
     """
   end
+
+  defp lemming_call_targets(config_snapshot) do
+    config_snapshot
+    |> response_field(:lemming_call_targets)
+    |> normalize_lemming_call_targets()
+  end
+
+  defp normalize_lemming_call_targets(targets) when is_list(targets) do
+    Enum.flat_map(targets, &normalize_lemming_call_target/1)
+  end
+
+  defp normalize_lemming_call_targets(_targets), do: []
+
+  defp normalize_lemming_call_target(%{} = target) do
+    with slug when is_binary(slug) <- response_field(target, :slug),
+         capability when is_binary(capability) <- response_field(target, :capability),
+         role when is_binary(role) <- response_field(target, :role) do
+      [
+        %{
+          slug: slug,
+          capability: capability,
+          role: role,
+          department_slug: response_field(target, :department_slug) || "same-department",
+          description: response_field(target, :description) || ""
+        }
+      ]
+    else
+      _other -> []
+    end
+  end
+
+  defp normalize_lemming_call_target(_target), do: []
 
   defp available_tools(config_snapshot) do
     catalog_tools = Catalog.list_tools()
