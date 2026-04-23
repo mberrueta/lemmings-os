@@ -13,6 +13,10 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
   @world_keys ~w(id slug name)
   @infrastructure_keys ~w(postgres)
   @postgres_keys ~w(url_env)
+  @city_keys ~w(slug name node_name status departments limits_config runtime_config costs_config models_config)
+  @department_keys ~w(slug name status notes tags lemmings limits_config runtime_config costs_config models_config)
+  @lemming_keys ~w(slug name status collaboration_role description instructions limits_config runtime_config costs_config models_config tools_config)
+  @tools_config_keys ~w(allowed_tools denied_tools)
   @models_keys ~w(providers profiles)
   @provider_keys ~w(enabled base_url api_key_env default_billing_mode allowed_models)
   @profile_keys ~w(provider model fallbacks)
@@ -63,7 +67,7 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
       required_top_level_issues(config) ++
       world_issues(config) ++
       infrastructure_issues(config) ++
-      placeholder_section_issues(config, "cities") ++
+      cities_issues(config) ++
       placeholder_section_issues(config, "tools") ++
       models_issues(config) ++
       limits_issues(config) ++
@@ -98,6 +102,85 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
     config
     |> Map.get(section_name)
     |> validate_map_section(section_name, &unknown_key_warnings(&1, [], section_name))
+  end
+
+  defp cities_issues(config),
+    do: config |> Map.get("cities") |> validate_map_section("cities", &validate_cities_section/1)
+
+  defp validate_cities_section(section) do
+    section
+    |> Enum.flat_map(fn {city_slug, city_config} ->
+      validate_city_entry(city_slug, city_config)
+    end)
+  end
+
+  defp validate_city_entry(city_slug, city_config) do
+    path = "cities.#{city_slug}"
+
+    validate_map_section(city_config, path, fn section ->
+      unknown_key_warnings(section, @city_keys, path) ++
+        required_string_issues(section, path, ~w(slug name node_name status)) ++
+        optional_config_map_issues(section, path) ++
+        validate_departments_section(Map.get(section, "departments"), path)
+    end)
+  end
+
+  defp validate_departments_section(section, path) do
+    departments_path = "#{path}.departments"
+
+    validate_map_section(section, departments_path, fn departments ->
+      do_validate_departments_section(departments, departments_path)
+    end)
+  end
+
+  defp do_validate_departments_section(section, path) do
+    section
+    |> Enum.flat_map(fn {department_slug, department_config} ->
+      validate_department_entry(path, department_slug, department_config)
+    end)
+  end
+
+  defp validate_department_entry(parent_path, department_slug, department_config) do
+    path = "#{parent_path}.#{department_slug}"
+
+    validate_map_section(department_config, path, fn section ->
+      unknown_key_warnings(section, @department_keys, path) ++
+        required_string_issues(section, path, ~w(slug name status)) ++
+        optional_string_issue(section, path, "notes") ++
+        optional_string_list_issue(section, path, "tags") ++
+        optional_config_map_issues(section, path) ++
+        validate_lemmings_section(Map.get(section, "lemmings"), path)
+    end)
+  end
+
+  defp validate_lemmings_section(section, path) do
+    lemmings_path = "#{path}.lemmings"
+
+    validate_map_section(section, lemmings_path, fn lemmings ->
+      do_validate_lemmings_section(lemmings, lemmings_path)
+    end)
+  end
+
+  defp do_validate_lemmings_section(section, path) do
+    section
+    |> Enum.flat_map(fn {lemming_slug, lemming_config} ->
+      validate_lemming_entry(path, lemming_slug, lemming_config)
+    end)
+  end
+
+  defp validate_lemming_entry(parent_path, lemming_slug, lemming_config) do
+    path = "#{parent_path}.#{lemming_slug}"
+
+    validate_map_section(lemming_config, path, fn section ->
+      unknown_key_warnings(section, @lemming_keys, path) ++
+        required_string_issues(
+          section,
+          path,
+          ~w(slug name status collaboration_role description instructions)
+        ) ++
+        optional_config_map_issues(section, path) ++
+        optional_tools_config_issues(section, path)
+    end)
   end
 
   defp models_issues(config),
@@ -267,6 +350,37 @@ defmodule LemmingsOs.WorldBootstrap.ShapeValidator do
 
   defp optional_boolean_issue(section, path, key),
     do: optional_typed_issue(Map.get(section, key), "#{path}.#{key}", "boolean", &is_boolean/1)
+
+  defp optional_string_list_issue(section, path, key),
+    do:
+      optional_typed_issue(
+        Map.get(section, key),
+        "#{path}.#{key}",
+        "list_of_strings",
+        &string_list?/1
+      )
+
+  defp optional_config_map_issues(section, path) do
+    ~w(limits_config runtime_config costs_config models_config)
+    |> Enum.flat_map(fn key ->
+      optional_typed_issue(Map.get(section, key), "#{path}.#{key}", "map", &is_map/1)
+    end)
+  end
+
+  defp optional_tools_config_issues(section, path) do
+    case Map.get(section, "tools_config") do
+      nil ->
+        []
+
+      tools_config when is_map(tools_config) ->
+        unknown_key_warnings(tools_config, @tools_config_keys, "#{path}.tools_config") ++
+          optional_string_list_issue(tools_config, "#{path}.tools_config", "allowed_tools") ++
+          optional_string_list_issue(tools_config, "#{path}.tools_config", "denied_tools")
+
+      _tools_config ->
+        [invalid_type_issue("#{path}.tools_config", "map")]
+    end
+  end
 
   defp validate_required_value(nil, path, _expected_type, _predicate),
     do: [missing_value_issue(path)]

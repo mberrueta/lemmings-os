@@ -42,7 +42,8 @@ defmodule LemmingsOsWeb.PageData.WorldPageSnapshotTest do
       assert snapshot.bootstrap.declared_config.world.slug == "local"
 
       assert Enum.map(snapshot.bootstrap.declared_config.models.providers, & &1.name) == [
-               "ollama"
+               "ollama",
+               "openai"
              ]
 
       assert snapshot.immediate_import.status == "unknown"

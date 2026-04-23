@@ -7,12 +7,16 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
   with create-or-update semantics for this implementation slice.
   """
 
-  alias LemmingsOs.Worlds.World
-  alias LemmingsOs.Worlds.Cache
+  alias LemmingsOs.Cities.City
+  alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Gettext, as: AppGettext
+  alias LemmingsOs.Lemmings.Lemming
+  alias LemmingsOs.Repo
   alias LemmingsOs.WorldBootstrap.Loader
   alias LemmingsOs.WorldBootstrap.ShapeValidator
   alias LemmingsOs.Worlds
-  alias LemmingsOs.Gettext, as: AppGettext
+  alias LemmingsOs.Worlds.Cache
+  alias LemmingsOs.Worlds.World
 
   @type issue :: Loader.issue() | ShapeValidator.issue()
 
@@ -59,8 +63,7 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
     operation_status = successful_operation_status(issues)
 
     load_result
-    |> world_attrs(validation_result, operation_status)
-    |> Worlds.upsert_bootstrap_world()
+    |> upsert_bootstrap_config(validation_result, operation_status)
     |> sync_persist_result(load_result, issues, operation_status)
   end
 
@@ -80,6 +83,14 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
 
   defp sync_persist_result({:ok, world}, load_result, issues, operation_status),
     do: {:ok, sync_result(load_result, operation_status, issues, world)}
+
+  defp sync_persist_result(
+         {:error, {:bootstrap_sync_failed, changeset}},
+         load_result,
+         issues,
+         _status
+       ),
+       do: sync_persist_result({:error, changeset}, load_result, issues, "invalid")
 
   defp sync_persist_result({:error, changeset}, load_result, issues, _operation_status) do
     persistence_issue = persistence_issue(changeset)
@@ -171,6 +182,126 @@ defmodule LemmingsOs.WorldBootstrap.Importer do
       action_hint:
         Gettext.dgettext(AppGettext, "errors", ".bootstrap_persistence_failed_action_hint")
     }
+  end
+
+  defp upsert_bootstrap_config(load_result, validation_result, operation_status) do
+    Repo.transaction(fn ->
+      with {:ok, world} <-
+             load_result
+             |> world_attrs(validation_result, operation_status)
+             |> Worlds.upsert_bootstrap_world(),
+           {:ok, _cities} <- sync_cities(world, validation_result.config) do
+        world
+      else
+        {:error, reason} -> Repo.rollback({:bootstrap_sync_failed, reason})
+      end
+    end)
+  end
+
+  defp sync_cities(%World{} = world, %{"cities" => cities_config}) do
+    cities_config
+    |> Enum.reduce_while({:ok, []}, fn {_slug, city_config}, {:ok, cities} ->
+      case upsert_city(world, city_config) do
+        {:ok, city} ->
+          sync_city_departments(world, city, city_config, cities)
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp sync_cities(_world, _config), do: {:ok, []}
+
+  defp sync_city_departments(world, city, city_config, cities) do
+    case sync_departments(world, city, city_config) do
+      {:ok, _departments} -> {:cont, {:ok, [city | cities]}}
+      {:error, reason} -> {:halt, {:error, reason}}
+    end
+  end
+
+  defp sync_departments(%World{} = world, %City{} = city, %{"departments" => departments_config}) do
+    departments_config
+    |> Enum.reduce_while({:ok, []}, fn {_slug, department_config}, {:ok, departments} ->
+      case upsert_department(world, city, department_config) do
+        {:ok, department} ->
+          sync_department_lemmings(world, city, department, department_config, departments)
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp sync_departments(_world, _city, _config), do: {:ok, []}
+
+  defp sync_department_lemmings(world, city, department, department_config, departments) do
+    case sync_lemmings(world, city, department, department_config) do
+      {:ok, _lemmings} -> {:cont, {:ok, [department | departments]}}
+      {:error, reason} -> {:halt, {:error, reason}}
+    end
+  end
+
+  defp sync_lemmings(
+         %World{} = world,
+         %City{} = city,
+         %Department{} = department,
+         %{"lemmings" => lemmings_config}
+       ) do
+    lemmings_config
+    |> Enum.reduce_while({:ok, []}, fn {_slug, lemming_config}, {:ok, lemmings} ->
+      case upsert_lemming(world, city, department, lemming_config) do
+        {:ok, lemming} -> {:cont, {:ok, [lemming | lemmings]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp sync_lemmings(_world, _city, _department, _config), do: {:ok, []}
+
+  defp upsert_city(%World{id: world_id}, city_config) do
+    city =
+      Repo.get_by(City, world_id: world_id, slug: Map.fetch!(city_config, "slug")) ||
+        %City{world_id: world_id}
+
+    city
+    |> City.changeset(config_attrs(city_config))
+    |> Repo.insert_or_update()
+  end
+
+  defp upsert_department(%World{id: world_id}, %City{id: city_id}, department_config) do
+    department =
+      Repo.get_by(Department, city_id: city_id, slug: Map.fetch!(department_config, "slug")) ||
+        %Department{world_id: world_id, city_id: city_id}
+
+    department
+    |> Department.changeset(config_attrs(department_config))
+    |> Repo.insert_or_update()
+  end
+
+  defp upsert_lemming(
+         %World{id: world_id},
+         %City{id: city_id},
+         %Department{id: department_id},
+         lemming_config
+       ) do
+    lemming =
+      Repo.get_by(Lemming, department_id: department_id, slug: Map.fetch!(lemming_config, "slug")) ||
+        %Lemming{world_id: world_id, city_id: city_id, department_id: department_id}
+
+    lemming
+    |> Lemming.changeset(config_attrs(lemming_config))
+    |> Repo.insert_or_update()
+  end
+
+  defp config_attrs(config) do
+    config
+    |> Map.take(
+      ~w(slug name node_name status notes tags collaboration_role description instructions)
+    )
+    |> Map.merge(
+      Map.take(config, ~w(limits_config runtime_config costs_config models_config tools_config))
+    )
   end
 
   defp timestamp do

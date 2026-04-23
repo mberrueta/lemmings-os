@@ -14,7 +14,6 @@ alias LemmingsOs.Cities
 alias LemmingsOs.Cities.Runtime, as: RuntimeCities
 alias LemmingsOs.Departments
 alias LemmingsOs.Lemmings
-alias LemmingsOs.Repo
 alias LemmingsOs.Worlds
 alias LemmingsOs.Worlds.World
 
@@ -255,6 +254,19 @@ create_department! = fn city, attrs ->
   end
 end
 
+update_department! = fn department, attrs ->
+  case Departments.update_department(department, attrs) do
+    {:ok, updated_department} ->
+      updated_department
+
+    {:error, changeset} ->
+      raise """
+      failed to update seeded department #{inspect(attrs.name)} for #{inspect(department.slug)}
+      #{inspect(changeset.errors)}
+      """
+  end
+end
+
 create_lemming! = fn world, city, department, attrs ->
   case Lemmings.create_lemming(world, city, department, attrs) do
     {:ok, lemming} ->
@@ -268,6 +280,77 @@ create_lemming! = fn world, city, department, attrs ->
   end
 end
 
+update_lemming! = fn lemming, attrs ->
+  case Lemmings.update_lemming(lemming, attrs) do
+    {:ok, updated_lemming} ->
+      updated_lemming
+
+    {:error, changeset} ->
+      raise """
+      failed to update seeded lemming #{inspect(attrs.name)} for #{inspect(lemming.slug)}
+      #{inspect(changeset.errors)}
+      """
+  end
+end
+
+create_city! = fn world, attrs ->
+  case Cities.create_city(world, attrs) do
+    {:ok, city} ->
+      city
+
+    {:error, changeset} ->
+      raise """
+      failed to seed city #{inspect(attrs.name)}
+      #{inspect(changeset.errors)}
+      """
+  end
+end
+
+update_city! = fn city, attrs ->
+  case Cities.update_city(city, attrs) do
+    {:ok, updated_city} ->
+      updated_city
+
+    {:error, changeset} ->
+      raise """
+      failed to update seeded city #{inspect(city.slug)}
+      #{inspect(changeset.errors)}
+      """
+  end
+end
+
+upsert_primary_city! = fn world, attrs ->
+  case Cities.get_city_by_slug(world, "local_city") || List.first(Cities.list_cities(world)) do
+    city when not is_nil(city) ->
+      # Preserve the first/default city identity as-is on reruns.
+      city
+
+    nil ->
+      create_city!.(world, attrs)
+  end
+end
+
+upsert_city_by_slug! = fn world, attrs ->
+  case Cities.get_city_by_slug(world, attrs.slug) do
+    nil -> create_city!.(world, attrs)
+    city -> update_city!.(city, attrs)
+  end
+end
+
+upsert_department! = fn city, attrs ->
+  case Departments.get_department_by_slug(city, attrs.slug) do
+    nil -> create_department!.(city, attrs)
+    department -> update_department!.(department, attrs)
+  end
+end
+
+upsert_lemming! = fn world, city, department, attrs ->
+  case Lemmings.get_lemming_by_slug(department, attrs.slug) do
+    nil -> create_lemming!.(world, city, department, attrs)
+    lemming -> update_lemming!.(lemming, attrs)
+  end
+end
+
 {:ok, world} =
   case Worlds.get_default_world() do
     %World{} = world -> {:ok, world}
@@ -275,43 +358,21 @@ end
   end
 
 runtime_city_attrs = RuntimeCities.runtime_city_attrs()
-{:ok, runtime_city} = Cities.upsert_runtime_city(world, runtime_city_attrs)
-
-world
-|> Cities.list_cities()
-|> Enum.reject(&(&1.id == runtime_city.id))
-|> Enum.each(fn city ->
-  city
-  |> Lemmings.list_lemmings()
-  |> Enum.each(fn lemming -> Repo.delete!(lemming) end)
-
-  city
-  |> Departments.list_departments()
-  |> Enum.each(fn department -> Repo.delete!(department) end)
-
-  Repo.delete!(city)
-end)
-
-runtime_city
-|> Lemmings.list_lemmings()
-|> Enum.each(fn lemming -> Repo.delete!(lemming) end)
-
-runtime_city
-|> Departments.list_departments()
-|> Enum.each(fn department -> Repo.delete!(department) end)
 
 seeded =
   city_plans
   |> Enum.map(fn
     %{key: :runtime, departments: departments} ->
+      runtime_city = upsert_primary_city!.(world, runtime_city_attrs)
+
       seeded_departments =
         Enum.map(departments, fn department_attrs ->
-          department = create_department!.(runtime_city, department_attrs)
+          department = upsert_department!.(runtime_city, department_attrs)
 
           lemming_seeds
           |> Map.get({:runtime, department.slug}, [])
           |> Enum.each(fn lemming_attrs ->
-            create_lemming!.(world, runtime_city, department, lemming_attrs)
+            upsert_lemming!.(world, runtime_city, department, lemming_attrs)
           end)
 
           department
@@ -320,16 +381,16 @@ seeded =
       %{city: runtime_city, departments: seeded_departments}
 
     %{key: key, attrs: city_attrs, departments: departments} ->
-      {:ok, city} = Cities.create_city(world, city_attrs)
+      city = upsert_city_by_slug!.(world, city_attrs)
 
       seeded_departments =
         Enum.map(departments, fn department_attrs ->
-          department = create_department!.(city, department_attrs)
+          department = upsert_department!.(city, department_attrs)
 
           lemming_seeds
           |> Map.get({key, department.slug}, [])
           |> Enum.each(fn lemming_attrs ->
-            create_lemming!.(world, city, department, lemming_attrs)
+            upsert_lemming!.(world, city, department, lemming_attrs)
           end)
 
           department
