@@ -5,13 +5,18 @@ defmodule LemmingsOs.LemmingCalls do
 
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances
+  alias LemmingsOs.LemmingCalls.PubSub
+  alias LemmingsOs.LemmingCalls.Telemetry
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime
+  alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Worlds.World
 
   @terminal_statuses ~w(completed failed)
@@ -139,9 +144,19 @@ defmodule LemmingsOs.LemmingCalls do
           {:ok, LemmingCall.t()} | {:error, Ecto.Changeset.t()}
   def update_call_status(%LemmingCall{} = call, status, attrs \\ %{})
       when is_binary(status) and is_map(attrs) do
-    call
-    |> LemmingCall.status_changeset(Map.put(attrs, :status, status))
-    |> Repo.update()
+    previous_status = call.status
+
+    case call
+         |> LemmingCall.status_changeset(Map.put(attrs, :status, status))
+         |> Repo.update() do
+      {:ok, updated_call} = ok ->
+        emit_status_observability(updated_call, previous_status)
+        ok
+
+      {:error, _changeset} = error ->
+        emit_status_update_failure(call, status)
+        error
+    end
   end
 
   @doc """
@@ -461,6 +476,10 @@ defmodule LemmingsOs.LemmingCalls do
              world_id: caller_instance.world_id
            ) do
       update_call_status(call, "running", %{started_at: now()})
+    else
+      {:error, reason} = error ->
+        emit_request_failure(caller_instance, reason, %{target: target})
+        error
     end
   end
 
@@ -478,6 +497,14 @@ defmodule LemmingsOs.LemmingCalls do
         request_text,
         opts
       )
+    else
+      {:error, reason} = error ->
+        emit_request_failure(caller_instance, reason, %{
+          target: target,
+          lemming_call_id: call_id
+        })
+
+        error
     end
   end
 
@@ -560,7 +587,11 @@ defmodule LemmingsOs.LemmingCalls do
              },
              world_id: caller_instance.world_id
            ) do
-      update_call_status(successor_call, "running", %{started_at: now()})
+      with {:ok, updated_call} <-
+             update_call_status(successor_call, "running", %{started_at: now()}) do
+        emit_recovered(call, updated_call)
+        {:ok, updated_call}
+      end
     end
   end
 
@@ -757,8 +788,306 @@ defmodule LemmingsOs.LemmingCalls do
   end
 
   defp insert_call(attrs) do
-    %LemmingCall{}
-    |> LemmingCall.create_changeset(attrs)
-    |> Repo.insert()
+    case %LemmingCall{}
+         |> LemmingCall.create_changeset(attrs)
+         |> Repo.insert() do
+      {:ok, call} = ok ->
+        emit_call_created(call)
+        ok
+
+      {:error, _changeset} = error ->
+        emit_create_failure(attrs)
+        error
+    end
   end
+
+  defp emit_call_created(%LemmingCall{} = call) do
+    metadata =
+      call_log_metadata(call, %{
+        event: "lemming_call.created",
+        status: call.status
+      })
+
+    Logger.info("lemming call created", metadata)
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :runtime, :lemming_call, :created],
+        %{count: 1},
+        Telemetry.call_metadata(call)
+      )
+
+    _ =
+      ActivityLog.record(:runtime, "lemming_call", "Lemming call created", %{
+        lemming_call_id: call.id,
+        world_id: call.world_id,
+        city_id: call.city_id,
+        caller_department_id: call.caller_department_id,
+        callee_department_id: call.callee_department_id,
+        caller_instance_id: call.caller_instance_id,
+        callee_instance_id: call.callee_instance_id,
+        status: call.status
+      })
+
+    _ = PubSub.broadcast_call_upserted(call)
+    :ok
+  end
+
+  defp emit_create_failure(attrs) do
+    metadata =
+      attrs
+      |> create_failure_metadata()
+      |> Map.put(:event, "lemming_call.create_failed")
+
+    Logger.warning("lemming call could not be created", metadata)
+    :ok
+  end
+
+  defp emit_status_update_failure(%LemmingCall{} = call, status) do
+    Logger.warning(
+      "lemming call status update failed",
+      call_log_metadata(call, %{
+        event: "lemming_call.status_update_failed",
+        status: status
+      })
+    )
+
+    :ok
+  end
+
+  defp emit_status_observability(%LemmingCall{} = call, previous_status) do
+    event = call_status_event(call, previous_status)
+    log_event = "lemming_call." <> Atom.to_string(event)
+
+    Logger.info(
+      "lemming call status transitioned",
+      call_log_metadata(call, %{
+        event: log_event,
+        status: call.status,
+        from_status: previous_status,
+        to_status: call.status,
+        result_summary: loggable_summary(call.result_summary),
+        error_summary: loggable_summary(call.error_summary),
+        duration_ms: duration_for_log(call)
+      })
+    )
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :runtime, :lemming_call, event],
+        status_measurements(call, previous_status),
+        Telemetry.call_metadata(call, %{
+          from_status: previous_status,
+          to_status: call.status,
+          result_summary: loggable_summary(call.result_summary),
+          error_summary: loggable_summary(call.error_summary),
+          duration_ms: Telemetry.duration_ms(call)
+        })
+      )
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :runtime, :lemming_call, :status_changed],
+        status_measurements(call, previous_status),
+        Telemetry.call_metadata(call, %{
+          from_status: previous_status,
+          to_status: call.status,
+          result_summary: loggable_summary(call.result_summary),
+          error_summary: loggable_summary(call.error_summary),
+          duration_ms: Telemetry.duration_ms(call)
+        })
+      )
+
+    _ =
+      ActivityLog.record(
+        activity_type(call),
+        "lemming_call",
+        activity_action(call, previous_status),
+        %{
+          lemming_call_id: call.id,
+          world_id: call.world_id,
+          city_id: call.city_id,
+          caller_department_id: call.caller_department_id,
+          callee_department_id: call.callee_department_id,
+          caller_instance_id: call.caller_instance_id,
+          callee_instance_id: call.callee_instance_id,
+          from_status: previous_status,
+          to_status: call.status,
+          recovery_status: call.recovery_status,
+          result_summary: loggable_summary(call.result_summary),
+          error_summary: loggable_summary(call.error_summary)
+        }
+      )
+
+    _ = PubSub.broadcast_call_upserted(call)
+    _ = PubSub.broadcast_status_changed(call, previous_status)
+    :ok
+  end
+
+  defp emit_request_failure(%LemmingInstance{} = caller_instance, reason, extra) do
+    Logger.warning(
+      "lemming call request failed",
+      %{
+        event: "lemming_call.request_failed",
+        reason: normalize_reason(reason),
+        world_id: caller_instance.world_id,
+        city_id: caller_instance.city_id,
+        department_id: caller_instance.department_id,
+        caller_department_id: caller_instance.department_id,
+        callee_department_id: Map.get(extra, :callee_department_id),
+        caller_instance_id: caller_instance.id,
+        callee_instance_id: Map.get(extra, :callee_instance_id),
+        lemming_call_id: Map.get(extra, :lemming_call_id)
+      }
+    )
+
+    :ok
+  end
+
+  defp emit_recovered(%LemmingCall{} = previous_call, %LemmingCall{} = successor_call) do
+    Logger.info(
+      "lemming call recovered",
+      call_log_metadata(successor_call, %{
+        event: "lemming_call.recovered",
+        reason: "expired",
+        previous_call_id: previous_call.id
+      })
+    )
+
+    _ =
+      Telemetry.execute(
+        [:lemmings_os, :runtime, :lemming_call, :recovered],
+        %{count: 1},
+        Telemetry.call_metadata(successor_call, %{
+          previous_call_id: previous_call.id,
+          root_call_id:
+            successor_call.root_call_id || previous_call.root_call_id || previous_call.id
+        })
+      )
+
+    _ =
+      ActivityLog.record(:runtime, "lemming_call", "Lemming call recovered", %{
+        lemming_call_id: successor_call.id,
+        previous_call_id: previous_call.id,
+        world_id: successor_call.world_id,
+        city_id: successor_call.city_id,
+        caller_department_id: successor_call.caller_department_id,
+        callee_department_id: successor_call.callee_department_id,
+        caller_instance_id: successor_call.caller_instance_id,
+        callee_instance_id: successor_call.callee_instance_id
+      })
+
+    :ok
+  end
+
+  defp call_status_event(
+         %LemmingCall{status: "running", started_at: %DateTime{}},
+         previous_status
+       )
+       when previous_status != "running",
+       do: :started
+
+  defp call_status_event(%LemmingCall{status: "completed"}, _previous_status), do: :completed
+
+  defp call_status_event(
+         %LemmingCall{status: "failed", recovery_status: "expired"},
+         _previous_status
+       ),
+       do: :dead
+
+  defp call_status_event(%LemmingCall{status: "failed"}, _previous_status), do: :failed
+
+  defp call_status_event(%LemmingCall{recovery_status: recovery_status}, _previous_status)
+       when is_binary(recovery_status),
+       do: :recovery_pending
+
+  defp call_status_event(%LemmingCall{}, _previous_status), do: :status_changed
+
+  defp status_measurements(call, previous_status) do
+    base = %{count: 1}
+
+    if call.status != previous_status and call.status in @terminal_statuses do
+      Map.put(base, :duration_ms, Telemetry.duration_ms(call))
+    else
+      base
+    end
+  end
+
+  defp activity_type(%LemmingCall{status: "failed"}), do: :error
+  defp activity_type(%LemmingCall{}), do: :runtime
+
+  defp activity_action(call, previous_status) do
+    case call_status_event(call, previous_status) do
+      :started -> "Lemming call started"
+      :completed -> "Lemming call completed"
+      :failed -> "Lemming call failed"
+      :dead -> "Lemming call dead"
+      :recovery_pending -> "Lemming call recovery pending"
+      _ -> "Lemming call status updated"
+    end
+  end
+
+  defp call_log_metadata(call, extra) do
+    %{
+      world_id: call.world_id,
+      city_id: call.city_id,
+      department_id: call.caller_department_id,
+      caller_department_id: call.caller_department_id,
+      callee_department_id: call.callee_department_id,
+      caller_instance_id: call.caller_instance_id,
+      callee_instance_id: call.callee_instance_id,
+      instance_id: call.caller_instance_id,
+      lemming_call_id: call.id,
+      reason: Map.get(extra, :reason),
+      previous_call_id: Map.get(extra, :previous_call_id),
+      from_status: Map.get(extra, :from_status),
+      to_status: Map.get(extra, :to_status),
+      status: Map.get(extra, :status, call.status),
+      result_summary: Map.get(extra, :result_summary),
+      error_summary: Map.get(extra, :error_summary),
+      duration_ms: Map.get(extra, :duration_ms),
+      event: Map.get(extra, :event)
+    }
+  end
+
+  defp create_failure_metadata(attrs) do
+    %{
+      world_id: Map.get(attrs, :world_id) || Map.get(attrs, "world_id"),
+      city_id: Map.get(attrs, :city_id) || Map.get(attrs, "city_id"),
+      department_id:
+        Map.get(attrs, :caller_department_id) || Map.get(attrs, "caller_department_id"),
+      caller_department_id:
+        Map.get(attrs, :caller_department_id) || Map.get(attrs, "caller_department_id"),
+      callee_department_id:
+        Map.get(attrs, :callee_department_id) || Map.get(attrs, "callee_department_id"),
+      caller_instance_id:
+        Map.get(attrs, :caller_instance_id) || Map.get(attrs, "caller_instance_id"),
+      callee_instance_id:
+        Map.get(attrs, :callee_instance_id) || Map.get(attrs, "callee_instance_id"),
+      lemming_call_id: Map.get(attrs, :id) || Map.get(attrs, "id")
+    }
+  end
+
+  defp loggable_summary(summary) when is_binary(summary) do
+    summary = String.trim(summary)
+
+    cond do
+      summary == "" -> nil
+      String.length(summary) <= 160 -> summary
+      true -> String.slice(summary, 0, 157) <> "..."
+    end
+  end
+
+  defp loggable_summary(_summary), do: nil
+
+  defp duration_for_log(call) do
+    duration_ms = Telemetry.duration_ms(call)
+    if duration_ms > 0, do: duration_ms, else: nil
+  end
+
+  defp normalize_reason(%Ecto.Changeset{}), do: "changeset_invalid"
+  defp normalize_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp normalize_reason(reason) when is_binary(reason), do: reason
+  defp normalize_reason({reason, _detail}) when is_atom(reason), do: Atom.to_string(reason)
+  defp normalize_reason(_reason), do: "runtime_error"
 end

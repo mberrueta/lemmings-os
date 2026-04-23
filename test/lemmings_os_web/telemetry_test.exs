@@ -13,10 +13,15 @@ defmodule LemmingsOsWeb.TelemetryTest do
     assert [:lemmings_os, :runtime, :tool_execution, :failed, :count] in metric_names
     assert [:lemmings_os, :runtime, :tool_execution, :completed, :duration_ms] in metric_names
     assert [:lemmings_os, :runtime, :tool_execution, :failed, :duration_ms] in metric_names
+    assert [:lemmings_os, :runtime, :lemming_call, :created, :count] in metric_names
+    assert [:lemmings_os, :runtime, :lemming_call, :completed, :duration_ms] in metric_names
+    assert [:lemmings_os, :runtime, :lemming_call, :dead, :duration_ms] in metric_names
+    assert [:lemmings_os, :runtime, :lemming_calls, :running] in metric_names
   end
 
   test "emit_runtime_snapshot/0 emits aggregate runtime instance measurements" do
     ref = attach([:lemmings_os, :runtime, :instances])
+    calls_ref = attach([:lemmings_os, :runtime, :lemming_calls])
 
     world = insert(:world)
     city = insert(:city, world: world)
@@ -54,7 +59,15 @@ defmodule LemmingsOsWeb.TelemetryTest do
     assert measurements.failed >= 1
     assert is_binary(created_instance.id)
 
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_calls], call_measurements,
+                    call_metadata}
+
+    assert call_metadata.source == :poller
+    assert call_measurements.total >= 0
+    assert is_integer(call_measurements.running)
+
     detach(ref)
+    detach(calls_ref)
   end
 
   defp attach(event) do

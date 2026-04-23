@@ -411,6 +411,9 @@ lemming_count =
   end)
   |> length()
 
-IO.puts(
+seed_summary =
   "Seeded world #{world.slug} with #{length(seeded)} cities, #{department_count} departments, and #{lemming_count} lemmings."
-)
+
+if Mix.env() != :test or System.get_env("SEEDS_VERBOSE") in ["1", "true"] do
+  IO.puts(seed_summary)
+end

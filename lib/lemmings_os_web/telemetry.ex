@@ -3,6 +3,7 @@ defmodule LemmingsOsWeb.Telemetry do
   import Ecto.Query, warn: false
   import Telemetry.Metrics
 
+  alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
 
@@ -96,6 +97,24 @@ defmodule LemmingsOsWeb.Telemetry do
       sum("lemmings_os.runtime.tool_execution.failed.count"),
       summary("lemmings_os.runtime.tool_execution.completed.duration_ms"),
       summary("lemmings_os.runtime.tool_execution.failed.duration_ms"),
+      last_value("lemmings_os.runtime.lemming_calls.total"),
+      last_value("lemmings_os.runtime.lemming_calls.accepted"),
+      last_value("lemmings_os.runtime.lemming_calls.running"),
+      last_value("lemmings_os.runtime.lemming_calls.needs_more_context"),
+      last_value("lemmings_os.runtime.lemming_calls.partial_result"),
+      last_value("lemmings_os.runtime.lemming_calls.completed"),
+      last_value("lemmings_os.runtime.lemming_calls.failed"),
+      sum("lemmings_os.runtime.lemming_call.created.count"),
+      sum("lemmings_os.runtime.lemming_call.started.count"),
+      sum("lemmings_os.runtime.lemming_call.status_changed.count"),
+      sum("lemmings_os.runtime.lemming_call.completed.count"),
+      sum("lemmings_os.runtime.lemming_call.failed.count"),
+      sum("lemmings_os.runtime.lemming_call.recovery_pending.count"),
+      sum("lemmings_os.runtime.lemming_call.recovered.count"),
+      sum("lemmings_os.runtime.lemming_call.dead.count"),
+      summary("lemmings_os.runtime.lemming_call.completed.duration_ms"),
+      summary("lemmings_os.runtime.lemming_call.failed.duration_ms"),
+      summary("lemmings_os.runtime.lemming_call.dead.duration_ms"),
 
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
@@ -111,8 +130,13 @@ defmodule LemmingsOsWeb.Telemetry do
 
   def emit_runtime_snapshot do
     measurements = runtime_instance_measurements()
+    call_measurements = runtime_lemming_call_measurements()
 
     :telemetry.execute([:lemmings_os, :runtime, :instances], measurements, %{
+      source: :poller
+    })
+
+    :telemetry.execute([:lemmings_os, :runtime, :lemming_calls], call_measurements, %{
       source: :poller
     })
   end
@@ -150,6 +174,41 @@ defmodule LemmingsOsWeb.Telemetry do
           idle: 0,
           failed: 0,
           expired: 0
+        }
+    end
+  end
+
+  defp runtime_lemming_call_measurements do
+    try do
+      base_query =
+        from(call in LemmingCall,
+          group_by: call.status,
+          select: %{status: call.status, count: count(call.id)}
+        )
+
+      counts =
+        Repo.all(base_query)
+        |> Map.new(fn %{status: status, count: count} -> {status, count} end)
+
+      %{
+        total: Enum.reduce(counts, 0, fn {_status, count}, acc -> acc + count end),
+        accepted: Map.get(counts, "accepted", 0),
+        running: Map.get(counts, "running", 0),
+        needs_more_context: Map.get(counts, "needs_more_context", 0),
+        partial_result: Map.get(counts, "partial_result", 0),
+        completed: Map.get(counts, "completed", 0),
+        failed: Map.get(counts, "failed", 0)
+      }
+    rescue
+      _ ->
+        %{
+          total: 0,
+          accepted: 0,
+          running: 0,
+          needs_more_context: 0,
+          partial_result: 0,
+          completed: 0,
+          failed: 0
         }
     end
   end

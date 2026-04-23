@@ -1,8 +1,12 @@
 defmodule LemmingsOs.LemmingCallsRuntimeTest do
   use LemmingsOs.DataCase, async: false
 
+  import ExUnit.CaptureLog
+
   alias LemmingsOs.LemmingCalls
+  alias LemmingsOs.LemmingCalls.PubSub
   alias LemmingsOs.LemmingInstances
+  alias LemmingsOs.Runtime.ActivityLog
 
   defmodule FakeRuntime do
     def spawn_session(lemming, request_text, _opts) do
@@ -18,6 +22,9 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
   end
 
   setup do
+    ensure_process_started!(ActivityLog)
+    ActivityLog.clear()
+
     world = insert(:world)
     city = insert(:city, world: world, status: "active")
     department = insert(:department, world: world, city: city, slug: "ops")
@@ -92,6 +99,9 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
   test "S02: request_call creates a running child call through runtime boundary", %{
     manager_instance: manager_instance
   } do
+    created_ref = attach([:lemmings_os, :runtime, :lemming_call, :created])
+    started_ref = attach([:lemmings_os, :runtime, :lemming_call, :started])
+
     assert {:ok, call} =
              LemmingCalls.request_call(
                manager_instance,
@@ -103,15 +113,49 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     assert call.caller_instance_id == manager_instance.id
     assert call.request_text == "Draft the incident notes"
     assert is_binary(call.callee_instance_id)
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :created],
+                    %{count: 1}, created_metadata}
+
+    assert created_metadata.lemming_call_id == call.id
+    assert created_metadata.caller_instance_id == manager_instance.id
+    assert created_metadata.callee_instance_id == call.callee_instance_id
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :started],
+                    %{count: 1}, started_metadata}
+
+    assert started_metadata.lemming_call_id == call.id
+    assert started_metadata.status == "running"
+
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "lemming_call" and &1.action == "Lemming call created" and
+                 &1.metadata[:lemming_call_id] == call.id)
+           )
+
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "lemming_call" and &1.action == "Lemming call started" and
+                 &1.metadata[:lemming_call_id] == call.id)
+           )
+
+    detach(created_ref)
+    detach(started_ref)
   end
 
   test "S03: workers cannot request lemming calls", %{worker_instance: worker_instance} do
-    assert {:error, :lemming_call_not_allowed} =
-             LemmingCalls.request_call(
-               worker_instance,
-               %{target: "research-manager", request: "Coordinate this"},
-               runtime_mod: FakeRuntime
-             )
+    log =
+      capture_log(fn ->
+        assert {:error, :lemming_call_not_allowed} =
+                 LemmingCalls.request_call(
+                   worker_instance,
+                   %{target: "research-manager", request: "Coordinate this"},
+                   runtime_mod: FakeRuntime
+                 )
+      end)
+
+    assert log =~ "lemming call request failed"
+    assert log =~ "event=lemming_call.request_failed"
   end
 
   test "S04: continue_call enqueues work on active child and updates call", %{
@@ -144,6 +188,8 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
   test "S05: expired child continuation creates successor call", %{
     manager_instance: manager_instance
   } do
+    recovered_ref = attach([:lemmings_os, :runtime, :lemming_call, :recovered])
+
     assert {:ok, call} =
              LemmingCalls.request_call(
                manager_instance,
@@ -171,9 +217,25 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     assert successor.root_call_id == call.id
     assert successor.previous_call_id == call.id
     assert successor.status == "running"
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :recovered],
+                    %{count: 1}, recovered_metadata}
+
+    assert recovered_metadata.lemming_call_id == successor.id
+    assert recovered_metadata.previous_call_id == call.id
+
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "lemming_call" and &1.action == "Lemming call recovered" and
+                 &1.metadata[:lemming_call_id] == successor.id)
+           )
+
+    detach(recovered_ref)
   end
 
   test "S06: direct child input updates parent call record", %{manager_instance: manager_instance} do
+    recovery_pending_ref = attach([:lemmings_os, :runtime, :lemming_call, :recovery_pending])
+
     assert {:ok, call} =
              LemmingCalls.request_call(
                manager_instance,
@@ -197,5 +259,129 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
 
     assert updated_call.status == "running"
     assert updated_call.recovery_status == "direct_child_input"
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :recovery_pending],
+                    %{count: 1}, metadata}
+
+    assert metadata.lemming_call_id == call.id
+    assert metadata.recovery_status == "direct_child_input"
+
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "lemming_call" and &1.action == "Lemming call recovery pending" and
+                 &1.metadata[:lemming_call_id] == call.id)
+           )
+
+    detach(recovery_pending_ref)
+  end
+
+  test "S07: terminal child sync emits call completion, dead, PubSub, and safe logs", %{
+    manager_instance: manager_instance
+  } do
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "First pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    assert :ok = PubSub.subscribe_call(call.id)
+    assert :ok = PubSub.subscribe_instance_calls(manager_instance.id)
+    call_id = call.id
+
+    completed_ref = attach([:lemmings_os, :runtime, :lemming_call, :completed])
+    dead_ref = attach([:lemmings_os, :runtime, :lemming_call, :dead])
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    assert :ok =
+             LemmingCalls.sync_child_instance_terminal(child_instance, "idle", %{
+               result_summary:
+                 "Product-visible result summary that is safe to show and not the raw payload."
+             })
+
+    assert_receive {:lemming_call_upserted, %{lemming_call_id: ^call_id, status: "completed"}}
+
+    assert_receive {:lemming_call_status_changed,
+                    %{
+                      lemming_call_id: ^call_id,
+                      previous_status: "running",
+                      status: "completed"
+                    }}
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :completed],
+                    %{count: 1, duration_ms: duration_ms}, completed_metadata}
+
+    assert duration_ms >= 0
+    assert completed_metadata.lemming_call_id == call.id
+    assert completed_metadata.callee_instance_id == child_instance.id
+
+    assert {:ok, completed_call} =
+             LemmingCalls.get_call(call.id, world_id: manager_instance.world_id)
+
+    assert completed_call.status == "completed"
+
+    assert {:ok, _running_call} =
+             LemmingCalls.update_call_status(completed_call, "running", %{
+               started_at: DateTime.utc_now() |> DateTime.truncate(:second),
+               completed_at: nil,
+               result_summary: nil,
+               error_summary: nil,
+               recovery_status: nil
+             })
+
+    assert :ok =
+             LemmingCalls.sync_child_instance_terminal(child_instance, "expired", %{
+               error_summary: "Expired after no response"
+             })
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :dead],
+                    %{count: 1, duration_ms: dead_duration_ms}, dead_metadata}
+
+    assert dead_duration_ms >= 0
+    assert dead_metadata.lemming_call_id == call.id
+    assert dead_metadata.recovery_status == "expired"
+
+    assert Enum.any?(
+             ActivityLog.recent_events(),
+             &(&1.agent == "lemming_call" and &1.action == "Lemming call dead" and
+                 &1.metadata[:lemming_call_id] == call.id)
+           )
+
+    detach(completed_ref)
+    detach(dead_ref)
+  end
+
+  defp attach(event) do
+    ref = make_ref()
+    test_pid = self()
+
+    :ok =
+      :telemetry.attach(
+        "lemming-calls-telemetry-test-#{inspect(ref)}",
+        event,
+        fn event_name, measurements, metadata, _config ->
+          send(test_pid, {:telemetry_event, event_name, measurements, metadata})
+        end,
+        nil
+      )
+
+    ref
+  end
+
+  defp detach(ref) do
+    :telemetry.detach("lemming-calls-telemetry-test-#{inspect(ref)}")
+  end
+
+  defp ensure_process_started!(child) do
+    case Process.whereis(child) do
+      pid when is_pid(pid) ->
+        :ok
+
+      nil ->
+        start_supervised!(child)
+        :ok
+    end
   end
 end
