@@ -239,6 +239,15 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   @doc """
+  Resumes a paused manager item after a delegated child call reaches terminal state.
+  """
+  @spec resume_after_lemming_call(GenServer.server() | binary(), map()) ::
+          :ok | {:error, :executor_unavailable | :terminal_instance | :resume_not_possible}
+  def resume_after_lemming_call(server, call) when is_map(call) do
+    safe_call(normalize_server(server), {:resume_after_lemming_call, call})
+  end
+
+  @doc """
   Retries the current failed work item by moving it back into the queue.
   """
   @spec retry(GenServer.server() | binary()) :: :ok
@@ -481,6 +490,12 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   @impl true
   def handle_call({:resume_pending, content}, _from, state) do
     {reply, next_state} = enqueue_work_item(state, content, append_to_context?: false)
+    {:reply, reply, next_state}
+  end
+
+  @impl true
+  def handle_call({:resume_after_lemming_call, call}, _from, state) do
+    {reply, next_state} = resume_after_lemming_call_result(state, call)
     {:reply, reply, next_state}
   end
 
@@ -877,7 +892,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
     with true <- module_loaded_and_exports?(lemming_calls_mod, :request_call, 3),
          {:ok, call} <- lemming_calls_mod.request_call(state.instance, attrs, []) do
-      {:ok, append_lemming_call_result_context(state, call), call}
+      {:ok, state, call}
     else
       false -> {:error, :lemming_call_unavailable, state}
       {:error, reason} -> {:error, {:lemming_call_failed, reason}, state}
@@ -886,9 +901,39 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp continue_after_lemming_call(state) do
     state
-    |> Map.put(:tool_iteration_count, state.tool_iteration_count + 1)
+    |> release_resource()
+    |> Map.put(:last_error, nil)
+    |> Map.put(:internal_error_details, nil)
     |> put_runtime_state()
-    |> start_execution()
+    |> transition_to("idle", %{stopped_at: nil})
+    |> put_runtime_state()
+  end
+
+  defp resume_after_lemming_call_result(state, call) do
+    cond do
+      terminal_status?(state.status) ->
+        {{:error, :terminal_instance}, state}
+
+      is_nil(state.current_item) ->
+        {{:error, :resume_not_possible}, state}
+
+      not is_nil(state.model_task_pid) ->
+        {{:error, :resume_not_possible}, state}
+
+      true ->
+        next_state =
+          state
+          |> append_lemming_call_result_context(call)
+          |> Map.put(:retry_count, 0)
+          |> Map.put(:last_error, nil)
+          |> Map.put(:internal_error_details, nil)
+          |> cancel_idle_timer()
+          |> transition_to("processing", %{stopped_at: nil})
+          |> put_runtime_state()
+          |> start_execution()
+
+        {:ok, next_state}
+    end
   end
 
   defp persist_tool_outcome(state, tool_execution, {:ok, execution_result}, started_at) do

@@ -256,6 +256,46 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       assert has_element?(view, "#department-lemming-#{lemming.id}", "incident-triage")
     end
 
+    test "S09b: detail surfaces the primary manager entry and lemming roles", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      manager =
+        insert(:manager_lemming,
+          world: world,
+          city: city,
+          department: department,
+          status: "active",
+          slug: "support-manager",
+          name: "Support Manager"
+        )
+
+      worker =
+        insert(:lemming,
+          world: world,
+          city: city,
+          department: department,
+          status: "active",
+          collaboration_role: "worker",
+          slug: "incident-triage",
+          name: "Incident Triage"
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      assert has_element?(view, "#department-primary-manager-panel")
+      assert has_element?(view, "#department-primary-manager-name", "Support Manager")
+      assert has_element?(view, "#department-primary-manager-role", "Manager")
+      assert has_element?(view, "#department-primary-manager-open")
+
+      view |> element("#department-tab-lemmings") |> render_click()
+
+      assert has_element?(view, "#department-lemming-role-#{manager.id}", "Manager")
+      assert has_element?(view, "#department-lemming-primary-manager-#{manager.id}")
+      assert has_element?(view, "#department-lemming-role-#{worker.id}", "Worker")
+    end
+
     test "S09c: city map payload includes persisted lemming counts", %{conn: conn} do
       world = insert(:world)
       city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")

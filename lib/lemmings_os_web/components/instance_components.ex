@@ -130,6 +130,8 @@ defmodule LemmingsOsWeb.InstanceComponents do
   attr :id, :string, required: true
   attr :message, :map, required: true
   attr :display_now, :any, default: nil
+  attr :speaker_name, :string, default: nil
+  attr :speaker_avatar_label, :string, default: nil
   attr :class, :string, default: nil
 
   def message_bubble(assigns) do
@@ -153,9 +155,9 @@ defmodule LemmingsOsWeb.InstanceComponents do
             "inline-flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
             message_avatar_tone(@message_role)
           ]}>
-            {message_avatar_label(@message_role)}
+            {message_avatar_label(@message_role, @speaker_avatar_label)}
           </span>
-          <span>{message_role_label(@message_role)}</span>
+          <span>{message_role_label(@message_role, @speaker_name)}</span>
         </div>
 
         <div class={[
@@ -335,6 +337,236 @@ defmodule LemmingsOsWeb.InstanceComponents do
     """
   end
 
+  attr :id, :string, required: true
+  attr :call, :map, required: true
+  attr :display_now, :any, default: nil
+
+  def delegation_intent_row(assigns) do
+    ~H"""
+    <article
+      id={@id}
+      class="flex w-full justify-start"
+      data-role="delegation-intent"
+    >
+      <div class="grid w-fit max-w-[80%] min-w-[18rem] justify-items-start gap-2">
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class="inline-flex size-8 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-xs font-semibold text-emerald-300">
+            {delegation_avatar_label(@call.caller_label)}
+          </span>
+          <span>{header_name(@call.caller_label)}</span>
+          <.badge tone="info">{dgettext("lemmings", "Manager")}</.badge>
+        </div>
+
+        <div class="w-full rounded-2xl rounded-tl-md border border-emerald-400/15 bg-gradient-to-b from-emerald-950/45 to-zinc-950/95 px-4 py-3">
+          <p
+            id={"delegation-intent-copy-#{@call.id}"}
+            class="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100"
+          >
+            {delegation_intent_copy(@call)}
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class="text-zinc-400">{message_clock_label(@call.requested_at)}</span>
+          <span class="text-zinc-600">{message_age_label(@call.requested_at, @display_now)}</span>
+        </div>
+      </div>
+    </article>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :call, :map, required: true
+  attr :display_now, :any, default: nil
+
+  def manager_request_row(assigns) do
+    ~H"""
+    <article
+      id={@id}
+      class="flex w-full justify-start"
+      data-role="manager-request"
+    >
+      <div class="grid w-fit max-w-[80%] min-w-[18rem] justify-items-start gap-2">
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class="inline-flex size-8 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-xs font-semibold text-emerald-300">
+            {delegation_avatar_label(@call.caller_label)}
+          </span>
+          <span>{header_name(@call.caller_label)}</span>
+          <.badge tone="info">{dgettext("lemmings", "Manager")}</.badge>
+        </div>
+
+        <div class="w-full rounded-2xl rounded-tl-md border border-emerald-400/15 bg-gradient-to-b from-emerald-950/45 to-zinc-950/95 px-4 py-3">
+          <p
+            id={"manager-request-copy-#{@call.id}"}
+            class="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100"
+          >
+            {@call.request_text}
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class="text-zinc-400">{message_clock_label(@call.requested_at)}</span>
+          <span class="text-zinc-600">{message_age_label(@call.requested_at, @display_now)}</span>
+        </div>
+      </div>
+    </article>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :call, :map, required: true
+  attr :manager_view?, :boolean, default: false
+  attr :display_now, :any, default: nil
+
+  def delegated_call_row(assigns) do
+    ~H"""
+    <article
+      id={@id}
+      class="flex w-full justify-start"
+      data-role="delegated"
+      data-state={@call.ui_state}
+    >
+      <div class="grid w-full max-w-[80%] min-w-[18rem] justify-items-start gap-2">
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-amber-400/30 bg-amber-400/10 text-xs font-semibold text-amber-200">
+            {delegation_avatar_label(@call.callee_label)}
+          </span>
+          <span>{header_name(@call.callee_label)}</span>
+          <.badge tone="warning">{dgettext("lemmings", "Delegated")}</.badge>
+          <.badge id={"delegated-call-state-#{@call.id}"} tone={@call.ui_state_tone}>
+            {@call.ui_state_label}
+          </.badge>
+          <.badge :if={@call.callee_role == "manager"} tone="info">
+            {dgettext("lemmings", "Manager")}
+          </.badge>
+          <.badge :if={@call.callee_role == "worker"} tone="muted">
+            {dgettext("lemmings", "Worker")}
+          </.badge>
+        </div>
+
+        <div class="w-full rounded-2xl border border-amber-400/20 bg-gradient-to-b from-amber-950/20 to-zinc-950/95 px-4 py-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 space-y-1">
+              <p id={"delegated-call-relationship-#{@call.id}"} class="text-sm text-zinc-200">
+                {@call.relationship_copy}
+              </p>
+              <p id={"delegated-call-request-#{@call.id}"} class="text-sm leading-6 text-zinc-400">
+                {@call.request_text}
+              </p>
+            </div>
+
+            <.link
+              :if={@call.callee_instance_path}
+              id={"delegated-call-open-child-#{@call.id}"}
+              navigate={@call.callee_instance_path}
+              class="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-sky-300 hover:text-sky-200"
+            >
+              <.icon name="hero-arrow-top-right-on-square" class="size-4" />
+              {dgettext("lemmings", "Open child")}
+            </.link>
+          </div>
+
+          <div
+            :if={@call.state_copy}
+            class="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-3"
+          >
+            <p id={"delegated-call-state-copy-#{@call.id}"} class="text-sm leading-6 text-zinc-300">
+              {@call.state_copy}
+            </p>
+          </div>
+
+          <div class="mt-3 grid gap-2 text-xs uppercase tracking-widest text-zinc-500 sm:grid-cols-2">
+            <div id={"delegated-call-requested-at-#{@call.id}"}>
+              {dgettext("lemmings", "Requested")} {message_clock_label(@call.requested_at)}
+            </div>
+            <div id={"delegated-call-completed-at-#{@call.id}"}>
+              {dgettext("lemmings", "Completed")} {message_clock_label(@call.completed_at)}
+            </div>
+          </div>
+
+          <details
+            id={"delegated-call-details-#{@call.id}"}
+            class="mt-3 border-t border-zinc-800 pt-3"
+            open={@call.ui_state in ["queued", "running", "retrying", "recovery_pending"]}
+          >
+            <summary class="cursor-pointer text-xs uppercase tracking-widest text-zinc-500">
+              {dgettext("lemmings", "Inspect delegated work")}
+            </summary>
+
+            <div class="mt-3 grid gap-3">
+              <div
+                :if={@call.result_summary}
+                id={"delegated-call-result-#{@call.id}"}
+                class="rounded-xl border border-emerald-400/20 bg-emerald-950/20 px-3 py-3"
+              >
+                <p class="text-xs uppercase tracking-widest text-emerald-300">
+                  {dgettext("lemmings", "Result summary")}
+                </p>
+                <p class="mt-2 text-sm leading-6 text-zinc-200">{@call.result_summary}</p>
+              </div>
+
+              <div
+                :if={@call.error_summary}
+                id={"delegated-call-error-#{@call.id}"}
+                class="rounded-xl border border-red-400/20 bg-red-950/20 px-3 py-3"
+              >
+                <p class="text-xs uppercase tracking-widest text-red-300">
+                  {dgettext("lemmings", "Error summary")}
+                </p>
+                <p class="mt-2 text-sm leading-6 text-zinc-200">{@call.error_summary}</p>
+              </div>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div
+                  id={"delegated-call-caller-#{@call.id}"}
+                  class="rounded-xl border border-zinc-800 bg-zinc-950/80 px-3 py-3"
+                >
+                  <p class="text-xs uppercase tracking-widest text-zinc-500">
+                    {dgettext("lemmings", "Caller")}
+                  </p>
+                  <p class="mt-2 text-sm text-zinc-100">{@call.caller_label}</p>
+                  <p class="mt-1 text-xs uppercase tracking-widest text-zinc-500">
+                    {@call.caller_role}
+                    <span :if={@call.caller_department}> /   {@call.caller_department}</span>
+                  </p>
+                  <.link
+                    :if={!@manager_view? and @call.caller_instance_path}
+                    id={"delegated-call-open-parent-#{@call.id}"}
+                    navigate={@call.caller_instance_path}
+                    class="mt-3 inline-flex items-center gap-2 text-xs uppercase tracking-widest text-sky-300 hover:text-sky-200"
+                  >
+                    <.icon name="hero-arrow-left" class="size-4" />
+                    {dgettext("lemmings", "Open manager")}
+                  </.link>
+                </div>
+
+                <div
+                  id={"delegated-call-callee-#{@call.id}"}
+                  class="rounded-xl border border-zinc-800 bg-zinc-950/80 px-3 py-3"
+                >
+                  <p class="text-xs uppercase tracking-widest text-zinc-500">
+                    {dgettext("lemmings", "Child")}
+                  </p>
+                  <p class="mt-2 text-sm text-zinc-100">{@call.callee_label}</p>
+                  <p class="mt-1 text-xs uppercase tracking-widest text-zinc-500">
+                    {@call.callee_role}
+                    <span :if={@call.callee_department}> /   {@call.callee_department}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div class="flex items-center gap-2 px-1 text-xs uppercase tracking-widest text-zinc-500">
+          <span class="text-zinc-400">{message_clock_label(@call.requested_at)}</span>
+          <span class="text-zinc-600">{message_age_label(@call.requested_at, @display_now)}</span>
+        </div>
+      </div>
+    </article>
+    """
+  end
+
   defp normalize_status(status) when is_binary(status), do: status
   defp normalize_status(status) when is_atom(status), do: Atom.to_string(status)
   defp normalize_status(_status), do: "created"
@@ -495,10 +727,15 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   defp message_meta_alignment(_role), do: "justify-end text-right"
 
-  defp message_role_label(role) when role in ["assistant", :assistant],
+  defp message_role_label(role, speaker_name)
+       when role in ["assistant", :assistant] and is_binary(speaker_name) and speaker_name != "" do
+    String.upcase(speaker_name)
+  end
+
+  defp message_role_label(role, _speaker_name) when role in ["assistant", :assistant],
     do: dgettext("lemmings", "Assistant")
 
-  defp message_role_label(_role), do: dgettext("lemmings", "User")
+  defp message_role_label(_role, _speaker_name), do: dgettext("lemmings", "User")
 
   defp message_bubble_tone(role) when role in ["assistant", :assistant],
     do: "border-emerald-400/15 bg-gradient-to-b from-emerald-950/45 to-zinc-950/95 rounded-tl-md"
@@ -512,8 +749,16 @@ defmodule LemmingsOsWeb.InstanceComponents do
   defp message_avatar_tone(_role),
     do: "border-sky-400/30 bg-sky-400/10 text-sky-300"
 
-  defp message_avatar_label(role) when role in ["assistant", :assistant], do: "AI"
-  defp message_avatar_label(_role), do: "You"
+  defp message_avatar_label(role, speaker_avatar_label)
+       when role in ["assistant", :assistant] and is_binary(speaker_avatar_label) and
+              speaker_avatar_label != "" do
+    speaker_avatar_label
+  end
+
+  defp message_avatar_label(role, _speaker_avatar_label) when role in ["assistant", :assistant],
+    do: "AI"
+
+  defp message_avatar_label(_role, _speaker_avatar_label), do: "You"
 
   defp tool_card_tone("running"),
     do: "border-amber-400/20 bg-gradient-to-b from-amber-950/30 to-zinc-950/95"
@@ -662,6 +907,46 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   defp assistant_metadata?(role) when role in ["assistant", :assistant], do: true
   defp assistant_metadata?(_role), do: false
+
+  defp delegation_avatar_label(label) when is_binary(label) do
+    label
+    |> String.trim()
+    |> String.first()
+    |> case do
+      nil -> "AI"
+      first_char -> String.upcase(first_char)
+    end
+  end
+
+  defp delegation_avatar_label(_label), do: "AI"
+
+  defp delegation_intent_copy(%{
+         caller_label: caller_label,
+         callee_label: callee_label,
+         request_text: request_text
+       })
+       when is_binary(caller_label) and is_binary(callee_label) and is_binary(request_text) do
+    "#{caller_label} is delegating to #{callee_label}: #{request_text}"
+  end
+
+  defp delegation_intent_copy(%{callee_label: callee_label, request_text: request_text})
+       when is_binary(callee_label) and is_binary(request_text) do
+    "Delegating to #{callee_label}: #{request_text}"
+  end
+
+  defp delegation_intent_copy(_call),
+    do: dgettext("lemmings", "Delegating work to a child lemming.")
+
+  defp header_name(label) when is_binary(label) do
+    label
+    |> String.trim()
+    |> case do
+      "" -> dgettext("lemmings", "Unknown")
+      value -> String.upcase(value)
+    end
+  end
+
+  defp header_name(_label), do: dgettext("lemmings", "UNKNOWN")
 
   defp icon_class(status) do
     Enum.join(["mt-0.5 size-5 shrink-0", status_icon_class(status)], " ")

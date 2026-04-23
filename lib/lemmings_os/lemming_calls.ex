@@ -9,6 +9,7 @@ defmodule LemmingsOs.LemmingCalls do
 
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances
+  alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingCalls.PubSub
   alias LemmingsOs.LemmingCalls.Telemetry
   alias LemmingsOs.LemmingCalls.LemmingCall
@@ -643,11 +644,57 @@ defmodule LemmingsOs.LemmingCalls do
     instance
     |> list_child_calls(statuses: ["accepted", "running", "needs_more_context", "partial_result"])
     |> Enum.each(fn call ->
-      _ = update_call_status(call, status, attrs)
+      case update_call_status(call, status, attrs) do
+        {:ok, updated_call} when status in ["completed", "failed"] ->
+          resume_caller_instance(updated_call)
+
+        {:ok, _updated_call} ->
+          :ok
+
+        {:error, _changeset} ->
+          :ok
+      end
     end)
 
     :ok
   end
+
+  defp resume_caller_instance(%LemmingCall{caller_instance_id: caller_instance_id} = call)
+       when is_binary(caller_instance_id) do
+    with true <- registry_alive?(LemmingsOs.LemmingInstances.ExecutorRegistry),
+         result <- Executor.resume_after_lemming_call(caller_instance_id, call) do
+      handle_caller_resume_result(result, call, caller_instance_id)
+    else
+      false -> :ok
+    end
+  end
+
+  defp handle_caller_resume_result(:ok, _call, _caller_instance_id), do: :ok
+
+  defp handle_caller_resume_result({:error, :terminal_instance}, _call, _caller_instance_id),
+    do: :ok
+
+  defp handle_caller_resume_result({:error, :executor_unavailable}, call, caller_instance_id) do
+    Logger.warning("caller executor unavailable for lemming call resume",
+      event: "lemming_call.caller_resume_unavailable",
+      lemming_call_id: call.id,
+      caller_instance_id: caller_instance_id
+    )
+
+    :ok
+  end
+
+  defp handle_caller_resume_result({:error, :resume_not_possible}, call, caller_instance_id) do
+    Logger.warning("caller executor could not resume lemming call",
+      event: "lemming_call.caller_resume_not_possible",
+      lemming_call_id: call.id,
+      caller_instance_id: caller_instance_id
+    )
+
+    :ok
+  end
+
+  defp registry_alive?(name) when is_atom(name), do: is_pid(Process.whereis(name))
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
 

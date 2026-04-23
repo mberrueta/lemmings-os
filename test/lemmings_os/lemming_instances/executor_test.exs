@@ -689,6 +689,16 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
                     %{content: "Delegate this"}}
 
     assert [%{slug: "ops-worker"}] = targets
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    assert :ok =
+             Executor.resume_after_lemming_call(pid, %LemmingsOs.LemmingCalls.LemmingCall{
+               id: Ecto.UUID.generate(),
+               status: "completed",
+               result_summary: "Draft child notes complete."
+             })
+
+    assert_receive {:status_changed, %{status: "processing"}}
 
     assert_receive {:lemming_call_model_run, _config_snapshot, context_messages,
                     %{content: "Delegate this"}}

@@ -8,10 +8,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
-  alias LemmingsOs.Lemmings
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
+  alias LemmingsOsWeb.PageData.DepartmentCollaborationSnapshot
 
   @detail_tabs ~w(overview lemmings settings)
 
@@ -29,7 +29,8 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> assign(:department_settings_form, nil)
      |> assign(:department_effective_config, nil)
      |> assign(:department_local_overrides, nil)
-     |> assign(:department_lemmings, [])}
+     |> assign(:department_lemmings, [])
+     |> assign(:department_primary_manager, nil)}
   end
 
   def handle_params(params, _uri, socket) do
@@ -170,6 +171,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         |> assign(:department_effective_config, nil)
         |> assign(:department_local_overrides, nil)
         |> assign(:department_lemmings, [])
+        |> assign(:department_primary_manager, nil)
         |> put_shell_breadcrumb(default_shell_breadcrumb(:departments))
     end
   end
@@ -211,16 +213,20 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_effective_config, nil)
     |> assign(:department_local_overrides, nil)
     |> assign(:department_lemmings, [])
+    |> assign(:department_primary_manager, nil)
   end
 
   defp assign_department_detail(socket, %Department{} = department, requested_tab) do
+    collaboration = DepartmentCollaborationSnapshot.build(department)
+
     socket
     |> assign(:selected_department, department)
     |> assign(:selected_department_tab, normalize_department_tab(requested_tab))
     |> assign(:department_settings_form, build_department_settings_form(department))
     |> assign(:department_effective_config, Resolver.resolve(department))
     |> assign(:department_local_overrides, department_local_overrides(department))
-    |> assign(:department_lemmings, Lemmings.list_lemmings(department))
+    |> assign(:department_lemmings, collaboration.lemming_types)
+    |> assign(:department_primary_manager, collaboration.primary_manager)
   end
 
   defp build_department_settings_form(%Department{} = department) do

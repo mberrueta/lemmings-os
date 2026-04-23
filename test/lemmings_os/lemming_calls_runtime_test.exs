@@ -21,7 +21,27 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     end
   end
 
+  defmodule FakeManagerExecutor do
+    use GenServer
+
+    def start_link({test_pid, instance_id}) do
+      GenServer.start_link(__MODULE__, test_pid,
+        name: LemmingInstances.Executor.via_name(instance_id)
+      )
+    end
+
+    @impl true
+    def init(test_pid), do: {:ok, test_pid}
+
+    @impl true
+    def handle_call({:resume_after_lemming_call, call}, _from, test_pid) do
+      send(test_pid, {:manager_resumed_after_call, call})
+      {:reply, :ok, test_pid}
+    end
+  end
+
   setup do
+    ensure_registry!(LemmingsOs.LemmingInstances.ExecutorRegistry)
     ensure_process_started!(ActivityLog)
     ActivityLog.clear()
 
@@ -295,11 +315,17 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     {:ok, child_instance} =
       LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
 
-    assert :ok =
-             LemmingCalls.sync_child_instance_terminal(child_instance, "idle", %{
-               result_summary:
-                 "Product-visible result summary that is safe to show and not the raw payload."
-             })
+    completed_log =
+      capture_log(fn ->
+        assert :ok =
+                 LemmingCalls.sync_child_instance_terminal(child_instance, "idle", %{
+                   result_summary:
+                     "Product-visible result summary that is safe to show and not the raw payload."
+                 })
+      end)
+
+    assert completed_log =~ "caller executor unavailable for lemming call resume"
+    assert completed_log =~ "event=lemming_call.caller_resume_unavailable"
 
     assert_receive {:lemming_call_upserted, %{lemming_call_id: ^call_id, status: "completed"}}
 
@@ -331,10 +357,16 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
                recovery_status: nil
              })
 
-    assert :ok =
-             LemmingCalls.sync_child_instance_terminal(child_instance, "expired", %{
-               error_summary: "Expired after no response"
-             })
+    dead_log =
+      capture_log(fn ->
+        assert :ok =
+                 LemmingCalls.sync_child_instance_terminal(child_instance, "expired", %{
+                   error_summary: "Expired after no response"
+                 })
+      end)
+
+    assert dead_log =~ "caller executor unavailable for lemming call resume"
+    assert dead_log =~ "event=lemming_call.caller_resume_unavailable"
 
     assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :dead],
                     %{count: 1, duration_ms: dead_duration_ms}, dead_metadata}
@@ -353,6 +385,32 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     detach(dead_ref)
   end
 
+  test "S08: terminal child sync resumes caller executor with completed call", %{
+    manager_instance: manager_instance
+  } do
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "First pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, _pid} = start_supervised({FakeManagerExecutor, {self(), manager_instance.id}})
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    assert :ok =
+             LemmingCalls.sync_child_instance_terminal(child_instance, "idle", %{
+               result_summary: "Completed child result"
+             })
+
+    assert_receive {:manager_resumed_after_call, resumed_call}
+    assert resumed_call.id == call.id
+    assert resumed_call.status == "completed"
+    assert resumed_call.result_summary == "Completed child result"
+  end
+
   defp attach(event) do
     ref = make_ref()
     test_pid = self()
@@ -368,6 +426,13 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
       )
 
     ref
+  end
+
+  defp ensure_registry!(name) do
+    case Process.whereis(name) do
+      pid when is_pid(pid) -> pid
+      nil -> start_supervised!({Registry, keys: :unique, name: name})
+    end
   end
 
   defp detach(ref) do

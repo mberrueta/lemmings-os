@@ -8,6 +8,8 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
+  alias LemmingsOs.LemmingCalls
+  alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.EtsStore
@@ -197,6 +199,26 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     refute html =~ "Total "
     refute html =~ "Usage"
     refute html =~ "null"
+  end
+
+  test "S02c: assistant transcript bubble accepts speaker overrides" do
+    assistant_message = %Message{
+      role: "assistant",
+      content: "Deployment investigation complete.",
+      inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    }
+
+    html =
+      render_component(&InstanceComponents.message_bubble/1, %{
+        id: "assistant-message",
+        message: assistant_message,
+        speaker_name: "Research Worker",
+        speaker_avatar_label: "R"
+      })
+
+    assert html =~ "RESEARCH WORKER"
+    refute html =~ ">AI<"
+    refute html =~ ">Assistant<"
   end
 
   test "S03: renders a not found state for missing instances", %{conn: conn} do
@@ -493,6 +515,103 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
              text_position(html, "Second user request")
 
     assert has_element?(view, "#instance-session-transcript-stream", "First assistant reply")
+  end
+
+  test "S07b: manager sessions render delegated work states and child links", %{conn: conn} do
+    %{world: world, manager_instance: manager_instance, calls: calls} = manager_call_fixture()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{manager_instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-transcript-collaboration-strip")
+    assert has_element?(view, "#instance-delegated-work-copy", "inline with the conversation")
+    assert has_element?(view, "#instance-delegated-work-targets")
+    assert has_element?(view, "#instance-session-transcript-stream")
+
+    assert has_element?(
+             view,
+             "#card-delegation-intent-#{calls.running.id}[data-role='delegation-intent']"
+           )
+
+    assert has_element?(
+             view,
+             "#delegation-intent-copy-#{calls.running.id}",
+             "Dispatch Manager is delegating to Running Worker"
+           )
+
+    assert has_element?(view, "#card-delegated-call-#{calls.running.id}[data-role='delegated']")
+    assert has_element?(view, "#delegated-call-state-#{calls.queued.id}", "Queued")
+    assert has_element?(view, "#delegated-call-state-#{calls.running.id}", "Running")
+    assert has_element?(view, "#delegated-call-state-#{calls.retry_source.id}", "Retrying")
+    assert has_element?(view, "#delegated-call-state-#{calls.completed.id}", "Completed")
+    assert has_element?(view, "#delegated-call-state-#{calls.failed.id}", "Failed")
+    assert has_element?(view, "#delegated-call-state-#{calls.dead.id}", "Dead")
+    assert has_element?(view, "#delegated-call-state-#{calls.recovery.id}", "Recovery pending")
+    assert has_element?(view, "#delegated-call-open-child-#{calls.running.id}")
+  end
+
+  test "S07c: manager delegated work refreshes when child input changes a call", %{conn: conn} do
+    %{
+      world: world,
+      manager_instance: manager_instance,
+      recovery_child: recovery_child,
+      calls: calls
+    } =
+      manager_call_fixture()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{manager_instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#delegated-call-state-#{calls.recovery.id}", "Recovery pending")
+
+    assert :ok = LemmingCalls.note_child_user_input(recovery_child, "Need more context")
+
+    assert eventually_has_element?(
+             view,
+             "#delegated-call-state-copy-#{calls.recovery.id}",
+             "Direct child input changed this delegated work."
+           )
+  end
+
+  test "S07d: child sessions show the parent manager relationship", %{conn: conn} do
+    %{world: world, child_instance: child_instance, call: call} = child_call_fixture()
+
+    Repo.insert!(%Message{
+      lemming_instance_id: child_instance.id,
+      world_id: world.id,
+      role: "assistant",
+      content: "Deployment investigation complete."
+    })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{child_instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-transcript-collaboration-strip")
+    assert has_element?(view, "#instance-delegated-work-copy", "opened through a manager")
+    assert has_element?(view, "#instance-delegated-open-parent")
+    assert has_element?(view, "#card-manager-request-#{call.id}[data-role='manager-request']")
+
+    assert has_element?(
+             view,
+             "#manager-request-copy-#{call.id}",
+             "Investigate the failed deployment"
+           )
+
+    refute has_element?(view, "#card-delegated-call-#{call.id}")
+
+    assert has_element?(
+             view,
+             "#instance-session-transcript-stream [data-role='assistant']",
+             "Deployment investigation complete."
+           )
+
+    assert render(view) =~ "RESEARCH WORKER"
+
+    refute has_element?(
+             view,
+             "#instance-session-transcript-stream [data-role='user']",
+             "Investigate the failed deployment"
+           )
   end
 
   test "S08: message broadcasts append new transcript entries without remount", %{conn: conn} do
@@ -1204,6 +1323,237 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
     %{world: world, instance: instance}
   end
+
+  defp manager_call_fixture do
+    world = insert(:world, slug: "manager-world")
+    city = insert(:city, world: world, slug: "manager-city", status: "active")
+
+    manager_department =
+      insert(:department,
+        world: world,
+        city: city,
+        slug: "operations",
+        name: "Operations"
+      )
+
+    worker_department =
+      insert(:department,
+        world: world,
+        city: city,
+        slug: "research",
+        name: "Research"
+      )
+
+    manager =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: manager_department,
+        status: "active",
+        slug: "dispatch-manager",
+        name: "Dispatch Manager"
+      )
+
+    manager_instance =
+      insert(:lemming_instance,
+        lemming: manager,
+        world: world,
+        city: city,
+        department: manager_department,
+        status: "idle"
+      )
+
+    _local_worker =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: manager_department,
+        status: "active",
+        collaboration_role: "worker",
+        slug: "incident-triage",
+        name: "Incident Triage"
+      )
+
+    queued =
+      persist_manager_call(manager_instance, worker_department, "queued", "accepted")
+
+    running =
+      persist_manager_call(manager_instance, worker_department, "running", "running")
+
+    completed =
+      persist_manager_call(manager_instance, worker_department, "completed", "completed")
+
+    failed =
+      persist_manager_call(manager_instance, worker_department, "failed", "failed")
+
+    dead =
+      persist_manager_call(manager_instance, worker_department, "dead", "failed",
+        recovery_status: "expired"
+      )
+
+    recovery =
+      persist_manager_call(manager_instance, worker_department, "recovery", "running",
+        recovery_status: "direct_child_input"
+      )
+
+    retry_source =
+      persist_manager_call(
+        manager_instance,
+        worker_department,
+        "retry-source",
+        "failed"
+      )
+
+    _retry_successor =
+      persist_manager_call(
+        manager_instance,
+        worker_department,
+        "retry-successor",
+        "running",
+        previous_call_id: retry_source.id
+      )
+
+    recovery_child =
+      LemmingCalls.list_manager_calls(manager_instance, preload: [:callee_instance])
+      |> Enum.find(&(&1.id == recovery.id))
+      |> Map.fetch!(:callee_instance)
+
+    %{
+      world: world,
+      manager_instance: manager_instance,
+      recovery_child: recovery_child,
+      calls: %{
+        queued: queued,
+        running: running,
+        completed: completed,
+        failed: failed,
+        dead: dead,
+        recovery: recovery,
+        retry_source: retry_source
+      }
+    }
+  end
+
+  defp child_call_fixture do
+    world = insert(:world, slug: "child-world")
+    city = insert(:city, world: world, slug: "child-city", status: "active")
+
+    manager_department =
+      insert(:department,
+        world: world,
+        city: city,
+        slug: "ops",
+        name: "Ops"
+      )
+
+    worker_department =
+      insert(:department,
+        world: world,
+        city: city,
+        slug: "analysis",
+        name: "Analysis"
+      )
+
+    manager =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: manager_department,
+        status: "active",
+        slug: "dispatch-manager",
+        name: "Dispatch Manager"
+      )
+
+    manager_instance =
+      insert(:lemming_instance,
+        lemming: manager,
+        world: world,
+        city: city,
+        department: manager_department,
+        status: "idle"
+      )
+
+    child =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: worker_department,
+        status: "active",
+        collaboration_role: "worker",
+        slug: "researcher",
+        name: "Research Worker"
+      )
+
+    child_instance =
+      insert(:lemming_instance,
+        lemming: child,
+        world: world,
+        city: city,
+        department: worker_department,
+        status: "queued"
+      )
+
+    call =
+      Repo.insert!(%LemmingCall{
+        world_id: world.id,
+        city_id: city.id,
+        caller_department_id: manager_department.id,
+        callee_department_id: worker_department.id,
+        caller_lemming_id: manager.id,
+        callee_lemming_id: child.id,
+        caller_instance_id: manager_instance.id,
+        callee_instance_id: child_instance.id,
+        request_text: "Investigate the failed deployment",
+        status: "running",
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    %{world: world, child_instance: child_instance, call: call}
+  end
+
+  defp persist_manager_call(manager_instance, worker_department, label, status, opts \\ []) do
+    child =
+      insert(:lemming,
+        world: manager_instance.world,
+        city: manager_instance.city,
+        department: worker_department,
+        status: "active",
+        collaboration_role: "worker",
+        slug: "#{label}-worker",
+        name: "#{String.capitalize(String.replace(label, "-", " "))} Worker"
+      )
+
+    child_instance =
+      insert(:lemming_instance,
+        lemming: child,
+        world: manager_instance.world,
+        city: manager_instance.city,
+        department: worker_department,
+        status: if(status == "completed", do: "idle", else: "queued")
+      )
+
+    Repo.insert!(%LemmingCall{
+      world_id: manager_instance.world_id,
+      city_id: manager_instance.city_id,
+      caller_department_id: manager_instance.department_id,
+      callee_department_id: worker_department.id,
+      caller_lemming_id: manager_instance.lemming_id,
+      callee_lemming_id: child.id,
+      caller_instance_id: manager_instance.id,
+      callee_instance_id: child_instance.id,
+      previous_call_id: Keyword.get(opts, :previous_call_id),
+      request_text: "Delegated request for #{label}",
+      status: status,
+      recovery_status: Keyword.get(opts, :recovery_status),
+      started_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      completed_at: completed_at(status)
+    })
+  end
+
+  defp completed_at(status) when status in ["completed", "failed"],
+    do: DateTime.utc_now() |> DateTime.truncate(:second)
+
+  defp completed_at(_status), do: nil
 
   defp eventually_has_element?(view, selector, text \\ nil, attempts \\ 10)
 

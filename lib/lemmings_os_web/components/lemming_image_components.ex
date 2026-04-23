@@ -84,12 +84,13 @@ defmodule LemmingsOsWeb.LemmingImageComponents do
 
   attr :slug, :string, required: true
   attr :size, :integer, default: 48
+  attr :id, :string, default: "lemming-type-avatar"
   attr :class, :string, default: nil
 
   def lemming_type_avatar(assigns) do
     ~H"""
     <div
-      id="lemming-type-avatar"
+      id={@id}
       class={[
         "inline-flex shrink-0 items-center justify-center border-2 border-zinc-800 bg-zinc-950/80 p-2",
         @class

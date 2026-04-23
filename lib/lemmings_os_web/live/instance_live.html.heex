@@ -10,7 +10,7 @@
 >
   <div
     id="instance-session-page"
-    class="flex min-h-0 w-full flex-col gap-6 xl:h-[calc(100vh-8rem)]"
+    class="flex w-full flex-col gap-6"
   >
     <section
       :if={@instance_not_found?}
@@ -48,7 +48,7 @@
 
     <section
       :if={!@instance_not_found?}
-      class="instance-session-shell flex min-h-0 flex-1 flex-col overflow-hidden border border-emerald-400/20 bg-zinc-950/95"
+      class="instance-session-shell flex flex-col border border-emerald-400/20 bg-zinc-950/95"
     >
       <div class="instance-session-hero relative border-b border-emerald-400/15">
         <div class="flex flex-col gap-5 px-5 py-5 xl:flex-row xl:items-start xl:justify-between">
@@ -215,155 +215,256 @@
         </div>
       </div>
 
-      <section id="instance-session-transcript" class="flex min-h-0 flex-1 flex-col">
-        <div class="flex items-center justify-between gap-3 border-b border-emerald-400/10 bg-zinc-950/80 px-5 py-4">
-          <div class="min-w-0">
-            <p class="font-mono text-base font-medium text-emerald-400">
-              {dgettext("lemmings", "Conversation Transcript")}
-            </p>
-            <p class="text-xs uppercase tracking-widest text-zinc-500">
-              {dgettext("lemmings", "Chronological session activity")}
-            </p>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2">
-            <.badge tone="muted">{Integer.to_string(@message_count)}</.badge>
-            <.badge tone="info">{dgettext("lemmings", "Live")}</.badge>
-          </div>
-        </div>
-
-        <div
-          id="instance-session-transcript-stream"
-          phx-update="stream"
-          class="instance-session-transcript-bg flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 sm:px-6"
-        >
-          <div :for={{dom_id, entry} <- @streams.messages} id={dom_id}>
-            <div
-              :if={entry.type == :day_divider}
-              class="my-1 flex items-center gap-3"
-            >
-              <div class="h-px flex-1 bg-zinc-800/70" />
-              <div class="rounded-full border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-xs uppercase tracking-widest text-zinc-500">
-                {transcript_day_label(entry.date)}
-              </div>
-              <div class="h-px flex-1 bg-zinc-800/70" />
-            </div>
-
-            <InstanceComponents.message_bubble
-              :if={entry.type == :message}
-              id={"bubble-#{dom_id}"}
-              message={entry.message}
-              display_now={@status_now}
-            />
-
-            <InstanceComponents.tool_execution_card
-              :if={entry.type == :tool_execution}
-              id={"card-tool-execution-#{entry.tool_execution.id}"}
-              tool_execution={entry.tool_execution}
-              world_id={@world && @world.id}
-              display_now={@status_now}
-            />
-          </div>
-        </div>
-
-        <div
-          :if={@waiting_for_first_response?}
-          id="instance-session-waiting-state"
-          class="border-t border-emerald-400/10 bg-zinc-950/85 px-5 py-3 text-sm text-zinc-400"
-        >
-          {dgettext("lemmings", "Waiting for first response...")}
-        </div>
-
-        <div
-          id="instance-session-follow-up"
-          class="instance-session-follow-up-panel border-t border-emerald-400/15 px-4 py-4 sm:px-5"
-        >
-          <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div class="space-y-1">
-              <p class="font-mono text-base font-medium text-sky-400">
-                {dgettext("lemmings", "Follow-up request")}
+      <section id="instance-session-workspace" class="flex flex-col">
+        <section id="instance-session-transcript" class="flex flex-col">
+          <div class="flex items-center justify-between gap-3 border-b border-emerald-400/10 bg-zinc-950/80 px-5 py-4">
+            <div class="min-w-0">
+              <p class="font-mono text-base font-medium text-emerald-400">
+                {dgettext("lemmings", "Conversation Transcript")}
               </p>
-              <p
-                id="instance-follow-up-copy"
-                class="text-xs uppercase tracking-widest text-zinc-500"
-              >
-                {follow_up_status_copy(instance_status(@instance))}
+              <p class="text-xs uppercase tracking-widest text-zinc-500">
+                {dgettext("lemmings", "Chronological session activity")}
               </p>
             </div>
 
-            <.badge tone="muted" class="px-3">
-              {follow_up_helper_copy(instance_status(@instance))}
-            </.badge>
+            <div class="flex flex-wrap items-center gap-2">
+              <.badge tone="muted">{Integer.to_string(@message_count)}</.badge>
+              <.badge tone="info">{dgettext("lemmings", "Live")}</.badge>
+            </div>
           </div>
 
           <div
-            :if={follow_up_terminal?(instance_status(@instance))}
-            id="instance-follow-up-terminal-message"
-            class="rounded-2xl border border-zinc-800 bg-zinc-950/80 px-4 py-4 text-sm text-zinc-400"
-            role="status"
+            :if={@delegated_work_mode != :none or @delegated_work_available_targets != []}
+            id="instance-transcript-collaboration-strip"
+            class="border-b border-emerald-400/10 bg-zinc-950/70 px-5 py-4"
           >
-            {follow_up_status_copy(instance_status(@instance))}
-          </div>
-
-          <div :if={!follow_up_terminal?(instance_status(@instance))}>
-            <.form
-              for={@follow_up_form}
-              id="instance-follow-up-form"
-              class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]"
-              phx-change="validate_follow_up_request"
-              phx-submit="submit_follow_up_request"
-            >
-              <div class="instance-session-composer rounded-2xl border border-zinc-800 bg-zinc-950/75 p-3">
-                <div class="mb-2 flex items-center justify-between gap-3">
-                  <label
-                    for="instance-follow-up-request-text"
-                    class="text-xs uppercase tracking-widest text-zinc-500"
-                  >
-                    {dgettext("lemmings", "Follow-up request")}
-                  </label>
-                  <span class="text-xs uppercase tracking-widest text-zinc-600">
-                    {follow_up_status_copy(instance_status(@instance))}
-                  </span>
-                </div>
-
-                <.input
-                  id="instance-follow-up-request-text"
-                  field={@follow_up_form[:request_text]}
-                  type="textarea"
-                  class="min-h-28 border-0 bg-transparent px-0 py-0 text-sm text-zinc-100 focus:border-0 focus:ring-0"
-                  error_class="border-0"
-                  placeholder={dgettext("lemmings", "Ask the instance to continue...")}
-                  disabled={!follow_up_input_enabled?(instance_status(@instance))}
-                  rows="4"
-                />
-
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="space-y-1">
+                <p class="font-mono text-sm font-medium text-amber-300">
+                  {if @delegated_work_mode == :child,
+                    do: dgettext("lemmings", "Manager relationship"),
+                    else: dgettext("lemmings", "Delegated work")}
+                </p>
                 <p
-                  :if={@follow_up_error}
-                  id="instance-follow-up-error"
-                  class="mt-3 text-sm text-red-400"
+                  id="instance-delegated-work-copy"
+                  class="text-xs uppercase tracking-widest text-zinc-500"
                 >
-                  {@follow_up_error}
+                  {if @delegated_work_mode == :child,
+                    do:
+                      dgettext(
+                        "lemmings",
+                        "This session was opened through a manager delegation flow"
+                      ),
+                    else:
+                      dgettext(
+                        "lemmings",
+                        "Delegated call rows appear inline with the conversation transcript"
+                      )}
                 </p>
               </div>
 
-              <div class="flex flex-col items-end justify-end gap-3">
-                <button
-                  id="instance-follow-up-submit"
-                  type="submit"
-                  class="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-sky-400/40 bg-sky-400/10 px-5 py-3 text-sm font-medium uppercase tracking-widest text-sky-300 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-200 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/60 disabled:text-zinc-500"
-                  disabled={
-                    @follow_up_submit_disabled? ||
-                      !follow_up_input_enabled?(instance_status(@instance))
-                  }
-                  phx-disable-with={dgettext("lemmings", "Sending...")}
+              <div class="flex flex-wrap items-center gap-2">
+                <.link
+                  :if={@delegated_work_mode == :child and @delegated_parent_instance_path}
+                  id="instance-delegated-open-parent"
+                  navigate={@delegated_parent_instance_path}
+                  class="inline-flex min-h-9 items-center gap-2 border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs font-medium uppercase tracking-widest text-sky-300 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-200"
                 >
-                  <.icon name="hero-paper-airplane" class="size-4" />
-                  {dgettext("lemmings", "Send follow-up")}
-                </button>
+                  <.icon name="hero-arrow-up-left" class="size-4" />
+                  {dgettext("lemmings", "Open parent")}
+                </.link>
+
+                <.badge
+                  :if={@delegated_work_active_count > 0}
+                  id="instance-delegated-work-active-count"
+                  tone="warning"
+                >
+                  {dgettext("lemmings", "%{count} active", count: @delegated_work_active_count)}
+                </.badge>
+                <.badge
+                  :if={@delegated_work_historical_count > 0}
+                  id="instance-delegated-work-history-count"
+                  tone="muted"
+                >
+                  {dgettext("lemmings", "%{count} historical",
+                    count: @delegated_work_historical_count
+                  )}
+                </.badge>
               </div>
-            </.form>
+            </div>
+
+            <div
+              :if={@delegated_work_available_targets != []}
+              id="instance-delegated-work-targets"
+              class="mt-3 flex flex-wrap gap-2"
+            >
+              <.badge
+                :for={target <- @delegated_work_available_targets}
+                id={"instance-delegated-target-#{target.lemming_id}"}
+                tone={if(target.role == "manager", do: "info", else: "muted")}
+              >
+                {target.department_slug}/{target.slug}
+              </.badge>
+            </div>
           </div>
-        </div>
+
+          <div
+            id="instance-session-transcript-stream"
+            phx-update="stream"
+            class="instance-session-transcript-bg flex flex-col gap-6 px-4 py-5 sm:px-6"
+          >
+            <div :for={{dom_id, entry} <- @streams.messages} id={dom_id}>
+              <div
+                :if={entry.type == :day_divider}
+                class="my-1 flex items-center gap-3"
+              >
+                <div class="h-px flex-1 bg-zinc-800/70" />
+                <div class="rounded-full border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-xs uppercase tracking-widest text-zinc-500">
+                  {transcript_day_label(entry.date)}
+                </div>
+                <div class="h-px flex-1 bg-zinc-800/70" />
+              </div>
+
+              <InstanceComponents.message_bubble
+                :if={entry.type == :message}
+                id={"bubble-#{dom_id}"}
+                message={entry.message}
+                speaker_name={Map.get(entry, :speaker_name)}
+                speaker_avatar_label={Map.get(entry, :speaker_avatar_label)}
+                display_now={@status_now}
+              />
+
+              <InstanceComponents.tool_execution_card
+                :if={entry.type == :tool_execution}
+                id={"card-tool-execution-#{entry.tool_execution.id}"}
+                tool_execution={entry.tool_execution}
+                world_id={@world && @world.id}
+                display_now={@status_now}
+              />
+
+              <InstanceComponents.delegation_intent_row
+                :if={entry.type == :delegation_intent}
+                id={"card-delegation-intent-#{entry.delegated_call.id}"}
+                call={entry.delegated_call}
+                display_now={@status_now}
+              />
+
+              <InstanceComponents.manager_request_row
+                :if={entry.type == :manager_request}
+                id={"card-manager-request-#{entry.delegated_call.id}"}
+                call={entry.delegated_call}
+                display_now={@status_now}
+              />
+
+              <InstanceComponents.delegated_call_row
+                :if={entry.type == :delegated_call}
+                id={"card-delegated-call-#{entry.delegated_call.id}"}
+                call={entry.delegated_call}
+                manager_view?={@delegated_work_mode == :manager}
+                display_now={@status_now}
+              />
+            </div>
+          </div>
+
+          <div
+            :if={@waiting_for_first_response?}
+            id="instance-session-waiting-state"
+            class="border-t border-emerald-400/10 bg-zinc-950/85 px-5 py-3 text-sm text-zinc-400"
+          >
+            {dgettext("lemmings", "Waiting for first response...")}
+          </div>
+
+          <div
+            id="instance-session-follow-up"
+            class="instance-session-follow-up-panel border-t border-emerald-400/15 px-4 py-4 sm:px-5"
+          >
+            <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div class="space-y-1">
+                <p class="font-mono text-base font-medium text-sky-400">
+                  {dgettext("lemmings", "Follow-up request")}
+                </p>
+                <p
+                  id="instance-follow-up-copy"
+                  class="text-xs uppercase tracking-widest text-zinc-500"
+                >
+                  {follow_up_status_copy(instance_status(@instance))}
+                </p>
+              </div>
+
+              <.badge tone="muted" class="px-3">
+                {follow_up_helper_copy(instance_status(@instance))}
+              </.badge>
+            </div>
+
+            <div
+              :if={follow_up_terminal?(instance_status(@instance))}
+              id="instance-follow-up-terminal-message"
+              class="rounded-2xl border border-zinc-800 bg-zinc-950/80 px-4 py-4 text-sm text-zinc-400"
+              role="status"
+            >
+              {follow_up_status_copy(instance_status(@instance))}
+            </div>
+
+            <div :if={!follow_up_terminal?(instance_status(@instance))}>
+              <.form
+                for={@follow_up_form}
+                id="instance-follow-up-form"
+                class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+                phx-change="validate_follow_up_request"
+                phx-submit="submit_follow_up_request"
+              >
+                <div class="instance-session-composer rounded-2xl border border-zinc-800 bg-zinc-950/75 p-3">
+                  <div class="mb-2 flex items-center justify-between gap-3">
+                    <label
+                      for="instance-follow-up-request-text"
+                      class="text-xs uppercase tracking-widest text-zinc-500"
+                    >
+                      {dgettext("lemmings", "Follow-up request")}
+                    </label>
+                    <span class="text-xs uppercase tracking-widest text-zinc-600">
+                      {follow_up_status_copy(instance_status(@instance))}
+                    </span>
+                  </div>
+
+                  <.input
+                    id="instance-follow-up-request-text"
+                    field={@follow_up_form[:request_text]}
+                    type="textarea"
+                    class="min-h-28 border-0 bg-transparent px-0 py-0 text-sm text-zinc-100 focus:border-0 focus:ring-0"
+                    error_class="border-0"
+                    placeholder={dgettext("lemmings", "Ask the instance to continue...")}
+                    disabled={!follow_up_input_enabled?(instance_status(@instance))}
+                    rows="4"
+                  />
+
+                  <p
+                    :if={@follow_up_error}
+                    id="instance-follow-up-error"
+                    class="mt-3 text-sm text-red-400"
+                  >
+                    {@follow_up_error}
+                  </p>
+                </div>
+
+                <div class="flex flex-col items-end justify-end gap-3">
+                  <button
+                    id="instance-follow-up-submit"
+                    type="submit"
+                    class="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-sky-400/40 bg-sky-400/10 px-5 py-3 text-sm font-medium uppercase tracking-widest text-sky-300 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-200 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/60 disabled:text-zinc-500"
+                    disabled={
+                      @follow_up_submit_disabled? ||
+                        !follow_up_input_enabled?(instance_status(@instance))
+                    }
+                    phx-disable-with={dgettext("lemmings", "Sending...")}
+                  >
+                    <.icon name="hero-paper-airplane" class="size-4" />
+                    {dgettext("lemmings", "Send follow-up")}
+                  </button>
+                </div>
+              </.form>
+            </div>
+          </div>
+        </section>
       </section>
     </section>
   </div>
