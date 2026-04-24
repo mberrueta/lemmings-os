@@ -228,7 +228,9 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   end
 
   defmodule FakeLemmingCalls do
-    def available_targets(_instance) do
+    def available_targets(instance) do
+      maybe_notify_snapshot(:available_targets, instance)
+
       [
         %{
           slug: "ops-worker",
@@ -241,6 +243,8 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
 
     def request_call(instance, attrs, _opts) do
+      maybe_notify_snapshot(:request_call, instance)
+
       {:ok,
        %LemmingsOs.LemmingCalls.LemmingCall{
          id: Ecto.UUID.generate(),
@@ -254,6 +258,16 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
 
     def sync_child_instance_terminal(_instance, _status, _attrs), do: :ok
+
+    defp maybe_notify_snapshot(event, instance) do
+      case get_in(instance.config_snapshot || %{}, [:test_pid]) do
+        test_pid when is_pid(test_pid) ->
+          send(test_pid, {:fake_lemming_calls_snapshot, event, instance.config_snapshot})
+
+        _other ->
+          :ok
+      end
+    end
   end
 
   defmodule TrackingLemmingCalls do
@@ -796,6 +810,8 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
         instance: instance,
         config_snapshot: %{
           model: "lemming-call-loop-model",
+          test_pid: self(),
+          runtime_snapshot_marker: "executor-owned",
           observer_pid: self(),
           models_config: %{
             profiles: %{default: %{provider: "ollama", model: "lemming-call-loop-model"}}
@@ -821,11 +837,15 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
 
     assert_receive {:status_changed, %{status: "processing"}}
+    assert_receive {:fake_lemming_calls_snapshot, :available_targets, available_snapshot}
+    assert available_snapshot.runtime_snapshot_marker == "executor-owned"
 
     assert_receive {:lemming_call_model_run, %{lemming_call_targets: targets}, _messages,
                     %{content: "Delegate this"}}
 
     assert [%{slug: "ops-worker"}] = targets
+    assert_receive {:fake_lemming_calls_snapshot, :request_call, request_snapshot}
+    assert request_snapshot.runtime_snapshot_marker == "executor-owned"
     assert_receive {:status_changed, %{status: "idle"}}
 
     assert :ok =

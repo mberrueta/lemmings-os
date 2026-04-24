@@ -9,6 +9,7 @@ defmodule LemmingsOs.LemmingCallsTest do
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
 
+  doctest LemmingsOs.LemmingCalls
   doctest LemmingsOs.LemmingCalls.LemmingCall
 
   defmodule SpawnOnlyRuntime do

@@ -896,7 +896,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     state = append_lemming_call_context(state, attrs)
 
     with true <- module_loaded_and_exports?(lemming_calls_mod, :request_call, 3),
-         {:ok, call} <- lemming_calls_mod.request_call(state.instance, attrs, []) do
+         {:ok, call} <-
+           lemming_calls_mod.request_call(instance_with_runtime_snapshot(state), attrs, []) do
       {:ok, state, call}
     else
       false -> {:error, :lemming_call_unavailable, state}
@@ -1877,10 +1878,14 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp available_lemming_call_targets(%{lemming_calls_mod: lemming_calls_mod} = state) do
     if module_loaded_and_exports?(lemming_calls_mod, :available_targets, 1) do
-      lemming_calls_mod.available_targets(state.instance)
+      lemming_calls_mod.available_targets(instance_with_runtime_snapshot(state))
     else
       []
     end
+  end
+
+  defp instance_with_runtime_snapshot(state) do
+    %{state.instance | config_snapshot: state.config_snapshot}
   end
 
   defp current_model_request_payload(state) do

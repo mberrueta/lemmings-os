@@ -51,11 +51,10 @@ defmodule LemmingsOs.LemmingCalls do
   Accepts a `%World{}` or explicit World id. Optional filters can narrow by
   status, department, caller instance, callee instance, or successor chain.
 
-  ## Examples
+  ## Example
 
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> LemmingsOs.LemmingCalls.list_calls(world)
-      []
+      world = LemmingsOs.Factory.insert(:world)
+      LemmingsOs.LemmingCalls.list_calls(world)
   """
   @spec list_calls(World.t() | Ecto.UUID.t(), keyword()) :: [LemmingCall.t()]
   def list_calls(world_or_id, opts \\ [])
@@ -105,10 +104,10 @@ defmodule LemmingsOs.LemmingCalls do
   Caller and callee instance ids are used to derive World, City, Department, and
   Lemming identity, preventing callers from forging cross-World links.
 
-  ## Examples
+  ## Example
 
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> {:error, :missing_instance_ids} = LemmingsOs.LemmingCalls.create_call(%{}, world: world)
+      world = LemmingsOs.Factory.insert(:world)
+      {:error, :missing_instance_ids} = LemmingsOs.LemmingCalls.create_call(%{}, world: world)
   """
   @spec create_call(map(), keyword()) ::
           {:ok, LemmingCall.t()} | {:error, Ecto.Changeset.t() | atom()}
@@ -132,17 +131,14 @@ defmodule LemmingsOs.LemmingCalls do
   @doc """
   Updates persisted call status and optional result/error summary fields.
 
-  ## Examples
+  ## Example
 
-      iex> call = LemmingsOs.Factory.insert(:lemming_call, status: "accepted")
-      iex> {:ok, updated} = LemmingsOs.LemmingCalls.update_call_status(call, "running")
-      iex> updated.status
-      "running"
+      call = LemmingsOs.Factory.insert(:lemming_call, status: "accepted")
+      {:ok, updated} = LemmingsOs.LemmingCalls.update_call_status(call, "running")
+      updated.status
 
-      iex> call = LemmingsOs.Factory.insert(:lemming_call, status: "accepted")
-      iex> {:error, changeset} = LemmingsOs.LemmingCalls.update_call_status(call, "unknown")
-      iex> changeset.valid?
-      false
+      {:error, changeset} = LemmingsOs.LemmingCalls.update_call_status(call, "unknown")
+      changeset.valid?
   """
   @spec update_call_status(LemmingCall.t(), String.t(), map()) ::
           {:ok, LemmingCall.t()} | {:error, Ecto.Changeset.t()}
@@ -166,15 +162,13 @@ defmodule LemmingsOs.LemmingCalls do
   @doc """
   Lists calls spawned by a manager instance.
 
-  ## Examples
+  ## Example
 
-      iex> call = LemmingsOs.Factory.insert(:lemming_call)
-      iex> [found] = LemmingsOs.LemmingCalls.list_manager_calls(call.caller_instance)
-      iex> found.id == call.id
-      true
+      call = LemmingsOs.Factory.insert(:lemming_call)
+      [found] = LemmingsOs.LemmingCalls.list_manager_calls(call.caller_instance)
+      found.id == call.id
 
-      iex> LemmingsOs.LemmingCalls.list_manager_calls(%{})
-      []
+      LemmingsOs.LemmingCalls.list_manager_calls(%{})
   """
   @spec list_manager_calls(LemmingInstance.t(), keyword()) :: [LemmingCall.t()]
   def list_manager_calls(manager_instance, opts \\ [])
@@ -192,15 +186,13 @@ defmodule LemmingsOs.LemmingCalls do
   @doc """
   Lists calls received by a child instance.
 
-  ## Examples
+  ## Example
 
-      iex> call = LemmingsOs.Factory.insert(:lemming_call)
-      iex> [found] = LemmingsOs.LemmingCalls.list_child_calls(call.callee_instance)
-      iex> found.id == call.id
-      true
+      call = LemmingsOs.Factory.insert(:lemming_call)
+      [found] = LemmingsOs.LemmingCalls.list_child_calls(call.callee_instance)
+      found.id == call.id
 
-      iex> LemmingsOs.LemmingCalls.list_child_calls(%{})
-      []
+      LemmingsOs.LemmingCalls.list_child_calls(%{})
   """
   @spec list_child_calls(LemmingInstance.t(), keyword()) :: [LemmingCall.t()]
   def list_child_calls(child_instance, opts \\ [])
@@ -252,21 +244,19 @@ defmodule LemmingsOs.LemmingCalls do
   in the same department plus active managers in other departments in the same
   World and City.
 
-  ## Examples
+  ## Example
 
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> city = LemmingsOs.Factory.insert(:city, world: world)
-      iex> department = LemmingsOs.Factory.insert(:department, world: world, city: city, slug: "ops")
-      iex> manager = LemmingsOs.Factory.insert(:manager_lemming, world: world, city: city, department: department, status: "active", tools_config: %{allowed_tools: ["lemming.call"]})
-      iex> _worker = LemmingsOs.Factory.insert(:lemming, world: world, city: city, department: department, status: "active", slug: "researcher")
-      iex> {:ok, instance} = LemmingsOs.LemmingInstances.spawn_instance(manager, "Coordinate work")
-      iex> Enum.map(LemmingsOs.LemmingCalls.available_targets(instance), & &1.slug)
-      ["researcher"]
+      world = LemmingsOs.Factory.insert(:world)
+      city = LemmingsOs.Factory.insert(:city, world: world)
+      department = LemmingsOs.Factory.insert(:department, world: world, city: city, slug: "ops")
+      manager = LemmingsOs.Factory.insert(:manager_lemming, world: world, city: city, department: department, status: "active", tools_config: %{allowed_tools: ["lemming.call"]})
+      _worker = LemmingsOs.Factory.insert(:lemming, world: world, city: city, department: department, status: "active", slug: "researcher")
+      {:ok, instance} = LemmingsOs.LemmingInstances.spawn_instance(manager, "Coordinate work")
+      Enum.map(LemmingsOs.LemmingCalls.available_targets(instance), & &1.slug)
 
-      iex> worker = LemmingsOs.Factory.insert(:lemming, world: world, city: city, department: department, status: "active")
-      iex> {:ok, worker_instance} = LemmingsOs.LemmingInstances.spawn_instance(worker, "Do work")
-      iex> LemmingsOs.LemmingCalls.available_targets(worker_instance)
-      []
+      worker = LemmingsOs.Factory.insert(:lemming, world: world, city: city, department: department, status: "active")
+      {:ok, worker_instance} = LemmingsOs.LemmingInstances.spawn_instance(worker, "Do work")
+      LemmingsOs.LemmingCalls.available_targets(worker_instance)
   """
   @spec available_targets(LemmingInstance.t()) :: [map()]
   def available_targets(%LemmingInstance{} = instance) do
@@ -315,14 +305,11 @@ defmodule LemmingsOs.LemmingCalls do
   @doc """
   Starts or continues a collaboration call requested by a manager instance.
 
-  ## Examples
+  ## Example
 
-      iex> worker_instance = LemmingsOs.Factory.insert(:lemming_instance)
-      iex> LemmingsOs.LemmingCalls.request_call(worker_instance, %{target: "anyone", request: "Help"})
-      {:error, :lemming_call_not_allowed}
-
-      iex> LemmingsOs.LemmingCalls.request_call(worker_instance, %{target: "", request: "Help"})
-      {:error, :empty_target}
+      worker_instance = LemmingsOs.Factory.insert(:lemming_instance)
+      LemmingsOs.LemmingCalls.request_call(worker_instance, %{target: "anyone", request: "Help"})
+      LemmingsOs.LemmingCalls.request_call(worker_instance, %{target: "", request: "Help"})
   """
   @spec request_call(LemmingInstance.t(), map(), keyword()) ::
           {:ok, LemmingCall.t()} | {:error, atom() | Ecto.Changeset.t()}
@@ -344,16 +331,14 @@ defmodule LemmingsOs.LemmingCalls do
   @doc """
   Synchronizes terminal child executor outcomes back to durable call records.
 
-  ## Examples
+  ## Example
 
-      iex> call = LemmingsOs.Factory.insert(:lemming_call, status: "running")
-      iex> :ok = LemmingsOs.LemmingCalls.sync_child_instance_terminal(call.callee_instance, "idle", %{result_summary: "Done"})
-      iex> {:ok, updated} = LemmingsOs.LemmingCalls.get_call(call.id, world_id: call.world_id)
-      iex> {updated.status, updated.result_summary}
-      {"completed", "Done"}
+      call = LemmingsOs.Factory.insert(:lemming_call, status: "running")
+      :ok = LemmingsOs.LemmingCalls.sync_child_instance_terminal(call.callee_instance, "idle", %{result_summary: "Done"})
+      {:ok, updated} = LemmingsOs.LemmingCalls.get_call(call.id, world_id: call.world_id)
+      {updated.status, updated.result_summary}
 
-      iex> LemmingsOs.LemmingCalls.sync_child_instance_terminal(%{}, "idle", %{})
-      :ok
+      LemmingsOs.LemmingCalls.sync_child_instance_terminal(%{}, "idle", %{})
   """
   @spec sync_child_instance_terminal(LemmingInstance.t(), String.t(), map()) :: :ok
   def sync_child_instance_terminal(%LemmingInstance{} = instance, "idle", attrs)
@@ -387,16 +372,14 @@ defmodule LemmingsOs.LemmingCalls do
   @doc """
   Records direct child input against the parent call record.
 
-  ## Examples
+  ## Example
 
-      iex> call = LemmingsOs.Factory.insert(:lemming_call, status: "running")
-      iex> :ok = LemmingsOs.LemmingCalls.note_child_user_input(call.callee_instance, "More context")
-      iex> {:ok, updated} = LemmingsOs.LemmingCalls.get_call(call.id, world_id: call.world_id)
-      iex> updated.recovery_status
-      "direct_child_input"
+      call = LemmingsOs.Factory.insert(:lemming_call, status: "running")
+      :ok = LemmingsOs.LemmingCalls.note_child_user_input(call.callee_instance, "More context")
+      {:ok, updated} = LemmingsOs.LemmingCalls.get_call(call.id, world_id: call.world_id)
+      updated.recovery_status
 
-      iex> LemmingsOs.LemmingCalls.note_child_user_input(%{}, "More context")
-      :ok
+      LemmingsOs.LemmingCalls.note_child_user_input(%{}, "More context")
   """
   @spec note_child_user_input(LemmingInstance.t(), String.t()) :: :ok
   def note_child_user_input(%LemmingInstance{} = instance, request_text)
