@@ -26,6 +26,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.LemmingInstances.ResourcePool
   alias LemmingsOs.LemmingInstances.RuntimeTableOwner
   alias LemmingsOs.LemmingInstances.Telemetry
+  alias LemmingsOs.LemmingCalls
   alias LemmingsOs.LemmingTools
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
@@ -94,6 +95,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           dets_mod: module() | nil,
           pool_mod: module() | nil,
           model_mod: module() | nil,
+          lemming_calls_mod: module() | nil,
           message_persist_mod: module() | nil,
           tools_context_mod: module() | nil,
           tool_runtime_mod: module() | nil,
@@ -234,6 +236,15 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     else
       safe_call(normalize_server(server), {:resume_pending, content})
     end
+  end
+
+  @doc """
+  Resumes a paused manager item after a delegated child call reaches terminal state.
+  """
+  @spec resume_after_lemming_call(GenServer.server() | binary(), map()) ::
+          :ok | {:error, :executor_unavailable | :terminal_instance | :resume_not_possible}
+  def resume_after_lemming_call(server, call) when is_map(call) do
+    safe_call(normalize_server(server), {:resume_after_lemming_call, call})
   end
 
   @doc """
@@ -409,6 +420,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         dets_mod: Keyword.get(opts, :dets_mod),
         pool_mod: Keyword.get(opts, :pool_mod, ResourcePool),
         model_mod: Keyword.get(opts, :model_mod, LemmingsOs.ModelRuntime),
+        lemming_calls_mod: Keyword.get(opts, :lemming_calls_mod, LemmingCalls),
         message_persist_mod: Keyword.get(opts, :message_persist_mod),
         tools_context_mod: Keyword.get(opts, :tools_context_mod, LemmingTools),
         tool_runtime_mod: Keyword.get(opts, :tool_runtime_mod, ToolsRuntime),
@@ -482,6 +494,12 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   @impl true
+  def handle_call({:resume_after_lemming_call, call}, _from, state) do
+    {reply, next_state} = resume_after_lemming_call_result(state, call)
+    {:reply, reply, next_state}
+  end
+
+  @impl true
   def handle_call(:status, _from, state) do
     snapshot = %{
       status: state.status,
@@ -502,6 +520,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     snapshot = %{
       instance_id: state.instance_id,
       department_id: state.department_id,
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      lemming_id: instance_lemming_id(state.instance),
       status: state.status,
       queue_depth: :queue.len(state.queue),
       retry_count: state.retry_count,
@@ -509,6 +530,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       tool_iteration_count: state.tool_iteration_count,
       model_step_count: state.model_step_count,
       current_item_id: current_item_id(state.current_item),
+      resource_key:
+        state.current_resource_key || ConfigSnapshot.resource_key(state.config_snapshot),
       current_resource_key: state.current_resource_key,
       model_steps: state.model_steps,
       last_error: state.last_error,
@@ -759,6 +782,28 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     end
   end
 
+  defp handle_model_result(
+         state,
+         {:ok, %LemmingsOs.ModelRuntime.Response{action: :lemming_call} = response}
+       ) do
+    state =
+      state
+      |> Map.put(:last_error, nil)
+      |> Map.put(:internal_error_details, nil)
+
+    case execute_lemming_call(state, response) do
+      {:ok, next_state, _call} ->
+        next_state
+        |> clear_active_model_step()
+        |> continue_after_lemming_call()
+
+      {:error, reason, next_state} ->
+        next_state
+        |> clear_active_model_step()
+        |> handle_model_retry(reason)
+    end
+  end
+
   defp handle_model_result(state, {:ok, _response}) do
     state
     |> clear_active_model_step()
@@ -830,6 +875,72 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp execute_tool_call(state, _response), do: {:error, :invalid_structured_output, state}
+
+  defp execute_lemming_call(
+         %{lemming_calls_mod: nil} = state,
+         _response
+       ) do
+    {:error, :lemming_call_unavailable, state}
+  end
+
+  defp execute_lemming_call(
+         %{lemming_calls_mod: lemming_calls_mod} = state,
+         %LemmingsOs.ModelRuntime.Response{} = response
+       ) do
+    attrs = %{
+      target: response.lemming_target,
+      request: response.lemming_request,
+      continue_call_id: response.continue_call_id
+    }
+
+    state = append_lemming_call_context(state, attrs)
+
+    with true <- module_loaded_and_exports?(lemming_calls_mod, :request_call, 3),
+         {:ok, call} <-
+           lemming_calls_mod.request_call(instance_with_runtime_snapshot(state), attrs, []) do
+      {:ok, state, call}
+    else
+      false -> {:error, :lemming_call_unavailable, state}
+      {:error, reason} -> {:error, {:lemming_call_failed, reason}, state}
+    end
+  end
+
+  defp continue_after_lemming_call(state) do
+    state
+    |> release_resource()
+    |> Map.put(:last_error, nil)
+    |> Map.put(:internal_error_details, nil)
+    |> put_runtime_state()
+    |> transition_to("idle", %{stopped_at: nil})
+    |> put_runtime_state()
+  end
+
+  defp resume_after_lemming_call_result(state, call) do
+    cond do
+      terminal_status?(state.status) ->
+        {{:error, :terminal_instance}, state}
+
+      is_nil(state.current_item) ->
+        {{:error, :resume_not_possible}, state}
+
+      not is_nil(state.model_task_pid) ->
+        {{:error, :resume_not_possible}, state}
+
+      true ->
+        next_state =
+          state
+          |> append_lemming_call_result_context(call)
+          |> Map.put(:retry_count, 0)
+          |> Map.put(:last_error, nil)
+          |> Map.put(:internal_error_details, nil)
+          |> cancel_idle_timer()
+          |> transition_to("processing", %{stopped_at: nil})
+          |> put_runtime_state()
+          |> start_execution()
+
+        {:ok, next_state}
+    end
+  end
 
   defp persist_tool_outcome(state, tool_execution, {:ok, execution_result}, started_at) do
     persist_tool_success(state, tool_execution, execution_result, started_at)
@@ -1197,6 +1308,62 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     }
 
     %{state | context_messages: state.context_messages ++ [tool_call_message]}
+  end
+
+  defp append_lemming_call_context(state, attrs) do
+    lemming_call_message = %{
+      role: "assistant",
+      content: "Assistant requested lemming_call with arguments: #{Jason.encode!(attrs)}"
+    }
+
+    %{state | context_messages: state.context_messages ++ [lemming_call_message]}
+  end
+
+  defp append_lemming_call_result_context(state, call) do
+    lemming_call_message = %{
+      role: "assistant",
+      content: lemming_call_result_message(call)
+    }
+
+    %{state | context_messages: state.context_messages ++ [lemming_call_message]}
+  end
+
+  defp lemming_call_result_message(call) do
+    payload = lemming_call_result_payload(call)
+
+    [
+      "As runtime execution history for your previous lemming_call request,",
+      "the runtime is returning delegated outcome now.",
+      "Lemming call result: status=#{call.status} payload=#{Jason.encode!(payload)}.",
+      lemming_call_result_guidance(payload),
+      "Do not guess file paths or read artifacts unless this payload explicitly includes a path or artifact reference.",
+      "Decide what to do next."
+    ]
+    |> Enum.join(" ")
+  end
+
+  defp lemming_call_result_payload(call) do
+    %{}
+    |> maybe_put_lemming_call_result(:call_id, call.id)
+    |> maybe_put_lemming_call_result(:status, call.status)
+    |> maybe_put_lemming_call_result(:callee_instance_id, call.callee_instance_id)
+    |> maybe_put_lemming_call_result(:root_call_id, call.root_call_id)
+    |> maybe_put_lemming_call_result(:previous_call_id, call.previous_call_id)
+    |> maybe_put_lemming_call_result(:result_summary, call.result_summary)
+    |> maybe_put_lemming_call_result(:error_summary, call.error_summary)
+    |> maybe_put_lemming_call_result(:recovery_status, call.recovery_status)
+  end
+
+  defp maybe_put_lemming_call_result(payload, _field, nil), do: payload
+  defp maybe_put_lemming_call_result(payload, field, value), do: Map.put(payload, field, value)
+
+  defp lemming_call_result_guidance(%{status: "completed", result_summary: result_summary})
+       when is_binary(result_summary) and result_summary != "" do
+    "When status=completed, payload.result_summary is child usable result."
+  end
+
+  defp lemming_call_result_guidance(_payload) do
+    "Treat this assistant-context message as prior runtime execution history, not as new user input."
   end
 
   defp append_tool_result_context(state, tool_execution) do
@@ -1647,7 +1814,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp safe_execute_model(state) do
     execute_model(
       state.model_mod,
-      state.config_snapshot,
+      model_config_snapshot(state),
       state.context_messages,
       current_model_request_item(state)
     )
@@ -1699,9 +1866,31 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       {:error, :model_crash}
   end
 
+  defp model_config_snapshot(state) do
+    targets = available_lemming_call_targets(state)
+
+    if targets == [] do
+      state.config_snapshot
+    else
+      Map.put(state.config_snapshot, :lemming_call_targets, targets)
+    end
+  end
+
+  defp available_lemming_call_targets(%{lemming_calls_mod: lemming_calls_mod} = state) do
+    if module_loaded_and_exports?(lemming_calls_mod, :available_targets, 1) do
+      lemming_calls_mod.available_targets(instance_with_runtime_snapshot(state))
+    else
+      []
+    end
+  end
+
+  defp instance_with_runtime_snapshot(state) do
+    %{state.instance | config_snapshot: state.config_snapshot}
+  end
+
   defp current_model_request_payload(state) do
     case LemmingsOs.ModelRuntime.debug_request(
-           state.config_snapshot,
+           model_config_snapshot(state),
            state.context_messages,
            current_model_request_item(state)
          ) do
@@ -1827,6 +2016,15 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       "action" => "tool_call",
       "tool_name" => response.tool_name,
       "args" => sanitize_json_map(response.tool_args)
+    }
+  end
+
+  defp parsed_output(%LemmingsOs.ModelRuntime.Response{action: :lemming_call} = response) do
+    %{
+      "action" => "lemming_call",
+      "target" => response.lemming_target,
+      "request" => response.lemming_request,
+      "continue_call_id" => response.continue_call_id
     }
   end
 
@@ -1975,6 +2173,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       |> Map.put(:status, new_status)
       |> Map.put(:last_activity_at, attrs.last_activity_at)
       |> persist_status(attrs)
+      |> maybe_sync_child_call_terminal(new_status)
       |> broadcast_status()
       |> then(&log_transition(&1, previous_status, new_status))
 
@@ -2007,6 +2206,68 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp persist_status(state, _attrs), do: state
+
+  defp maybe_sync_child_call_terminal(state, "idle") do
+    if pending_manager_calls?(state) do
+      state
+    else
+      sync_child_call_terminal(state, "idle")
+    end
+  end
+
+  defp maybe_sync_child_call_terminal(state, status)
+       when status in ["failed", "expired"] do
+    sync_child_call_terminal(state, status)
+  end
+
+  defp maybe_sync_child_call_terminal(state, _status), do: state
+
+  defp sync_child_call_terminal(state, status) do
+    result_summary =
+      case {status, state.context_messages} do
+        {"idle", messages} -> last_assistant_content(messages)
+        _other -> nil
+      end
+
+    attrs = %{
+      result_summary: result_summary,
+      error_summary: state.last_error,
+      completed_at: state.now_fun.()
+    }
+
+    if module_loaded_and_exports?(state.lemming_calls_mod, :sync_child_instance_terminal, 3) do
+      _ = state.lemming_calls_mod.sync_child_instance_terminal(state.instance, status, attrs)
+    end
+
+    state
+  end
+
+  defp pending_manager_calls?(%{instance: instance, lemming_calls_mod: lemming_calls_mod})
+       when not is_nil(lemming_calls_mod) do
+    if module_loaded_and_exports?(lemming_calls_mod, :list_manager_calls, 2) do
+      case lemming_calls_mod.list_manager_calls(instance, statuses: pending_child_call_statuses()) do
+        [] -> false
+        [_ | _rest] -> true
+      end
+    else
+      false
+    end
+  end
+
+  defp pending_manager_calls?(_state), do: false
+
+  defp pending_child_call_statuses,
+    do: ["accepted", "running", "needs_more_context", "partial_result"]
+
+  defp last_assistant_content(messages) do
+    messages
+    |> Enum.reverse()
+    |> Enum.find_value(fn
+      %{role: "assistant", content: content} when is_binary(content) -> content
+      %{role: :assistant, content: content} when is_binary(content) -> content
+      _message -> nil
+    end)
+  end
 
   defp broadcast_status(state) do
     metadata = %{

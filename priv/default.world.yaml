@@ -7,7 +7,238 @@ infrastructure:
   postgres:
     url_env: "DATABASE_URL"
 
-cities: {}
+cities:
+  local_city:
+    slug: "local_city"
+    name: "Local City"
+    node_name: "local@127.0.0.1"
+    status: "active"
+    departments:
+      it:
+        slug: "it"
+        name: "IT"
+        status: "active"
+        notes: "Technical research and structured delivery support for the local company."
+        tags:
+          - "technology"
+          - "support"
+        lemmings:
+          it_manager:
+            slug: "it_manager"
+            name: "Iris Tech Manager"
+            status: "active"
+            collaboration_role: "manager"
+            description: "Coordinates IT specialists and routes technical work to the right worker."
+            instructions: "Triage technical requests, assign research or writing work to IT specialists, and return concise implementation-ready answers."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "lemming.call"
+          web_researcher:
+            slug: "web_researcher"
+            name: "Wes Web Researcher"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Finds public web information and extracts source-backed facts."
+            instructions: "Research public web sources, cite key evidence, and return concise findings with URLs when available."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "http.get"
+                - "web.search"
+          structured_writer:
+            slug: "structured_writer"
+            name: "Sasha Structured Writer"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Turns raw notes into clean structured briefs, tables, and summaries."
+            instructions: "Transform supplied notes into clear structured output with headings, bullets, and action-ready summaries."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "text.format"
+      marketing:
+        slug: "marketing"
+        name: "Marketing"
+        status: "active"
+        notes: "End-to-end showcase department for local competitor research and campaign content."
+        tags:
+          - "showcase"
+          - "growth"
+        lemmings:
+          marketing_manager:
+            slug: "marketing_manager"
+            name: "Mara Marketing Manager"
+            status: "active"
+            collaboration_role: "manager"
+            description: "Coordinates competitor research and campaign deliverables for local marketing work."
+            instructions: "Break marketing requests into research and writing tasks, call specialist lemmings, and synthesize final recommendations."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "lemming.call"
+          local_competitor_researcher:
+            slug: "local_competitor_researcher"
+            name: "Lena Local Competitor Researcher"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Profiles nearby competitors using local business signals."
+            instructions: "Identify local competitors, compare positioning, and summarize practical market gaps."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "web.search"
+          maps_researcher:
+            slug: "maps_researcher"
+            name: "Miles Maps Researcher"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Collects map listing signals, location context, and review themes."
+            instructions: "Review map-style business data, extract location, rating, hours, and review themes, then report source limits."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "maps.search"
+                - "web.search"
+          website_competitor_researcher:
+            slug: "website_competitor_researcher"
+            name: "Willa Website Competitor Researcher"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Reviews competitor websites for offers, messaging, and conversion paths."
+            instructions: "Inspect competitor website content, capture offers and calls to action, and summarize strengths and gaps."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "http.get"
+                - "web.search"
+          campaign_writer:
+            slug: "campaign_writer"
+            name: "Cam Campaign Writer"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Creates campaign concepts from research briefs."
+            instructions: "Write campaign angles, audience fit, key message, and channel-ready assets from supplied research."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "text.compose"
+          email_writer:
+            slug: "email_writer"
+            name: "Eli Email Writer"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Writes concise marketing emails and follow-up sequences."
+            instructions: "Produce email copy with subject lines, preview text, body copy, and a clear call to action."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "text.compose"
+          social_post_writer:
+            slug: "social_post_writer"
+            name: "Sofia Social Post Writer"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Writes short social posts adapted to campaign goals."
+            instructions: "Create platform-ready social posts with concise hooks, body copy, and optional hashtags."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "text.compose"
+      sales:
+        slug: "sales"
+        name: "Sales"
+        status: "active"
+        notes: "Quote and proposal support for sales workflows."
+        tags:
+          - "revenue"
+          - "customer"
+        lemmings:
+          sales_manager:
+            slug: "sales_manager"
+            name: "Sam Sales Manager"
+            status: "active"
+            collaboration_role: "manager"
+            description: "Coordinates quote and proposal work for sales opportunities."
+            instructions: "Clarify sales needs, call quote or proposal specialists, and assemble customer-ready outputs."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "lemming.call"
+          quote_builder:
+            slug: "quote_builder"
+            name: "Quinn Quote Builder"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Builds itemized quote drafts from scoped requirements."
+            instructions: "Convert requirements into an itemized quote with assumptions, exclusions, and next steps."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "text.compose"
+          proposal_writer:
+            slug: "proposal_writer"
+            name: "Priya Proposal Writer"
+            status: "active"
+            collaboration_role: "worker"
+            description: "Writes concise proposals based on scope, value, and quote inputs."
+            instructions: "Draft proposal sections covering problem, approach, deliverables, timeline, price notes, and call to action."
+            models_config:
+              profiles:
+                primary:
+                  provider: "ollama"
+                  model: "qwen3.5:latest"
+            tools_config:
+              allowed_tools:
+                - "text.compose"
 
 tools: {}
 

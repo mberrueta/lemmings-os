@@ -22,6 +22,7 @@ defmodule LemmingsOs.LemmingInstances do
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.LemmingInstances.Telemetry
+  alias LemmingsOs.LemmingCalls
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
@@ -333,6 +334,7 @@ defmodule LemmingsOs.LemmingInstances do
         with {:ok, executor_pid} <- resolve_executor_pid(instance, opts),
              {:ok, message} <- persist_user_message(instance, request_text),
              :ok <- dispatch_work_to_executor(executor_pid, request_text, opts) do
+          _ = LemmingCalls.note_child_user_input(instance, request_text)
           _ = PubSub.broadcast_message_appended(instance.id, message.id, message.role)
 
           Logger.info("follow-up request enqueued",

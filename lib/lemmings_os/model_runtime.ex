@@ -17,6 +17,8 @@ defmodule LemmingsOs.ModelRuntime do
   {"action":"reply","reply":"visible user-facing text"}
   or
   {"action":"tool_call","tool_name":"fs.read_text_file","args":{"path":"notes.txt"}}
+  or, when lemming-call capabilities are listed in system context,
+  {"action":"lemming_call","target":"slug-or-capability","request":"bounded task text","continue_call_id":null}
   """
 
   @runtime_rules """
@@ -47,11 +49,8 @@ defmodule LemmingsOs.ModelRuntime do
           | {:error, term()}
   def run(config_snapshot, history, current_request)
       when is_map(config_snapshot) and is_list(history) do
-    with {:ok, provider_mod} <- resolve_provider_module(config_snapshot),
-         {:ok, model} <- resolve_model(config_snapshot),
-         {:ok, request} <- build_request(config_snapshot, history, current_request, model),
-         {:ok, provider_response} <- provider_mod.chat(request, provider_opts(config_snapshot)) do
-      validate_provider_response(provider_response, model)
+    with {:ok, candidates} <- resolve_model_candidates(config_snapshot) do
+      run_with_candidates(config_snapshot, history, current_request, candidates, [])
     end
   end
 
@@ -69,9 +68,14 @@ defmodule LemmingsOs.ModelRuntime do
           | {:error, term()}
   def debug_request(config_snapshot, history, current_request)
       when is_map(config_snapshot) and is_list(history) do
-    with {:ok, model} <- resolve_model(config_snapshot),
+    with {:ok, %{model: model} = candidate} <- primary_model_candidate(config_snapshot),
          {:ok, request} <- build_request(config_snapshot, history, current_request, model) do
-      {:ok, %{provider: provider_hint_label(config_snapshot), model: model, request: request}}
+      {:ok,
+       %{
+         provider: provider_hint_label(config_snapshot, candidate),
+         model: model,
+         request: request
+       }}
     end
   end
 
@@ -88,14 +92,16 @@ defmodule LemmingsOs.ModelRuntime do
   defp validate_provider_response(provider_response, requested_model)
        when is_map(provider_response) do
     with {:ok, content} <- provider_content(provider_response),
-         {:ok, parsed} <- Jason.decode(content),
-         {:ok, action_payload} <- parse_structured_output(parsed) do
+         {:ok, action_payload} <- parse_provider_content(content, provider_response) do
       {:ok,
        Response.new(
          action: action_payload.action,
          reply: action_payload.reply,
          tool_name: action_payload.tool_name,
          tool_args: action_payload.tool_args,
+         lemming_target: action_payload.lemming_target,
+         lemming_request: action_payload.lemming_request,
+         continue_call_id: action_payload.continue_call_id,
          provider: provider_label(provider_response),
          model: response_field(provider_response, :model) || requested_model,
          input_tokens: response_field(provider_response, :input_tokens),
@@ -117,11 +123,44 @@ defmodule LemmingsOs.ModelRuntime do
     {:error, :provider_error}
   end
 
+  defp parse_provider_content(content, provider_response) when is_binary(content) do
+    trimmed = String.trim(content)
+
+    case Jason.decode(trimmed) do
+      {:ok, parsed} -> parse_structured_output(parsed)
+      {:error, _reason} -> maybe_parse_legacy_structured_output(trimmed, provider_response)
+    end
+  end
+
+  defp maybe_parse_legacy_structured_output(content, provider_response) do
+    if legacy_structured_output_enabled?(provider_response) do
+      parse_legacy_structured_output(content)
+    else
+      {:error, :invalid_structured_output}
+    end
+  end
+
+  defp legacy_structured_output_enabled?(provider_response) do
+    case response_field(provider_response, :legacy_structured_output) do
+      true -> true
+      _other -> false
+    end
+  end
+
   defp parse_structured_output(%{"action" => "reply", "reply" => reply}) when is_binary(reply) do
     if Helpers.blank?(reply) do
       {:error, :invalid_structured_output}
     else
-      {:ok, %{action: :reply, reply: reply, tool_name: nil, tool_args: nil}}
+      {:ok,
+       %{
+         action: :reply,
+         reply: reply,
+         tool_name: nil,
+         tool_args: nil,
+         lemming_target: nil,
+         lemming_request: nil,
+         continue_call_id: nil
+       }}
     end
   end
 
@@ -136,17 +175,111 @@ defmodule LemmingsOs.ModelRuntime do
     if Helpers.blank?(tool_name) do
       {:error, :invalid_structured_output}
     else
-      {:ok, %{action: :tool_call, reply: nil, tool_name: tool_name, tool_args: args}}
+      {:ok,
+       %{
+         action: :tool_call,
+         reply: nil,
+         tool_name: tool_name,
+         tool_args: args,
+         lemming_target: nil,
+         lemming_request: nil,
+         continue_call_id: nil
+       }}
     end
   end
 
   defp parse_structured_output(%{"action" => "tool_call"}),
     do: {:error, :invalid_structured_output}
 
+  defp parse_structured_output(
+         %{
+           "action" => "lemming_call",
+           "target" => target,
+           "request" => request
+         } = payload
+       )
+       when is_binary(target) and is_binary(request) do
+    continue_call_id = nil_if_blank(Map.get(payload, "continue_call_id"))
+
+    if Helpers.blank?(target) or Helpers.blank?(request) or
+         continue_call_id == :invalid_continue_call_id do
+      {:error, :invalid_structured_output}
+    else
+      {:ok,
+       %{
+         action: :lemming_call,
+         reply: nil,
+         tool_name: nil,
+         tool_args: nil,
+         lemming_target: target,
+         lemming_request: request,
+         continue_call_id: continue_call_id
+       }}
+    end
+  end
+
+  defp parse_structured_output(%{"action" => "lemming_call"}),
+    do: {:error, :invalid_structured_output}
+
   defp parse_structured_output(%{"action" => action}) when is_binary(action),
     do: {:error, :unknown_action}
 
   defp parse_structured_output(_other), do: {:error, :invalid_structured_output}
+
+  defp parse_legacy_structured_output(content) when is_binary(content) do
+    cond do
+      legacy_tool_call_match?(content) ->
+        parse_legacy_tool_call(content)
+
+      legacy_lemming_call_match?(content) ->
+        parse_legacy_lemming_call(content)
+
+      true ->
+        {:error, :invalid_structured_output}
+    end
+  end
+
+  defp legacy_tool_call_match?(content) do
+    String.starts_with?(content, "Assistant requested tool ") and
+      String.contains?(content, " with arguments: ")
+  end
+
+  defp legacy_lemming_call_match?(content) do
+    String.starts_with?(content, "Assistant requested lemming_call with arguments: ")
+  end
+
+  defp parse_legacy_tool_call(content) do
+    with [tool_name, args_json] <- String.split(content, " with arguments: ", parts: 2),
+         <<"Assistant requested tool ", raw_tool_name::binary>> <- tool_name,
+         false <- Helpers.blank?(raw_tool_name),
+         {:ok, args} <- Jason.decode(args_json),
+         true <- is_map(args) do
+      parse_structured_output(%{
+        "action" => "tool_call",
+        "tool_name" => raw_tool_name,
+        "args" => args
+      })
+    else
+      _other -> {:error, :invalid_structured_output}
+    end
+  end
+
+  defp parse_legacy_lemming_call(content) do
+    with <<"Assistant requested lemming_call with arguments: ", payload_json::binary>> <-
+           content,
+         {:ok, payload} <- Jason.decode(payload_json) do
+      parse_structured_output(Map.put(payload, "action", "lemming_call"))
+    else
+      _other -> {:error, :invalid_structured_output}
+    end
+  end
+
+  defp nil_if_blank(nil), do: nil
+
+  defp nil_if_blank(value) when is_binary(value),
+    do: if(Helpers.blank?(value), do: nil, else: value)
+
+  defp nil_if_blank(_value), do: :invalid_continue_call_id
 
   defp provider_content(provider_response) do
     case response_field(provider_response, :content) do
@@ -218,6 +351,7 @@ defmodule LemmingsOs.ModelRuntime do
       platform_runtime_context(),
       configured_identity_message(config_snapshot),
       available_tools_message(config_snapshot),
+      available_lemming_calls_message(config_snapshot),
       loop_state_semantics_message(),
       @runtime_rules,
       immediate_response_instruction(),
@@ -233,9 +367,9 @@ defmodule LemmingsOs.ModelRuntime do
     - You are running as a Lemming agent inside a multi-agent application runtime.
     - Your administrator configures your identity, purpose, and expertise.
     - The runtime adds tool availability, execution rules, and loop-state context.
-    - On each turn, choose exactly one next action: either return a final user-facing reply or request one tool call.
-    - When a tool call is returned, the app executes it and sends the result back in later assistant-context messages.
-    - If the latest tool result already satisfies the request, return a final reply instead of repeating the same successful tool call.
+    - On each turn, choose exactly one next action: either return a final user-facing reply, request one tool call, or request one listed lemming call when available.
+    - When a tool call or lemming call is returned, the app executes it and sends the result back in later assistant-context messages.
+    - If the latest tool result or completed child result already satisfies the request, return a final reply instead of repeating the same successful action.
     """
   end
 
@@ -301,14 +435,43 @@ defmodule LemmingsOs.ModelRuntime do
     |> Enum.join("\n")
   end
 
+  defp available_lemming_calls_message(config_snapshot) do
+    targets = lemming_call_targets(config_snapshot)
+
+    case targets do
+      [] ->
+        nil
+
+      targets ->
+        target_lines =
+          Enum.map_join(targets, "\n", fn target ->
+            "- #{target.capability}: target=#{target.slug}; role=#{target.role}; department=#{target.department_slug}; #{target.description}"
+          end)
+
+        [
+          "Available Lemming Calls:",
+          target_lines,
+          "Managers may delegate one bounded task to a listed target.",
+          "Use continue_call_id only when refining a prior call id supplied by runtime context."
+        ]
+        |> Enum.join("\n")
+    end
+  end
+
   defp loop_state_semantics_message do
     """
     Loop State Semantics:
     - Prior assistant tool decisions appear in assistant-context messages.
+    - Prior assistant lemming-call decisions also appear in assistant-context messages.
     - `Assistant requested tool <tool_name> with arguments: <json>` means you already chose that tool on a prior turn.
+    - `Assistant requested lemming_call with arguments: <json>` means you already delegated that bounded task on a prior turn.
     - `Tool result for <tool_name>: status=<status> payload=<json>` means the runtime executed your prior tool request and is returning the outcome to you now.
+    - `Lemming call result: status=<status> payload=<json>` means the runtime is returning delegated outcome to you now.
     - Treat those assistant-context messages as prior execution history, not as new user requests.
-    - Use the configured identity, the original user request, and the latest tool result to decide the next action.
+    - When a completed child payload includes `result_summary`, treat it as usable delegated result history.
+    - When a completed child result already satisfies the task, prefer replying or making the next bounded delegation.
+    - Do not invent file paths, output files, or artifacts unless runtime payload explicitly mentions them.
+    - Use the configured identity, the original user request, and the latest runtime result to decide the next action.
     """
   end
 
@@ -317,7 +480,10 @@ defmodule LemmingsOs.ModelRuntime do
     Immediate Response Instruction:
     - Read the conversation messages below and decide the next action now.
     - If the latest tool result already satisfies the user request, return a final `reply`.
+    - If the latest completed lemming call result already satisfies the user request, return a final `reply` or one next bounded `lemming_call`.
     - If another tool action is still required, return one `tool_call`.
+    - Treat tool and lemming-call assistant-context messages as prior runtime execution history, not as new user input.
+    - Do not invent file paths, output files, or artifacts unless the runtime payload explicitly includes them.
     - Do not explain your reasoning.
     - Do not add any text before or after the JSON object.
     - Return exactly one JSON object matching the output contract below.
@@ -328,16 +494,51 @@ defmodule LemmingsOs.ModelRuntime do
     """
     IMPORTANT: RESPOND WITH JSON ONLY.
 
-    Decide what to do next by returning exactly one of these two JSON shapes:
+    Decide what to do next by returning exactly one JSON shape:
 
     {"action":"reply","reply":"visible user-facing text"}
     or
     {"action":"tool_call","tool_name":"fs.read_text_file","args":{"path":"notes.txt"}}
+    or, when Available Lemming Calls are listed,
+    {"action":"lemming_call","target":"slug-or-capability","request":"bounded task text","continue_call_id":null}
 
     Option A: final reply to the user.
     Option B: one tool call for the runtime to execute.
+    Option C: one lemming call for the runtime to execute within listed boundaries.
     """
   end
+
+  defp lemming_call_targets(config_snapshot) do
+    config_snapshot
+    |> response_field(:lemming_call_targets)
+    |> normalize_lemming_call_targets()
+  end
+
+  defp normalize_lemming_call_targets(targets) when is_list(targets) do
+    Enum.flat_map(targets, &normalize_lemming_call_target/1)
+  end
+
+  defp normalize_lemming_call_targets(_targets), do: []
+
+  defp normalize_lemming_call_target(%{} = target) do
+    with slug when is_binary(slug) <- response_field(target, :slug),
+         capability when is_binary(capability) <- response_field(target, :capability),
+         role when is_binary(role) <- response_field(target, :role) do
+      [
+        %{
+          slug: slug,
+          capability: capability,
+          role: role,
+          department_slug: response_field(target, :department_slug) || "same-department",
+          description: response_field(target, :description) || ""
+        }
+      ]
+    else
+      _other -> []
+    end
+  end
+
+  defp normalize_lemming_call_target(_target), do: []
 
   defp available_tools(config_snapshot) do
     catalog_tools = Catalog.list_tools()
@@ -443,12 +644,124 @@ defmodule LemmingsOs.ModelRuntime do
       ""
   end
 
-  defp resolve_provider_module(config_snapshot) do
-    provider_module_for(provider_hint(config_snapshot))
+  defp run_with_candidates(
+         _config_snapshot,
+         _history,
+         _current_request,
+         [],
+         _attempts
+       ),
+       do: {:error, :missing_model}
+
+  defp run_with_candidates(
+         config_snapshot,
+         history,
+         current_request,
+         [%{} = candidate | rest],
+         attempts
+       ) do
+    with {:ok, provider_mod} <- resolve_provider_module(config_snapshot, candidate),
+         {:ok, request} <-
+           build_request(config_snapshot, history, current_request, candidate.model),
+         {:ok, provider_response} <- provider_mod.chat(request, provider_opts(config_snapshot)),
+         {:ok, response} <- validate_provider_response(provider_response, candidate.model) do
+      {:ok, response}
+    else
+      {:error, reason} ->
+        attempt = attempt_metadata(candidate, reason)
+
+        if fallback_error?(reason) and rest != [] do
+          run_with_candidates(
+            config_snapshot,
+            history,
+            current_request,
+            rest,
+            attempts ++ [attempt]
+          )
+        else
+          {:error, attach_attempts(reason, attempts ++ [attempt])}
+        end
+
+      other ->
+        other
+    end
   end
 
-  defp provider_hint(config_snapshot) do
+  defp resolve_model_candidates(config_snapshot) do
+    case model_candidates(config_snapshot) do
+      [] -> {:error, :missing_model}
+      candidates -> {:ok, candidates}
+    end
+  end
+
+  defp primary_model_candidate(config_snapshot) do
+    with {:ok, [candidate | _rest]} <- resolve_model_candidates(config_snapshot) do
+      {:ok, candidate}
+    end
+  end
+
+  defp model_candidates(config_snapshot) do
+    case ConfigSnapshot.model_candidates(config_snapshot) do
+      [] ->
+        case resolve_model(config_snapshot) do
+          {:ok, model} ->
+            [
+              %{
+                provider: provider_hint_label(config_snapshot),
+                model: model,
+                resource_key: candidate_resource_key(provider_hint_label(config_snapshot), model)
+              }
+            ]
+
+          _other ->
+            []
+        end
+
+      candidates ->
+        candidates
+    end
+  end
+
+  defp candidate_resource_key(provider, model)
+       when is_binary(provider) and provider != "" and is_binary(model) and model != "" do
+    "#{provider}:#{model}"
+  end
+
+  defp candidate_resource_key(_provider, model) when is_binary(model), do: model
+  defp candidate_resource_key(_provider, _model), do: nil
+
+  defp attempt_metadata(candidate, reason) do
+    %{
+      provider: Map.get(candidate, :provider),
+      model: Map.get(candidate, :model),
+      resource_key:
+        Map.get(candidate, :resource_key) ||
+          candidate_resource_key(Map.get(candidate, :provider), Map.get(candidate, :model)),
+      reason: fallback_reason_label(reason)
+    }
+  end
+
+  defp fallback_reason_label({kind, _metadata}) when is_atom(kind), do: Atom.to_string(kind)
+  defp fallback_reason_label(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp fallback_reason_label(reason), do: inspect(reason)
+
+  defp fallback_error?(:invalid_request), do: false
+  defp fallback_error?(:missing_model), do: false
+  defp fallback_error?(_reason), do: true
+
+  defp attach_attempts({kind, metadata}, attempts) when is_atom(kind) and is_map(metadata) do
+    {kind, Map.put(metadata, :attempts, attempts)}
+  end
+
+  defp attach_attempts(reason, _attempts), do: reason
+
+  defp resolve_provider_module(config_snapshot, candidate) do
+    provider_module_for(provider_hint(config_snapshot, candidate))
+  end
+
+  defp provider_hint(config_snapshot, candidate) do
     response_field(config_snapshot, :provider_module) ||
+      Map.get(candidate, :provider) ||
       ConfigSnapshot.provider(config_snapshot) ||
       response_field(config_snapshot, :provider) ||
       nested_field(config_snapshot, [:model_runtime, :provider]) ||
@@ -504,8 +817,10 @@ defmodule LemmingsOs.ModelRuntime do
     Map.get(map, key) || Map.get(map, Atom.to_string(key))
   end
 
-  defp provider_hint_label(config_snapshot) do
-    case provider_hint(config_snapshot) do
+  defp provider_hint_label(config_snapshot), do: provider_hint_label(config_snapshot, %{})
+
+  defp provider_hint_label(config_snapshot, candidate) do
+    case provider_hint(config_snapshot, candidate) do
       provider when is_atom(provider) -> Atom.to_string(provider)
       provider when is_binary(provider) -> provider
       _provider -> nil

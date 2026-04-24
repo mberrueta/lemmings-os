@@ -53,6 +53,21 @@ defmodule LemmingsOs.HelpersTest do
     end
   end
 
+  describe "take_existing/2" do
+    test "takes allowed atom and string keys into atom-keyed output" do
+      assert Helpers.take_existing(
+               %{:age => 42, "name" => "Ada", "ignored" => true},
+               [:name, :age]
+             ) == %{name: "Ada", age: 42}
+    end
+
+    test "omits missing and nil values" do
+      assert Helpers.take_existing(%{"name" => nil, "role" => "manager"}, [:name, :role]) == %{
+               role: "manager"
+             }
+    end
+  end
+
   describe "display_value/2" do
     test "returns translated fallback for blank values" do
       assert Helpers.display_value(nil) == "Not available"

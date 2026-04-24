@@ -60,6 +60,30 @@ defmodule LemmingsOs.Helpers do
   def normalize_tags(_tags), do: []
 
   @doc """
+  Takes allowed keys from a map while accepting atom-keyed and string-keyed input.
+
+  Output keys are always the atom keys from `allowed_keys`. Missing and nil
+  values are omitted, and unknown input keys are ignored.
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.take_existing(%{"name" => "Ada", ignored: true}, [:name])
+      %{name: "Ada"}
+
+      iex> LemmingsOs.Helpers.take_existing(%{name: "Ada", age: nil}, [:name, :age])
+      %{name: "Ada"}
+  """
+  @spec take_existing(map(), [atom()]) :: map()
+  def take_existing(attrs, allowed_keys) when is_map(attrs) and is_list(allowed_keys) do
+    allowed_keys
+    |> Map.new(fn key -> {key, Map.get(attrs, key) || Map.get(attrs, Atom.to_string(key))} end)
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  def take_existing(_attrs, _allowed_keys), do: %{}
+
+  @doc """
   Formats common UI values with a translated fallback for blank values.
 
   Supported options:

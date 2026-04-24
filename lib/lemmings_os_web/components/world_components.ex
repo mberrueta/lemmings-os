@@ -656,6 +656,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :effective_config, :map, default: nil
   attr :local_overrides, :map, default: nil
   attr :department_lemmings, :list, default: []
+  attr :primary_manager, :map, default: nil
 
   def department_detail_page(assigns) do
     ~H"""
@@ -726,6 +727,47 @@ defmodule LemmingsOsWeb.WorldComponents do
         </div>
 
         <div class="grid gap-3 lg:grid-cols-2">
+          <.panel
+            :if={@primary_manager}
+            id="department-primary-manager-panel"
+            tone="info"
+            class="h-full"
+          >
+            <:title>{dgettext("lemmings", "Primary manager")}</:title>
+            <:subtitle>
+              {dgettext("lemmings", "Manager-centered entry for this department")}
+            </:subtitle>
+            <:actions>
+              <.button
+                id="department-primary-manager-open"
+                navigate={@primary_manager.path}
+                variant="secondary"
+              >
+                {dgettext("lemmings", "Open manager")}
+              </.button>
+            </:actions>
+
+            <div class="grid gap-3 md:grid-cols-2">
+              <.stat_item
+                id="department-primary-manager-name"
+                label={dgettext("lemmings", "Manager")}
+                value={Helpers.display_value(@primary_manager.name)}
+              />
+              <.stat_item
+                id="department-primary-manager-slug"
+                label={dgettext("lemmings", "Capability")}
+                value={Helpers.display_value(@primary_manager.slug)}
+              />
+            </div>
+
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <.badge id="department-primary-manager-role" tone="info">
+                {@primary_manager.role_label}
+              </.badge>
+              <.status kind={:lemming} value={@primary_manager.status} />
+            </div>
+          </.panel>
+
           <.panel id="department-overview-metadata-panel">
             <:title>{dgettext("world", ".department_section_metadata")}</:title>
             <div class="grid gap-3 md:grid-cols-2">
@@ -849,11 +891,27 @@ defmodule LemmingsOsWeb.WorldComponents do
               class="flex items-center gap-4 border-2 border-zinc-700 bg-zinc-950/70 p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-400"
             >
               <LemmingImageComponents.lemming_type_avatar
+                id={"department-lemming-avatar-#{lemming.id}"}
                 slug={lemming.slug}
                 class="shrink-0 border-zinc-700 bg-zinc-900"
               />
               <div class="min-w-0 flex-1">
-                <p class="flex items-center gap-2 text-base text-zinc-100">{lemming.name}</p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-base text-zinc-100">{lemming.name}</p>
+                  <.badge
+                    id={"department-lemming-role-#{lemming.id}"}
+                    tone={if(lemming.role == "manager", do: "info", else: "muted")}
+                  >
+                    {lemming.role_label}
+                  </.badge>
+                  <.badge
+                    :if={lemming.primary_manager?}
+                    id={"department-lemming-primary-manager-#{lemming.id}"}
+                    tone="accent"
+                  >
+                    {dgettext("lemmings", "Primary manager")}
+                  </.badge>
+                </div>
                 <p class="text-xs uppercase tracking-wider text-zinc-400">
                   {Helpers.display_value(lemming.slug)}
                 </p>

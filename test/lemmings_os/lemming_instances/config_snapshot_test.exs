@@ -3,6 +3,8 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshotTest do
 
   alias LemmingsOs.LemmingInstances.ConfigSnapshot
 
+  doctest LemmingsOs.LemmingInstances.ConfigSnapshot
+
   test "selection/1 prefers explicit normalized runtime fields over profile maps" do
     config_snapshot = %{
       model_runtime: %{
@@ -76,5 +78,35 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshotTest do
                resource_key: "ollama:qwen2.5:7b"
              }
            } = ConfigSnapshot.enrich(config_snapshot)
+  end
+
+  test "model_candidates/1 includes active selection followed by configured fallbacks" do
+    config_snapshot = %{
+      model_runtime: %{
+        profile: "default",
+        provider: "ollama",
+        model: "qwen3.5:latest",
+        resource_key: "ollama:qwen3.5:latest"
+      },
+      models_config: %{
+        profiles: %{
+          default: %{
+            provider: "ollama",
+            model: "qwen3.5:latest",
+            fallbacks: [
+              %{provider: "ollama", model: "gemma2"},
+              %{provider: "openai", model: "gpt-4o-mini"},
+              %{provider: "ollama", model: "qwen3.5:latest"}
+            ]
+          }
+        }
+      }
+    }
+
+    assert [
+             %{resource_key: "ollama:qwen3.5:latest"},
+             %{resource_key: "ollama:gemma2"},
+             %{resource_key: "openai:gpt-4o-mini"}
+           ] = ConfigSnapshot.model_candidates(config_snapshot)
   end
 end

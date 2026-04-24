@@ -1,6 +1,9 @@
 defmodule LemmingsOs.WorldBootstrap.ImporterTest do
   use LemmingsOs.DataCase, async: false
 
+  alias LemmingsOs.Cities.City
+  alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds.World
   alias LemmingsOs.WorldBootstrap.Importer
   alias LemmingsOs.WorldBootstrapTestHelpers
@@ -31,14 +34,20 @@ defmodule LemmingsOs.WorldBootstrap.ImporterTest do
       assert result.world.last_bootstrap_hash
 
       assert result.world.models_config.providers["ollama"]["allowed_models"] == [
-               "llama3.2",
+               "qwen3.5:latest",
                "qwen2.5:7b"
              ]
 
       assert Repo.aggregate(World, :count) == 1
+      assert Repo.aggregate(City, :count) == 1
+      assert Repo.aggregate(Department, :count) == 3
+      assert Repo.aggregate(Lemming, :count) == 13
+
+      assert Repo.get_by!(Lemming, slug: "marketing_manager").collaboration_role == "manager"
+      assert Repo.get_by!(Lemming, slug: "campaign_writer").collaboration_role == "worker"
     end
 
-    test "updates the existing world when the bootstrap file changes at the same path" do
+    test "updates the existing bootstrap hierarchy when the bootstrap file changes at the same path" do
       Repo.delete_all(World)
 
       path =
@@ -51,7 +60,8 @@ defmodule LemmingsOs.WorldBootstrap.ImporterTest do
       updated_yaml =
         WorldBootstrapTestHelpers.valid_bootstrap_yaml()
         |> String.replace("name: \"Local World\"", "name: \"Renamed Local World\"")
-        |> String.replace("- \"llama3.2\"\n", "- \"phi4-mini\"\n")
+        |> String.replace("- \"qwen3.5:latest\"\n", "- \"phi4-mini\"\n")
+        |> String.replace("name: \"Cam Campaign Writer\"", "name: \"Casey Campaign Writer\"")
 
       File.write!(path, updated_yaml)
 
@@ -65,6 +75,10 @@ defmodule LemmingsOs.WorldBootstrap.ImporterTest do
              ]
 
       assert Repo.aggregate(World, :count) == 1
+      assert Repo.aggregate(City, :count) == 1
+      assert Repo.aggregate(Department, :count) == 3
+      assert Repo.aggregate(Lemming, :count) == 13
+      assert Repo.get_by!(Lemming, slug: "campaign_writer").name == "Casey Campaign Writer"
     end
 
     test "returns an invalid result and updates persisted import metadata for invalid bootstrap input" do

@@ -37,77 +37,77 @@ msgstr ""
 msgid ".bootstrap_input_not_configured_empty_path_detail"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:51
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:55
 #, elixir-autogen
 msgid ".shape_invalid_root_type_summary"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:52
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:56
 #, elixir-autogen
 msgid ".shape_invalid_root_type_detail"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:54
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:58
 #, elixir-autogen
 msgid ".shape_invalid_root_type_action_hint"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:306
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:420
 #, elixir-autogen
 msgid ".shape_missing_required_section_summary"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:307
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:421
 #, elixir-autogen
 msgid ".shape_missing_required_section_detail"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:309
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:423
 #, elixir-autogen
 msgid ".shape_missing_required_section_action_hint"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:316
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:430
 #, elixir-autogen
 msgid ".shape_missing_required_value_summary"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:317
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:431
 #, elixir-autogen
 msgid ".shape_missing_required_value_detail"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:319
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:433
 #, elixir-autogen
 msgid ".shape_missing_required_value_action_hint"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:326
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:440
 #, elixir-autogen
 msgid ".shape_invalid_value_type_summary"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:327
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:441
 #, elixir-autogen
 msgid ".shape_invalid_value_type_detail"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:332
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:446
 #, elixir-autogen
 msgid ".shape_invalid_value_type_action_hint"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:342
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:456
 #, elixir-autogen
 msgid ".shape_unknown_key_summary"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:343
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:457
 #, elixir-autogen
 msgid ".shape_unknown_key_detail"
 msgstr ""
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:346
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:460
 #, elixir-autogen
 msgid ".shape_unknown_key_action_hint"
 msgstr ""
@@ -267,11 +267,14 @@ msgstr ""
 msgid ".lemming_delete_denied_safety_indeterminate"
 msgstr ""
 
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:108
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:122
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:72
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:90
 #: lib/lemmings_os/lemming_instances/message.ex:62
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:84
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:113
+#: lib/lemmings_os/lemmings/lemming.ex:93
 #, elixir-autogen, elixir-format
 msgid ".invalid_choice"
 msgstr ""
@@ -282,15 +285,20 @@ msgstr ""
 msgid ".invalid_value_type"
 msgstr ""
 
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:107
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:121
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:133
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:140
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:71
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:89
 #: lib/lemmings_os/lemming_instances/message.ex:61
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:83
-#: lib/lemmings_os_web/live/instance_live.ex:574
+#: lib/lemmings_os_web/live/instance_live.ex:617
 #, elixir-autogen, elixir-format
 msgid ".required"
 msgstr ""
 
+#: lib/lemmings_os/lemming_calls/lemming_call.ex:156
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:88
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:117
 #, elixir-autogen, elixir-format

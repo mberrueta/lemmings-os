@@ -3,13 +3,15 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   import LemmingsOsWeb.MockShell
 
+  alias LemmingsOs.LemmingCalls.PubSub, as: LemmingCallPubSub
   alias LemmingsOs.LemmingInstances
-  alias LemmingsOs.LemmingInstances.PubSub
+  alias LemmingsOs.LemmingInstances.PubSub, as: InstancePubSub
   alias LemmingsOs.LemmingTools
   alias LemmingsOs.Helpers
   alias LemmingsOs.Runtime
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
+  alias LemmingsOsWeb.PageData.InstanceDelegationSnapshot
 
   @status_tick_interval 1_000
   @default_max_retries 3
@@ -34,13 +36,19 @@ defmodule LemmingsOsWeb.InstanceLive do
         follow_up_form: follow_up_form(%{}),
         follow_up_submit_disabled?: true,
         follow_up_error: nil,
-        status_tick_ref: nil
+        status_tick_ref: nil,
+        delegated_work_mode: :none,
+        delegated_work_available_targets: [],
+        delegated_work_active_count: 0,
+        delegated_work_historical_count: 0,
+        delegated_parent_instance_path: nil
       )
       |> stream(:messages, [], reset: true)
 
     if connected?(socket) and is_binary(params["id"]) do
-      _ = PubSub.subscribe_instance(params["id"])
-      _ = PubSub.subscribe_instance_messages(params["id"])
+      _ = InstancePubSub.subscribe_instance(params["id"])
+      _ = InstancePubSub.subscribe_instance_messages(params["id"])
+      _ = LemmingCallPubSub.subscribe_instance_calls(params["id"])
     end
 
     {:ok, socket}
@@ -89,6 +97,14 @@ defmodule LemmingsOsWeb.InstanceLive do
         %{assigns: %{instance: %{id: instance_id}}} = socket
       ) do
     {:noreply, load_instance(socket, instance_id, %{"world" => current_world_id(socket)})}
+  end
+
+  def handle_info({:lemming_call_upserted, _payload}, socket) do
+    {:noreply, reload_current_instance(socket)}
+  end
+
+  def handle_info({:lemming_call_status_changed, _payload}, socket) do
+    {:noreply, reload_current_instance(socket)}
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}
@@ -196,6 +212,7 @@ defmodule LemmingsOsWeb.InstanceLive do
           {:ok, instance} ->
             messages = LemmingInstances.list_messages(instance)
             tool_executions = LemmingTools.list_tool_executions(world, instance)
+            delegated_work = InstanceDelegationSnapshot.build(instance)
             runtime_state = runtime_state(instance)
             status_now = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -212,9 +229,24 @@ defmodule LemmingsOsWeb.InstanceLive do
               parent_lemming_path: parent_lemming_path(instance),
               waiting_for_first_response?: waiting_for_first_response?(messages),
               instance_not_found?: false,
-              status_tick_ref: nil
+              status_tick_ref: nil,
+              delegated_work_mode: delegated_work.mode,
+              delegated_work_available_targets: delegated_work.available_targets,
+              delegated_work_active_count: delegated_work.active_count,
+              delegated_work_historical_count: delegated_work.historical_count,
+              delegated_parent_instance_path: delegated_parent_instance_path(delegated_work)
             )
-            |> stream(:messages, transcript_entries(messages, tool_executions), reset: true)
+            |> stream(
+              :messages,
+              transcript_entries(
+                messages,
+                tool_executions,
+                delegated_work.calls,
+                delegated_work.mode,
+                instance
+              ),
+              reset: true
+            )
             |> schedule_status_tick()
             |> put_shell_breadcrumb(build_shell_breadcrumb(instance))
 
@@ -250,7 +282,12 @@ defmodule LemmingsOsWeb.InstanceLive do
       follow_up_form: follow_up_form(%{}),
       follow_up_submit_disabled?: true,
       follow_up_error: nil,
-      status_tick_ref: nil
+      status_tick_ref: nil,
+      delegated_work_mode: :none,
+      delegated_work_available_targets: [],
+      delegated_work_active_count: 0,
+      delegated_work_historical_count: 0,
+      delegated_parent_instance_path: nil
     )
     |> stream(:messages, [], reset: true)
     |> cancel_status_tick()
@@ -264,6 +301,12 @@ defmodule LemmingsOsWeb.InstanceLive do
     do: world_id
 
   defp current_world_id(_socket), do: nil
+
+  defp reload_current_instance(%{assigns: %{instance: %{id: instance_id}}} = socket) do
+    load_instance(socket, instance_id, %{"world" => current_world_id(socket)})
+  end
+
+  defp reload_current_instance(socket), do: socket
 
   defp build_shell_breadcrumb(%{} = instance) do
     [
@@ -617,11 +660,12 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp follow_up_helper_copy(status), do: follow_up_status_copy(status)
 
-  defp transcript_entries(messages, tool_executions)
-       when is_list(messages) and is_list(tool_executions) do
+  defp transcript_entries(messages, tool_executions, delegated_calls, mode, instance)
+       when is_list(messages) and is_list(tool_executions) and is_list(delegated_calls) do
     messages
-    |> transcript_message_entries()
+    |> transcript_message_entries(delegated_calls, mode, instance)
     |> Kernel.++(transcript_tool_execution_entries(tool_executions))
+    |> Kernel.++(transcript_delegated_call_entries(delegated_calls, mode))
     |> Enum.sort_by(&transcript_sort_key/1)
     |> inject_transcript_day_dividers()
   end
@@ -665,13 +709,17 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp tool_execution_date(_tool_execution), do: nil
 
-  defp transcript_message_entries(messages) do
-    Enum.map(messages, fn message ->
+  defp transcript_message_entries(messages, delegated_calls, mode, instance) do
+    messages
+    |> Enum.reject(&omit_message_from_transcript?(&1, delegated_calls, mode))
+    |> Enum.map(fn message ->
       %{
         id: "message-#{message.id}",
         type: :message,
         inserted_at: Map.get(message, :inserted_at),
-        message: message
+        message: message,
+        speaker_name: transcript_message_speaker_name(message, mode, instance),
+        speaker_avatar_label: transcript_message_speaker_avatar_label(message, mode, instance)
       }
     end)
   end
@@ -687,6 +735,42 @@ defmodule LemmingsOsWeb.InstanceLive do
     end)
   end
 
+  defp transcript_delegated_call_entries(delegated_calls, :child) do
+    Enum.flat_map(delegated_calls, fn delegated_call ->
+      requested_at = Map.get(delegated_call, :requested_at)
+
+      [
+        %{
+          id: "manager-request-#{delegated_call.id}",
+          type: :manager_request,
+          inserted_at: requested_at,
+          delegated_call: delegated_call
+        }
+      ]
+    end)
+  end
+
+  defp transcript_delegated_call_entries(delegated_calls, _mode) do
+    Enum.flat_map(delegated_calls, fn delegated_call ->
+      requested_at = Map.get(delegated_call, :requested_at)
+
+      [
+        %{
+          id: "delegation-intent-#{delegated_call.id}",
+          type: :delegation_intent,
+          inserted_at: requested_at,
+          delegated_call: delegated_call
+        },
+        %{
+          id: "delegated-call-#{delegated_call.id}",
+          type: :delegated_call,
+          inserted_at: requested_at,
+          delegated_call: delegated_call
+        }
+      ]
+    end)
+  end
+
   defp transcript_sort_key(%{type: type, inserted_at: inserted_at, id: id}) do
     {transcript_timestamp_sort_value(inserted_at), transcript_type_rank(type), id}
   end
@@ -699,7 +783,10 @@ defmodule LemmingsOsWeb.InstanceLive do
   defp transcript_type_rank(:day_divider), do: 0
   defp transcript_type_rank(:message), do: 1
   defp transcript_type_rank(:tool_execution), do: 2
-  defp transcript_type_rank(_type), do: 3
+  defp transcript_type_rank(:delegation_intent), do: 3
+  defp transcript_type_rank(:manager_request), do: 3
+  defp transcript_type_rank(:delegated_call), do: 4
+  defp transcript_type_rank(_type), do: 5
 
   defp inject_transcript_day_dividers(entries) do
     entries
@@ -726,6 +813,15 @@ defmodule LemmingsOsWeb.InstanceLive do
   defp transcript_entry_date(%{type: :tool_execution, tool_execution: tool_execution}),
     do: tool_execution_date(tool_execution)
 
+  defp transcript_entry_date(%{type: :delegation_intent, delegated_call: delegated_call}),
+    do: message_date(%{inserted_at: delegated_call.requested_at})
+
+  defp transcript_entry_date(%{type: :manager_request, delegated_call: delegated_call}),
+    do: message_date(%{inserted_at: delegated_call.requested_at})
+
+  defp transcript_entry_date(%{type: :delegated_call, delegated_call: delegated_call}),
+    do: message_date(%{inserted_at: delegated_call.requested_at})
+
   defp transcript_entry_date(%{date: %Date{} = date}), do: date
   defp transcript_entry_date(_entry), do: nil
 
@@ -735,4 +831,36 @@ defmodule LemmingsOsWeb.InstanceLive do
   end
 
   defp transcript_day_label(_date), do: nil
+
+  defp omit_message_from_transcript?(%{role: "user", content: content}, delegated_calls, :child)
+       when is_binary(content) do
+    Enum.any?(delegated_calls, &(&1.request_text == content))
+  end
+
+  defp omit_message_from_transcript?(_message, _delegated_calls, _mode), do: false
+
+  defp transcript_message_speaker_name(%{role: "assistant"}, :child, instance),
+    do: instance_heading(instance)
+
+  defp transcript_message_speaker_name(_message, _mode, _instance), do: nil
+
+  defp transcript_message_speaker_avatar_label(%{role: "assistant"}, :child, instance) do
+    instance
+    |> instance_heading()
+    |> String.first()
+    |> case do
+      nil -> nil
+      value -> String.upcase(value)
+    end
+  end
+
+  defp transcript_message_speaker_avatar_label(_message, _mode, _instance), do: nil
+
+  defp delegated_parent_instance_path(%InstanceDelegationSnapshot{
+         mode: :child,
+         calls: [call | _calls]
+       }),
+       do: Map.get(call, :caller_instance_path)
+
+  defp delegated_parent_instance_path(_delegated_work), do: nil
 end

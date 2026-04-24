@@ -9,6 +9,9 @@ defmodule LemmingsOs.ModelRuntime.Response do
     :reply,
     :tool_name,
     :tool_args,
+    :lemming_target,
+    :lemming_request,
+    :continue_call_id,
     :provider,
     :model,
     :input_tokens,
@@ -19,10 +22,13 @@ defmodule LemmingsOs.ModelRuntime.Response do
   ]
 
   @type t :: %__MODULE__{
-          action: :reply | :tool_call,
+          action: :reply | :tool_call | :lemming_call,
           reply: String.t() | nil,
           tool_name: String.t() | nil,
           tool_args: map() | nil,
+          lemming_target: String.t() | nil,
+          lemming_request: String.t() | nil,
+          continue_call_id: Ecto.UUID.t() | nil,
           provider: String.t(),
           model: String.t() | nil,
           input_tokens: integer() | nil,

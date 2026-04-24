@@ -162,6 +162,64 @@
         </div>
       </section>
 
+      <section :if={@delegation_state} id="instance-raw-delegation-state" class="space-y-3">
+        <div class="space-y-2">
+          <p class="text-xs uppercase tracking-widest text-zinc-500">
+            {dgettext("lemmings", "Delegation state")}
+          </p>
+          <p class="text-sm leading-7 text-zinc-400">
+            {dgettext(
+              "lemmings",
+              "Shows latest child-call status and whether the manager has received delegated-result context."
+            )}
+          </p>
+        </div>
+
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Call</p>
+            <p class="mt-2 break-all text-sm text-zinc-200">{@delegation_state.call_id}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Child Instance</p>
+            <p class="mt-2 break-all text-sm text-zinc-200">{@delegation_state.child_instance}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Status</p>
+            <p class="mt-2 text-sm text-zinc-200">{@delegation_state.status}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Callback Context</p>
+            <p class="mt-2 text-sm text-zinc-200">
+              {@delegation_state.callback_context_received}
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Waiting State</p>
+            <p class="mt-2 text-sm text-zinc-200">{@delegation_state.waiting_state}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Recovery</p>
+            <p class="mt-2 text-sm text-zinc-200">{@delegation_state.recovery_status}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 md:col-span-2 xl:col-span-2">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Result Summary</p>
+            <p class="mt-2 text-sm leading-7 text-zinc-200">{@delegation_state.result_summary}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 md:col-span-2 xl:col-span-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Error Summary</p>
+            <p class="mt-2 text-sm leading-7 text-zinc-200">{@delegation_state.error_summary}</p>
+          </div>
+        </div>
+      </section>
+
       <div class="grid gap-6 xl:grid-cols-2">
         <section id="instance-raw-model-request" class="space-y-3 xl:col-span-2">
           <details class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
