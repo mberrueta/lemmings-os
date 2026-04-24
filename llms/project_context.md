@@ -52,6 +52,18 @@ These five pillars define what LemmingsOS is. Agents must not propose designs or
   Restart strategy decisions should be ADR'd when non-obvious.
 - **Telemetry metadata includes hierarchy context**: all `:telemetry.execute/3` calls MUST include
   `world_id`, `city_id`, `department_id`, and (where applicable) `lemming_id` in the metadata map.
+- **Multi-lemming collaboration is manager-gated**: only lemmings with
+  `collaboration_role == "manager"` may initiate lemming-to-lemming calls. Workers do not delegate
+  directly.
+- **Collaboration stays within one World and one City**: durable lemming calls require explicit
+  World scope and caller/callee instances in same City. Cross-World and cross-City call chains are
+  invalid.
+- **Cross-department collaboration uses manager-to-manager routing only**: managers may call active
+  workers in their own department and active managers in other departments within same City. Do not
+  design worker-to-worker or worker-to-manager cross-department paths.
+- **Delegation history is not instance status**: collaboration state lives in durable
+  `lemming_instance_calls` records, with successor links for expired-child continuation. Do not
+  overload `lemming_instances.status` to represent delegation lifecycle.
 
 ## Engineering conventions
 
@@ -68,6 +80,8 @@ These five pillars define what LemmingsOS is. Agents must not propose designs or
 - Logging MUST include hierarchy metadata at the relevant level:
   `Logger.info("lemming started", world_id: w.id, city_id: c.id, department_id: d.id, lemming_id: l.id)`
 - Avoid logging agent payloads (they may contain sensitive data from external LLM calls).
+- For lemming-call observability, prefer ids, scope metadata, status, and short summaries. Do not
+  emit full delegated request text or raw child transcript payloads in logs, telemetry, or PubSub.
 
 ## Module naming conventions
 
@@ -86,3 +100,4 @@ These five pillars define what LemmingsOS is. Agents must not propose designs or
 - ADR 0001: Apache 2.0 license
 - ADR 0002: World / City / Department / Lemming hierarchy model
 - ADR 0003: World as hard isolation boundary
+- ADR 0025: multi-lemming collaboration model
