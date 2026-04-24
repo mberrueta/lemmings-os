@@ -2203,7 +2203,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp persist_status(state, _attrs), do: state
 
   defp maybe_sync_child_call_terminal(state, "idle") do
-    if pending_child_calls?(state) do
+    if pending_manager_calls?(state) do
       state
     else
       sync_child_call_terminal(state, "idle")
@@ -2237,10 +2237,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     state
   end
 
-  defp pending_child_calls?(%{instance: instance, lemming_calls_mod: lemming_calls_mod})
+  defp pending_manager_calls?(%{instance: instance, lemming_calls_mod: lemming_calls_mod})
        when not is_nil(lemming_calls_mod) do
-    if module_loaded_and_exports?(lemming_calls_mod, :list_child_calls, 2) do
-      case lemming_calls_mod.list_child_calls(instance, statuses: pending_child_call_statuses()) do
+    if module_loaded_and_exports?(lemming_calls_mod, :list_manager_calls, 2) do
+      case lemming_calls_mod.list_manager_calls(instance, statuses: pending_child_call_statuses()) do
         [] -> false
         [_ | _rest] -> true
       end
@@ -2249,7 +2249,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     end
   end
 
-  defp pending_child_calls?(_state), do: false
+  defp pending_manager_calls?(_state), do: false
 
   defp pending_child_call_statuses,
     do: ["accepted", "running", "needs_more_context", "partial_result"]

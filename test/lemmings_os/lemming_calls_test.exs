@@ -5,10 +5,23 @@ defmodule LemmingsOs.LemmingCallsTest do
 
   alias LemmingsOs.LemmingCalls
   alias LemmingsOs.LemmingCalls.LemmingCall
+  alias LemmingsOs.LemmingInstances
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
 
   doctest LemmingsOs.LemmingCalls.LemmingCall
+
+  defmodule SpawnOnlyRuntime do
+    def spawn_session(lemming, request_text, opts) do
+      with {:ok, instance} <- LemmingInstances.spawn_instance(lemming, request_text) do
+        if observer_pid = Keyword.get(opts, :observer_pid) do
+          send(observer_pid, {:spawned_child, instance.id})
+        end
+
+        {:ok, instance}
+      end
+    end
+  end
 
   describe "list_calls/2" do
     setup [:call_graph_fixture]
@@ -466,6 +479,103 @@ defmodule LemmingsOs.LemmingCallsTest do
     end
   end
 
+  describe "request_call/3 compensation" do
+    setup [:call_graph_fixture]
+
+    test "S13: expires spawned child when call insert fails after runtime spawn", %{
+      world: world,
+      manager_instance: manager_instance,
+      peer_manager: peer_manager
+    } do
+      create_failure =
+        %LemmingCall{}
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.add_error(:request_text, "db insert failed")
+
+      assert capture_log(fn ->
+               assert {:error, ^create_failure} =
+                        LemmingCalls.request_call(
+                          manager_instance,
+                          %{target: peer_manager.slug, request: "Draft notes"},
+                          runtime_mod: SpawnOnlyRuntime,
+                          runtime_opts: [observer_pid: self()],
+                          create_call_fun: fn _attrs, _opts -> {:error, create_failure} end
+                        )
+             end) =~ "lemming call request failed"
+
+      assert_receive {:spawned_child, child_id}
+
+      assert {:ok, child_instance} =
+               LemmingInstances.get_instance(child_id, world_id: world.world.id)
+
+      assert child_instance.status == "expired"
+      assert child_instance.stopped_at
+      assert [] = LemmingCalls.list_calls(world.world)
+    end
+
+    test "S14: expires spawned child when running status update fails after call insert", %{
+      world: world,
+      manager_instance: manager_instance,
+      peer_manager: peer_manager
+    } do
+      update_failure =
+        %LemmingCall{}
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.add_error(:status, "db update failed")
+
+      assert capture_log(fn ->
+               assert {:error, ^update_failure} =
+                        LemmingCalls.request_call(
+                          manager_instance,
+                          %{target: peer_manager.slug, request: "Draft notes"},
+                          runtime_mod: SpawnOnlyRuntime,
+                          runtime_opts: [observer_pid: self()],
+                          update_call_status_fun: fn _call, _status, _attrs ->
+                            {:error, update_failure}
+                          end
+                        )
+             end) =~ "lemming call request failed"
+
+      assert_receive {:spawned_child, child_id}
+
+      assert {:ok, child_instance} =
+               LemmingInstances.get_instance(child_id, world_id: world.world.id)
+
+      assert child_instance.status == "expired"
+
+      assert [call] = LemmingCalls.list_calls(world.world)
+      assert call.status == "accepted"
+      assert call.callee_instance_id == child_id
+    end
+
+    test "S15: expires spawned child when DB persistence raises after runtime spawn", %{
+      world: world,
+      manager_instance: manager_instance,
+      peer_manager: peer_manager
+    } do
+      assert capture_log(fn ->
+               assert {:error, %RuntimeError{message: "database unavailable"}} =
+                        LemmingCalls.request_call(
+                          manager_instance,
+                          %{target: peer_manager.slug, request: "Draft notes"},
+                          runtime_mod: SpawnOnlyRuntime,
+                          runtime_opts: [observer_pid: self()],
+                          create_call_fun: fn _attrs, _opts ->
+                            raise "database unavailable"
+                          end
+                        )
+             end) =~ "lemming call request failed"
+
+      assert_receive {:spawned_child, child_id}
+
+      assert {:ok, child_instance} =
+               LemmingInstances.get_instance(child_id, world_id: world.world.id)
+
+      assert child_instance.status == "expired"
+      assert [] = LemmingCalls.list_calls(world.world)
+    end
+  end
+
   describe "list_manager_calls/2 and list_child_calls/2" do
     setup [:call_graph_fixture]
 
@@ -616,7 +726,8 @@ defmodule LemmingsOs.LemmingCallsTest do
         city: city,
         department: caller_department,
         status: "active",
-        slug: "ops-manager"
+        slug: "ops-manager",
+        tools_config: %{allowed_tools: ["lemming.call"]}
       )
 
     worker =
@@ -635,7 +746,8 @@ defmodule LemmingsOs.LemmingCallsTest do
         city: city,
         department: peer_department,
         status: "active",
-        slug: "support-manager"
+        slug: "support-manager",
+        tools_config: %{allowed_tools: ["lemming.call"]}
       )
 
     peer_worker =
@@ -679,7 +791,8 @@ defmodule LemmingsOs.LemmingCallsTest do
         city: other_world_city,
         department: other_world_caller_department,
         status: "active",
-        slug: "sales-manager"
+        slug: "sales-manager",
+        tools_config: %{allowed_tools: ["lemming.call"]}
       )
 
     other_world_worker =
@@ -763,7 +876,32 @@ defmodule LemmingsOs.LemmingCallsTest do
       world: lemming.world,
       city: lemming.city,
       department: lemming.department,
+      config_snapshot: instance_config_snapshot(lemming),
       status: "idle"
     )
+  end
+
+  defp instance_config_snapshot(lemming) do
+    allowed_tools =
+      lemming
+      |> Map.get(:tools_config)
+      |> case do
+        %{allowed_tools: tools} when is_list(tools) -> tools
+        _tools_config -> []
+      end
+
+    denied_tools =
+      lemming
+      |> Map.get(:tools_config)
+      |> case do
+        %{denied_tools: tools} when is_list(tools) -> tools
+        _tools_config -> []
+      end
+
+    %{
+      tools_config: %{allowed_tools: allowed_tools, denied_tools: denied_tools},
+      models_config: %{},
+      runtime_config: %{}
+    }
   end
 end

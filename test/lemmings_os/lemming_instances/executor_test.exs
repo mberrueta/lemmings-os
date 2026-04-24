@@ -11,6 +11,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.LemmingInstances.ResourcePool
   alias LemmingsOs.LemmingInstances.RuntimeTableOwner
+  alias LemmingsOs.LemmingCalls
   alias LemmingsOs.LemmingTools
   alias LemmingsOs.ModelRuntime.Response
   alias LemmingsOs.Runtime.ActivityLog
@@ -281,7 +282,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
        }}
     end
 
-    def list_child_calls(_instance, _opts) do
+    def list_manager_calls(_instance, _opts) do
       tracker_pid = tracker_pid()
 
       if Agent.get(tracker_pid, & &1.pending?) do
@@ -1041,6 +1042,84 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     assert_receive {:child_call_synced, "idle", attrs}
     assert attrs.result_summary == "Final answer from nested child result."
+
+    GenServer.stop(pid)
+  end
+
+  test "S02e: child executor idle sync completes inbound parent call", %{instance: instance} do
+    resource_key = "ollama:child-terminal-sync-model"
+    instance = LemmingsOs.Repo.preload(instance, [:world, :city, :department, :lemming])
+
+    parent_lemming =
+      insert(:lemming,
+        world: instance.world,
+        city: instance.city,
+        department: instance.department,
+        collaboration_role: "manager",
+        status: "active"
+      )
+
+    {:ok, parent_instance} = LemmingInstances.spawn_instance(parent_lemming, "Coordinate work")
+    parent_instance = LemmingsOs.Repo.preload(parent_instance, [:department])
+
+    parent_call =
+      insert(:lemming_call,
+        world: instance.world,
+        city: instance.city,
+        caller_department: parent_instance.department,
+        callee_department: instance.department,
+        caller_lemming: parent_lemming,
+        callee_lemming: instance.lemming,
+        caller_instance: parent_instance,
+        callee_instance: instance,
+        request_text: "Draft child notes",
+        status: "running"
+      )
+
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "child-terminal-sync-model",
+          observer_pid: self(),
+          models_config: %{
+            profiles: %{default: %{provider: "ollama", model: "child-terminal-sync-model"}}
+          }
+        },
+        context_mod: LemmingInstances,
+        model_mod: FakeModelRuntime,
+        lemming_calls_mod: LemmingCalls,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Finish delegated child work")
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:model_run, _task_pid, _config_snapshot, _context_messages,
+                    %{content: "Finish delegated child work"}}
+
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    assert {:ok, updated_call} =
+             LemmingCalls.get_call(parent_call.id, world_id: instance.world_id)
+
+    assert updated_call.status == "completed"
+    assert updated_call.result_summary == "processed"
+    assert %DateTime{} = updated_call.completed_at
 
     GenServer.stop(pid)
   end

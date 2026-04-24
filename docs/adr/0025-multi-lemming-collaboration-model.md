@@ -19,7 +19,7 @@ This feature introduced several architecture questions that were not fully settl
 - what observability data is emitted and what sensitive data is intentionally omitted
 - how seeded demo topology and operator UI should surface the implemented behavior
 
-This PR establishes concrete behavior for all of these points. This ADR records implemented behavior, not planned behavior.
+This ADR defines the intended collaboration contract for bounded multi-lemming delegation. The first implementation slice may implement only part of this contract.
 
 ---
 

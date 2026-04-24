@@ -1429,7 +1429,8 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
         department: manager_department,
         status: "active",
         slug: "dispatch-manager",
-        name: "Dispatch Manager"
+        name: "Dispatch Manager",
+        tools_config: %{allowed_tools: ["lemming.call"]}
       )
 
     manager_instance =
@@ -1438,7 +1439,10 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
         world: world,
         city: city,
         department: manager_department,
-        status: "idle"
+        status: "idle",
+        config_snapshot: %{
+          tools_config: %{allowed_tools: ["lemming.call"], denied_tools: []}
+        }
       )
 
     _local_worker =

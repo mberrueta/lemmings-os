@@ -21,6 +21,7 @@ defmodule LemmingsOs.LemmingCalls do
   alias LemmingsOs.Worlds.World
 
   @terminal_statuses ~w(completed failed)
+  @lemming_call_tool "lemming.call"
   @delegation_max_artifacts 2
   @delegation_artifact_char_limit 12_000
 
@@ -256,7 +257,7 @@ defmodule LemmingsOs.LemmingCalls do
       iex> world = LemmingsOs.Factory.insert(:world)
       iex> city = LemmingsOs.Factory.insert(:city, world: world)
       iex> department = LemmingsOs.Factory.insert(:department, world: world, city: city, slug: "ops")
-      iex> manager = LemmingsOs.Factory.insert(:manager_lemming, world: world, city: city, department: department, status: "active")
+      iex> manager = LemmingsOs.Factory.insert(:manager_lemming, world: world, city: city, department: department, status: "active", tools_config: %{allowed_tools: ["lemming.call"]})
       iex> _worker = LemmingsOs.Factory.insert(:lemming, world: world, city: city, department: department, status: "active", slug: "researcher")
       iex> {:ok, instance} = LemmingsOs.LemmingInstances.spawn_instance(manager, "Coordinate work")
       iex> Enum.map(LemmingsOs.LemmingCalls.available_targets(instance), & &1.slug)
@@ -274,6 +275,7 @@ defmodule LemmingsOs.LemmingCalls do
       instance
       |> target_query()
       |> Repo.all()
+      |> Enum.filter(&can_call_lemming?(instance, &1, instance.config_snapshot))
       |> Enum.map(&target_capability(instance, &1))
     else
       _other -> []
@@ -281,6 +283,34 @@ defmodule LemmingsOs.LemmingCalls do
   end
 
   def available_targets(_instance), do: []
+
+  @doc """
+  Returns true when a caller instance is authorized to address a target lemming.
+
+  Manager role is necessary but not sufficient: effective `lemming.call` tool
+  availability and the collaboration routing policy must also allow the target.
+  """
+  @spec can_call_lemming?(LemmingInstance.t(), Lemming.t(), map()) :: boolean()
+  def can_call_lemming?(
+        %LemmingInstance{} = caller_instance,
+        %Lemming{} = target_lemming,
+        config_snapshot
+      )
+      when is_map(config_snapshot) do
+    with {:ok, caller} <- caller_lemming(caller_instance),
+         true <- manager?(caller),
+         true <- lemming_call_enabled?(config_snapshot),
+         true <- target_lemming.status == "active",
+         true <- caller_instance.world_id == target_lemming.world_id,
+         true <- caller_instance.city_id == target_lemming.city_id,
+         true <- call_relation_allowed?(caller_instance, target_lemming) do
+      true
+    else
+      _other -> false
+    end
+  end
+
+  def can_call_lemming?(_caller_instance, _target_lemming, _config_snapshot), do: false
 
   @doc """
   Starts or continues a collaboration call requested by a manager instance.
@@ -435,6 +465,48 @@ defmodule LemmingsOs.LemmingCalls do
 
   defp target_relation(%LemmingInstance{}, %Lemming{}), do: "unavailable"
 
+  defp lemming_call_enabled?(config_snapshot) do
+    allowed_tools = config_tools(config_snapshot, :allowed_tools)
+    denied_tools = MapSet.new(config_tools(config_snapshot, :denied_tools))
+
+    @lemming_call_tool in allowed_tools and not MapSet.member?(denied_tools, @lemming_call_tool)
+  end
+
+  defp config_tools(config_snapshot, field) when is_map(config_snapshot) do
+    config_snapshot
+    |> config_value(:tools_config)
+    |> case do
+      tools_config when is_map(tools_config) ->
+        tools_config
+        |> config_value(field)
+        |> normalize_tool_list()
+
+      _tools_config ->
+        []
+    end
+  end
+
+  defp config_value(map, field) when is_map(map),
+    do: Map.get(map, field) || Map.get(map, "#{field}")
+
+  defp normalize_tool_list(tools) when is_list(tools), do: Enum.filter(tools, &is_binary/1)
+  defp normalize_tool_list(_tools), do: []
+
+  defp call_relation_allowed?(
+         %LemmingInstance{department_id: department_id},
+         %Lemming{department_id: department_id, collaboration_role: "worker"}
+       ),
+       do: true
+
+  defp call_relation_allowed?(
+         %LemmingInstance{department_id: caller_department_id},
+         %Lemming{department_id: target_department_id, collaboration_role: "manager"}
+       )
+       when caller_department_id != target_department_id,
+       do: true
+
+  defp call_relation_allowed?(_caller_instance, _target_lemming), do: false
+
   defp request_text(attrs) do
     attrs
     |> attr_value(:request)
@@ -468,18 +540,21 @@ defmodule LemmingsOs.LemmingCalls do
     with :ok <- authorize_manager(caller_instance),
          {:ok, callee} <- resolve_target(caller_instance, target),
          child_request_text = child_request_text(caller_instance, request_text),
-         {:ok, callee_instance} <- spawn_child(callee, child_request_text, opts),
-         {:ok, call} <-
-           create_call(
-             %{
-               caller_instance_id: caller_instance.id,
-               callee_instance_id: callee_instance.id,
-               request_text: request_text,
-               status: "accepted"
-             },
-             world_id: caller_instance.world_id
-           ) do
-      update_call_status(call, "running", %{started_at: now()})
+         {:ok, callee_instance} <- spawn_child(callee, child_request_text, opts) do
+      case persist_spawned_call(caller_instance, callee_instance, request_text, opts) do
+        {:ok, call} ->
+          {:ok, call}
+
+        {:error, reason} = error ->
+          compensate_spawned_child(callee_instance, reason)
+
+          emit_request_failure(caller_instance, reason, %{
+            target: target,
+            callee_instance_id: callee_instance.id
+          })
+
+          error
+      end
     else
       {:error, reason} = error ->
         emit_request_failure(caller_instance, reason, %{target: target})
@@ -492,6 +567,7 @@ defmodule LemmingsOs.LemmingCalls do
          {:ok, call_id} <- cast_uuid(call_id),
          {:ok, call} <- get_call(call_id, world_id: caller_instance.world_id),
          :ok <- validate_caller_owns_call(caller_instance, call),
+         :ok <- ensure_call_continuable(call),
          {:ok, callee_instance} <- get_call_callee_instance(call) do
       continue_existing_or_successor(
         caller_instance,
@@ -579,23 +655,17 @@ defmodule LemmingsOs.LemmingCalls do
 
     with {:ok, callee} <- successor_callee(caller_instance, callee_instance, target),
          child_request_text = child_request_text(caller_instance, request_text),
-         {:ok, successor_instance} <- spawn_child(callee, child_request_text, opts),
-         {:ok, successor_call} <-
-           create_call(
-             %{
-               caller_instance_id: caller_instance.id,
-               callee_instance_id: successor_instance.id,
-               root_call_id: root_call_id,
-               previous_call_id: call.id,
-               request_text: request_text,
-               status: "accepted"
-             },
-             world_id: caller_instance.world_id
-           ) do
-      with {:ok, updated_call} <-
-             update_call_status(successor_call, "running", %{started_at: now()}) do
-        emit_recovered(call, updated_call)
-        {:ok, updated_call}
+         {:ok, successor_instance} <- spawn_child(callee, child_request_text, opts) do
+      attrs = %{root_call_id: root_call_id, previous_call_id: call.id}
+
+      case persist_spawned_call(caller_instance, successor_instance, request_text, opts, attrs) do
+        {:ok, updated_call} ->
+          emit_recovered(call, updated_call)
+          {:ok, updated_call}
+
+        {:error, reason} = error ->
+          compensate_spawned_child(successor_instance, reason)
+          error
       end
     end
   end
@@ -610,7 +680,7 @@ defmodule LemmingsOs.LemmingCalls do
        ) do
     child_request_text = child_request_text(caller_instance, request_text)
 
-    with :ok <- ensure_call_continuable(call),
+    with :ok <- authorize_target(caller_instance, callee_instance),
          {:ok, _instance} <-
            LemmingInstances.enqueue_work(callee_instance, child_request_text, opts) do
       update_call_status(call, "running", %{
@@ -619,6 +689,89 @@ defmodule LemmingsOs.LemmingCalls do
         recovery_status: nil
       })
     end
+  end
+
+  defp authorize_target(caller_instance, %LemmingInstance{lemming: %Lemming{} = target}) do
+    if can_call_lemming?(caller_instance, target, caller_instance.config_snapshot) do
+      :ok
+    else
+      {:error, :lemming_call_not_allowed}
+    end
+  end
+
+  defp authorize_target(caller_instance, %LemmingInstance{
+         lemming_id: lemming_id,
+         world_id: world_id
+       })
+       when is_binary(lemming_id) and is_binary(world_id) do
+    case Repo.get_by(Lemming, id: lemming_id, world_id: world_id) do
+      %Lemming{} = target ->
+        if can_call_lemming?(caller_instance, target, caller_instance.config_snapshot) do
+          :ok
+        else
+          {:error, :lemming_call_not_allowed}
+        end
+
+      nil ->
+        {:error, :target_not_available}
+    end
+  end
+
+  defp persist_spawned_call(
+         caller_instance,
+         callee_instance,
+         request_text,
+         opts,
+         extra_attrs \\ %{}
+       ) do
+    create_call_fun = Keyword.get(opts, :create_call_fun, &create_call/2)
+    update_call_status_fun = Keyword.get(opts, :update_call_status_fun, &update_call_status/3)
+
+    attrs =
+      Map.merge(
+        %{
+          caller_instance_id: caller_instance.id,
+          callee_instance_id: callee_instance.id,
+          request_text: request_text,
+          status: "accepted"
+        },
+        extra_attrs
+      )
+
+    with {:ok, call} <-
+           safe_call_persistence(fn ->
+             create_call_fun.(attrs, world_id: caller_instance.world_id)
+           end) do
+      safe_call_persistence(fn ->
+        update_call_status_fun.(call, "running", %{started_at: now()})
+      end)
+    end
+  end
+
+  defp safe_call_persistence(fun) when is_function(fun, 0) do
+    fun.()
+  rescue
+    exception -> {:error, exception}
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp compensate_spawned_child(%LemmingInstance{} = instance, reason) do
+    now = now()
+
+    _ =
+      LemmingInstances.update_status(instance, "expired", %{
+        stopped_at: now,
+        last_activity_at: now
+      })
+
+    Logger.warning("expired spawned child after lemming call persistence failure",
+      event: "lemming_call.child_compensated",
+      instance_id: instance.id,
+      reason: inspect(reason)
+    )
+
+    :ok
   end
 
   defp successor_callee(caller_instance, %LemmingInstance{lemming: %Lemming{} = callee}, target) do

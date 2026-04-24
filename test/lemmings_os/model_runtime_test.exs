@@ -99,6 +99,23 @@ defmodule LemmingsOs.ModelRuntimeTest do
     end
   end
 
+  defmodule LegacyCompatLemmingCallProvider do
+    @behaviour LemmingsOs.ModelRuntime.Provider
+
+    @impl true
+    def chat(request, _opts) do
+      {:ok,
+       %{
+         content:
+           ~s(Assistant requested lemming_call with arguments: {"target":"researcher","request":"Find three risks","continue_call_id":null}),
+         legacy_structured_output: true,
+         provider: "fake",
+         model: request.model,
+         raw: request
+       }}
+    end
+  end
+
   defmodule FallbackSequenceProvider do
     @behaviour LemmingsOs.ModelRuntime.Provider
 
@@ -299,9 +316,31 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert String.contains?(ModelRuntime.runtime_rules(), "Return valid JSON only")
   end
 
-  test "S04a: run/3 accepts legacy lemming_call text output" do
+  test "S04a: run/3 rejects legacy lemming_call text output by default" do
     config_snapshot = %{
       provider_module: LegacyLemmingCallProvider,
+      model: "test-model",
+      lemming_call_targets: [
+        %{
+          slug: "researcher",
+          capability: "ops/researcher",
+          role: "worker",
+          department_slug: "ops",
+          description: "Research bounded tasks"
+        }
+      ]
+    }
+
+    assert {:error,
+            {:invalid_structured_output,
+             %{
+               content: "Assistant requested lemming_call with arguments: " <> _legacy_payload
+             }}} = ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+  end
+
+  test "S04b: run/3 accepts legacy lemming_call text output only behind compatibility flag" do
+    config_snapshot = %{
+      provider_module: LegacyCompatLemmingCallProvider,
       model: "test-model",
       lemming_call_targets: [
         %{
@@ -322,7 +361,7 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert response.lemming_request == "Find three risks"
   end
 
-  test "S04b: run/3 retries configured fallback models after invalid provider output" do
+  test "S04c: run/3 retries configured fallback models after invalid provider output" do
     config_snapshot = %{
       provider_module: FallbackSequenceProvider,
       models_config: %{

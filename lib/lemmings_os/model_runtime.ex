@@ -92,7 +92,7 @@ defmodule LemmingsOs.ModelRuntime do
   defp validate_provider_response(provider_response, requested_model)
        when is_map(provider_response) do
     with {:ok, content} <- provider_content(provider_response),
-         {:ok, action_payload} <- parse_provider_content(content) do
+         {:ok, action_payload} <- parse_provider_content(content, provider_response) do
       {:ok,
        Response.new(
          action: action_payload.action,
@@ -123,12 +123,27 @@ defmodule LemmingsOs.ModelRuntime do
     {:error, :provider_error}
   end
 
-  defp parse_provider_content(content) when is_binary(content) do
+  defp parse_provider_content(content, provider_response) when is_binary(content) do
     trimmed = String.trim(content)
 
     case Jason.decode(trimmed) do
       {:ok, parsed} -> parse_structured_output(parsed)
-      {:error, _reason} -> parse_legacy_structured_output(trimmed)
+      {:error, _reason} -> maybe_parse_legacy_structured_output(trimmed, provider_response)
+    end
+  end
+
+  defp maybe_parse_legacy_structured_output(content, provider_response) do
+    if legacy_structured_output_enabled?(provider_response) do
+      parse_legacy_structured_output(content)
+    else
+      {:error, :invalid_structured_output}
+    end
+  end
+
+  defp legacy_structured_output_enabled?(provider_response) do
+    case response_field(provider_response, :legacy_structured_output) do
+      true -> true
+      _other -> false
     end
   end
 

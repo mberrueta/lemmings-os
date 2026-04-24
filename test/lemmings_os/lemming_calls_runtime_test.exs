@@ -66,7 +66,8 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
         city: city,
         department: department,
         status: "active",
-        slug: "ops-manager"
+        slug: "ops-manager",
+        tools_config: %{allowed_tools: ["lemming.call"]}
       )
 
     worker =
@@ -85,7 +86,8 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
         city: city,
         department: peer_department,
         status: "active",
-        slug: "research-manager"
+        slug: "research-manager",
+        tools_config: %{allowed_tools: ["lemming.call"]}
       )
 
     peer_worker =
@@ -124,6 +126,58 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     refute Enum.any?(targets, &(&1.slug == "research-worker"))
 
     assert LemmingCalls.available_targets(worker_instance) == []
+  end
+
+  test "S01b: lemming.call is default-deny for target visibility and requests", %{
+    world: world,
+    city: city,
+    department: department
+  } do
+    manager =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active",
+        slug: "limited-manager"
+      )
+
+    {:ok, manager_instance} = LemmingInstances.spawn_instance(manager, "Manage limited work")
+
+    assert LemmingCalls.available_targets(manager_instance) == []
+
+    log =
+      capture_log(fn ->
+        assert {:error, :target_not_available} =
+                 LemmingCalls.request_call(
+                   manager_instance,
+                   %{target: "ops-worker", request: "Draft the incident notes"},
+                   runtime_mod: FakeRuntime
+                 )
+      end)
+
+    assert log =~ "lemming call request failed"
+    assert log =~ "reason=target_not_available"
+  end
+
+  test "S01c: denied lemming.call overrides allow list", %{
+    world: world,
+    city: city,
+    department: department
+  } do
+    manager =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active",
+        slug: "denied-manager",
+        tools_config: %{allowed_tools: ["lemming.call"], denied_tools: ["lemming.call"]}
+      )
+
+    {:ok, manager_instance} = LemmingInstances.spawn_instance(manager, "Manage denied work")
+
+    assert LemmingCalls.available_targets(manager_instance) == []
   end
 
   test "S02: request_call creates a running child call through runtime boundary", %{
@@ -287,6 +341,48 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
            )
 
     detach(recovered_ref)
+  end
+
+  test "S05b: completed call with expired child cannot create successor", %{
+    manager_instance: manager_instance
+  } do
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "First pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    {:ok, _completed_call} = LemmingCalls.update_call_status(call, "completed")
+    {:ok, _expired_instance} = LemmingInstances.update_status(child_instance, "expired", %{})
+
+    log =
+      capture_log(fn ->
+        assert {:error, :call_terminal} =
+                 LemmingCalls.request_call(
+                   manager_instance,
+                   %{
+                     target: "ops-worker",
+                     request: "Continue after terminal expiry",
+                     continue_call_id: call.id
+                   },
+                   runtime_mod: FakeRuntime
+                 )
+      end)
+
+    assert log =~ "lemming call request failed"
+    assert log =~ "reason=call_terminal"
+
+    assert [persisted_call] =
+             LemmingCalls.list_calls(manager_instance.world_id,
+               caller_instance_id: manager_instance.id
+             )
+
+    assert persisted_call.id == call.id
+    assert persisted_call.status == "completed"
   end
 
   test "S06: direct child input updates parent call record", %{manager_instance: manager_instance} do
