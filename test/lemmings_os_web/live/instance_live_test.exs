@@ -1260,6 +1260,84 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     GenServer.stop(pid)
   end
 
+  test "S12e: raw context view renders delegation state for waiting manager", %{conn: conn} do
+    unique = System.unique_integer([:positive])
+    world = insert(:world, name: "Ops World #{unique}", slug: "ops-world-#{unique}")
+    city = insert(:city, world: world, status: "active")
+    department = insert(:department, world: world, city: city)
+
+    manager =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active",
+        name: "Manager Trace #{unique}"
+      )
+
+    worker_department = insert(:department, world: world, city: city)
+
+    worker =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: worker_department,
+        status: "active",
+        name: "Worker Trace #{unique}"
+      )
+
+    {:ok, manager_instance} = LemmingInstances.spawn_instance(manager, "Delegate investigation")
+    {:ok, worker_instance} = LemmingInstances.spawn_instance(worker, "Investigate outage")
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Repo.insert!(%LemmingCall{
+      world_id: world.id,
+      city_id: city.id,
+      caller_department_id: department.id,
+      callee_department_id: worker_department.id,
+      caller_lemming_id: manager.id,
+      callee_lemming_id: worker.id,
+      caller_instance_id: manager_instance.id,
+      callee_instance_id: worker_instance.id,
+      request_text: "Investigate outage",
+      status: "running",
+      started_at: now
+    })
+
+    assert {:ok, _state} =
+             EtsStore.put(manager_instance.id, %{
+               department_id: manager_instance.department_id,
+               queue: :queue.new(),
+               current_item: %{id: "msg-current", content: "Delegate investigation"},
+               retry_count: 0,
+               tool_iteration_count: 0,
+               max_retries: 3,
+               context_messages: [
+                 %{role: "user", content: "Delegate investigation"},
+                 %{
+                   role: "assistant",
+                   content:
+                     "Assistant requested lemming_call with arguments: {\"target\":\"worker-trace\",\"request\":\"Investigate outage\"}"
+                 }
+               ],
+               last_error: nil,
+               internal_error_details: nil,
+               status: :idle,
+               started_at: now,
+               last_activity_at: now
+             })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{manager_instance.id}/raw?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-raw-delegation-state", "Delegation state")
+    assert has_element?(view, "#instance-raw-delegation-state", "running")
+    assert has_element?(view, "#instance-raw-delegation-state", "no")
+    assert has_element?(view, "#instance-raw-delegation-state", "idle waiting on child")
+    assert has_element?(view, "#instance-raw-delegation-state", worker_instance.id)
+  end
+
   defp spawn_runtime_session do
     unique = System.unique_integer([:positive])
     world = insert(:world, name: "Ops World #{unique}", slug: "ops-world-#{unique}")

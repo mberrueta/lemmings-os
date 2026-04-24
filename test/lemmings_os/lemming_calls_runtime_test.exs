@@ -14,6 +14,16 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     end
   end
 
+  defmodule CapturingRuntime do
+    def spawn_session(lemming, request_text, opts) do
+      if test_pid = Keyword.get(opts, :test_pid) do
+        send(test_pid, {:spawned_child_request, request_text})
+      end
+
+      LemmingInstances.spawn_instance(lemming, request_text)
+    end
+  end
+
   defmodule FakeExecutor do
     def enqueue_work(pid, request_text) do
       send(pid, {:child_enqueue, request_text})
@@ -161,6 +171,32 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
 
     detach(created_ref)
     detach(started_ref)
+  end
+
+  test "S02b: request_call includes referenced caller artifact content for child handoff", %{
+    manager_instance: manager_instance
+  } do
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(manager_instance, "proposal.md")
+
+    File.write!(absolute_path, "# Existing Proposal\n\nOriginal body.\n")
+
+    assert {:ok, _call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "Improve proposal.md for enterprise buyers"},
+               runtime_mod: CapturingRuntime,
+               runtime_opts: [test_pid: self()]
+             )
+
+    assert_receive {:spawned_child_request, child_request}
+    assert child_request =~ "Improve proposal.md for enterprise buyers"
+    assert child_request =~ "Delegation Artifact Context:"
+    assert child_request =~ "Artifact: proposal.md"
+    assert child_request =~ "# Existing Proposal"
+
+    assert child_request =~
+             "Do not call fs.read_text_file for these paths unless runtime later provides them inside your own workspace."
   end
 
   test "S03: workers cannot request lemming calls", %{worker_instance: worker_instance} do

@@ -4,6 +4,8 @@ defmodule LemmingsOs.ModelRuntimeTest do
   alias LemmingsOs.ModelRuntime
   alias LemmingsOs.ModelRuntime.Response
 
+  doctest LemmingsOs.ModelRuntime
+
   defmodule FakeProvider do
     @behaviour LemmingsOs.ModelRuntime.Provider
 
@@ -81,6 +83,45 @@ defmodule LemmingsOs.ModelRuntimeTest do
     end
   end
 
+  defmodule LegacyLemmingCallProvider do
+    @behaviour LemmingsOs.ModelRuntime.Provider
+
+    @impl true
+    def chat(request, _opts) do
+      {:ok,
+       %{
+         content:
+           ~s(Assistant requested lemming_call with arguments: {"target":"researcher","request":"Find three risks","continue_call_id":null}),
+         provider: "fake",
+         model: request.model,
+         raw: request
+       }}
+    end
+  end
+
+  defmodule FallbackSequenceProvider do
+    @behaviour LemmingsOs.ModelRuntime.Provider
+
+    @impl true
+    def chat(request, _opts) do
+      send(self(), {:provider_request, request.model})
+
+      case request.model do
+        "primary-model" ->
+          {:ok, %{content: "", provider: "fake", model: request.model, raw: request}}
+
+        "fallback-model" ->
+          {:ok,
+           %{
+             content: ~s({"action":"reply","reply":"rescued by fallback"}),
+             provider: "fake",
+             model: request.model,
+             raw: request
+           }}
+      end
+    end
+  end
+
   test "S01: run/3 assembles the prompt and validates the reply" do
     config_snapshot = %{
       name: "Budget Brief",
@@ -114,10 +155,31 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert String.contains?(system_prompt, "fs.write_text_file")
     assert String.contains?(system_prompt, "Loop State Semantics:")
     assert String.contains?(system_prompt, "Assistant requested tool <tool_name> with arguments:")
+    assert String.contains?(system_prompt, "Assistant requested lemming_call with arguments:")
 
     assert String.contains?(
              system_prompt,
              "Tool result for <tool_name>: status=<status> payload=<json>"
+           )
+
+    assert String.contains?(
+             system_prompt,
+             "Lemming call result: status=<status> payload=<json>"
+           )
+
+    assert String.contains?(
+             system_prompt,
+             "Treat those assistant-context messages as prior execution history, not as new user requests."
+           )
+
+    assert String.contains?(
+             system_prompt,
+             "When a completed child payload includes `result_summary`, treat it as usable delegated result history."
+           )
+
+    assert String.contains?(
+             system_prompt,
+             "Do not invent file paths, output files, or artifacts unless runtime payload explicitly mentions them."
            )
 
     assert String.contains?(system_prompt, "Immediate Response Instruction:")
@@ -125,6 +187,11 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert String.contains?(
              system_prompt,
              "Return exactly one JSON object matching the output contract below."
+           )
+
+    assert String.contains?(
+             system_prompt,
+             "If the latest completed lemming call result already satisfies the user request, return a final `reply` or one next bounded `lemming_call`."
            )
 
     assert String.contains?(system_prompt, "IMPORTANT: RESPOND WITH JSON ONLY.")
@@ -136,6 +203,11 @@ defmodule LemmingsOs.ModelRuntimeTest do
 
     assert String.contains?(system_prompt, "Option A: final reply to the user.")
     assert String.contains?(system_prompt, "Option B: one tool call for the runtime to execute.")
+
+    assert String.contains?(
+             system_prompt,
+             "Option C: one lemming call for the runtime to execute within listed boundaries."
+           )
 
     assert String.contains?(
              system_prompt,
@@ -225,6 +297,56 @@ defmodule LemmingsOs.ModelRuntimeTest do
   test "S04: exposes the structured output contract and runtime rules" do
     assert String.contains?(ModelRuntime.structured_output_contract(), "\"action\":\"reply\"")
     assert String.contains?(ModelRuntime.runtime_rules(), "Return valid JSON only")
+  end
+
+  test "S04a: run/3 accepts legacy lemming_call text output" do
+    config_snapshot = %{
+      provider_module: LegacyLemmingCallProvider,
+      model: "test-model",
+      lemming_call_targets: [
+        %{
+          slug: "researcher",
+          capability: "ops/researcher",
+          role: "worker",
+          department_slug: "ops",
+          description: "Research bounded tasks"
+        }
+      ]
+    }
+
+    assert {:ok, %Response{} = response} =
+             ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+
+    assert response.action == :lemming_call
+    assert response.lemming_target == "researcher"
+    assert response.lemming_request == "Find three risks"
+  end
+
+  test "S04b: run/3 retries configured fallback models after invalid provider output" do
+    config_snapshot = %{
+      provider_module: FallbackSequenceProvider,
+      models_config: %{
+        profiles: %{
+          default: %{
+            provider: "ollama",
+            model: "primary-model",
+            fallbacks: [
+              %{provider: "ollama", model: "fallback-model"}
+            ]
+          }
+        }
+      }
+    }
+
+    assert {:ok, %Response{} = response} =
+             ModelRuntime.run(config_snapshot, [], %{content: "Hello"})
+
+    assert response.action == :reply
+    assert response.reply == "rescued by fallback"
+    assert response.model == "fallback-model"
+
+    assert_receive {:provider_request, "primary-model"}
+    assert_receive {:provider_request, "fallback-model"}
   end
 
   test "S05: Response.new/1 builds a runtime response struct" do

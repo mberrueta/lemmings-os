@@ -110,6 +110,22 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshot do
 
   def resource_key(_config_snapshot), do: nil
 
+  @doc """
+  Returns the active model selection followed by configured fallback selections.
+
+  Fallbacks are read from the active profile when available, or from the
+  selected default/sorted profile otherwise. Duplicate `provider:model`
+  combinations are removed while preserving order.
+  """
+  @spec model_candidates(map()) :: [model_selection()]
+  def model_candidates(config_snapshot) when is_map(config_snapshot) do
+    [selection(config_snapshot) | fallback_selections(config_snapshot)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1.resource_key)
+  end
+
+  def model_candidates(_config_snapshot), do: []
+
   defp explicit_selection(config_snapshot) do
     resource_key =
       direct_field(config_snapshot, :resource_key) ||
@@ -167,6 +183,48 @@ defmodule LemmingsOs.LemmingInstances.ConfigSnapshot do
   end
 
   defp profile_selection_value(_profile), do: nil
+
+  defp fallback_selections(config_snapshot) do
+    case fallback_profile(config_snapshot) do
+      {_profile_name, %{} = profile} ->
+        profile
+        |> profile_fallbacks()
+        |> Enum.map(&fallback_selection(&1))
+        |> Enum.reject(&is_nil/1)
+
+      _other ->
+        []
+    end
+  end
+
+  defp fallback_profile(config_snapshot) do
+    profiles = snapshot_profiles(config_snapshot)
+
+    profile_name =
+      nested_field(config_snapshot, [:model_runtime, :profile]) ||
+        direct_field(config_snapshot, :profile)
+
+    profile_by_name(profiles, profile_name) || selected_profile(profiles)
+  end
+
+  defp profile_by_name(profiles, profile_name) when is_binary(profile_name) do
+    Enum.find(profiles, fn {name, _profile} -> to_string(name) == profile_name end)
+  end
+
+  defp profile_by_name(_profiles, _profile_name), do: nil
+
+  defp profile_fallbacks(%{} = profile) do
+    Map.get(profile, :fallbacks) || Map.get(profile, "fallbacks") || []
+  end
+
+  defp fallback_selection(%{} = fallback) do
+    provider = Map.get(fallback, :provider) || Map.get(fallback, "provider")
+    model = Map.get(fallback, :model) || Map.get(fallback, "model")
+
+    build_selection(provider, model, nil, nil)
+  end
+
+  defp fallback_selection(_fallback), do: nil
 
   defp build_selection(provider, model, _resource_key, profile)
        when is_binary(provider) and is_binary(model) do

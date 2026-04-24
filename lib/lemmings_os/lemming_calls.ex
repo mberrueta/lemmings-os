@@ -21,6 +21,8 @@ defmodule LemmingsOs.LemmingCalls do
   alias LemmingsOs.Worlds.World
 
   @terminal_statuses ~w(completed failed)
+  @delegation_max_artifacts 2
+  @delegation_artifact_char_limit 12_000
 
   @create_fields ~w(
     world_id
@@ -465,7 +467,8 @@ defmodule LemmingsOs.LemmingCalls do
   defp start_new_call(caller_instance, target, request_text, opts) do
     with :ok <- authorize_manager(caller_instance),
          {:ok, callee} <- resolve_target(caller_instance, target),
-         {:ok, callee_instance} <- spawn_child(callee, request_text, opts),
+         child_request_text = child_request_text(caller_instance, request_text),
+         {:ok, callee_instance} <- spawn_child(callee, child_request_text, opts),
          {:ok, call} <-
            create_call(
              %{
@@ -575,7 +578,8 @@ defmodule LemmingsOs.LemmingCalls do
     root_call_id = call.root_call_id || call.id
 
     with {:ok, callee} <- successor_callee(caller_instance, callee_instance, target),
-         {:ok, successor_instance} <- spawn_child(callee, request_text, opts),
+         child_request_text = child_request_text(caller_instance, request_text),
+         {:ok, successor_instance} <- spawn_child(callee, child_request_text, opts),
          {:ok, successor_call} <-
            create_call(
              %{
@@ -597,15 +601,18 @@ defmodule LemmingsOs.LemmingCalls do
   end
 
   defp continue_existing_or_successor(
-         _caller_instance,
+         caller_instance,
          %LemmingCall{} = call,
          %LemmingInstance{} = callee_instance,
          _target,
          request_text,
          opts
        ) do
+    child_request_text = child_request_text(caller_instance, request_text)
+
     with :ok <- ensure_call_continuable(call),
-         {:ok, _instance} <- LemmingInstances.enqueue_work(callee_instance, request_text, opts) do
+         {:ok, _instance} <-
+           LemmingInstances.enqueue_work(callee_instance, child_request_text, opts) do
       update_call_status(call, "running", %{
         result_summary: nil,
         error_summary: nil,
@@ -639,6 +646,77 @@ defmodule LemmingsOs.LemmingCalls do
     do: {:error, :call_terminal}
 
   defp ensure_call_continuable(%LemmingCall{}), do: :ok
+
+  defp child_request_text(%LemmingInstance{} = caller_instance, request_text)
+       when is_binary(request_text) do
+    request_text <> delegation_artifact_context(caller_instance, request_text)
+  end
+
+  defp delegation_artifact_context(%LemmingInstance{} = caller_instance, request_text)
+       when is_binary(request_text) do
+    caller_instance
+    |> referenced_artifact_contexts(request_text)
+    |> case do
+      [] ->
+        ""
+
+      contexts ->
+        [
+          "",
+          "Delegation Artifact Context:",
+          "The following artifact content was copied from the caller workspace.",
+          "These files do not exist in your workspace unless you write them yourself.",
+          "Use this content as source material. Do not call fs.read_text_file for these paths unless runtime later provides them inside your own workspace.",
+          Enum.map_join(contexts, "\n\n", &artifact_context_block/1)
+        ]
+        |> Enum.join("\n")
+    end
+  end
+
+  defp referenced_artifact_contexts(%LemmingInstance{} = caller_instance, request_text) do
+    request_text
+    |> referenced_artifact_paths()
+    |> Enum.take(@delegation_max_artifacts)
+    |> Enum.flat_map(fn path ->
+      case artifact_context(caller_instance, path) do
+        {:ok, context} -> [context]
+        :error -> []
+      end
+    end)
+  end
+
+  defp referenced_artifact_paths(request_text) when is_binary(request_text) do
+    ~r/(?<![A-Za-z0-9_\/.-])([A-Za-z0-9_][A-Za-z0-9_\/.-]*\.[A-Za-z0-9]+)/
+    |> Regex.scan(request_text, capture: :all_but_first)
+    |> Enum.map(&List.first/1)
+    |> Enum.reject(&Helpers.blank?/1)
+    |> Enum.uniq()
+  end
+
+  defp artifact_context(caller_instance, path) when is_binary(path) do
+    with {:ok, %{absolute_path: absolute_path, relative_path: relative_path}} <-
+           LemmingInstances.artifact_absolute_path(caller_instance, path),
+         {:ok, content} <- File.read(absolute_path),
+         true <- String.valid?(content) do
+      {:ok,
+       %{
+         path: relative_path,
+         content: String.slice(content, 0, @delegation_artifact_char_limit)
+       }}
+    else
+      _other -> :error
+    end
+  end
+
+  defp artifact_context_block(%{path: path, content: content}) do
+    [
+      "Artifact: #{path}",
+      "BEGIN ARTIFACT #{path}",
+      content,
+      "END ARTIFACT #{path}"
+    ]
+    |> Enum.join("\n")
+  end
 
   defp update_child_calls(instance, status, attrs) do
     instance

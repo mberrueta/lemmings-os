@@ -520,6 +520,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     snapshot = %{
       instance_id: state.instance_id,
       department_id: state.department_id,
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      lemming_id: instance_lemming_id(state.instance),
       status: state.status,
       queue_depth: :queue.len(state.queue),
       retry_count: state.retry_count,
@@ -527,6 +530,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       tool_iteration_count: state.tool_iteration_count,
       model_step_count: state.model_step_count,
       current_item_id: current_item_id(state.current_item),
+      resource_key:
+        state.current_resource_key || ConfigSnapshot.resource_key(state.config_snapshot),
       current_resource_key: state.current_resource_key,
       model_steps: state.model_steps,
       last_error: state.last_error,
@@ -1314,21 +1319,50 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp append_lemming_call_result_context(state, call) do
-    payload = %{
-      call_id: call.id,
-      status: call.status,
-      callee_instance_id: call.callee_instance_id,
-      root_call_id: call.root_call_id,
-      previous_call_id: call.previous_call_id
-    }
-
     lemming_call_message = %{
       role: "assistant",
-      content:
-        "As response to your previous lemming_call request, the runtime created or updated call #{call.id}. Lemming call result: status=#{call.status} payload=#{Jason.encode!(payload)}. Decide what to do next."
+      content: lemming_call_result_message(call)
     }
 
     %{state | context_messages: state.context_messages ++ [lemming_call_message]}
+  end
+
+  defp lemming_call_result_message(call) do
+    payload = lemming_call_result_payload(call)
+
+    [
+      "As runtime execution history for your previous lemming_call request,",
+      "the runtime is returning delegated outcome now.",
+      "Lemming call result: status=#{call.status} payload=#{Jason.encode!(payload)}.",
+      lemming_call_result_guidance(payload),
+      "Do not guess file paths or read artifacts unless this payload explicitly includes a path or artifact reference.",
+      "Decide what to do next."
+    ]
+    |> Enum.join(" ")
+  end
+
+  defp lemming_call_result_payload(call) do
+    %{}
+    |> maybe_put_lemming_call_result(:call_id, call.id)
+    |> maybe_put_lemming_call_result(:status, call.status)
+    |> maybe_put_lemming_call_result(:callee_instance_id, call.callee_instance_id)
+    |> maybe_put_lemming_call_result(:root_call_id, call.root_call_id)
+    |> maybe_put_lemming_call_result(:previous_call_id, call.previous_call_id)
+    |> maybe_put_lemming_call_result(:result_summary, call.result_summary)
+    |> maybe_put_lemming_call_result(:error_summary, call.error_summary)
+    |> maybe_put_lemming_call_result(:recovery_status, call.recovery_status)
+  end
+
+  defp maybe_put_lemming_call_result(payload, _field, nil), do: payload
+  defp maybe_put_lemming_call_result(payload, field, value), do: Map.put(payload, field, value)
+
+  defp lemming_call_result_guidance(%{status: "completed", result_summary: result_summary})
+       when is_binary(result_summary) and result_summary != "" do
+    "When status=completed, payload.result_summary is child usable result."
+  end
+
+  defp lemming_call_result_guidance(_payload) do
+    "Treat this assistant-context message as prior runtime execution history, not as new user input."
   end
 
   defp append_tool_result_context(state, tool_execution) do
@@ -2168,8 +2202,22 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp persist_status(state, _attrs), do: state
 
+  defp maybe_sync_child_call_terminal(state, "idle") do
+    if pending_child_calls?(state) do
+      state
+    else
+      sync_child_call_terminal(state, "idle")
+    end
+  end
+
   defp maybe_sync_child_call_terminal(state, status)
-       when status in ["idle", "failed", "expired"] do
+       when status in ["failed", "expired"] do
+    sync_child_call_terminal(state, status)
+  end
+
+  defp maybe_sync_child_call_terminal(state, _status), do: state
+
+  defp sync_child_call_terminal(state, status) do
     result_summary =
       case {status, state.context_messages} do
         {"idle", messages} -> last_assistant_content(messages)
@@ -2189,7 +2237,22 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     state
   end
 
-  defp maybe_sync_child_call_terminal(state, _status), do: state
+  defp pending_child_calls?(%{instance: instance, lemming_calls_mod: lemming_calls_mod})
+       when not is_nil(lemming_calls_mod) do
+    if module_loaded_and_exports?(lemming_calls_mod, :list_child_calls, 2) do
+      case lemming_calls_mod.list_child_calls(instance, statuses: pending_child_call_statuses()) do
+        [] -> false
+        [_ | _rest] -> true
+      end
+    else
+      false
+    end
+  end
+
+  defp pending_child_calls?(_state), do: false
+
+  defp pending_child_call_statuses,
+    do: ["accepted", "running", "needs_more_context", "partial_result"]
 
   defp last_assistant_content(messages) do
     messages

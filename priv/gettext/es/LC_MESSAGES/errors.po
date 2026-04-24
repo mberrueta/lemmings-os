@@ -40,77 +40,77 @@ msgstr "El World persistido no tiene bootstrap_path configurado."
 msgid ".bootstrap_input_not_configured_empty_path_detail"
 msgstr "El World persistido tiene bootstrap_path vacio."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:51
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:55
 #, elixir-autogen
 msgid ".shape_invalid_root_type_summary"
 msgstr "La raiz del bootstrap debe ser un mapa"
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:52
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:56
 #, elixir-autogen
 msgid ".shape_invalid_root_type_detail"
 msgstr "El YAML bootstrap parseado debe producir un mapa en la raiz del documento."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:54
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:58
 #, elixir-autogen
 msgid ".shape_invalid_root_type_action_hint"
 msgstr "Asegurate de que la raiz del YAML sea un mapping con las secciones requeridas."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:306
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:420
 #, elixir-autogen
 msgid ".shape_missing_required_section_summary"
 msgstr "Falta la seccion requerida"
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:307
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:421
 #, elixir-autogen
 msgid ".shape_missing_required_section_detail"
 msgstr "La configuracion bootstrap no tiene la seccion requerida `%{path}`."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:309
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:423
 #, elixir-autogen
 msgid ".shape_missing_required_section_action_hint"
 msgstr "Agrega la seccion faltante al YAML bootstrap."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:316
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:430
 #, elixir-autogen
 msgid ".shape_missing_required_value_summary"
 msgstr "Falta el valor requerido"
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:317
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:431
 #, elixir-autogen
 msgid ".shape_missing_required_value_detail"
 msgstr "La configuracion bootstrap no tiene el valor requerido en `%{path}`."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:319
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:433
 #, elixir-autogen
 msgid ".shape_missing_required_value_action_hint"
 msgstr "Agrega el valor requerido al YAML bootstrap."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:326
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:440
 #, elixir-autogen
 msgid ".shape_invalid_value_type_summary"
 msgstr "Tipo de valor invalido"
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:327
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:441
 #, elixir-autogen
 msgid ".shape_invalid_value_type_detail"
 msgstr "El valor en `%{path}` debe ser de tipo %{expected_type}."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:332
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:446
 #, elixir-autogen
 msgid ".shape_invalid_value_type_action_hint"
 msgstr "Corrige el tipo de valor en el YAML bootstrap."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:342
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:456
 #, elixir-autogen
 msgid ".shape_unknown_key_summary"
 msgstr "Clave desconocida"
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:343
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:457
 #, elixir-autogen
 msgid ".shape_unknown_key_detail"
 msgstr "La configuracion bootstrap contiene la clave desconocida `%{path}`."
 
-#: lib/lemmings_os/world_bootstrap/shape_validator.ex:346
+#: lib/lemmings_os/world_bootstrap/shape_validator.ex:460
 #, elixir-autogen
 msgid ".shape_unknown_key_action_hint"
 msgstr "Elimina la clave o extiende el validador bootstrap si es intencional."
@@ -296,7 +296,7 @@ msgstr ""
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:89
 #: lib/lemmings_os/lemming_instances/message.ex:61
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:83
-#: lib/lemmings_os_web/live/instance_live.ex:574
+#: lib/lemmings_os_web/live/instance_live.ex:617
 #, elixir-autogen, elixir-format
 msgid ".required"
 msgstr ""

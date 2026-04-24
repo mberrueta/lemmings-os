@@ -17,6 +17,7 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
   require Logger
 
   alias LemmingsOs.LemmingInstances.ConfigSnapshot
+  alias LemmingsOs.LemmingInstances.Executor
   @default_pubsub_mod Phoenix.PubSub
   @default_pubsub_name LemmingsOs.PubSub
   @default_context_mod LemmingsOs.LemmingInstances
@@ -276,20 +277,87 @@ defmodule LemmingsOs.LemmingInstances.DepartmentScheduler do
     end
   end
 
-  defp fetch_candidates(%{ets_mod: ets_mod, department_id: department_id})
+  defp fetch_candidates(%{ets_mod: ets_mod, department_id: department_id} = state)
        when is_atom(ets_mod) and is_binary(department_id) do
-    if function_exported?(ets_mod, :list_by_status, 2) do
-      case ets_mod.list_by_status(:queued, department_id) do
-        {:ok, entries} when is_list(entries) -> normalize_candidates(entries)
-        entries when is_list(entries) -> normalize_candidates(entries)
-        _ -> []
+    ets_candidates =
+      if function_exported?(ets_mod, :list_by_status, 2) do
+        case ets_mod.list_by_status(:queued, department_id) do
+          {:ok, entries} when is_list(entries) -> normalize_candidates(entries)
+          entries when is_list(entries) -> normalize_candidates(entries)
+          _ -> []
+        end
+      else
+        []
       end
-    else
-      []
-    end
+
+    fallback_candidates = executor_fallback_candidates(state, ets_candidates)
+
+    ets_candidates ++ fallback_candidates
   end
 
   defp fetch_candidates(_state), do: []
+
+  defp executor_fallback_candidates(state, ets_candidates) do
+    queued_instance_ids = MapSet.new(Enum.map(ets_candidates, & &1.instance_id))
+
+    Registry.select(LemmingsOs.LemmingInstances.ExecutorRegistry, [
+      {{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}
+    ])
+    |> Enum.reject(fn {instance_id, _pid} -> MapSet.member?(queued_instance_ids, instance_id) end)
+    |> Enum.map(fn {instance_id, pid} -> fallback_executor_candidate(instance_id, pid, state) end)
+    |> Enum.reject(fn
+      nil -> true
+      _candidate -> false
+    end)
+  rescue
+    _ -> []
+  end
+
+  defp fallback_executor_candidate(instance_id, pid, state)
+       when is_binary(instance_id) and is_pid(pid) do
+    case safe_executor_snapshot(pid) do
+      %{
+        instance_id: ^instance_id,
+        department_id: department_id,
+        status: "queued",
+        queue_depth: queue_depth,
+        current_item_id: nil
+      } = snapshot
+      when department_id == state.department_id and queue_depth > 0 ->
+        %{
+          instance_id: instance_id,
+          department_id: department_id,
+          world_id: Map.get(snapshot, :world_id),
+          city_id: Map.get(snapshot, :city_id),
+          lemming_id: Map.get(snapshot, :lemming_id),
+          queue: :queue.new(),
+          work_item: fallback_work_item(snapshot),
+          current_item: nil,
+          config_snapshot: nil,
+          resource_key: Map.get(snapshot, :resource_key)
+        }
+
+      _other ->
+        nil
+    end
+  end
+
+  defp fallback_executor_candidate(_instance_id, _pid, _state), do: nil
+
+  defp fallback_work_item(snapshot) do
+    %{
+      id: Map.get(snapshot, :current_item_id) || "queued-work",
+      inserted_at: Map.get(snapshot, :last_activity_at) || Map.get(snapshot, :started_at)
+    }
+  end
+
+  defp safe_executor_snapshot(pid) when is_pid(pid) do
+    Executor.snapshot(pid)
+  rescue
+    _ -> %{}
+  catch
+    :exit, _reason -> %{}
+  end
 
   defp normalize_candidates(entries) do
     entries

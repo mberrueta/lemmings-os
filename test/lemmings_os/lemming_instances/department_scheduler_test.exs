@@ -8,6 +8,26 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
   alias LemmingsOs.LemmingInstances.ResourcePool
   alias LemmingsOs.LemmingInstances.RuntimeTableOwner
 
+  doctest LemmingsOs.LemmingInstances.DepartmentScheduler
+
+  defmodule FakeExecutor do
+    use GenServer
+
+    def start_link(opts) do
+      GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
+    end
+
+    @impl true
+    def init(opts) do
+      {:ok, %{snapshot: Keyword.get(opts, :snapshot, %{})}}
+    end
+
+    @impl true
+    def handle_call(:snapshot, _from, state) do
+      {:reply, state.snapshot, state}
+    end
+  end
+
   setup do
     start_supervised!(RuntimeTableOwner)
     :ok = EtsStore.init_table()
@@ -44,7 +64,11 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
     resource_key = "ollama:test"
     executor_name = Executor.via_name(instance_id)
 
-    {:ok, executor_pid} = Agent.start_link(fn -> nil end, name: executor_name)
+    {:ok, executor_pid} =
+      FakeExecutor.start_link(
+        name: executor_name,
+        snapshot: %{instance_id: instance_id, department_id: department_id, status: "idle"}
+      )
 
     {:ok, _pool_pid} =
       start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
@@ -111,7 +135,11 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
     resource_key = "ollama:auto"
     executor_name = Executor.via_name(instance_id)
 
-    {:ok, executor_pid} = Agent.start_link(fn -> nil end, name: executor_name)
+    {:ok, executor_pid} =
+      FakeExecutor.start_link(
+        name: executor_name,
+        snapshot: %{instance_id: instance_id, department_id: department_id, status: "idle"}
+      )
 
     {:ok, _pool_pid} =
       start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
@@ -156,6 +184,61 @@ defmodule LemmingsOs.LemmingInstances.DepartmentSchedulerTest do
       )
 
     assert :ok = PubSub.broadcast_work_available(department_id)
+
+    assert_receive {:scheduler_admit,
+                    %{
+                      department_id: ^department_id,
+                      instance_id: ^instance_id,
+                      resource_key: ^resource_key
+                    }}
+
+    GenServer.stop(pid)
+    GenServer.stop(executor_pid)
+  end
+
+  test "S05: admit_next falls back to queued executor snapshots when ETS entry is missing" do
+    department_id = "dept-fallback"
+    instance_id = "instance-fallback"
+    resource_key = "ollama:fallback"
+    executor_name = Executor.via_name(instance_id)
+
+    {:ok, executor_pid} =
+      FakeExecutor.start_link(
+        name: executor_name,
+        snapshot: %{
+          instance_id: instance_id,
+          department_id: department_id,
+          world_id: Ecto.UUID.generate(),
+          city_id: Ecto.UUID.generate(),
+          lemming_id: Ecto.UUID.generate(),
+          status: "queued",
+          queue_depth: 1,
+          current_item_id: nil,
+          resource_key: resource_key,
+          started_at: ~U[2024-01-01 00:00:00Z],
+          last_activity_at: ~U[2024-01-01 00:00:01Z]
+        }
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert [] == EtsStore.list_by_status(:queued, department_id)
+
+    assert :ok = PubSub.subscribe_scheduler(department_id)
+
+    {:ok, pid} =
+      DepartmentScheduler.start_link(
+        department_id: department_id,
+        admission_mode: :manual,
+        ets_mod: EtsStore,
+        pool_mod: ResourcePool,
+        context_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        name: nil
+      )
+
+    assert :ok = DepartmentScheduler.admit_next(pid)
 
     assert_receive {:scheduler_admit,
                     %{
