@@ -168,12 +168,12 @@ defmodule LemmingsOsWeb.PageData.InstanceDelegationSnapshot do
 
   defp ui_state(%LemmingCall{status: "completed"}, _successor_call_id), do: "completed"
 
-  defp ui_state(%LemmingCall{status: "failed", recovery_status: "expired"}, _successor_call_id),
-    do: "dead"
-
   defp ui_state(%LemmingCall{status: "failed"}, successor_call_id)
        when is_binary(successor_call_id),
        do: "retrying"
+
+  defp ui_state(%LemmingCall{status: "failed", recovery_status: "expired"}, _successor_call_id),
+    do: "dead"
 
   defp ui_state(%LemmingCall{status: "failed"}, _successor_call_id), do: "failed"
   defp ui_state(%LemmingCall{}, _successor_call_id), do: "queued"

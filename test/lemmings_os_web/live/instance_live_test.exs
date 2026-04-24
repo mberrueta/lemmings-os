@@ -1483,7 +1483,8 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
         manager_instance,
         worker_department,
         "retry-source",
-        "failed"
+        "failed",
+        recovery_status: "expired"
       )
 
     _retry_successor =

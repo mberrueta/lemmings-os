@@ -17,7 +17,6 @@ defmodule LemmingsOsWeb.Router do
   # Health probe — no pipeline, no session, no DB. Used by Docker and load balancers.
   scope "/", LemmingsOsWeb do
     get "/healthz", HealthController, :check
-    get "/lemmings/instances/:id/raw.md", InstanceRawSnapshotController, :show
   end
 
   scope "/", LemmingsOsWeb do
@@ -32,6 +31,7 @@ defmodule LemmingsOsWeb.Router do
     live "/lemmings", LemmingsLive, :index
     live "/lemmings/:id", LemmingsLive, :show
     get "/lemmings/instances/:id/artifacts/*path", InstanceArtifactController, :show
+    get "/lemmings/instances/:id/raw.md", InstanceRawSnapshotController, :show
     live "/lemmings/instances/:id/raw", InstanceRawLive, :show
     live "/lemmings/instances/:id", InstanceLive, :show
     live "/tools", ToolsLive, :index

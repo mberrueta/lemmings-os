@@ -119,6 +119,7 @@ defmodule LemmingsOs.LemmingCalls do
          {:ok, caller_instance} <- get_instance_for_call(caller_instance_id, world_id),
          {:ok, callee_instance} <- get_instance_for_call(callee_instance_id, world_id),
          :ok <- validate_same_city(caller_instance, callee_instance),
+         :ok <- validate_call_relation(caller_instance, callee_instance),
          :ok <- validate_successor_world(attrs, world_id) do
       attrs
       |> normalize_create_attrs(world_id, caller_instance, callee_instance)
@@ -343,8 +344,13 @@ defmodule LemmingsOs.LemmingCalls do
   @spec sync_child_instance_terminal(LemmingInstance.t(), String.t(), map()) :: :ok
   def sync_child_instance_terminal(%LemmingInstance{} = instance, "idle", attrs)
       when is_map(attrs) do
-    update_child_calls(instance, "completed", %{
-      result_summary: Map.get(attrs, :result_summary),
+    {call_status, result_summary} =
+      attrs
+      |> Map.get(:result_summary)
+      |> classified_child_result()
+
+    update_child_calls(instance, call_status, %{
+      result_summary: result_summary,
       completed_at: Map.get(attrs, :completed_at) || now()
     })
   end
@@ -550,8 +556,8 @@ defmodule LemmingsOs.LemmingCalls do
          {:ok, call_id} <- cast_uuid(call_id),
          {:ok, call} <- get_call(call_id, world_id: caller_instance.world_id),
          :ok <- validate_caller_owns_call(caller_instance, call),
-         :ok <- ensure_call_continuable(call),
-         {:ok, callee_instance} <- get_call_callee_instance(call) do
+         {:ok, callee_instance} <- get_call_callee_instance(call),
+         :ok <- ensure_call_continuable(call, callee_instance) do
       continue_existing_or_successor(
         caller_instance,
         call,
@@ -637,6 +643,7 @@ defmodule LemmingsOs.LemmingCalls do
     root_call_id = call.root_call_id || call.id
 
     with {:ok, callee} <- successor_callee(caller_instance, callee_instance, target),
+         :ok <- authorize_target(caller_instance, %{callee_instance | lemming: callee}),
          child_request_text = child_request_text(caller_instance, request_text),
          {:ok, successor_instance} <- spawn_child(callee, child_request_text, opts) do
       attrs = %{root_call_id: root_call_id, previous_call_id: call.id}
@@ -778,10 +785,17 @@ defmodule LemmingsOs.LemmingCalls do
     end
   end
 
-  defp ensure_call_continuable(%LemmingCall{status: status}) when status in @terminal_statuses,
-    do: {:error, :call_terminal}
+  defp ensure_call_continuable(
+         %LemmingCall{status: "failed", recovery_status: "expired"},
+         %LemmingInstance{status: "expired"}
+       ),
+       do: :ok
 
-  defp ensure_call_continuable(%LemmingCall{}), do: :ok
+  defp ensure_call_continuable(%LemmingCall{status: status}, _callee_instance)
+       when status in @terminal_statuses,
+       do: {:error, :call_terminal}
+
+  defp ensure_call_continuable(%LemmingCall{}, _callee_instance), do: :ok
 
   defp child_request_text(%LemmingInstance{} = caller_instance, request_text)
        when is_binary(request_text) do
@@ -854,12 +868,43 @@ defmodule LemmingsOs.LemmingCalls do
     |> Enum.join("\n")
   end
 
+  defp classified_child_result(result_summary) when is_binary(result_summary) do
+    trimmed = String.trim(result_summary)
+    downcased = String.downcase(trimmed)
+
+    cond do
+      String.starts_with?(downcased, "needs_more_context:") ->
+        {"needs_more_context", trim_status_marker(trimmed, "needs_more_context:")}
+
+      String.starts_with?(downcased, "[needs_more_context]") ->
+        {"needs_more_context", trim_status_marker(trimmed, "[needs_more_context]")}
+
+      String.starts_with?(downcased, "partial_result:") ->
+        {"partial_result", trim_status_marker(trimmed, "partial_result:")}
+
+      String.starts_with?(downcased, "[partial_result]") ->
+        {"partial_result", trim_status_marker(trimmed, "[partial_result]")}
+
+      true ->
+        {"completed", result_summary}
+    end
+  end
+
+  defp classified_child_result(result_summary), do: {"completed", result_summary}
+
+  defp trim_status_marker(value, marker) do
+    value
+    |> String.slice(String.length(marker)..-1//1)
+    |> String.trim()
+  end
+
   defp update_child_calls(instance, status, attrs) do
     instance
     |> list_child_calls(statuses: ["accepted", "running", "needs_more_context", "partial_result"])
     |> Enum.each(fn call ->
       case update_call_status(call, status, attrs) do
-        {:ok, updated_call} when status in ["completed", "failed"] ->
+        {:ok, updated_call}
+        when status in ["needs_more_context", "partial_result", "completed", "failed"] ->
           resume_caller_instance(updated_call)
 
         {:ok, _updated_call} ->
@@ -1009,6 +1054,28 @@ defmodule LemmingsOs.LemmingCalls do
        do: :ok
 
   defp validate_same_city(%LemmingInstance{}, %LemmingInstance{}), do: {:error, :cross_city_call}
+
+  defp validate_call_relation(caller_instance, callee_instance) do
+    with {:ok, caller} <- scoped_lemming(caller_instance),
+         {:ok, callee} <- scoped_lemming(callee_instance),
+         true <- manager?(caller),
+         true <- call_relation_allowed?(caller_instance, callee) do
+      :ok
+    else
+      false -> {:error, :lemming_call_not_allowed}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp scoped_lemming(%LemmingInstance{lemming_id: lemming_id, world_id: world_id})
+       when is_binary(lemming_id) and is_binary(world_id) do
+    case Repo.get_by(Lemming, id: lemming_id, world_id: world_id) do
+      %Lemming{} = lemming -> {:ok, lemming}
+      nil -> {:error, :target_not_available}
+    end
+  end
+
+  defp scoped_lemming(_instance), do: {:error, :target_not_available}
 
   defp validate_successor_world(attrs, world_id) do
     call_attrs = Helpers.take_existing(attrs, [:root_call_id, :previous_call_id])

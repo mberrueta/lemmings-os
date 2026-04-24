@@ -157,6 +157,14 @@ defmodule LemmingsOsWeb.InstanceRawSnapshotControllerTest do
     GenServer.stop(pid)
   end
 
+  test "requires explicit world scope", %{conn: conn} do
+    %{instance: instance} = spawn_runtime_session()
+
+    conn = get(conn, ~p"/lemmings/instances/#{instance.id}/raw.md")
+
+    assert response(conn, 404) == "World not found"
+  end
+
   defp spawn_runtime_session do
     unique = System.unique_integer([:positive])
     world = insert(:world, name: "Ops World #{unique}", slug: "ops-world-#{unique}")

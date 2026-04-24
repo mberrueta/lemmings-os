@@ -133,11 +133,13 @@ defmodule LemmingsOsWeb.Telemetry do
     call_measurements = runtime_lemming_call_measurements()
 
     :telemetry.execute([:lemmings_os, :runtime, :instances], measurements, %{
-      source: :poller
+      source: :poller,
+      scope: :global
     })
 
     :telemetry.execute([:lemmings_os, :runtime, :lemming_calls], call_measurements, %{
-      source: :poller
+      source: :poller,
+      scope: :global
     })
   end
 

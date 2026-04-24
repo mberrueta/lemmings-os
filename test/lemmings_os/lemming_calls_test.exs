@@ -233,17 +233,17 @@ defmodule LemmingsOs.LemmingCallsTest do
       world: world,
       other_world: other_world,
       manager: manager,
-      worker: worker,
+      peer_manager: peer_manager,
       manager_instance: manager_instance,
-      worker_instance: worker_instance,
+      peer_manager_instance: peer_manager_instance,
       caller_department: caller_department,
-      callee_department: callee_department
+      peer_department: peer_department
     } do
       assert {:ok, call} =
                LemmingCalls.create_call(
                  %{
                    "caller_instance_id" => manager_instance.id,
-                   "callee_instance_id" => worker_instance.id,
+                   "callee_instance_id" => peer_manager_instance.id,
                    "request_text" => "Coordinate the incident write-up",
                    "world_id" => other_world.world.id,
                    "city_id" => other_world.city.id,
@@ -258,11 +258,11 @@ defmodule LemmingsOs.LemmingCallsTest do
       assert call.world_id == world.world.id
       assert call.city_id == world.city.id
       assert call.caller_department_id == caller_department.id
-      assert call.callee_department_id == callee_department.id
+      assert call.callee_department_id == peer_department.id
       assert call.caller_lemming_id == manager.id
-      assert call.callee_lemming_id == worker.id
+      assert call.callee_lemming_id == peer_manager.id
       assert call.caller_instance_id == manager_instance.id
-      assert call.callee_instance_id == worker_instance.id
+      assert call.callee_instance_id == peer_manager_instance.id
       assert call.request_text == "Coordinate the incident write-up"
       assert call.status == "accepted"
     end
@@ -271,22 +271,22 @@ defmodule LemmingsOs.LemmingCallsTest do
          %{
            world: world,
            manager: manager,
-           worker: worker,
+           peer_manager: peer_manager,
            manager_instance: manager_instance,
-           worker_instance: worker_instance,
+           peer_manager_instance: peer_manager_instance,
            caller_department: caller_department,
-           callee_department: callee_department
+           peer_department: peer_department
          } do
       root_call =
         insert(:lemming_call,
           world: world.world,
           city: world.city,
           caller_department: caller_department,
-          callee_department: callee_department,
+          callee_department: peer_department,
           caller_lemming: manager,
-          callee_lemming: worker,
+          callee_lemming: peer_manager,
           caller_instance: manager_instance,
-          callee_instance: worker_instance,
+          callee_instance: peer_manager_instance,
           status: "completed"
         )
 
@@ -294,7 +294,7 @@ defmodule LemmingsOs.LemmingCallsTest do
                LemmingCalls.create_call(
                  %{
                    caller_instance_id: manager_instance.id,
-                   callee_instance_id: worker_instance.id,
+                   callee_instance_id: peer_manager_instance.id,
                    request_text: "Continue from the earlier result",
                    root_call_id: root_call.id,
                    previous_call_id: root_call.id,
@@ -344,14 +344,14 @@ defmodule LemmingsOs.LemmingCallsTest do
     test "S09: rejects successor calls outside world scope", %{
       world: world,
       manager_instance: manager_instance,
-      worker_instance: worker_instance,
+      peer_manager_instance: peer_manager_instance,
       other_world_root_call: other_world_root_call
     } do
       assert {:error, :call_not_found} =
                LemmingCalls.create_call(
                  %{
                    caller_instance_id: manager_instance.id,
-                   callee_instance_id: worker_instance.id,
+                   callee_instance_id: peer_manager_instance.id,
                    request_text: "Continue from foreign successor",
                    root_call_id: other_world_root_call.id,
                    previous_call_id: other_world_root_call.id
@@ -360,10 +360,37 @@ defmodule LemmingsOs.LemmingCallsTest do
                )
     end
 
+    test "S09a: rejects worker callers and cross-department worker callees", %{
+      world: world,
+      manager_instance: manager_instance,
+      worker_instance: worker_instance,
+      peer_worker_instance: peer_worker_instance
+    } do
+      assert {:error, :lemming_call_not_allowed} =
+               LemmingCalls.create_call(
+                 %{
+                   caller_instance_id: worker_instance.id,
+                   callee_instance_id: peer_worker_instance.id,
+                   request_text: "Workers cannot delegate"
+                 },
+                 world_id: world.world.id
+               )
+
+      assert {:error, :lemming_call_not_allowed} =
+               LemmingCalls.create_call(
+                 %{
+                   caller_instance_id: manager_instance.id,
+                   callee_instance_id: worker_instance.id,
+                   request_text: "Managers cannot call cross-department workers directly"
+                 },
+                 world_id: world.world.id
+               )
+    end
+
     test "S10: surfaces changeset errors for invalid persisted attrs", %{
       world: world,
       manager_instance: manager_instance,
-      worker_instance: worker_instance
+      peer_manager_instance: peer_manager_instance
     } do
       changeset =
         capture_log(fn ->
@@ -371,7 +398,7 @@ defmodule LemmingsOs.LemmingCallsTest do
                    LemmingCalls.create_call(
                      %{
                        caller_instance_id: manager_instance.id,
-                       callee_instance_id: worker_instance.id,
+                       callee_instance_id: peer_manager_instance.id,
                        request_text: "   ",
                        status: "accepted"
                      },

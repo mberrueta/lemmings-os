@@ -26,5 +26,5 @@ defmodule LemmingsOsWeb.InstanceRawSnapshotController do
     Worlds.get_world(world_id)
   end
 
-  defp resolve_world(_params), do: Worlds.get_default_world()
+  defp resolve_world(_params), do: nil
 end

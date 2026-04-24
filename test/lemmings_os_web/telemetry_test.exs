@@ -53,6 +53,7 @@ defmodule LemmingsOsWeb.TelemetryTest do
                     metadata}
 
     assert metadata.source == :poller
+    assert metadata.scope == :global
     assert measurements.total >= 3
     assert measurements.created >= 1
     assert measurements.idle >= 1
@@ -63,6 +64,7 @@ defmodule LemmingsOsWeb.TelemetryTest do
                     call_metadata}
 
     assert call_metadata.source == :poller
+    assert call_metadata.scope == :global
     assert call_measurements.total >= 0
     assert is_integer(call_measurements.running)
 

@@ -6,6 +6,7 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
   alias LemmingsOs.LemmingCalls
   alias LemmingsOs.LemmingCalls.PubSub
   alias LemmingsOs.LemmingInstances
+  alias LemmingsOs.Lemmings
   alias LemmingsOs.Runtime.ActivityLog
 
   defmodule FakeRuntime do
@@ -343,6 +344,98 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     detach(recovered_ref)
   end
 
+  test "S05a: failed expired call can create successor call", %{
+    manager_instance: manager_instance
+  } do
+    recovered_ref = attach([:lemmings_os, :runtime, :lemming_call, :recovered])
+
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "First pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    {:ok, expired_instance} = LemmingInstances.update_status(child_instance, "expired", %{})
+
+    capture_log(fn ->
+      assert :ok =
+               LemmingCalls.sync_child_instance_terminal(expired_instance, "expired", %{
+                 error_summary: "Expired before completion"
+               })
+    end)
+
+    assert {:ok, expired_call} =
+             LemmingCalls.get_call(call.id, world_id: manager_instance.world_id)
+
+    assert expired_call.status == "failed"
+    assert expired_call.recovery_status == "expired"
+
+    assert {:ok, successor} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{
+                 target: "ops-worker",
+                 request: "Continue after synced expiry",
+                 continue_call_id: call.id
+               },
+               runtime_mod: FakeRuntime
+             )
+
+    assert successor.id != call.id
+    assert successor.root_call_id == call.id
+    assert successor.previous_call_id == call.id
+    assert successor.status == "running"
+
+    assert_receive {:telemetry_event, [:lemmings_os, :runtime, :lemming_call, :recovered],
+                    %{count: 1}, recovered_metadata}
+
+    assert recovered_metadata.lemming_call_id == successor.id
+    assert recovered_metadata.previous_call_id == call.id
+
+    detach(recovered_ref)
+  end
+
+  test "S05aa: expired continuation honors revoked target availability", %{
+    manager_instance: manager_instance,
+    worker: worker
+  } do
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "First pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    {:ok, expired_instance} = LemmingInstances.update_status(child_instance, "expired", %{})
+
+    capture_log(fn ->
+      assert :ok =
+               LemmingCalls.sync_child_instance_terminal(expired_instance, "expired", %{
+                 error_summary: "Expired before completion"
+               })
+    end)
+
+    assert {:ok, _worker} = Lemmings.update_lemming(worker, %{status: "archived"})
+
+    assert {:error, :lemming_call_not_allowed} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{
+                 target: "ops-worker",
+                 request: "Continue after target revoked",
+                 continue_call_id: call.id
+               },
+               runtime_mod: FakeRuntime
+             )
+  end
+
   test "S05b: completed call with expired child cannot create successor", %{
     manager_instance: manager_instance
   } do
@@ -425,6 +518,62 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
            )
 
     detach(recovery_pending_ref)
+  end
+
+  test "S06a: child terminal markers update partial and needs-more-context states", %{
+    manager_instance: manager_instance
+  } do
+    assert {:ok, partial_call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "First pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, partial_child} =
+      LemmingInstances.get_instance(
+        partial_call.callee_instance_id,
+        world_id: manager_instance.world_id
+      )
+
+    capture_log(fn ->
+      assert :ok =
+               LemmingCalls.sync_child_instance_terminal(partial_child, "idle", %{
+                 result_summary: "PARTIAL_RESULT: Drafted first half; blocked on pricing."
+               })
+    end)
+
+    assert {:ok, updated_partial} =
+             LemmingCalls.get_call(partial_call.id, world_id: manager_instance.world_id)
+
+    assert updated_partial.status == "partial_result"
+    assert updated_partial.result_summary == "Drafted first half; blocked on pricing."
+
+    assert {:ok, context_call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "Second pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, context_child} =
+      LemmingInstances.get_instance(
+        context_call.callee_instance_id,
+        world_id: manager_instance.world_id
+      )
+
+    capture_log(fn ->
+      assert :ok =
+               LemmingCalls.sync_child_instance_terminal(context_child, "idle", %{
+                 result_summary: "[needs_more_context] Need customer segment before continuing."
+               })
+    end)
+
+    assert {:ok, updated_context} =
+             LemmingCalls.get_call(context_call.id, world_id: manager_instance.world_id)
+
+    assert updated_context.status == "needs_more_context"
+    assert updated_context.result_summary == "Need customer segment before continuing."
   end
 
   test "S07: terminal child sync emits call completion, dead, PubSub, and safe logs", %{
