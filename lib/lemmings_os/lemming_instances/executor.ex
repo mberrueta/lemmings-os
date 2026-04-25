@@ -20,6 +20,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances.ConfigSnapshot
+  alias LemmingsOs.LemmingInstances.Executor.Events
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.PubSub
@@ -606,6 +607,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   @impl true
   def handle_info({:model_result, instance_id, model_task_ref, started_at, result}, state) do
     if instance_id == state.instance_id and model_task_ref == state.model_task_ref do
+      _ = Events.emit_model_finished(state, result, started_at)
+
       state =
         state
         |> clear_model_task_tracking()
@@ -621,6 +624,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   @impl true
   def handle_info({:model_timeout, model_task_ref}, state) do
     if model_task_ref == state.model_task_ref do
+      _ = Events.emit_model_finished(state, {:error, :model_timeout}, nil)
+
       state =
         state
         |> terminate_model_task()
@@ -641,11 +646,23 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
       next_state =
         case reason do
-          :normal -> state
-          :killed -> state
-          :shutdown -> handle_model_retry(state, :model_crash)
-          {:shutdown, _details} -> handle_model_retry(state, :model_crash)
-          _ -> handle_model_retry(state, :model_crash)
+          :normal ->
+            state
+
+          :killed ->
+            state
+
+          :shutdown ->
+            _ = Events.emit_model_finished(state, {:error, :model_crash}, nil)
+            handle_model_retry(state, :model_crash)
+
+          {:shutdown, _details} ->
+            _ = Events.emit_model_finished(state, {:error, :model_crash}, nil)
+            handle_model_retry(state, :model_crash)
+
+          _ ->
+            _ = Events.emit_model_finished(state, {:error, :model_crash}, nil)
+            handle_model_retry(state, :model_crash)
         end
 
       {:noreply, next_state}
@@ -692,6 +709,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         |> Map.put(:retry_count, 0)
         |> transition_to("processing")
         |> put_runtime_state()
+
+      _ = Events.emit_queue_dequeued(state, item, :queue.len(queue))
 
       start_execution(state)
     end
@@ -853,6 +872,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
        )
        when is_binary(tool_name) and is_map(tool_args) do
     started_at = state.now_fun.()
+    _ = Events.emit_tool_started(state, tool_name, tool_args)
     state = append_tool_call_context(state, tool_name, tool_args)
 
     with {:ok, tool_execution, state} <-
@@ -1162,6 +1182,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
     case update_tool_execution(state, tool_execution, attrs) do
       {:ok, updated_tool_execution, next_state} ->
+        _ = Events.emit_tool_completed(next_state, updated_tool_execution)
         log_tool_lifecycle(next_state, :completed, updated_tool_execution)
         emit_tool_telemetry(next_state, :completed, updated_tool_execution)
         record_tool_activity(:runtime, next_state, :completed, updated_tool_execution)
@@ -1191,6 +1212,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
     case update_tool_execution(state, tool_execution, attrs) do
       {:ok, updated_tool_execution, next_state} ->
+        _ = Events.emit_tool_failed(next_state, updated_tool_execution)
         log_tool_lifecycle(next_state, :failed, updated_tool_execution)
         emit_tool_telemetry(next_state, :failed, updated_tool_execution)
         record_tool_activity(:error, next_state, :failed, updated_tool_execution)
@@ -1692,6 +1714,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         |> transition_to(next_status)
         |> put_runtime_state()
 
+      _ = Events.emit_queue_enqueued(state, item, :queue.len(queue))
+
       {state, next_status == "queued"}
     end
   end
@@ -1702,6 +1726,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp start_model_step(state) do
     started_at = state.now_fun.()
     step_index = state.model_step_count + 1
+    _ = Events.emit_model_started(state, step_index)
 
     attrs = %{
       step_index: step_index,

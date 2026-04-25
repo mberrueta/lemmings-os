@@ -1647,12 +1647,33 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     assert :ok = ResourcePool.checkout(resource_key, holder: pid)
     assert :ok = Executor.enqueue_work(pid, "Use a tool then reply")
     assert_receive {:status_changed, %{status: "queued"}}
+    assert_receive {:runtime_event, %{event: "runtime.queue.enqueued"}}
 
     send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
 
     assert_receive {:status_changed, %{status: "processing"}}
+    assert_receive {:runtime_event, %{event: "runtime.queue.dequeued"}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.model_call.started", payload: %{step_index: 1}}}
+
     assert_receive {:tool_execution_upserted, %{status: "running"}}
     assert_receive {:tool_execution_upserted, %{status: "ok"}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.tool_call.started", payload: %{tool_name: "web.fetch"}}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.tool_call.completed", payload: %{tool_name: "web.fetch"}}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.model_call.completed", payload: %{action: :tool_call}}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.model_call.started", payload: %{step_index: 2}}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.model_call.completed", payload: %{action: :reply}}}
 
     assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :started],
                     %{count: 1}, started_metadata}
