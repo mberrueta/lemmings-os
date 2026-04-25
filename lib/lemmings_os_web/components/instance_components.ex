@@ -527,7 +527,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
                   <p class="mt-2 text-sm text-zinc-100">{@call.caller_label}</p>
                   <p class="mt-1 text-xs uppercase tracking-widest text-zinc-500">
                     {@call.caller_role}
-                    <span :if={@call.caller_department}> /        {@call.caller_department}</span>
+                    <span :if={@call.caller_department}> /            {@call.caller_department}</span>
                   </p>
                   <.link
                     :if={!@manager_view? and @call.caller_instance_path}
@@ -550,7 +550,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
                   <p class="mt-2 text-sm text-zinc-100">{@call.callee_label}</p>
                   <p class="mt-1 text-xs uppercase tracking-widest text-zinc-500">
                     {@call.callee_role}
-                    <span :if={@call.callee_department}> /        {@call.callee_department}</span>
+                    <span :if={@call.callee_department}> /            {@call.callee_department}</span>
                   </p>
                 </div>
               </div>
