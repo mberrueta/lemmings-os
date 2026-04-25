@@ -26,13 +26,13 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   tmux new-session -d -s "$SESSION" -n MAIN -c "$SCRIPT_DIR" -x "$COLS" -y "$LINES"
 
   tmux new-window -t "$SESSION" -n SERVER -c "$SCRIPT_DIR"
-  if has_mix_task tidewave; then
-    tmux split-window -v -p 75 -t "$SESSION:SERVER"
-    tmux select-window -t "$SESSION:SERVER"
-    tmux select-pane -U
-    tmux send-keys "mix tidewave" C-m
-    tmux select-pane -D
-  fi
+  # if has_mix_task tidewave; then
+  #   tmux split-window -v -p 75 -t "$SESSION:SERVER"
+  #   tmux select-window -t "$SESSION:SERVER"
+  #   tmux select-pane -U
+  #   tmux send-keys "mix tidewave" C-m
+  #   tmux select-pane -D
+  # fi
   tmux send-keys -t "$SESSION:SERVER" "mix phx.server" C-m
 
   tmux new-window -t "$SESSION" -n IEX -c "$SCRIPT_DIR"
