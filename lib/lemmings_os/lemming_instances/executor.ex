@@ -1,17 +1,48 @@
 defmodule LemmingsOs.LemmingInstances.Executor do
   @moduledoc """
-  Per-instance runtime executor.
+  Per-instance runtime coordinator for a `LemmingInstance`.
 
-  The executor owns the in-memory work queue and runtime state machine for a
-  single `LemmingInstance`. It updates durable status transitions via the
-  `LemmingsOs.LemmingInstances` context, publishes status changes via PubSub,
-  and delegates model execution through an injectable runtime module.
+  The Executor is the GenServer boundary for one running instance. It owns:
+
+  - process lifecycle
+  - in-memory work queue
+  - current runtime state
+  - model task monitors and timeout refs
+  - idle expiration timers
+  - transitions between queued, processing, retrying, idle, failed, and expired states
+
+  The Executor delegates focused runtime concerns to helper modules under
+  `LemmingsOs.LemmingInstances.Executor.*`, while keeping runtime ownership inside
+  the GenServer.
+
+  Helper modules do not own the process lifecycle. They either build data, make
+  explicit decisions, execute narrow runtime steps through injected dependencies,
+  or provide testable state transformation helpers.
+
+  External callers should treat this module as the runtime API:
+
+  - `enqueue_work/2`
+  - `resume_pending/2`
+  - `resume_after_lemming_call/2`
+  - `retry/1`
+  - `status/1`
+  - `snapshot/1`
+  - `queue_depth/1`
+  - `admit/1`
+
+  Helper modules are internal implementation details and are not stable public APIs
+  for control-plane or UI callers.
+
+  ## Test seams
 
   Test seams are opt-in keyword options passed to `start_link/1`:
 
   - `:model_mod` injects a controlled model runtime implementation
   - `:now_fun` injects a deterministic clock
   - `:idle_timeout_ms` overrides the idle expiration timer for deterministic tests
+
+  See `docs/runtime/lemming-instance-executor.md` for the runtime flow map and helper
+  ownership summary.
   """
 
   use GenServer

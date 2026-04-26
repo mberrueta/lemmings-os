@@ -2,8 +2,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepRuntime do
   @moduledoc """
   Pure model-result routing for executor runtime.
 
-  Converts raw model step outputs into explicit action tokens so the executor
-  can orchestrate side effects without duplicating branching logic.
+  This module converts model outputs into explicit action tokens for `Executor`
+  to execute. No process lifecycle or external side effects are owned here.
+
+  It is an internal decision helper used by `Executor`.
   """
 
   alias LemmingsOs.LemmingInstances.Executor.FinalizationDecision

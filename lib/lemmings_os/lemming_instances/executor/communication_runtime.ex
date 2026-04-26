@@ -1,9 +1,13 @@
 defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
   @moduledoc """
-  Side-effecting multi-lemming communication runtime orchestration.
+  Runtime orchestration for multi-lemming collaboration steps.
 
-  Keeps child-terminal sync behavior together while preserving executor state
-  ownership and return shapes.
+  This module executes narrow collaboration runtime flows (delegation, resume,
+  child-terminal sync) through explicit dependency callbacks injected by
+  `Executor`.
+
+  It is an internal runtime helper. `Executor` remains the only
+  GenServer/process boundary.
   """
 
   alias LemmingsOs.LemmingInstances.Executor.Communication

@@ -1,9 +1,12 @@
 defmodule LemmingsOs.LemmingInstances.Executor.FinalizationRuntime do
   @moduledoc """
-  Side-effecting finalization runtime helpers.
+  Runtime orchestration for finalization repair and terminal-failure flows.
 
-  Keeps finalization repair/failure write flows explicit while preserving
-  executor-owned state transitions and persistence callbacks.
+  This module performs narrow finalization side-effect chains via injected
+  dependencies (persist, cleanup, transition), while `Executor` owns
+  coordination.
+
+  It is an internal runtime helper, not a public control-plane API.
   """
 
   alias LemmingsOs.LemmingInstances.Executor.TransitionsData

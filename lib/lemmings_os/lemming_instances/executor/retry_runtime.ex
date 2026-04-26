@@ -1,9 +1,11 @@
 defmodule LemmingsOs.LemmingInstances.Executor.RetryRuntime do
   @moduledoc """
-  Retry/failure runtime orchestration for model-step errors.
+  Runtime orchestration for retry vs terminal-failure handling.
 
-  Keeps retry-count and terminal-failure branching explicit while delegating
-  side effects through injected callbacks.
+  This module applies retry-count/error-state branching and invokes
+  transition/scheduling callbacks provided by `Executor`.
+
+  It is an internal runtime helper. `Executor` remains the process boundary.
   """
 
   alias LemmingsOs.LemmingInstances.Executor.TransitionsData

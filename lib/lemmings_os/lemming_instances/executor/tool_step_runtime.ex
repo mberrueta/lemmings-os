@@ -1,9 +1,12 @@
 defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
   @moduledoc """
-  Tool-step orchestration helpers for executor runtime.
+  Runtime orchestration for tool-call execution flow.
 
-  This module keeps the high-level `tool_call` execution flow cohesive while
-  delegating concrete side effects back to the executor via injected callbacks.
+  This module routes tool-step progression (tool execution + post-tool
+  branching) using explicit injected dependencies from `Executor`.
+
+  It is an internal runtime helper. `Executor` remains the coordinator and
+  process boundary.
   """
 
   alias LemmingsOs.ModelRuntime.Response
