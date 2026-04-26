@@ -55,7 +55,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
       {"processing", true, 0, nil}
   """
   @spec resume_after_lemming_call(map(), map(), resume_deps()) ::
-          {:ok, map()} | {{:error, :terminal_instance | :resume_not_possible}, map()}
+          {:ok, map()}
+          | {{:error, :terminal_instance | :resume_not_possible | :child_call_not_terminal}, map()}
   def resume_after_lemming_call(state, call, deps)
       when is_map(state) and is_map(call) and is_map(deps) do
     _ = emit_resume_event(deps, :emit_resume_requested, state, call)
