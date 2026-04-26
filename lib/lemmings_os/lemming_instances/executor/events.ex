@@ -140,11 +140,11 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
       iex> LemmingsOs.LemmingInstances.Executor.Events.emit_tool_rejected(state, "web.fetch", :tool_execution_unavailable)
       :ok
   """
-  @spec emit_tool_rejected(map(), String.t(), atom()) :: :ok
-  def emit_tool_rejected(state, tool_name, reason) when is_atom(reason) do
+  @spec emit_tool_rejected(map(), String.t(), term()) :: :ok
+  def emit_tool_rejected(state, tool_name, reason) do
     emit(state, "runtime.tool_execution.rejected", %{
       tool_name: tool_name,
-      reason: Atom.to_string(reason)
+      reason: Telemetry.reason_token(reason)
     })
   end
 

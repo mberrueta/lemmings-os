@@ -117,6 +117,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
     assert :ok = Events.emit_tool_failed(state, tool_execution)
     assert :ok = Events.emit_tool_rejected(state, "web.fetch", :tool_execution_unavailable)
 
+    assert :ok =
+             Events.emit_tool_rejected(state, "web.fetch", {:tool_execution_update_failed, :boom})
+
     assert_receive {:runtime_event,
                     %{
                       instance_id: ^instance_id,
@@ -161,6 +164,17 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
                         event: "runtime.tool_execution.rejected",
                         tool_name: "web.fetch",
                         reason: "tool_execution_unavailable"
+                      }
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      event: "runtime.tool_execution.rejected",
+                      payload: %{
+                        event: "runtime.tool_execution.rejected",
+                        tool_name: "web.fetch",
+                        reason: "tool_execution_update_failed"
                       }
                     }}
   end
