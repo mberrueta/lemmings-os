@@ -226,6 +226,22 @@ defmodule LemmingsOs.LemmingInstances.PubSub do
   end
 
   @doc """
+  Broadcasts an internal runtime event on the instance transcript topic.
+
+  Intended for non-critical observers such as traces, diagnostics, and
+  operator-facing runtime review surfaces.
+  """
+  @spec broadcast_runtime_event(binary(), binary(), map()) :: :ok | {:error, term()}
+  def broadcast_runtime_event(instance_id, event, payload \\ %{})
+      when is_binary(instance_id) and is_binary(event) and is_map(payload) do
+    Phoenix.PubSub.broadcast(
+      @pubsub_server,
+      instance_messages_topic(instance_id),
+      {:runtime_event, payload}
+    )
+  end
+
+  @doc """
   Broadcasts a scheduler admission signal to an executor.
 
   ## Examples

@@ -552,6 +552,12 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
   end
 
+  defmodule RejectingToolExecutions do
+    def update_tool_execution(_world, _instance, _tool_execution, _attrs) do
+      {:error, :forced_tool_execution_persist_failure}
+    end
+  end
+
   defmodule ErrorToolRuntime do
     def execute(_world, _instance, "web.fetch", _args) do
       {:error,
@@ -704,6 +710,8 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     resource_key = "ollama:fake-model"
 
     assert :ok = PubSub.subscribe_instance(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
 
     {:ok, pid} =
       Executor.start_link(
@@ -754,6 +762,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     instance_id = instance.id
 
     assert :ok = PubSub.subscribe_instance(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
 
     {:ok, pid} =
       Executor.start_link(
@@ -804,6 +813,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     resource_key = "ollama:lemming-call-loop-model"
 
     assert :ok = PubSub.subscribe_instance(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
 
     {:ok, pid} =
       Executor.start_link(
@@ -860,7 +870,25 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
                recovery_status: "recovered"
              })
 
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.lemming_call.resume.requested",
+                      payload: %{call_status: "completed"}
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.lemming_call.resume.started",
+                      payload: %{call_status: "completed"}
+                    }}
+
     assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.lemming_call.resume.completed",
+                      payload: %{call_status: "completed"}
+                    }}
 
     assert_receive {:lemming_call_model_run, _config_snapshot, context_messages,
                     %{content: "Delegate this"}}
@@ -904,6 +932,68 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              messages,
              &(&1.role == "assistant" and &1.content == "Delegated to child call.")
            )
+
+    GenServer.stop(pid)
+  end
+
+  test "S02b: resumed manager rejects non-terminal child calls before restarting processing",
+       %{
+         instance: instance
+       } do
+    resource_key = "ollama:lemming-call-summary-model"
+
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "lemming-call-summary-model",
+          observer_pid: self(),
+          models_config: %{
+            profiles: %{default: %{provider: "ollama", model: "lemming-call-summary-model"}}
+          }
+        },
+        context_mod: LemmingInstances,
+        model_mod: LemmingCallSummaryAwareModelRuntime,
+        lemming_calls_mod: FakeLemmingCalls,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Delegate this")
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:lemming_call_summary_model_run, %{lemming_call_targets: [_target]},
+                    _messages, %{content: "Delegate this"}}
+
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    assert {:error, :child_call_not_terminal} =
+             Executor.resume_after_lemming_call(pid, %LemmingsOs.LemmingCalls.LemmingCall{
+               id: Ecto.UUID.generate(),
+               status: "running",
+               callee_instance_id: Ecto.UUID.generate(),
+               root_call_id: Ecto.UUID.generate(),
+               previous_call_id: Ecto.UUID.generate()
+             })
+
+    refute_receive {:runtime_event, %{event: "runtime.lemming_call.resume.started"}},
+                   100
+
+    refute_receive {:status_changed, %{status: "processing"}}, 100
+    assert Executor.snapshot(pid).status == "idle"
 
     GenServer.stop(pid)
   end
@@ -1647,12 +1737,65 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     assert :ok = ResourcePool.checkout(resource_key, holder: pid)
     assert :ok = Executor.enqueue_work(pid, "Use a tool then reply")
     assert_receive {:status_changed, %{status: "queued"}}
+    assert_receive {:runtime_event, %{event: "runtime.queue.enqueued"}}
 
     send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
 
     assert_receive {:status_changed, %{status: "processing"}}
+    assert_receive {:runtime_event, %{event: "runtime.queue.dequeued"}}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.model_step.started",
+                      current_item_id: current_item_id,
+                      phase: :action_selection,
+                      retry_count: 0,
+                      step_index: 1,
+                      payload: %{step_index: 1}
+                    }}
+
+    assert is_binary(current_item_id)
+
     assert_receive {:tool_execution_upserted, %{status: "running"}}
     assert_receive {:tool_execution_upserted, %{status: "ok"}}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.tool_execution.requested",
+                      current_item_id: ^current_item_id,
+                      phase: :action_selection,
+                      retry_count: 0,
+                      step_index: 1,
+                      payload: %{tool_name: "web.fetch"}
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.tool_execution.started",
+                      current_item_id: ^current_item_id,
+                      phase: :action_selection,
+                      retry_count: 0,
+                      step_index: 1,
+                      tool_execution_id: tool_execution_id,
+                      payload: %{tool_name: "web.fetch"}
+                    }}
+
+    assert is_binary(tool_execution_id)
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.tool_execution.completed",
+                      payload: %{tool_name: "web.fetch"}
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.model_step.completed", payload: %{action: :tool_call}}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.model_step.started", payload: %{step_index: 2}}}
+
+    assert_receive {:runtime_event,
+                    %{event: "runtime.model_step.completed", payload: %{action: :reply}}}
 
     assert_receive {:telemetry_event, [:lemmings_os, :runtime, :tool_execution, :started],
                     %{count: 1}, started_metadata}
@@ -1969,13 +2112,55 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end)
   end
 
+  test "S09b: tool execution persistence failure fails without a completed tool event", %{
+    instance: instance
+  } do
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "tool-loop-model",
+          observer_pid: self(),
+          runtime_config: %{max_retries: 1},
+          models_config: %{profiles: %{default: %{provider: "ollama", model: "tool-loop-model"}}}
+        },
+        context_mod: LemmingInstances,
+        model_mod: ToolLoopModelRuntime,
+        tools_context_mod: RejectingToolExecutions,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    assert :ok = Executor.enqueue_work(pid, "Use a tool then fail persistence")
+    Executor.admit(pid)
+
+    assert eventually_status(pid, "failed")
+
+    assert %{
+             status: "failed",
+             retry_count: 1,
+             last_error: "Tool execution persistence is unavailable."
+           } = Executor.snapshot(pid)
+
+    GenServer.stop(pid)
+  end
+
   test "S10: invalid structured output keeps raw provider content in model steps", %{
     instance: instance
   } do
     {:ok, pid} =
       Executor.start_link(
         instance: instance,
-        config_snapshot: %{observer_pid: self(), model: "broken-model"},
+        config_snapshot: %{
+          observer_pid: self(),
+          model: "broken-model"
+        },
         context_mod: LemmingInstances,
         model_mod: InvalidStructuredOutputModelRuntime,
         tools_context_mod: LemmingTools,
@@ -2014,7 +2199,10 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
                response_payload: %{"content" => "not-json"},
                error: %{"kind" => "invalid_structured_output", "content" => "not-json"}
              }
-           ] = Executor.snapshot(pid).model_steps
+           ] =
+             Enum.map(Executor.snapshot(pid).model_steps, fn model_step ->
+               Map.take(model_step, [:step_index, :status, :response_payload, :error])
+             end)
 
     GenServer.stop(pid)
   end
@@ -2062,6 +2250,42 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     assert Enum.at(model_steps, 0).status == "ok"
     assert Enum.at(model_steps, 1).status == "error"
     assert Enum.at(model_steps, 2).status == "error"
+
+    GenServer.stop(pid)
+  end
+
+  test "S10c: terminal executor rejects resume without restarting processing", %{
+    instance: instance
+  } do
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{observer_pid: self(), model: "broken-model"},
+        context_mod: LemmingInstances,
+        model_mod: InvalidStructuredOutputModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: SuccessToolRuntime,
+        pool_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    assert :ok = Executor.enqueue_work(pid, "Break structured output")
+    Executor.admit(pid)
+    assert eventually_status(pid, "failed")
+
+    call = %LemmingsOs.LemmingCalls.LemmingCall{
+      id: Ecto.UUID.generate(),
+      status: "completed",
+      result_summary: "Draft child notes complete."
+    }
+
+    assert {:error, :terminal_instance} = Executor.resume_after_lemming_call(pid, call)
+    assert Executor.snapshot(pid).status == "failed"
 
     GenServer.stop(pid)
   end

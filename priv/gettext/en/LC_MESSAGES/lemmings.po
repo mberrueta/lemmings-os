@@ -628,19 +628,19 @@ msgstr "Stable identifier used in URLs and topology records. It is auto-generate
 msgid ".tooltip_create_status"
 msgstr "Initial lifecycle state for the new lemming type."
 
-#: lib/lemmings_os_web/components/instance_components.ex:683
+#: lib/lemmings_os_web/components/instance_components.ex:687
 #: lib/lemmings_os_web/live/instance_live.ex:580
 #, elixir-autogen, elixir-format
 msgid "%{hours}h %{minutes}m %{seconds}s"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:675
+#: lib/lemmings_os_web/components/instance_components.ex:679
 #: lib/lemmings_os_web/live/instance_live.ex:572
 #, elixir-autogen, elixir-format
 msgid "%{minutes}m %{seconds}s"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:669
+#: lib/lemmings_os_web/components/instance_components.ex:673
 #: lib/lemmings_os_web/live/instance_live.ex:566
 #, elixir-autogen, elixir-format
 msgid "%{seconds}s"
@@ -651,7 +651,7 @@ msgstr ""
 msgid "Ask the instance to continue..."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:736
+#: lib/lemmings_os_web/components/instance_components.ex:740
 #, elixir-autogen, elixir-format
 msgid "Assistant"
 msgstr ""
@@ -698,7 +698,7 @@ msgstr ""
 msgid "Expired"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:786
+#: lib/lemmings_os_web/components/instance_components.ex:790
 #: lib/lemmings_os_web/live/instance_live.ex:517
 #, elixir-autogen, elixir-format
 msgid "Failed"
@@ -720,7 +720,7 @@ msgstr ""
 msgid "Idle"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:626
+#: lib/lemmings_os_web/components/instance_components.ex:630
 #: lib/lemmings_os_web/live/instance_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "Idle for %{elapsed}"
@@ -795,7 +795,7 @@ msgstr ""
 msgid "Processing"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:613
+#: lib/lemmings_os_web/components/instance_components.ex:617
 #: lib/lemmings_os_web/live/instance_live.ex:527
 #, elixir-autogen, elixir-format
 msgid "Processing for %{elapsed}"
@@ -817,8 +817,8 @@ msgstr ""
 msgid "Ready for another request."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:596
-#: lib/lemmings_os_web/components/instance_components.ex:619
+#: lib/lemmings_os_web/components/instance_components.ex:600
+#: lib/lemmings_os_web/components/instance_components.ex:623
 #: lib/lemmings_os_web/live/instance_live.ex:497
 #: lib/lemmings_os_web/live/instance_live.ex:533
 #, elixir-autogen, elixir-format
@@ -847,13 +847,13 @@ msgstr ""
 msgid "Return to parent lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:632
+#: lib/lemmings_os_web/components/instance_components.ex:636
 #: lib/lemmings_os_web/live/instance_live.ex:546
 #, elixir-autogen, elixir-format
 msgid "Runtime expired."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:631
+#: lib/lemmings_os_web/components/instance_components.ex:635
 #: lib/lemmings_os_web/live/instance_live.ex:545
 #, elixir-autogen, elixir-format
 msgid "Runtime failed."
@@ -880,8 +880,8 @@ msgstr ""
 msgid "Started at"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:607
-#: lib/lemmings_os_web/components/instance_components.ex:633
+#: lib/lemmings_os_web/components/instance_components.ex:611
+#: lib/lemmings_os_web/components/instance_components.ex:637
 #: lib/lemmings_os_web/live/instance_live.ex:505
 #: lib/lemmings_os_web/live/instance_live.ex:519
 #: lib/lemmings_os_web/live/instance_live.ex:521
@@ -919,7 +919,7 @@ msgstr ""
 msgid "Unable to save the follow-up request."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:986
+#: lib/lemmings_os_web/components/instance_components.ex:990
 #, elixir-autogen, elixir-format
 msgid "Unknown time"
 msgstr ""
@@ -929,12 +929,12 @@ msgstr ""
 msgid "Use the transcript to review the latest runtime activity."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:738
+#: lib/lemmings_os_web/components/instance_components.ex:742
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:610
+#: lib/lemmings_os_web/components/instance_components.ex:614
 #: lib/lemmings_os_web/live/instance_live.ex:506
 #: lib/lemmings_os_web/live/instance_live.ex:524
 #: lib/lemmings_os_web/live/instance_live.ex:650
@@ -952,7 +952,7 @@ msgstr ""
 msgid "World"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:664
+#: lib/lemmings_os_web/components/instance_components.ex:668
 #: lib/lemmings_os_web/live/instance_live.ex:563
 #, elixir-autogen, elixir-format
 msgid "unknown"
@@ -999,7 +999,7 @@ msgstr ""
 msgid "Unable to retry this instance right now."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:992
+#: lib/lemmings_os_web/components/instance_components.ex:996
 #, elixir-autogen, elixir-format
 msgid "now"
 msgstr ""
@@ -1476,17 +1476,17 @@ msgstr "Runtime Dashboard"
 msgid ".title_spawn_instance"
 msgstr "Spawn instance"
 
-#: lib/lemmings_os_web/components/instance_components.ex:895
+#: lib/lemmings_os_web/components/instance_components.ex:899
 #, elixir-autogen, elixir-format
 msgid "%{count} args"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:889
+#: lib/lemmings_os_web/components/instance_components.ex:893
 #, elixir-autogen, elixir-format
 msgid "%{count} ms"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:898
+#: lib/lemmings_os_web/components/instance_components.ex:902
 #, elixir-autogen, elixir-format
 msgid "0 args"
 msgstr ""
@@ -1507,7 +1507,7 @@ msgid "Chronological session activity"
 msgstr ""
 
 #: lib/lemmings_os_web/components/instance_components.ex:483
-#: lib/lemmings_os_web/components/instance_components.ex:785
+#: lib/lemmings_os_web/components/instance_components.ex:789
 #, elixir-autogen, elixir-format
 msgid "Completed"
 msgstr ""
@@ -1578,7 +1578,7 @@ msgstr ""
 msgid "Result"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:784
+#: lib/lemmings_os_web/components/instance_components.ex:788
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr ""
@@ -1603,27 +1603,27 @@ msgstr ""
 msgid "Tool"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:795
+#: lib/lemmings_os_web/components/instance_components.ex:799
 #, elixir-autogen, elixir-format
 msgid "Tool execution completed successfully."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:801
+#: lib/lemmings_os_web/components/instance_components.ex:805
 #, elixir-autogen, elixir-format
 msgid "Tool execution failed with code %{code}."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:803
+#: lib/lemmings_os_web/components/instance_components.ex:807
 #, elixir-autogen, elixir-format
 msgid "Tool execution failed."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:792
+#: lib/lemmings_os_web/components/instance_components.ex:796
 #, elixir-autogen, elixir-format
 msgid "Tool execution is still running."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:807
+#: lib/lemmings_os_web/components/instance_components.ex:811
 #, elixir-autogen, elixir-format
 msgid "Tool execution recorded."
 msgstr ""
@@ -1653,7 +1653,7 @@ msgstr ""
 msgid "Capability"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:548
+#: lib/lemmings_os_web/components/instance_components.ex:550
 #, elixir-autogen, elixir-format
 msgid "Child"
 msgstr ""
@@ -1673,7 +1673,7 @@ msgstr ""
 msgid "Delegated work"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:938
+#: lib/lemmings_os_web/components/instance_components.ex:942
 #, elixir-autogen, elixir-format
 msgid "Delegating work to a child lemming."
 msgstr ""
@@ -1716,7 +1716,7 @@ msgstr ""
 msgid "Open child"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:539
+#: lib/lemmings_os_web/components/instance_components.ex:541
 #: lib/lemmings_os_web/components/world_components.ex:746
 #, elixir-autogen, elixir-format
 msgid "Open manager"
@@ -1753,12 +1753,12 @@ msgstr ""
 msgid "This session was opened through a manager delegation flow"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:949
+#: lib/lemmings_os_web/components/instance_components.ex:953
 #, elixir-autogen, elixir-format
 msgid "UNKNOWN"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:944
+#: lib/lemmings_os_web/components/instance_components.ex:948
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""

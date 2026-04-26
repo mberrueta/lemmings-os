@@ -82,4 +82,36 @@ defmodule LemmingsOs.LemmingInstances.PubSubTest do
                       resource_key: ^resource_key
                     }}
   end
+
+  test "S08: broadcast_runtime_event/3 emits runtime events on transcript topic" do
+    instance_id = "instance-pubsub-runtime-event"
+
+    assert :ok = PubSub.subscribe_instance_messages(instance_id)
+
+    assert :ok =
+             PubSub.broadcast_runtime_event(instance_id, "runtime.model_step.started", %{
+               instance_id: instance_id,
+               current_item_id: "item-1",
+               phase: :action_selection,
+               retry_count: 0,
+               step_index: 1,
+               tool_execution_id: nil,
+               call_id: nil,
+               event: "runtime.model_step.started",
+               payload: %{step_index: 1, event: "runtime.model_step.started"},
+               details: %{step_index: 1}
+             })
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      current_item_id: "item-1",
+                      phase: :action_selection,
+                      retry_count: 0,
+                      step_index: 1,
+                      event: "runtime.model_step.started",
+                      payload: %{event: "runtime.model_step.started", step_index: 1},
+                      details: %{step_index: 1}
+                    }}
+  end
 end
