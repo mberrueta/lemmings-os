@@ -106,7 +106,7 @@ ModelStepRuntime action
   │   └─ FinalizationRuntime applies repair or failure side effects
   │
   └─ retry/failure
-      └─ RetryRuntime applies retry or exhaustion handling
+    └─ RetryRuntime applies retry or exhaustion handling
 ```
 
 ## Helper ownership summary
@@ -202,4 +202,3 @@ Runtime helpers should use explicit dependencies/callbacks where practical so te
 This document does not define a new architecture decision.
 
 It documents the current implementation boundary of the Lemming instance runtime after the Executor refactor. Architectural decisions remain in ADRs. This document should evolve when the implementation structure changes, but it should not replace ADRs for new runtime contracts.
-
