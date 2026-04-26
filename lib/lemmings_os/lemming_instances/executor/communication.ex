@@ -13,6 +13,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
           {:ok, map(), map()}
           | {:error, :lemming_call_unavailable | {:lemming_call_failed, term()}}
   @type resume_rejection_reason :: :terminal_instance | :resume_not_possible
+  @type resume_call_rejection_reason :: :child_call_not_terminal
 
   @doc """
   Builds request attributes expected by `LemmingCalls.request_call/3`.
@@ -105,6 +106,35 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
     do: :resume_not_possible
 
   def resume_rejection_reason(_status, _current_item, _model_task_pid), do: nil
+
+  @doc """
+  Returns `true` when a delegated call is terminal and safe to resume from.
+
+  ## Examples
+
+      iex> LemmingsOs.LemmingInstances.Executor.Communication.call_terminal?(%{status: "completed"})
+      true
+      iex> LemmingsOs.LemmingInstances.Executor.Communication.call_terminal?(%{status: "running"})
+      false
+  """
+  @spec call_terminal?(map()) :: boolean()
+  def call_terminal?(%{status: status}) when status in ["completed", "failed"], do: true
+  def call_terminal?(_call), do: false
+
+  @doc """
+  Returns the rejection reason for a delegated call that is not yet terminal.
+
+  ## Examples
+
+      iex> LemmingsOs.LemmingInstances.Executor.Communication.resume_call_rejection_reason(%{status: "running"})
+      :child_call_not_terminal
+      iex> LemmingsOs.LemmingInstances.Executor.Communication.resume_call_rejection_reason(%{status: "completed"})
+      nil
+  """
+  @spec resume_call_rejection_reason(map()) :: resume_call_rejection_reason() | nil
+  def resume_call_rejection_reason(call) when is_map(call) do
+    if call_terminal?(call), do: nil, else: :child_call_not_terminal
+  end
 
   @doc """
   Appends a delegated call-result context message to runtime history.

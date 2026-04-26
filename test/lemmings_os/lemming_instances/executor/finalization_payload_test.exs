@@ -28,6 +28,27 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayloadTest do
     assert "Bytes written: 80" in payload.important_details
   end
 
+  test "tool_result_payload/1 redacts obvious secret-like text in tool strings" do
+    tool_execution = %{
+      status: "ok",
+      summary: "Saved Authorization: Bearer abc123",
+      preview: "https://x.test?token=abc123",
+      result: %{
+        "path" => "sample.md",
+        "workspace_path" => "/workspace/test/sample.md",
+        "root_path" => "/workspace/test",
+        "bytes" => 80
+      }
+    }
+
+    payload = FinalizationPayload.tool_result_payload(tool_execution)
+
+    assert payload.action_taken == "Saved Authorization: Bearer [REDACTED]"
+    assert payload.preview == "https://x.test?token=[REDACTED]"
+    assert Enum.any?(payload.important_details, &String.contains?(&1, "[REDACTED]"))
+    refute Enum.any?(payload.important_details, &String.contains?(&1, "abc123"))
+  end
+
   test "tool_result_payload/1 for error status keeps guidance and error payload" do
     tool_execution = %{
       status: "error",

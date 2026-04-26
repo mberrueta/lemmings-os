@@ -60,12 +60,12 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
       when is_map(state) and is_map(call) and is_map(deps) do
     _ = emit_resume_event(deps, :emit_resume_requested, state, call)
 
-    case Communication.resume_rejection_reason(
-           state.status,
-           state.current_item,
-           state.model_task_pid
-         ) do
-      nil ->
+    case {Communication.resume_rejection_reason(
+            state.status,
+            state.current_item,
+            state.model_task_pid
+          ), Communication.resume_call_rejection_reason(call)} do
+      {nil, nil} ->
         _ = emit_resume_event(deps, :emit_resume_started, state, call)
 
         next_state =
@@ -79,7 +79,15 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
         _ = deps.emit_resume_completed.(next_state, call)
         {:ok, next_state}
 
-      reason ->
+      {reason, nil} ->
+        _ = emit_resume_rejection(deps, state, reason)
+        {{:error, reason}, state}
+
+      {nil, reason} ->
+        _ = emit_resume_rejection(deps, state, reason)
+        {{:error, reason}, state}
+
+      {reason, _child_reason} ->
         _ = emit_resume_rejection(deps, state, reason)
         {{:error, reason}, state}
     end

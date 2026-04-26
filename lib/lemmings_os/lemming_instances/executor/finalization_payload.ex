@@ -4,6 +4,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   """
 
   alias LemmingsOs.Helpers
+  alias LemmingsOs.LemmingInstances.Executor.Redaction
 
   @doc """
   Builds the tool-result payload embedded in assistant context.
@@ -14,22 +15,22 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
 
     %{
       ok: true,
-      action_taken: tool_execution.summary,
+      action_taken: redact_text(tool_execution.summary),
       artifacts_created: tool_result_artifacts(result),
       important_details: tool_result_details(result, tool_execution),
       remaining_work: [],
-      preview: truncate_tool_preview(tool_execution.preview)
+      preview: redact_text(truncate_tool_preview(tool_execution.preview))
     }
   end
 
   def tool_result_payload(%{status: "error"} = tool_execution) do
     %{
       ok: false,
-      action_taken: tool_execution.summary,
+      action_taken: redact_text(tool_execution.summary),
       artifacts_created: [],
       important_details: [],
       remaining_work: ["Review tool error and decide the next step."],
-      error: tool_execution.error
+      error: Redaction.redact(tool_execution.error)
     }
   end
 
@@ -38,12 +39,12 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
 
     %{
       ok: tool_execution.status == "ok",
-      action_taken: tool_execution.summary,
+      action_taken: redact_text(tool_execution.summary),
       artifacts_created: tool_result_artifacts(result),
       important_details: tool_result_details(result, tool_execution),
       remaining_work: [],
-      preview: truncate_tool_preview(tool_execution.preview),
-      error: tool_execution.error
+      preview: redact_text(truncate_tool_preview(tool_execution.preview)),
+      error: Redaction.redact(tool_execution.error)
     }
   end
 
@@ -56,11 +57,11 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
       tool_name: tool_execution.tool_name,
       tool_status: tool_execution.status,
       tool_result_payload: tool_payload,
-      original_goal: original_goal,
-      completed_action: tool_execution.summary,
-      artifacts_created: Map.get(tool_payload, :artifacts_created, []),
-      important_details: Map.get(tool_payload, :important_details, []),
-      remaining_work: Map.get(tool_payload, :remaining_work, [])
+      original_goal: redact_text(original_goal),
+      completed_action: redact_text(tool_execution.summary),
+      artifacts_created: redact_list(Map.get(tool_payload, :artifacts_created, [])),
+      important_details: redact_list(Map.get(tool_payload, :important_details, [])),
+      remaining_work: redact_list(Map.get(tool_payload, :remaining_work, []))
     }
   end
 
@@ -82,7 +83,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
         [
           "Repair Notice:",
           "- Your previous post-tool response was empty, invalid, or not usable.",
-          "- Repair reason: #{repair_reason}",
+          "- Repair reason: #{redact_text(repair_reason)}",
           "- Return a concise final user-facing answer now."
         ]
       else
@@ -96,19 +97,19 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
       "- The response must not be empty.",
       "",
       "Original user goal:",
-      original_goal,
+      redact_text(original_goal),
       "",
       "Last completed action:",
-      completed_action,
+      redact_text(completed_action),
       "",
       "Artifacts created:",
-      bullet_list_or_none(artifacts_created),
+      bullet_list_or_none(redact_list(artifacts_created)),
       "",
       "Important details:",
-      bullet_list_or_none(important_details),
+      bullet_list_or_none(redact_list(important_details)),
       "",
       "Remaining work:",
-      bullet_list_or_none(remaining_work),
+      bullet_list_or_none(redact_list(remaining_work)),
       "",
       "Response rule:",
       "- If the task is complete, summarize what was done and mention the created artifacts.",
@@ -124,7 +125,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   end
 
   defp bullet_list_or_none([]), do: "- none"
-  defp bullet_list_or_none(values), do: Enum.map_join(values, "\n", &"- #{&1}")
+  defp bullet_list_or_none(values), do: Enum.map_join(values, "\n", &"- #{redact_text(&1)}")
 
   defp tool_result_path(%{"path" => path}) when is_binary(path), do: path
   defp tool_result_path(%{path: path}) when is_binary(path), do: path
@@ -145,6 +146,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
       tool_execution.preview
     ]
     |> Enum.filter(&present_detail?/1)
+    |> Enum.map(&redact_text/1)
     |> Enum.take(4)
   end
 
@@ -176,6 +178,12 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
 
   defp present_detail?(value) when is_binary(value), do: value != ""
   defp present_detail?(_value), do: false
+
+  defp redact_list(values) when is_list(values), do: Enum.map(values, &redact_text/1)
+  defp redact_list(value), do: redact_text(value)
+
+  defp redact_text(value) when is_binary(value), do: Redaction.redact_string(value)
+  defp redact_text(value), do: value
 
   defp truncate_tool_preview(preview) when is_binary(preview) do
     String.slice(preview, 0, 160)

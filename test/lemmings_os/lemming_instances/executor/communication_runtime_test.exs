@@ -168,6 +168,25 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
              CommunicationRuntime.resume_after_lemming_call(invalid_state, call, deps)
   end
 
+  test "resume_after_lemming_call/3 rejects non-terminal child calls" do
+    deps = %{
+      emit_resume_requested: fn _state, _call -> :ok end,
+      emit_resume_started: fn _state, _call -> :ok end,
+      emit_resume_rejected: fn _state, _reason -> :ok end,
+      emit_resume_completed: fn _state, _call -> :ok end,
+      cancel_idle_timer: & &1,
+      transition_to: fn state, _status, _attrs -> state end,
+      put_runtime_state: & &1,
+      start_execution: & &1
+    }
+
+    state = %{status: "idle", current_item: %{id: "item-1"}, model_task_pid: nil}
+    call = %{status: "running"}
+
+    assert {{:error, :child_call_not_terminal}, ^state} =
+             CommunicationRuntime.resume_after_lemming_call(state, call, deps)
+  end
+
   test "resume_after_lemming_call/3 emits requested before rejection and does not start" do
     parent = self()
 

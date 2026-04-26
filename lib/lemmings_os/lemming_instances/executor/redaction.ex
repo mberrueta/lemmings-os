@@ -38,6 +38,33 @@ defmodule LemmingsOs.LemmingInstances.Executor.Redaction do
   def redact(value), do: value
 
   @doc """
+  Redacts obvious secret-like substrings inside a string.
+  """
+  @spec redact_string(String.t() | nil) :: String.t() | nil
+  def redact_string(nil), do: nil
+
+  def redact_string(value) when is_binary(value) do
+    value
+    |> then(&Regex.replace(~r/\bBearer\s+[A-Za-z0-9\-._~+\/=]+\b/i, &1, "Bearer #{@redacted}"))
+    |> then(
+      &Regex.replace(
+        ~r/\b(api[_-]?key|apikey|password|passwd|passphrase|token|secret)\b(\s*[:=]\s*)([^&\s]+)/i,
+        &1,
+        "\\1\\2#{@redacted}"
+      )
+    )
+    |> then(
+      &Regex.replace(
+        ~r/\bauthorization\b(\s*[:=]\s*)(?!Bearer\s)([^&\s]+)/i,
+        &1,
+        "Authorization\\1#{@redacted}"
+      )
+    )
+  end
+
+  def redact_string(value), do: value
+
+  @doc """
   Encodes a redacted value to JSON.
   """
   @spec encode_redacted(term()) :: binary()

@@ -108,6 +108,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationTest do
 
     assert is_nil(Communication.resume_rejection_reason("idle", %{id: "item-1"}, nil))
 
+    assert Communication.call_terminal?(%{status: "completed"})
+    refute Communication.call_terminal?(%{status: "running"})
+    assert is_nil(Communication.resume_call_rejection_reason(%{status: "completed"}))
+
+    assert :child_call_not_terminal =
+             Communication.resume_call_rejection_reason(%{status: "running"})
+
     state = %{
       context_messages: [%{role: "user", content: "Delegate this"}],
       retry_count: 2,
