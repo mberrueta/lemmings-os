@@ -2,6 +2,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
   use ExUnit.Case, async: true
 
   alias LemmingsOs.LemmingInstances.Executor.CommunicationRuntime
+  alias LemmingsOs.LemmingInstances.LemmingInstance
 
   doctest CommunicationRuntime
 
@@ -33,7 +34,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
   end
 
   test "instance_with_runtime_snapshot/2 replaces config snapshot in instance map" do
-    instance = %{id: "instance-1", config_snapshot: %{model: "old"}}
+    instance = %LemmingInstance{id: "instance-1", config_snapshot: %{model: "old"}}
     config_snapshot = %{model: "new"}
 
     updated = CommunicationRuntime.instance_with_runtime_snapshot(instance, config_snapshot)
@@ -107,6 +108,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
 
   test "resume_after_lemming_call/3 resumes processing when state is eligible" do
     deps = %{
+      emit_resume_requested: fn _state, _call -> :ok end,
       emit_resume_started: fn _state, _call -> :ok end,
       emit_resume_rejected: fn _state, _reason -> :ok end,
       emit_resume_completed: fn _state, _call -> :ok end,
@@ -144,6 +146,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
 
   test "resume_after_lemming_call/3 rejects in terminal or invalid state" do
     deps = %{
+      emit_resume_requested: fn _state, _call -> :ok end,
       emit_resume_started: fn _state, _call -> :ok end,
       emit_resume_rejected: fn _state, _reason -> :ok end,
       emit_resume_completed: fn _state, _call -> :ok end,
@@ -163,6 +166,40 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
 
     assert {{:error, :resume_not_possible}, ^invalid_state} =
              CommunicationRuntime.resume_after_lemming_call(invalid_state, call, deps)
+  end
+
+  test "resume_after_lemming_call/3 emits requested before rejection and does not start" do
+    parent = self()
+
+    deps = %{
+      emit_resume_requested: fn _state, _call ->
+        send(parent, :requested)
+        :ok
+      end,
+      emit_resume_started: fn _state, _call ->
+        send(parent, :started)
+        :ok
+      end,
+      emit_resume_rejected: fn _state, reason ->
+        send(parent, {:rejected, reason})
+        :ok
+      end,
+      emit_resume_completed: fn _state, _call -> :ok end,
+      cancel_idle_timer: & &1,
+      transition_to: fn state, _status, _attrs -> state end,
+      put_runtime_state: & &1,
+      start_execution: & &1
+    }
+
+    terminal_state = %{status: "failed", current_item: %{id: "item-1"}, model_task_pid: nil}
+    call = %{status: "completed"}
+
+    assert {{:error, :terminal_instance}, ^terminal_state} =
+             CommunicationRuntime.resume_after_lemming_call(terminal_state, call, deps)
+
+    assert_received :requested
+    assert_received {:rejected, :terminal_instance}
+    refute_received :started
   end
 
   test "continue_after_lemming_call/2 runs release, clears errors, persists, and idles" do

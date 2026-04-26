@@ -3,6 +3,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
   Pure helpers for assistant-context message construction in executor loops.
   """
 
+  alias LemmingsOs.LemmingInstances.Executor.Redaction
+
   @doc """
   Builds the assistant context message recording a model-selected tool call.
   """
@@ -10,7 +12,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
   def tool_call_message(tool_name, tool_args) when is_binary(tool_name) and is_map(tool_args) do
     %{
       role: "assistant",
-      content: "Assistant requested tool #{tool_name} with arguments: #{Jason.encode!(tool_args)}"
+      content:
+        "Assistant requested tool #{tool_name} with arguments: #{Redaction.encode_redacted(tool_args)}"
     }
   end
 
@@ -21,7 +24,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
   def lemming_call_message(attrs) when is_map(attrs) do
     %{
       role: "assistant",
-      content: "Assistant requested lemming_call with arguments: #{Jason.encode!(attrs)}"
+      content:
+        "Assistant requested lemming_call with arguments: #{Redaction.encode_redacted(attrs)}"
     }
   end
 
@@ -39,7 +43,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
         [
           "As runtime execution history for your previous lemming_call request,",
           "the runtime is returning delegated outcome now.",
-          "Lemming call result: status=#{Map.get(call, :status)} payload=#{Jason.encode!(payload)}.",
+          "Lemming call result: status=#{Map.get(call, :status)} payload=#{Redaction.encode_redacted(payload)}.",
           lemming_call_result_guidance(payload),
           "Do not guess file paths or read artifacts unless this payload explicitly includes a path or artifact reference.",
           "Decide what to do next."
@@ -61,7 +65,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
     %{
       role: "assistant",
       content:
-        "As response to your previous tool request, the runtime executed #{tool_name}. Tool result for #{tool_name}: status=#{status} payload=#{Jason.encode!(tool_payload)}. Decide what to do next."
+        "As response to your previous tool request, the runtime executed #{tool_name}. Tool result for #{tool_name}: status=#{status} payload=#{Redaction.encode_redacted(tool_payload)}. Decide what to do next."
     }
   end
 

@@ -19,6 +19,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
           transition_to: (map(), String.t(), map() -> map())
         }
   @type resume_deps :: %{
+          emit_resume_requested: (map(), map() -> :ok),
           emit_resume_started: (map(), map() -> :ok),
           emit_resume_rejected: (map(), atom() -> :ok),
           emit_resume_completed: (map(), map() -> :ok),
@@ -38,6 +39,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
   ## Examples
 
       iex> deps = %{
+      ...>   emit_resume_requested: fn _state, _call -> :ok end,
       ...>   emit_resume_started: fn _state, _call -> :ok end,
       ...>   emit_resume_rejected: fn _state, _reason -> :ok end,
       ...>   emit_resume_completed: fn _state, _call -> :ok end,
@@ -56,7 +58,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
           {:ok, map()} | {{:error, :terminal_instance | :resume_not_possible}, map()}
   def resume_after_lemming_call(state, call, deps)
       when is_map(state) and is_map(call) and is_map(deps) do
-    _ = deps.emit_resume_started.(state, call)
+    _ = emit_resume_event(deps, :emit_resume_requested, state, call)
 
     case Communication.resume_rejection_reason(
            state.status,
@@ -64,6 +66,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
            state.model_task_pid
          ) do
       nil ->
+        _ = emit_resume_event(deps, :emit_resume_started, state, call)
+
         next_state =
           state
           |> Communication.prepare_state_for_resume(call)
@@ -76,7 +80,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
         {:ok, next_state}
 
       reason ->
-        _ = deps.emit_resume_rejected.(state, reason)
+        _ = emit_resume_rejection(deps, state, reason)
         {{:error, reason}, state}
     end
   end
@@ -126,7 +130,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
   @spec instance_with_runtime_snapshot(map(), map()) :: map()
   def instance_with_runtime_snapshot(instance, config_snapshot)
       when is_map(instance) and is_map(config_snapshot) do
-    Map.put(instance, :config_snapshot, config_snapshot)
+    %{instance | config_snapshot: config_snapshot}
   end
 
   @doc """
@@ -233,5 +237,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
       :skip ->
         state
     end
+  end
+
+  defp emit_resume_event(deps, key, state, call) do
+    Map.get(deps, key, fn _state, _call -> :ok end).(state, call)
+  end
+
+  defp emit_resume_rejection(deps, state, reason) do
+    Map.get(deps, :emit_resume_rejected, fn _state, _reason -> :ok end).(state, reason)
   end
 end

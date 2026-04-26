@@ -53,11 +53,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
     assert_receive {:runtime_event,
                     %{
                       instance_id: ^instance_id,
-                      event: "runtime.model_call.completed",
+                      event: "runtime.model_step.completed",
+                      current_item_id: nil,
+                      phase: :action_selection,
+                      step_index: 2,
                       payload: %{
-                        event: "runtime.model_call.completed",
+                        event: "runtime.model_step.completed",
                         step_index: 2,
-                        phase: :action_selection,
                         status: "ok",
                         action: :reply,
                         provider: "fake",
@@ -83,18 +85,20 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
     assert_receive {:runtime_event,
                     %{
                       instance_id: ^instance_id,
-                      event: "runtime.model_call.failed",
+                      event: "runtime.model_step.failed",
+                      current_item_id: nil,
+                      phase: :finalizing,
+                      step_index: 3,
                       payload: %{
-                        event: "runtime.model_call.failed",
+                        event: "runtime.model_step.failed",
                         step_index: 3,
-                        phase: :finalizing,
                         status: "error",
                         reason: "model_timeout"
                       }
                     }}
   end
 
-  test "emit_tool_failed/2 broadcasts tool failure payload" do
+  test "tool events broadcast requested, started, failed, and rejected payloads" do
     instance_id = "instance-events-tool-failed"
 
     state = %{instance_id: instance_id}
@@ -108,14 +112,39 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
     }
 
     assert :ok = PubSub.subscribe_instance_messages(instance_id)
+    assert :ok = Events.emit_tool_requested(state, "web.fetch", %{"url" => "https://example.com"})
+    assert :ok = Events.emit_tool_started(state, "web.fetch", %{"url" => "https://example.com"})
     assert :ok = Events.emit_tool_failed(state, tool_execution)
+    assert :ok = Events.emit_tool_rejected(state, "web.fetch", :tool_execution_unavailable)
 
     assert_receive {:runtime_event,
                     %{
                       instance_id: ^instance_id,
-                      event: "runtime.tool_call.failed",
+                      event: "runtime.tool_execution.requested",
                       payload: %{
-                        event: "runtime.tool_call.failed",
+                        event: "runtime.tool_execution.requested",
+                        tool_name: "web.fetch",
+                        args_keys: ["url"]
+                      }
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      event: "runtime.tool_execution.started",
+                      payload: %{
+                        event: "runtime.tool_execution.started",
+                        tool_name: "web.fetch",
+                        args_keys: ["url"]
+                      }
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      event: "runtime.tool_execution.failed",
+                      payload: %{
+                        event: "runtime.tool_execution.failed",
                         tool_execution_id: "tool-1",
                         tool_name: "web.fetch",
                         status: "error",
@@ -123,9 +152,20 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
                         reason: "tool.web.request_failed"
                       }
                     }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      event: "runtime.tool_execution.rejected",
+                      payload: %{
+                        event: "runtime.tool_execution.rejected",
+                        tool_name: "web.fetch",
+                        reason: "tool_execution_unavailable"
+                      }
+                    }}
   end
 
-  test "resume events broadcast started, rejected, and completed payloads" do
+  test "resume events broadcast requested, started, rejected, and completed payloads" do
     instance_id = "instance-events-resume"
     assert :ok = PubSub.subscribe_instance_messages(instance_id)
 
@@ -139,17 +179,32 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
 
     call = %{id: "call-1", status: "completed"}
 
+    assert :ok = Events.emit_lemming_resume_requested(idle_state, call)
     assert :ok = Events.emit_lemming_resume_started(idle_state, call)
 
     assert_receive {:runtime_event,
                     %{
                       instance_id: ^instance_id,
+                      event: "runtime.lemming_call.resume.requested",
+                      current_item_id: nil,
+                      phase: nil,
+                      payload: %{
+                        event: "runtime.lemming_call.resume.requested",
+                        call_id: "call-1",
+                        call_status: "completed"
+                      }
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
                       event: "runtime.lemming_call.resume.started",
+                      current_item_id: nil,
+                      phase: nil,
                       payload: %{
                         event: "runtime.lemming_call.resume.started",
                         call_id: "call-1",
-                        call_status: "completed",
-                        executor_status: "idle"
+                        call_status: "completed"
                       }
                     }}
 
@@ -163,10 +218,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
                     %{
                       instance_id: ^instance_id,
                       event: "runtime.lemming_call.resume.rejected",
+                      current_item_id: nil,
                       payload: %{
                         event: "runtime.lemming_call.resume.rejected",
-                        reason: "terminal_instance",
-                        executor_status: "failed"
+                        reason: "terminal_instance"
                       }
                     }}
 
@@ -176,12 +231,12 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
                     %{
                       instance_id: ^instance_id,
                       event: "runtime.lemming_call.resume.completed",
+                      current_item_id: "item-9",
+                      phase: nil,
                       payload: %{
                         event: "runtime.lemming_call.resume.completed",
                         call_id: "call-1",
-                        call_status: "completed",
-                        current_item_id: "item-9",
-                        executor_status: "processing"
+                        call_status: "completed"
                       }
                     }}
   end

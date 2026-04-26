@@ -1191,7 +1191,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp tool_step_runtime_deps do
     %{
       now_fun: fn state -> state.now_fun.() end,
-      emit_tool_started: &Events.emit_tool_started/3,
+      emit_tool_requested: &Events.emit_tool_requested/3,
+      emit_tool_started: &Events.emit_tool_started/4,
+      emit_tool_rejected: &Events.emit_tool_rejected/3,
       append_tool_call_context: &append_tool_call_context/3,
       create_tool_execution: &create_tool_execution/4,
       runtime_world: &runtime_world/1,
@@ -1233,6 +1235,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp resume_runtime_deps do
     %{
+      emit_resume_requested: &Events.emit_lemming_resume_requested/2,
       emit_resume_started: &Events.emit_lemming_resume_started/2,
       emit_resume_rejected: &Events.emit_lemming_resume_rejected/2,
       emit_resume_completed: &Events.emit_lemming_resume_completed/2,

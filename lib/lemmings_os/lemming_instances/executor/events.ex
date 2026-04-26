@@ -47,7 +47,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   end
 
   @doc """
-  Emits a model-call-started runtime event.
+  Emits a model-step-started runtime event.
 
   ## Examples
 
@@ -57,15 +57,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   """
   @spec emit_model_started(map(), non_neg_integer()) :: :ok
   def emit_model_started(state, step_index) do
-    emit(state, "runtime.model_call.started", %{
-      step_index: step_index,
-      phase: Map.get(state, :phase),
-      retry_count: Map.get(state, :retry_count)
+    emit(state, "runtime.model_step.started", %{
+      step_index: step_index
     })
   end
 
   @doc """
-  Emits a model-call terminal runtime event (`completed` or `failed`).
+  Emits a model-step terminal runtime event (`completed` or `failed`).
 
   ## Examples
 
@@ -83,19 +81,36 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   """
   @spec emit_model_finished(map(), term(), DateTime.t() | nil) :: :ok
   def emit_model_finished(state, result, started_at) do
-    payload =
+    emit(
+      state,
+      model_event(result),
       %{
         step_index: Map.get(state, :model_step_count),
-        phase: Map.get(state, :phase),
         duration_ms: duration_ms(state, started_at)
       }
-      |> Map.merge(model_result_payload(result))
-
-    emit(state, model_event(result), payload)
+      |> Map.merge(model_result_details(result))
+    )
   end
 
   @doc """
-  Emits a tool-call-started runtime event.
+  Emits a tool-execution-requested runtime event.
+
+  ## Examples
+
+      iex> state = %{instance_id: "instance-1"}
+      iex> LemmingsOs.LemmingInstances.Executor.Events.emit_tool_requested(state, "web.fetch", %{"url" => "https://example.com"})
+      :ok
+  """
+  @spec emit_tool_requested(map(), String.t(), map()) :: :ok
+  def emit_tool_requested(state, tool_name, tool_args) do
+    emit(state, "runtime.tool_execution.requested", %{
+      tool_name: tool_name,
+      args_keys: map_keys(tool_args)
+    })
+  end
+
+  @doc """
+  Emits a tool-execution-started runtime event after the runtime accepts the step.
 
   ## Examples
 
@@ -104,15 +119,37 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
       :ok
   """
   @spec emit_tool_started(map(), String.t(), map()) :: :ok
-  def emit_tool_started(state, tool_name, tool_args) do
-    emit(state, "runtime.tool_call.started", %{
+  def emit_tool_started(state, tool_name, tool_args),
+    do: emit_tool_started(state, tool_name, nil, tool_args)
+
+  @spec emit_tool_started(map(), String.t(), String.t() | nil, map()) :: :ok
+  def emit_tool_started(state, tool_name, tool_execution_id, tool_args) do
+    emit(state, "runtime.tool_execution.started", %{
       tool_name: tool_name,
+      tool_execution_id: tool_execution_id,
       args_keys: map_keys(tool_args)
     })
   end
 
   @doc """
-  Emits a tool-call-completed runtime event.
+  Emits a tool-execution-rejected runtime event for pre-start failures.
+
+  ## Examples
+
+      iex> state = %{instance_id: "instance-1"}
+      iex> LemmingsOs.LemmingInstances.Executor.Events.emit_tool_rejected(state, "web.fetch", :tool_execution_unavailable)
+      :ok
+  """
+  @spec emit_tool_rejected(map(), String.t(), atom()) :: :ok
+  def emit_tool_rejected(state, tool_name, reason) when is_atom(reason) do
+    emit(state, "runtime.tool_execution.rejected", %{
+      tool_name: tool_name,
+      reason: Atom.to_string(reason)
+    })
+  end
+
+  @doc """
+  Emits a tool-execution-completed runtime event.
 
   ## Examples
 
@@ -123,7 +160,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   """
   @spec emit_tool_completed(map(), map()) :: :ok
   def emit_tool_completed(state, tool_execution) do
-    emit(state, "runtime.tool_call.completed", %{
+    emit(state, "runtime.tool_execution.completed", %{
       tool_name: Map.get(tool_execution, :tool_name),
       tool_execution_id: Map.get(tool_execution, :id),
       status: Map.get(tool_execution, :status),
@@ -132,7 +169,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   end
 
   @doc """
-  Emits a tool-call-failed runtime event.
+  Emits a tool-execution-failed runtime event.
 
   ## Examples
 
@@ -143,7 +180,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   """
   @spec emit_tool_failed(map(), map()) :: :ok
   def emit_tool_failed(state, tool_execution) do
-    emit(state, "runtime.tool_call.failed", %{
+    emit(state, "runtime.tool_execution.failed", %{
       tool_name: Map.get(tool_execution, :tool_name),
       tool_execution_id: Map.get(tool_execution, :id),
       status: Map.get(tool_execution, :status),
@@ -153,7 +190,25 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   end
 
   @doc """
-  Emits a resume-started runtime event for delegated child-call continuation.
+  Emits a resume-requested runtime event for delegated child-call continuation.
+
+  ## Examples
+
+      iex> state = %{instance_id: "instance-1", status: "idle"}
+      iex> call = %{id: "call-1", status: "completed"}
+      iex> LemmingsOs.LemmingInstances.Executor.Events.emit_lemming_resume_requested(state, call)
+      :ok
+  """
+  @spec emit_lemming_resume_requested(map(), map()) :: :ok
+  def emit_lemming_resume_requested(state, call) do
+    emit(state, "runtime.lemming_call.resume.requested", %{
+      call_id: Map.get(call, :id),
+      call_status: Map.get(call, :status)
+    })
+  end
+
+  @doc """
+  Emits a resume-started runtime event after the runtime accepts continuation.
 
   ## Examples
 
@@ -166,8 +221,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   def emit_lemming_resume_started(state, call) do
     emit(state, "runtime.lemming_call.resume.started", %{
       call_id: Map.get(call, :id),
-      call_status: Map.get(call, :status),
-      executor_status: Map.get(state, :status)
+      call_status: Map.get(call, :status)
     })
   end
 
@@ -183,8 +237,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   @spec emit_lemming_resume_rejected(map(), atom()) :: :ok
   def emit_lemming_resume_rejected(state, reason) when is_atom(reason) do
     emit(state, "runtime.lemming_call.resume.rejected", %{
-      reason: Atom.to_string(reason),
-      executor_status: Map.get(state, :status)
+      reason: Atom.to_string(reason)
     })
   end
 
@@ -202,9 +255,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   def emit_lemming_resume_completed(state, call) do
     emit(state, "runtime.lemming_call.resume.completed", %{
       call_id: Map.get(call, :id),
-      call_status: Map.get(call, :status),
-      current_item_id: current_item_id(Map.get(state, :current_item)),
-      executor_status: Map.get(state, :status)
+      call_status: Map.get(call, :status)
     })
   end
 
@@ -218,15 +269,21 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
       :ok
   """
   @spec emit(map(), String.t(), map()) :: :ok
-  def emit(state, event, payload \\ %{}) when is_binary(event) and is_map(payload) do
-    _ = PubSub.broadcast_runtime_event(Map.get(state, :instance_id), event, payload)
+  def emit(state, event, details \\ %{}) when is_binary(event) and is_map(details) do
+    _ =
+      PubSub.broadcast_runtime_event(
+        Map.get(state, :instance_id),
+        event,
+        runtime_event_envelope(state, event, details)
+      )
+
     :ok
   end
 
-  defp model_event({:ok, %Response{}}), do: "runtime.model_call.completed"
-  defp model_event(_result), do: "runtime.model_call.failed"
+  defp model_event({:ok, %Response{}}), do: "runtime.model_step.completed"
+  defp model_event(_result), do: "runtime.model_step.failed"
 
-  defp model_result_payload({:ok, %Response{} = response}) do
+  defp model_result_details({:ok, %Response{} = response}) do
     %{
       status: "ok",
       action: response.action,
@@ -236,12 +293,29 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
     }
   end
 
-  defp model_result_payload({:error, reason}) do
+  defp model_result_details({:error, reason}) do
     %{status: "error", reason: Telemetry.reason_token(reason)}
   end
 
-  defp model_result_payload(_result) do
+  defp model_result_details(_result) do
     %{status: "error", reason: "unexpected_model_result"}
+  end
+
+  defp runtime_event_envelope(state, event, details) do
+    payload = Map.put(details, :event, event)
+
+    %{
+      instance_id: Map.get(state, :instance_id),
+      current_item_id: current_item_id(Map.get(state, :current_item)),
+      phase: Map.get(state, :phase),
+      retry_count: Map.get(state, :retry_count),
+      step_index: correlation_step_index(state, details),
+      tool_execution_id: correlation_tool_execution_id(details),
+      call_id: correlation_call_id(details),
+      event: event,
+      payload: payload,
+      details: details
+    }
   end
 
   defp duration_ms(_state, nil), do: nil
@@ -258,6 +332,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
     do: Map.keys(args) |> Enum.map(&to_string/1) |> Enum.sort()
 
   defp map_keys(_args), do: []
+
+  defp correlation_step_index(state, details) do
+    Map.get(details, :step_index) || Map.get(state, :model_step_count)
+  end
+
+  defp correlation_tool_execution_id(details), do: Map.get(details, :tool_execution_id)
+  defp correlation_call_id(details), do: Map.get(details, :call_id)
 
   defp tool_error_reason(%{"code" => code}) when is_binary(code), do: code
   defp tool_error_reason(%{code: code}) when is_binary(code), do: code

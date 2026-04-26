@@ -89,15 +89,29 @@ defmodule LemmingsOs.LemmingInstances.PubSubTest do
     assert :ok = PubSub.subscribe_instance_messages(instance_id)
 
     assert :ok =
-             PubSub.broadcast_runtime_event(instance_id, "runtime.model_call.started", %{
-               step_index: 1
+             PubSub.broadcast_runtime_event(instance_id, "runtime.model_step.started", %{
+               instance_id: instance_id,
+               current_item_id: "item-1",
+               phase: :action_selection,
+               retry_count: 0,
+               step_index: 1,
+               tool_execution_id: nil,
+               call_id: nil,
+               event: "runtime.model_step.started",
+               payload: %{step_index: 1, event: "runtime.model_step.started"},
+               details: %{step_index: 1}
              })
 
     assert_receive {:runtime_event,
                     %{
                       instance_id: ^instance_id,
-                      event: "runtime.model_call.started",
-                      payload: %{event: "runtime.model_call.started", step_index: 1}
+                      current_item_id: "item-1",
+                      phase: :action_selection,
+                      retry_count: 0,
+                      step_index: 1,
+                      event: "runtime.model_step.started",
+                      payload: %{event: "runtime.model_step.started", step_index: 1},
+                      details: %{step_index: 1}
                     }}
   end
 end

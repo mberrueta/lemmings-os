@@ -20,7 +20,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
         }
   @type execute_deps :: %{
           now_fun: (map() -> DateTime.t()),
-          emit_tool_started: (map(), String.t(), map() -> :ok),
+          emit_tool_requested: (map(), String.t(), map() -> :ok),
+          emit_tool_started: (map(), String.t(), String.t() | nil, map() -> :ok),
+          emit_tool_rejected: (map(), String.t(), atom() -> :ok),
           append_tool_call_context: (map(), String.t(), map() -> map()),
           create_tool_execution: (map(), String.t(), map(), DateTime.t() ->
                                     {:ok, map(), map()} | {:error, term(), map()}),
@@ -67,7 +69,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
 
       iex> deps = %{
       ...>   now_fun: fn _state -> ~U[2026-04-26 18:00:00Z] end,
-      ...>   emit_tool_started: fn _state, _tool_name, _args -> :ok end,
+      ...>   emit_tool_requested: fn _state, _tool_name, _args -> :ok end,
+      ...>   emit_tool_started: fn _state, _tool_name, _tool_execution_id, _args -> :ok end,
+      ...>   emit_tool_rejected: fn _state, _tool_name, _reason -> :ok end,
       ...>   append_tool_call_context: fn state, _tool_name, _args -> state end,
       ...>   create_tool_execution: fn state, _tool_name, _args, _started_at -> {:ok, %{id: "tool-1"}, state} end,
       ...>   runtime_world: fn _state -> {:ok, %{id: "world-1"}} end,
@@ -99,12 +103,14 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
       )
       when is_map(state) and is_binary(tool_name) and is_map(tool_args) and is_map(deps) do
     started_at = deps.now_fun.(state)
-    _ = deps.emit_tool_started.(state, tool_name, tool_args)
+    _ = emit_tool_event(deps, :emit_tool_requested, state, tool_name, tool_args)
     state = deps.append_tool_call_context.(state, tool_name, tool_args)
 
     with {:ok, tool_execution, state} <-
            deps.create_tool_execution.(state, tool_name, tool_args, started_at),
          {:ok, world} <- deps.runtime_world.(state) do
+      _ = emit_tool_started(deps, state, tool_name, Map.get(tool_execution, :id), tool_args)
+
       state
       |> deps.persist_tool_outcome.(
         tool_execution,
@@ -114,9 +120,11 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
       |> deps.normalize_tool_outcome_result.()
     else
       {:error, reason, next_state} ->
+        _ = emit_tool_rejection(deps, next_state, tool_name, reason)
         {:error, reason, next_state}
 
       {:error, reason} ->
+        _ = emit_tool_rejection(deps, state, tool_name, reason)
         {:error, reason, state}
     end
   end
@@ -188,5 +196,23 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
       |> deps.put_runtime_state.()
       |> deps.start_execution.()
     end
+  end
+
+  defp emit_tool_event(deps, key, state, tool_name, tool_args) do
+    Map.get(deps, key, fn _state, _tool_name, _tool_args -> :ok end).(state, tool_name, tool_args)
+  end
+
+  defp emit_tool_rejection(deps, state, tool_name, reason) do
+    Map.get(deps, :emit_tool_rejected, fn _state, _tool_name, _reason -> :ok end).(
+      state,
+      tool_name,
+      reason
+    )
+  end
+
+  defp emit_tool_started(deps, state, tool_name, tool_execution_id, tool_args) do
+    Map.get(deps, :emit_tool_started, fn _state, _tool_name, _tool_execution_id, _tool_args ->
+      :ok
+    end).(state, tool_name, tool_execution_id, tool_args)
   end
 end

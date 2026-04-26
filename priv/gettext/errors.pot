@@ -304,3 +304,125 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid ".invalid_value"
 msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:25
+#, elixir-autogen, elixir-format
+msgid "%{provider} request failed%{status_copy}. Retry or inspect logs."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:39
+#, elixir-autogen, elixir-format
+msgid "%{provider} request failed. Retry or inspect logs."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:33
+#, elixir-autogen, elixir-format
+msgid "%{provider} request timed out. Retry or inspect logs."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:45
+#, elixir-autogen, elixir-format
+msgid "%{provider} returned an invalid response. Retry or inspect logs."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:19
+#, elixir-autogen, elixir-format
+msgid "Assistant response could not be persisted. Retry or inspect logs."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:77
+#, elixir-autogen, elixir-format
+msgid "Executor model task crashed."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:80
+#, elixir-autogen, elixir-format
+msgid "Executor model task timed out."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:101
+#, elixir-autogen, elixir-format
+msgid "Executor received an unexpected model result."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:50
+#, elixir-autogen, elixir-format
+msgid "Model provider request failed due to a network error."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:53
+#, elixir-autogen, elixir-format
+msgid "Model provider request timed out."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:83
+#, elixir-autogen, elixir-format
+msgid "Model provider returned an invalid response payload."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:16
+#, elixir-autogen, elixir-format
+msgid "Model request failed. Retry or inspect logs."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:62
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:65
+#, elixir-autogen, elixir-format
+msgid "Model returned an unsupported action."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:56
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:59
+#, elixir-autogen, elixir-format
+msgid "Model returned invalid structured output."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:74
+#, elixir-autogen, elixir-format
+msgid "Model runtime is unavailable."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:68
+#, elixir-autogen, elixir-format
+msgid "Runtime config is missing a model."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:71
+#, elixir-autogen, elixir-format
+msgid "Runtime config uses an unsupported provider."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:106
+#, elixir-autogen, elixir-format
+msgid "Runtime error. Retry or inspect logs."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:104
+#, elixir-autogen, elixir-format
+msgid "Runtime error: %{reason}."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:98
+#, elixir-autogen, elixir-format
+msgid "Runtime world scope is invalid."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:89
+#, elixir-autogen, elixir-format
+msgid "Tool execution could not be persisted."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:92
+#, elixir-autogen, elixir-format
+msgid "Tool execution could not be updated."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:86
+#, elixir-autogen, elixir-format
+msgid "Tool execution persistence is unavailable."
+msgstr ""
+
+#: lib/lemmings_os/lemming_instances/executor/transitions_data.ex:95
+#, elixir-autogen, elixir-format
+msgid "Tool iteration limit reached before final reply."
+msgstr ""

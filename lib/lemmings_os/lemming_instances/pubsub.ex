@@ -237,8 +237,7 @@ defmodule LemmingsOs.LemmingInstances.PubSub do
     Phoenix.PubSub.broadcast(
       @pubsub_server,
       instance_messages_topic(instance_id),
-      {:runtime_event,
-       %{instance_id: instance_id, event: event, payload: Map.put(payload, :event, event)}}
+      {:runtime_event, payload}
     )
   end
 

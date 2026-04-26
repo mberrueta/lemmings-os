@@ -77,7 +77,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.QueueDataTest do
     assert updated.retry_count == 0
   end
 
-  test "retry_queue/1 appends current item to the tail when present" do
+  test "retry_queue/1 prepends the current item ahead of queued items when present" do
     queue = :queue.from_list([%{id: "queued-1"}])
     state = %{queue: queue, current_item: %{id: "current"}}
 
