@@ -153,6 +153,62 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   end
 
   @doc """
+  Emits a resume-started runtime event for delegated child-call continuation.
+
+  ## Examples
+
+      iex> state = %{instance_id: "instance-1", status: "idle"}
+      iex> call = %{id: "call-1", status: "completed"}
+      iex> LemmingsOs.LemmingInstances.Executor.Events.emit_lemming_resume_started(state, call)
+      :ok
+  """
+  @spec emit_lemming_resume_started(map(), map()) :: :ok
+  def emit_lemming_resume_started(state, call) do
+    emit(state, "runtime.lemming_call.resume.started", %{
+      call_id: Map.get(call, :id),
+      call_status: Map.get(call, :status),
+      executor_status: Map.get(state, :status)
+    })
+  end
+
+  @doc """
+  Emits a resume-rejected runtime event with the normalized rejection reason.
+
+  ## Examples
+
+      iex> state = %{instance_id: "instance-1", status: "failed"}
+      iex> LemmingsOs.LemmingInstances.Executor.Events.emit_lemming_resume_rejected(state, :terminal_instance)
+      :ok
+  """
+  @spec emit_lemming_resume_rejected(map(), atom()) :: :ok
+  def emit_lemming_resume_rejected(state, reason) when is_atom(reason) do
+    emit(state, "runtime.lemming_call.resume.rejected", %{
+      reason: Atom.to_string(reason),
+      executor_status: Map.get(state, :status)
+    })
+  end
+
+  @doc """
+  Emits a resume-completed runtime event after processing restarts.
+
+  ## Examples
+
+      iex> state = %{instance_id: "instance-1", status: "processing", current_item: %{id: "item-1"}}
+      iex> call = %{id: "call-1", status: "completed"}
+      iex> LemmingsOs.LemmingInstances.Executor.Events.emit_lemming_resume_completed(state, call)
+      :ok
+  """
+  @spec emit_lemming_resume_completed(map(), map()) :: :ok
+  def emit_lemming_resume_completed(state, call) do
+    emit(state, "runtime.lemming_call.resume.completed", %{
+      call_id: Map.get(call, :id),
+      call_status: Map.get(call, :status),
+      current_item_id: current_item_id(Map.get(state, :current_item)),
+      executor_status: Map.get(state, :status)
+    })
+  end
+
+  @doc """
   Emits a best-effort runtime event on the instance transcript PubSub topic.
 
   ## Examples
@@ -206,4 +262,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
   defp tool_error_reason(%{"code" => code}) when is_binary(code), do: code
   defp tool_error_reason(%{code: code}) when is_binary(code), do: code
   defp tool_error_reason(_error), do: nil
+
+  defp current_item_id(%{id: id}), do: id
+  defp current_item_id(_item), do: nil
 end

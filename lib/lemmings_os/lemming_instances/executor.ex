@@ -20,11 +20,18 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances.ConfigSnapshot
+  alias LemmingsOs.LemmingInstances.Executor.CommunicationRuntime
   alias LemmingsOs.LemmingInstances.Executor.ContextMessages
   alias LemmingsOs.LemmingInstances.Executor.Events
+  alias LemmingsOs.LemmingInstances.Executor.FinalizationDecision
   alias LemmingsOs.LemmingInstances.Executor.FinalizationPayload
+  alias LemmingsOs.LemmingInstances.Executor.FinalizationRuntime
+  alias LemmingsOs.LemmingInstances.Executor.ModelStepRuntime
   alias LemmingsOs.LemmingInstances.Executor.ModelStepPayload
+  alias LemmingsOs.LemmingInstances.Executor.QueueData
+  alias LemmingsOs.LemmingInstances.Executor.RetryRuntime
   alias LemmingsOs.LemmingInstances.Executor.RuntimeStore
+  alias LemmingsOs.LemmingInstances.Executor.ToolStepRuntime
   alias LemmingsOs.LemmingInstances.Executor.ToolLifecycle
   alias LemmingsOs.LemmingInstances.Executor.TransitionsData
   alias LemmingsOs.LemmingInstances.LemmingInstance
@@ -502,7 +509,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   @impl true
   def handle_call({:resume_after_lemming_call, call}, _from, state) do
-    {reply, next_state} = resume_after_lemming_call_result(state, call)
+    {reply, next_state} =
+      CommunicationRuntime.resume_after_lemming_call(state, call, resume_runtime_deps())
+
     {:reply, reply, next_state}
   end
 
@@ -699,26 +708,21 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp maybe_start_processing(%{status: "queued"} = state) do
-    if state.current_item || :queue.is_empty(state.queue) do
-      state
-    else
-      {{:value, item}, queue} = :queue.out(state.queue)
-
-      state =
+    case QueueData.dequeue_for_processing(state) do
+      :noop ->
         state
-        |> cancel_idle_timer()
-        |> Map.put(:queue, queue)
-        |> Map.put(:current_item, item)
-        |> Map.put(:phase, :action_selection)
-        |> Map.put(:finalization_context, nil)
-        |> Map.put(:finalization_repair_attempted?, false)
-        |> Map.put(:retry_count, 0)
-        |> transition_to("processing")
-        |> put_runtime_state()
 
-      _ = Events.emit_queue_dequeued(state, item, :queue.len(queue))
+      {:ok, item, queue} ->
+        state =
+          state
+          |> cancel_idle_timer()
+          |> QueueData.prepare_state_for_processing(item, queue)
+          |> transition_to("processing")
+          |> put_runtime_state()
 
-      start_execution(state)
+        _ = Events.emit_queue_dequeued(state, item, :queue.len(queue))
+
+        start_execution(state)
     end
   end
 
@@ -734,25 +738,13 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp maybe_restart_retry(state), do: state
 
   defp retry_failed(%{status: "failed"} = state) do
-    queue =
-      case state.current_item do
-        nil -> state.queue
-        current_item -> :queue.in_r(current_item, state.queue)
-      end
+    queue = QueueData.retry_queue(state)
 
     if :queue.is_empty(queue) do
       state
     else
       state
-      |> Map.put(:queue, queue)
-      |> Map.put(:current_item, nil)
-      |> Map.put(:current_resource_key, nil)
-      |> Map.put(:phase, :action_selection)
-      |> Map.put(:finalization_context, nil)
-      |> Map.put(:finalization_repair_attempted?, false)
-      |> Map.put(:retry_count, 0)
-      |> Map.put(:last_error, nil)
-      |> Map.put(:internal_error_details, nil)
+      |> QueueData.prepare_state_for_retry(queue)
       |> transition_to("queued", %{stopped_at: nil})
       |> put_runtime_state()
       |> notify_scheduler()
@@ -761,44 +753,56 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp retry_failed(state), do: state
 
-  defp handle_model_result(
-         state,
-         {:ok, %LemmingsOs.ModelRuntime.Response{action: :reply} = response}
-       ) do
-    case maybe_repair_empty_final_response(state, response) do
-      {:repair, next_state} ->
-        next_state
+  defp handle_model_result(state, result) do
+    case ModelStepRuntime.route_model_result(state, result) do
+      {:reply, response} ->
+        finalize_model_reply(state, response)
+
+      :reply_repair ->
+        state
+        |> FinalizationRuntime.schedule_repair(:empty_final_response, finalization_runtime_deps())
         |> clear_active_model_step()
         |> start_execution()
 
-      :continue ->
-        finalize_model_reply(state, response)
+      :tool_call_during_finalization ->
+        state
+        |> clear_active_model_step()
+        |> maybe_repair_finalization(:unexpected_tool_call_during_finalization)
+
+      {:tool_call, response} ->
+        handle_tool_call_result(state, response)
+
+      {:lemming_call, response} ->
+        handle_lemming_call_result(state, response)
+
+      :invalid_provider_response ->
+        state
+        |> clear_active_model_step()
+        |> handle_model_retry(:invalid_provider_response)
+
+      {:error, reason} ->
+        state
+        |> clear_active_model_step()
+        |> maybe_repair_finalization(reason)
+
+      :unexpected_model_result ->
+        state
+        |> clear_active_model_step()
+        |> handle_model_retry(:unexpected_model_result)
     end
   end
 
-  defp handle_model_result(
-         %{phase: :finalizing} = state,
-         {:ok, %LemmingsOs.ModelRuntime.Response{action: :tool_call}}
-       ) do
-    state
-    |> clear_active_model_step()
-    |> maybe_repair_finalization(:unexpected_tool_call_during_finalization)
-  end
-
-  defp handle_model_result(
-         state,
-         {:ok, %LemmingsOs.ModelRuntime.Response{action: :tool_call} = response}
-       ) do
+  defp handle_tool_call_result(state, response) do
     state =
       state
       |> Map.put(:last_error, nil)
       |> Map.put(:internal_error_details, nil)
 
-    case execute_tool_call(state, response) do
+    case ToolStepRuntime.execute_tool_call(state, response, tool_step_runtime_deps()) do
       {:ok, next_state, _tool_execution} ->
         next_state
         |> clear_active_model_step()
-        |> continue_after_tool_outcome()
+        |> ToolStepRuntime.continue_after_tool_outcome(tool_post_outcome_deps())
 
       {:error, reason, next_state} ->
         next_state
@@ -807,20 +811,17 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     end
   end
 
-  defp handle_model_result(
-         state,
-         {:ok, %LemmingsOs.ModelRuntime.Response{action: :lemming_call} = response}
-       ) do
+  defp handle_lemming_call_result(state, response) do
     state =
       state
       |> Map.put(:last_error, nil)
       |> Map.put(:internal_error_details, nil)
 
-    case execute_lemming_call(state, response) do
+    case CommunicationRuntime.execute_lemming_call(state, response) do
       {:ok, next_state, _call} ->
         next_state
         |> clear_active_model_step()
-        |> continue_after_lemming_call()
+        |> CommunicationRuntime.continue_after_lemming_call(communication_runtime_deps())
 
       {:error, reason, next_state} ->
         next_state
@@ -829,143 +830,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     end
   end
 
-  defp handle_model_result(state, {:ok, _response}) do
-    state
-    |> clear_active_model_step()
-    |> handle_model_retry(:invalid_provider_response)
-  end
-
-  defp handle_model_result(state, {:error, reason}) do
-    state
-    |> clear_active_model_step()
-    |> maybe_repair_finalization(reason)
-  end
-
-  defp handle_model_result(state, _unexpected) do
-    state
-    |> clear_active_model_step()
-    |> handle_model_retry(:unexpected_model_result)
-  end
-
   defp handle_model_retry(state, reason) do
-    next_retry = state.retry_count + 1
-    error_message = TransitionsData.last_error_message(reason)
-    internal_error_details = TransitionsData.internal_error_details(reason)
-
-    if next_retry >= state.max_retries do
-      state
-      |> Map.put(:retry_count, next_retry)
-      |> Map.put(:last_error, error_message)
-      |> Map.put(:internal_error_details, internal_error_details)
-      |> release_resource()
-      |> cleanup_snapshot()
-      |> transition_to("failed", %{stopped_at: state.now_fun.()})
-      |> put_runtime_state()
-    else
-      state
-      |> Map.put(:retry_count, next_retry)
-      |> Map.put(:last_error, error_message)
-      |> Map.put(:internal_error_details, internal_error_details)
-      |> transition_to("retrying")
-      |> put_runtime_state()
-      |> schedule_retry()
-    end
-  end
-
-  defp execute_tool_call(
-         state,
-         %LemmingsOs.ModelRuntime.Response{tool_name: tool_name, tool_args: tool_args}
-       )
-       when is_binary(tool_name) and is_map(tool_args) do
-    started_at = state.now_fun.()
-    _ = Events.emit_tool_started(state, tool_name, tool_args)
-    state = append_tool_call_context(state, tool_name, tool_args)
-
-    with {:ok, tool_execution, state} <-
-           create_tool_execution(state, tool_name, tool_args, started_at),
-         {:ok, world} <- runtime_world(state) do
-      state
-      |> persist_tool_outcome(
-        tool_execution,
-        execute_tool_runtime(state, world, tool_name, tool_args),
-        started_at
-      )
-      |> normalize_tool_outcome_result()
-    else
-      {:error, reason, next_state} ->
-        {:error, reason, next_state}
-
-      {:error, reason} ->
-        {:error, reason, state}
-    end
-  end
-
-  defp execute_tool_call(state, _response), do: {:error, :invalid_structured_output, state}
-
-  defp execute_lemming_call(
-         %{lemming_calls_mod: nil} = state,
-         _response
-       ) do
-    {:error, :lemming_call_unavailable, state}
-  end
-
-  defp execute_lemming_call(
-         %{lemming_calls_mod: lemming_calls_mod} = state,
-         %LemmingsOs.ModelRuntime.Response{} = response
-       ) do
-    attrs = %{
-      target: response.lemming_target,
-      request: response.lemming_request,
-      continue_call_id: response.continue_call_id
-    }
-
-    state = append_lemming_call_context(state, attrs)
-
-    with true <- module_loaded_and_exports?(lemming_calls_mod, :request_call, 3),
-         {:ok, call} <-
-           lemming_calls_mod.request_call(instance_with_runtime_snapshot(state), attrs, []) do
-      {:ok, state, call}
-    else
-      false -> {:error, :lemming_call_unavailable, state}
-      {:error, reason} -> {:error, {:lemming_call_failed, reason}, state}
-    end
-  end
-
-  defp continue_after_lemming_call(state) do
-    state
-    |> release_resource()
-    |> Map.put(:last_error, nil)
-    |> Map.put(:internal_error_details, nil)
-    |> put_runtime_state()
-    |> transition_to("idle", %{stopped_at: nil})
-    |> put_runtime_state()
-  end
-
-  defp resume_after_lemming_call_result(state, call) do
-    cond do
-      terminal_status?(state.status) ->
-        {{:error, :terminal_instance}, state}
-
-      is_nil(state.current_item) ->
-        {{:error, :resume_not_possible}, state}
-
-      not is_nil(state.model_task_pid) ->
-        {{:error, :resume_not_possible}, state}
-
-      true ->
-        next_state =
-          state
-          |> append_lemming_call_result_context(call)
-          |> Map.put(:retry_count, 0)
-          |> Map.put(:last_error, nil)
-          |> Map.put(:internal_error_details, nil)
-          |> cancel_idle_timer()
-          |> transition_to("processing", %{stopped_at: nil})
-          |> put_runtime_state()
-          |> start_execution()
-
-        {:ok, next_state}
-    end
+    RetryRuntime.handle_model_retry(state, reason, retry_runtime_deps())
   end
 
   defp persist_tool_outcome(state, tool_execution, {:ok, execution_result}, started_at) do
@@ -982,18 +848,6 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp normalize_tool_outcome_result({:error, reason, next_state}) do
     {:error, reason, next_state}
-  end
-
-  defp continue_after_tool_outcome(state) do
-    case state.finalization_context do
-      %{tool_status: "ok"} -> start_finalization_phase(state)
-      _finalization_context -> continue_tool_loop(state)
-    end
-  end
-
-  defp continue_tool_loop(state) do
-    next_iteration_count = state.tool_iteration_count + 1
-    continue_tool_loop(state, next_iteration_count)
   end
 
   defp finalize_model_reply(state, response) do
@@ -1014,88 +868,22 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     end
   end
 
-  defp maybe_repair_empty_final_response(state, response) do
-    if state.phase == :finalizing and blank_reply?(response.reply) and
-         not state.finalization_repair_attempted? do
-      {:repair, schedule_finalization_repair(state, :empty_final_response)}
-    else
-      :continue
-    end
-  end
-
-  defp maybe_repair_finalization(%{phase: :finalizing} = state, reason) do
-    cond do
-      repairable_finalization_reason?(reason) and not state.finalization_repair_attempted? ->
+  defp maybe_repair_finalization(state, reason) do
+    case FinalizationDecision.finalization_action(
+           state.phase,
+           reason,
+           state.finalization_repair_attempted?
+         ) do
+      :repair ->
         state
-        |> schedule_finalization_repair(reason)
+        |> FinalizationRuntime.schedule_repair(reason, finalization_runtime_deps())
         |> start_execution()
 
-      repairable_finalization_reason?(reason) ->
-        fail_without_retry(state, reason)
+      :fail_without_retry ->
+        FinalizationRuntime.fail_without_retry(state, reason, finalization_runtime_deps())
 
-      true ->
+      :retry ->
         handle_model_retry(state, reason)
-    end
-  end
-
-  defp maybe_repair_finalization(state, reason), do: handle_model_retry(state, reason)
-
-  defp schedule_finalization_repair(state, reason) do
-    state
-    |> Map.put(:finalization_repair_attempted?, true)
-    |> Map.put(:last_error, nil)
-    |> Map.put(:internal_error_details, nil)
-    |> put_in([:finalization_context, :repair_reason], inspect(reason))
-    |> put_runtime_state()
-  end
-
-  defp start_finalization_phase(state) do
-    next_iteration_count = state.tool_iteration_count + 1
-
-    state
-    |> Map.put(:phase, :finalizing)
-    |> Map.put(:tool_iteration_count, next_iteration_count)
-    |> Map.put(:retry_count, 0)
-    |> Map.put(:last_error, nil)
-    |> Map.put(:internal_error_details, nil)
-    |> put_runtime_state()
-    |> start_execution()
-  end
-
-  defp fail_without_retry(state, reason) do
-    state
-    |> Map.put(:retry_count, state.max_retries)
-    |> Map.put(:last_error, TransitionsData.last_error_message(reason))
-    |> Map.put(:internal_error_details, TransitionsData.internal_error_details(reason))
-    |> release_resource()
-    |> cleanup_snapshot()
-    |> transition_to("failed", %{stopped_at: state.now_fun.()})
-    |> put_runtime_state()
-  end
-
-  defp repairable_finalization_reason?({:invalid_structured_output, _metadata}), do: true
-  defp repairable_finalization_reason?(:invalid_structured_output), do: true
-  defp repairable_finalization_reason?({:unknown_action, _metadata}), do: true
-  defp repairable_finalization_reason?(:unknown_action), do: true
-  defp repairable_finalization_reason?(:provider_error), do: true
-  defp repairable_finalization_reason?(:invalid_provider_response), do: true
-  defp repairable_finalization_reason?(:unexpected_tool_call_during_finalization), do: true
-  defp repairable_finalization_reason?(_reason), do: false
-
-  defp blank_reply?(reply) when is_binary(reply), do: Helpers.blank?(reply)
-  defp blank_reply?(_reply), do: true
-
-  defp continue_tool_loop(state, next_iteration_count) do
-    if next_iteration_count >= max_tool_iterations(state.config_snapshot) do
-      handle_model_retry(
-        %{state | tool_iteration_count: next_iteration_count},
-        :tool_iteration_limit_reached
-      )
-    else
-      state
-      |> Map.put(:tool_iteration_count, next_iteration_count)
-      |> put_runtime_state()
-      |> start_execution()
     end
   end
 
@@ -1335,18 +1123,6 @@ defmodule LemmingsOs.LemmingInstances.Executor do
     %{state | context_messages: state.context_messages ++ [tool_call_message]}
   end
 
-  defp append_lemming_call_context(state, attrs) do
-    lemming_call_message = ContextMessages.lemming_call_message(attrs)
-
-    %{state | context_messages: state.context_messages ++ [lemming_call_message]}
-  end
-
-  defp append_lemming_call_result_context(state, call) do
-    lemming_call_message = ContextMessages.lemming_call_result_message(call)
-
-    %{state | context_messages: state.context_messages ++ [lemming_call_message]}
-  end
-
   defp append_tool_result_context(state, tool_execution) do
     tool_payload = FinalizationPayload.tool_result_payload(tool_execution)
     tool_message = ContextMessages.tool_result_message(tool_execution, tool_payload)
@@ -1372,6 +1148,69 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp record_tool_activity(type, state, phase, tool_execution),
     do: ToolLifecycle.record_tool_activity(type, state, phase, tool_execution)
+
+  defp communication_runtime_deps do
+    %{
+      release_resource: &release_resource/1,
+      put_runtime_state: &put_runtime_state/1,
+      transition_to: &transition_to/3
+    }
+  end
+
+  defp tool_step_runtime_deps do
+    %{
+      now_fun: fn state -> state.now_fun.() end,
+      emit_tool_started: &Events.emit_tool_started/3,
+      append_tool_call_context: &append_tool_call_context/3,
+      create_tool_execution: &create_tool_execution/4,
+      runtime_world: &runtime_world/1,
+      execute_tool_runtime: fn state, world, tool_name, tool_args ->
+        execute_tool_runtime(state, world, tool_name, tool_args)
+      end,
+      persist_tool_outcome: &persist_tool_outcome/4,
+      normalize_tool_outcome_result: &normalize_tool_outcome_result/1
+    }
+  end
+
+  defp tool_post_outcome_deps do
+    %{
+      put_runtime_state: &put_runtime_state/1,
+      start_execution: &start_execution/1,
+      handle_model_retry: &handle_model_retry/2,
+      max_tool_iterations: &max_tool_iterations/1
+    }
+  end
+
+  defp finalization_runtime_deps do
+    %{
+      put_runtime_state: &put_runtime_state/1,
+      release_resource: &release_resource/1,
+      cleanup_snapshot: &cleanup_snapshot/1,
+      transition_to: &transition_to/3
+    }
+  end
+
+  defp retry_runtime_deps do
+    %{
+      release_resource: &release_resource/1,
+      cleanup_snapshot: &cleanup_snapshot/1,
+      transition_to: &transition_to/3,
+      put_runtime_state: &put_runtime_state/1,
+      schedule_retry: &schedule_retry/1
+    }
+  end
+
+  defp resume_runtime_deps do
+    %{
+      emit_resume_started: &Events.emit_lemming_resume_started/2,
+      emit_resume_rejected: &Events.emit_lemming_resume_rejected/2,
+      emit_resume_completed: &Events.emit_lemming_resume_completed/2,
+      cancel_idle_timer: &cancel_idle_timer/1,
+      transition_to: &transition_to/3,
+      put_runtime_state: &put_runtime_state/1,
+      start_execution: &start_execution/1
+    }
+  end
 
   defp module_loaded_and_exports?(module, function_name, arity)
        when is_atom(module) and is_atom(function_name) and is_integer(arity) do
@@ -1424,34 +1263,23 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp enqueue_item(state, content, opts) do
-    if Helpers.blank?(content) do
-      {state, false}
-    else
-      now = state.now_fun.()
-      item = %{id: Ecto.UUID.generate(), content: content, origin: :user, inserted_at: now}
-      queue = :queue.in(item, state.queue)
-      append_to_context? = Keyword.get(opts, :append_to_context?, true)
+    case QueueData.enqueue_data(state, content, opts) do
+      :blank ->
+        {state, false}
 
-      context_messages =
-        if append_to_context? do
-          state.context_messages ++ [%{role: "user", content: content, request_id: item.id}]
-        else
-          state.context_messages
-        end
+      %{item: item, queue: queue, context_messages: context_messages, next_status: next_status} =
+          enqueue_data ->
+        state =
+          state
+          |> maybe_cancel_idle(next_status)
+          |> Map.put(:queue, queue)
+          |> Map.put(:context_messages, context_messages)
+          |> transition_to(next_status)
+          |> put_runtime_state()
 
-      next_status = if state.status in ["created", "idle"], do: "queued", else: state.status
+        _ = Events.emit_queue_enqueued(state, item, :queue.len(queue))
 
-      state =
-        state
-        |> maybe_cancel_idle(next_status)
-        |> Map.put(:queue, queue)
-        |> Map.put(:context_messages, context_messages)
-        |> transition_to(next_status)
-        |> put_runtime_state()
-
-      _ = Events.emit_queue_enqueued(state, item, :queue.len(queue))
-
-      {state, next_status == "queued"}
+        {state, enqueue_data.should_notify?}
     end
   end
 
@@ -1627,25 +1455,17 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp model_config_snapshot(state) do
-    targets = available_lemming_call_targets(state)
+    instance =
+      CommunicationRuntime.instance_with_runtime_snapshot(
+        state.instance,
+        state.config_snapshot
+      )
 
-    if targets == [] do
-      state.config_snapshot
-    else
-      Map.put(state.config_snapshot, :lemming_call_targets, targets)
-    end
-  end
-
-  defp available_lemming_call_targets(%{lemming_calls_mod: lemming_calls_mod} = state) do
-    if module_loaded_and_exports?(lemming_calls_mod, :available_targets, 1) do
-      lemming_calls_mod.available_targets(instance_with_runtime_snapshot(state))
-    else
-      []
-    end
-  end
-
-  defp instance_with_runtime_snapshot(state) do
-    %{state.instance | config_snapshot: state.config_snapshot}
+    CommunicationRuntime.model_config_snapshot(
+      state.config_snapshot,
+      state.lemming_calls_mod,
+      instance
+    )
   end
 
   defp current_model_request_payload(state) do
@@ -1759,7 +1579,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       |> Map.put(:status, new_status)
       |> Map.put(:last_activity_at, attrs.last_activity_at)
       |> persist_status(attrs)
-      |> maybe_sync_child_call_terminal(new_status)
+      |> CommunicationRuntime.maybe_sync_child_terminal(new_status)
       |> broadcast_status()
       |> then(&log_transition(&1, previous_status, new_status))
 
@@ -1792,68 +1612,6 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp persist_status(state, _attrs), do: state
-
-  defp maybe_sync_child_call_terminal(state, "idle") do
-    if pending_manager_calls?(state) do
-      state
-    else
-      sync_child_call_terminal(state, "idle")
-    end
-  end
-
-  defp maybe_sync_child_call_terminal(state, status)
-       when status in ["failed", "expired"] do
-    sync_child_call_terminal(state, status)
-  end
-
-  defp maybe_sync_child_call_terminal(state, _status), do: state
-
-  defp sync_child_call_terminal(state, status) do
-    result_summary =
-      case {status, state.context_messages} do
-        {"idle", messages} -> last_assistant_content(messages)
-        _other -> nil
-      end
-
-    attrs = %{
-      result_summary: result_summary,
-      error_summary: state.last_error,
-      completed_at: state.now_fun.()
-    }
-
-    if module_loaded_and_exports?(state.lemming_calls_mod, :sync_child_instance_terminal, 3) do
-      _ = state.lemming_calls_mod.sync_child_instance_terminal(state.instance, status, attrs)
-    end
-
-    state
-  end
-
-  defp pending_manager_calls?(%{instance: instance, lemming_calls_mod: lemming_calls_mod})
-       when not is_nil(lemming_calls_mod) do
-    if module_loaded_and_exports?(lemming_calls_mod, :list_manager_calls, 2) do
-      case lemming_calls_mod.list_manager_calls(instance, statuses: pending_child_call_statuses()) do
-        [] -> false
-        [_ | _rest] -> true
-      end
-    else
-      false
-    end
-  end
-
-  defp pending_manager_calls?(_state), do: false
-
-  defp pending_child_call_statuses,
-    do: ["accepted", "running", "needs_more_context", "partial_result"]
-
-  defp last_assistant_content(messages) do
-    messages
-    |> Enum.reverse()
-    |> Enum.find_value(fn
-      %{role: "assistant", content: content} when is_binary(content) -> content
-      %{role: :assistant, content: content} when is_binary(content) -> content
-      _message -> nil
-    end)
-  end
 
   defp broadcast_status(state) do
     metadata = %{

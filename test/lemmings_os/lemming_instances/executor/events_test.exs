@@ -124,4 +124,65 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
                       }
                     }}
   end
+
+  test "resume events broadcast started, rejected, and completed payloads" do
+    instance_id = "instance-events-resume"
+    assert :ok = PubSub.subscribe_instance_messages(instance_id)
+
+    idle_state = %{instance_id: instance_id, status: "idle"}
+
+    processing_state = %{
+      instance_id: instance_id,
+      status: "processing",
+      current_item: %{id: "item-9"}
+    }
+
+    call = %{id: "call-1", status: "completed"}
+
+    assert :ok = Events.emit_lemming_resume_started(idle_state, call)
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      event: "runtime.lemming_call.resume.started",
+                      payload: %{
+                        event: "runtime.lemming_call.resume.started",
+                        call_id: "call-1",
+                        call_status: "completed",
+                        executor_status: "idle"
+                      }
+                    }}
+
+    assert :ok =
+             Events.emit_lemming_resume_rejected(
+               %{instance_id: instance_id, status: "failed"},
+               :terminal_instance
+             )
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      event: "runtime.lemming_call.resume.rejected",
+                      payload: %{
+                        event: "runtime.lemming_call.resume.rejected",
+                        reason: "terminal_instance",
+                        executor_status: "failed"
+                      }
+                    }}
+
+    assert :ok = Events.emit_lemming_resume_completed(processing_state, call)
+
+    assert_receive {:runtime_event,
+                    %{
+                      instance_id: ^instance_id,
+                      event: "runtime.lemming_call.resume.completed",
+                      payload: %{
+                        event: "runtime.lemming_call.resume.completed",
+                        call_id: "call-1",
+                        call_status: "completed",
+                        current_item_id: "item-9",
+                        executor_status: "processing"
+                      }
+                    }}
+  end
 end

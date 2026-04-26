@@ -804,6 +804,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     resource_key = "ollama:lemming-call-loop-model"
 
     assert :ok = PubSub.subscribe_instance(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
 
     {:ok, pid} =
       Executor.start_link(
@@ -860,7 +861,19 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
                recovery_status: "recovered"
              })
 
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.lemming_call.resume.started",
+                      payload: %{call_status: "completed"}
+                    }}
+
     assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.lemming_call.resume.completed",
+                      payload: %{call_status: "completed"}
+                    }}
 
     assert_receive {:lemming_call_model_run, _config_snapshot, context_messages,
                     %{content: "Delegate this"}}
