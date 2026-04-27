@@ -64,14 +64,17 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
       iex> LemmingsOs.LemmingInstances.Executor.Communication.request_call(nil, %{id: "instance-1"}, response)
       {:error, :lemming_call_unavailable}
   """
-  @spec request_call(module() | nil, map(), Response.t()) :: request_result()
-  def request_call(nil, _instance, _response), do: {:error, :lemming_call_unavailable}
+  @spec request_call(module() | nil, map(), Response.t(), keyword()) :: request_result()
+  def request_call(lemming_calls_mod, instance, response, opts \\ [])
 
-  def request_call(lemming_calls_mod, instance, %Response{} = response) do
+  def request_call(nil, _instance, _response, _opts), do: {:error, :lemming_call_unavailable}
+
+  def request_call(lemming_calls_mod, instance, %Response{} = response, opts)
+      when is_list(opts) do
     attrs = lemming_call_attrs(response)
 
     with true <- module_loaded_and_exports?(lemming_calls_mod, :request_call, 3),
-         {:ok, call} <- lemming_calls_mod.request_call(instance, attrs, []) do
+         {:ok, call} <- lemming_calls_mod.request_call(instance, attrs, opts) do
       {:ok, attrs, call}
     else
       false -> {:error, :lemming_call_unavailable}

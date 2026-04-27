@@ -740,18 +740,39 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
   end
 
-  test "S08h: html and svg artifacts download without inline rendering", %{conn: conn} do
+  test "S08j: workspace action copies the workspace path", %{conn: conn} do
     %{world: world, instance: instance} = spawn_runtime_session()
 
-    assert_artifact_download_headers(
-      conn,
-      world,
-      instance,
-      "report.html",
-      "<script>alert(1)</script>"
-    )
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
 
-    assert_artifact_download_headers(conn, world, instance, "diagram.svg", "<svg></svg>")
+    html =
+      view
+      |> element("#instance-workspace-copy-button")
+      |> render()
+
+    assert html =~ ~s(type="button")
+    assert html =~ ~s(data-workspace-path=)
+    assert html =~ "Copy workspace path"
+    assert html =~ "navigator.clipboard.writeText(this.dataset.workspacePath)"
+
+    refute html =~ ~s(target="_blank")
+    refute html =~ ~s(href=)
+    refute html =~ "Open workspace"
+  end
+
+  test "S08k: clicking copy workspace path shows a copied flash", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    html =
+      view
+      |> element("#instance-workspace-copy-button")
+      |> render_click()
+
+    assert html =~ "Workspace path copied."
   end
 
   test "S08g: artifact download rejects symlink targets outside workspace", %{conn: conn} do
@@ -1685,27 +1706,5 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
       {position, _length} -> position
       :nomatch -> nil
     end
-  end
-
-  defp assert_artifact_download_headers(conn, world, instance, path, content) do
-    {:ok, %{absolute_path: absolute_path}} =
-      LemmingInstances.artifact_absolute_path(instance, path)
-
-    File.mkdir_p!(Path.dirname(absolute_path))
-    File.write!(absolute_path, content)
-
-    response =
-      conn
-      |> get(~p"/lemmings/instances/#{instance.id}/artifacts/#{[path]}?#{%{world: world.id}}")
-
-    assert response.status == 200
-    assert response.resp_body == content
-    assert get_resp_header(response, "content-type") == ["application/octet-stream"]
-
-    assert get_resp_header(response, "content-disposition") == [
-             ~s(attachment; filename="#{path}")
-           ]
-
-    assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
   end
 end

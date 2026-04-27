@@ -56,7 +56,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
   """
   @spec resume_after_lemming_call(map(), map(), resume_deps()) ::
           {:ok, map()}
-          | {{:error, :terminal_instance | :resume_not_possible | :child_call_not_terminal}, map()}
+          | {{:error, :terminal_instance | :resume_not_possible | :child_call_not_terminal},
+             map()}
   def resume_after_lemming_call(state, call, deps)
       when is_map(state) and is_map(call) and is_map(deps) do
     _ = emit_resume_event(deps, :emit_resume_requested, state, call)
@@ -120,11 +121,28 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
     attrs = Communication.lemming_call_attrs(response)
     state = append_call_request_context(state, attrs)
 
-    case Communication.request_call(state.lemming_calls_mod, instance, response) do
+    case Communication.request_call(
+           state.lemming_calls_mod,
+           instance,
+           response,
+           request_call_opts(state)
+         ) do
       {:ok, _attrs, call} -> {:ok, state, call}
       {:error, reason} -> {:error, reason, state}
     end
   end
+
+  defp request_call_opts(%{work_area_ref: work_area_ref}) when is_binary(work_area_ref) do
+    runtime_opts = [
+      executor_opts: [
+        work_area_ref: work_area_ref
+      ]
+    ]
+
+    [runtime_opts: runtime_opts]
+  end
+
+  defp request_call_opts(_state), do: []
 
   @doc """
   Builds an instance struct/map carrying the latest runtime config snapshot.

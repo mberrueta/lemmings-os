@@ -8,18 +8,18 @@ parse_optional_integer = fn env_var ->
   end
 end
 
-runtime_workspace_root =
-  System.get_env("LEMMINGS_RUNTIME_WORKSPACE_ROOT") ||
+work_areas_path =
+  System.get_env("LEMMINGS_WORK_AREAS_PATH") ||
     Application.get_env(
       :lemmings_os,
-      :runtime_workspace_root,
+      :work_areas_path,
       Path.expand("../priv/runtime/workspace", __DIR__)
     )
 
 runtime_city_node_name = System.get_env("LEMMINGS_CITY_NODE_NAME") || Atom.to_string(node())
 runtime_city_heartbeat = Application.get_env(:lemmings_os, :runtime_city_heartbeat, [])
 
-config :lemmings_os, :runtime_workspace_root, runtime_workspace_root
+config :lemmings_os, :work_areas_path, work_areas_path
 
 config :lemmings_os, :runtime_city,
   node_name: runtime_city_node_name,

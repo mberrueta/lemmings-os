@@ -18,7 +18,7 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
   defmodule CapturingRuntime do
     def spawn_session(lemming, request_text, opts) do
       if test_pid = Keyword.get(opts, :test_pid) do
-        send(test_pid, {:spawned_child_request, request_text})
+        send(test_pid, {:spawned_child_request, request_text, opts})
       end
 
       LemmingInstances.spawn_instance(lemming, request_text)
@@ -234,6 +234,7 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     {:ok, %{absolute_path: absolute_path}} =
       LemmingInstances.artifact_absolute_path(manager_instance, "proposal.md")
 
+    File.mkdir_p!(Path.dirname(absolute_path))
     File.write!(absolute_path, "# Existing Proposal\n\nOriginal body.\n")
 
     assert {:ok, _call} =
@@ -244,7 +245,7 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
                runtime_opts: [test_pid: self()]
              )
 
-    assert_receive {:spawned_child_request, child_request}
+    assert_receive {:spawned_child_request, child_request, _opts}
     assert child_request =~ "Improve proposal.md for enterprise buyers"
     assert child_request =~ "Delegation Artifact Context:"
     assert child_request =~ "Artifact: proposal.md"
@@ -252,6 +253,21 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
 
     assert child_request =~
              "Do not call fs.read_text_file for these paths unless runtime later provides them inside your own workspace."
+  end
+
+  test "S02c: request_call passes runtime opts to spawned child", %{
+    manager_instance: manager_instance
+  } do
+    assert {:ok, _call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "Draft shared notes"},
+               runtime_mod: CapturingRuntime,
+               runtime_opts: [test_pid: self(), executor_opts: [work_area_ref: "root-instance-1"]]
+             )
+
+    assert_receive {:spawned_child_request, "Draft shared notes", opts}
+    assert opts[:executor_opts][:work_area_ref] == "root-instance-1"
   end
 
   test "S03: workers cannot request lemming calls", %{worker_instance: worker_instance} do

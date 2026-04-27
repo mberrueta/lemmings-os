@@ -99,7 +99,8 @@ config :logger, :default_formatter,
     :issue_count,
     :world_id,
     :city_id,
-    :node_name
+    :node_name,
+    :work_area_ref
   ]
 
 # Use Jason for JSON parsing in Phoenix
