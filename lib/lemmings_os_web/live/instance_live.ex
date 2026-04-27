@@ -9,6 +9,7 @@ defmodule LemmingsOsWeb.InstanceLive do
   alias LemmingsOs.LemmingTools
   alias LemmingsOs.Helpers
   alias LemmingsOs.Runtime
+  alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.InstanceDelegationSnapshot
@@ -203,6 +204,28 @@ defmodule LemmingsOsWeb.InstanceLive do
     end
   end
 
+  def handle_event("open_workspace", _params, %{assigns: %{instance: nil}} = socket) do
+    {:noreply,
+     put_flash(socket, :error, dgettext("lemmings", "Workspace is unavailable right now."))}
+  end
+
+  def handle_event("open_workspace", _params, socket) do
+    path = instance_workspace_path(socket.assigns.instance, socket.assigns.runtime_state)
+
+    case open_workspace_path(path) do
+      :ok ->
+        {:noreply, put_flash(socket, :info, dgettext("lemmings", "Workspace open requested."))}
+
+      {:error, _reason} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("lemmings", "Workspace could not be opened."))}
+    end
+  end
+
+  def handle_event("workspace_path_copied", _params, socket) do
+    {:noreply, put_flash(socket, :info, dgettext("lemmings", "Workspace path copied."))}
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   defp load_instance(socket, id, params) do
@@ -333,6 +356,49 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp instance_raw_path(_instance, _world), do: nil
 
+  defp instance_workspace_path(%{id: instance_id}, runtime_state)
+       when is_binary(instance_id) and is_map(runtime_state) do
+    work_area_ref =
+      case Map.get(runtime_state, :work_area_ref) do
+        work_area_ref when is_binary(work_area_ref) and work_area_ref != "" -> work_area_ref
+        _other -> instance_id
+      end
+
+    WorkArea.root_path(work_area_ref)
+  end
+
+  defp instance_workspace_path(_instance, _runtime_state), do: nil
+
+  defp open_workspace_path(path) when is_binary(path) do
+    with :ok <- File.mkdir_p(path),
+         {command, args} <- workspace_open_command(path),
+         {_output, 0} <- System.cmd(command, args, stderr_to_stdout: true) do
+      :ok
+    else
+      {:error, reason} -> {:error, reason}
+      {_output, status} -> {:error, {:exit_status, status}}
+    end
+  rescue
+    exception -> {:error, exception}
+  end
+
+  defp open_workspace_path(_path), do: {:error, :invalid_path}
+
+  defp workspace_open_command(path) do
+    case Application.get_env(:lemmings_os, :workspace_open_command) do
+      {command, args} when is_binary(command) and is_list(args) -> {command, args ++ [path]}
+      command when is_binary(command) -> {command, [path]}
+      _other -> default_workspace_open_command(path)
+    end
+  end
+
+  defp default_workspace_open_command(path) do
+    case :os.type() do
+      {:unix, :darwin} -> {"open", [path]}
+      _other -> {"xdg-open", [path]}
+    end
+  end
+
   defp parent_lemming_name(%{lemming: %{name: name}}) when is_binary(name) and name != "",
     do: name
 
@@ -351,6 +417,7 @@ defmodule LemmingsOsWeb.InstanceLive do
           retry_count: Map.get(state, :retry_count, 0),
           max_retries: Map.get(state, :max_retries, 3),
           queue_depth: Map.get(state, :queue_depth, 0),
+          work_area_ref: Map.get(state, :work_area_ref),
           current_item: Map.get(state, :current_item),
           last_error: Map.get(state, :last_error),
           status: Map.get(state, :status),
@@ -377,6 +444,7 @@ defmodule LemmingsOsWeb.InstanceLive do
       retry_count: 0,
       max_retries: 3,
       queue_depth: 0,
+      work_area_ref: nil,
       current_item: nil,
       last_error: nil,
       status: status,

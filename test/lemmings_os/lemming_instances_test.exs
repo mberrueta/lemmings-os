@@ -165,7 +165,7 @@ defmodule LemmingsOs.LemmingInstancesTest do
     refute Map.has_key?(instance.config_snapshot, "__meta__")
   end
 
-  test "S03b: spawn_instance creates the lemming work area under the runtime workspace root" do
+  test "S03b: spawn_instance does not create the runtime WorkArea before an executor starts" do
     world = insert(:world, name: "Ops World", slug: "ops-world")
     city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
     department = insert(:department, world: world, city: city, name: "Support", slug: "support")
@@ -188,10 +188,10 @@ defmodule LemmingsOs.LemmingInstancesTest do
 
     work_area_root =
       :lemmings_os
-      |> Application.fetch_env!(:runtime_workspace_root)
+      |> Application.fetch_env!(:work_areas_path)
       |> Path.expand()
 
-    assert File.dir?(Path.join(work_area_root, Path.join([department.id, lemming.id])))
+    refute File.dir?(Path.join(work_area_root, instance.id))
   end
 
   test "S04: get_runtime_state/1 normalizes persisted runtime state from DETS" do
@@ -225,6 +225,7 @@ defmodule LemmingsOs.LemmingInstancesTest do
              LemmingInstances.get_runtime_state(instance.id, world_id: instance.world_id)
 
     assert runtime_state == %{
+             work_area_ref: nil,
              retry_count: 1,
              max_retries: 3,
              queue_depth: 1,

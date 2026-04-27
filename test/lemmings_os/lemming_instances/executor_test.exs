@@ -570,6 +570,25 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
   end
 
+  defmodule MetadataToolRuntime do
+    def execute(_world, _instance, tool_name, _args, runtime_meta) do
+      send(Application.fetch_env!(:lemmings_os, __MODULE__)[:test_pid], {
+        :tool_runtime_meta,
+        tool_name,
+        runtime_meta
+      })
+
+      {:ok,
+       %{
+         tool_name: tool_name,
+         args: %{},
+         summary: "metadata captured",
+         preview: nil,
+         result: %{path: "metadata.txt"}
+       }}
+    end
+  end
+
   defmodule RejectingMessagePersistor do
     def insert(_attrs), do: {:error, :forced_persist_failure}
   end
@@ -632,6 +651,50 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     spec = Executor.child_spec(instance: instance, name: nil)
     assert spec.id == {Executor, instance.id}
     assert spec.start == {Executor, :start_link, [[instance: instance, name: nil]]}
+  end
+
+  test "S01a: root executor derives work_area_ref from instance id and creates WorkArea", %{
+    instance: instance
+  } do
+    work_areas_path = isolated_work_areas_path()
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        context_mod: nil,
+        model_mod: nil,
+        pubsub_mod: nil,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    snapshot = Executor.snapshot(pid)
+
+    assert snapshot.work_area_ref == instance.id
+    assert File.dir?(Path.join(work_areas_path, instance.id))
+
+    GenServer.stop(pid)
+  end
+
+  test "S01c: WorkArea creation failure does not fail executor startup", %{instance: instance} do
+    work_areas_path = isolated_work_areas_path()
+    File.write!(work_areas_path, "not a directory")
+
+    assert {:ok, pid} =
+             Executor.start_link(
+               instance: instance,
+               context_mod: nil,
+               model_mod: nil,
+               pubsub_mod: nil,
+               dets_mod: nil,
+               ets_mod: nil,
+               name: nil
+             )
+
+    assert Executor.snapshot(pid).work_area_ref == instance.id
+
+    GenServer.stop(pid)
   end
 
   test "S01b: enqueue_work/2 returns executor_unavailable when the target process is gone" do
@@ -1702,6 +1765,57 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     GenServer.stop(pid)
   end
 
+  test "S07a: executor sends hidden WorkArea metadata to tool runtime", %{instance: instance} do
+    resource_key = "ollama:tool-loop-model"
+    work_area_ref = Ecto.UUID.generate()
+    previous_env = Application.get_env(:lemmings_os, MetadataToolRuntime)
+    Application.put_env(:lemmings_os, MetadataToolRuntime, test_pid: self())
+
+    on_exit(fn ->
+      if previous_env do
+        Application.put_env(:lemmings_os, MetadataToolRuntime, previous_env)
+      else
+        Application.delete_env(:lemmings_os, MetadataToolRuntime)
+      end
+    end)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        work_area_ref: work_area_ref,
+        config_snapshot: %{
+          model: "tool-loop-model",
+          observer_pid: self(),
+          models_config: %{profiles: %{default: %{provider: "ollama", model: "tool-loop-model"}}}
+        },
+        context_mod: LemmingInstances,
+        model_mod: ToolLoopModelRuntime,
+        tool_runtime_mod: MetadataToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Use a tool")
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:tool_runtime_meta, "web.fetch", runtime_meta}
+    assert runtime_meta.actor_instance_id == instance.id
+    assert runtime_meta.work_area_ref == work_area_ref
+    assert runtime_meta.world_id == instance.world_id
+    assert runtime_meta.city_id == instance.city_id
+    assert runtime_meta.department_id == instance.department_id
+
+    GenServer.stop(pid)
+  end
+
   test "S08: tool_call loop executes tool runtime and continues until final reply", %{
     instance: instance
   } do
@@ -2535,5 +2649,29 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     after
       Logger.configure(level: previous_level)
     end
+  end
+
+  defp isolated_work_areas_path do
+    old_work_areas_path = Application.get_env(:lemmings_os, :work_areas_path)
+
+    work_areas_path =
+      Path.join(
+        System.tmp_dir!(),
+        "lemmings_executor_work_area_test_#{System.unique_integer([:positive])}"
+      )
+
+    Application.put_env(:lemmings_os, :work_areas_path, work_areas_path)
+
+    on_exit(fn ->
+      if old_work_areas_path do
+        Application.put_env(:lemmings_os, :work_areas_path, old_work_areas_path)
+      else
+        Application.delete_env(:lemmings_os, :work_areas_path)
+      end
+
+      File.rm_rf(work_areas_path)
+    end)
+
+    work_areas_path
   end
 end

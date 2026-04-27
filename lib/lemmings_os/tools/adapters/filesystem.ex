@@ -4,6 +4,15 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
   """
 
   alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.Tools.WorkArea
+
+  @type runtime_meta :: %{
+          optional(:actor_instance_id) => String.t(),
+          optional(:work_area_ref) => String.t(),
+          optional(:world_id) => String.t(),
+          optional(:city_id) => String.t(),
+          optional(:department_id) => String.t()
+        }
 
   @type success_result :: %{
           summary: String.t(),
@@ -19,37 +28,21 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
 
   @doc """
   Executes the `fs.read_text_file` adapter.
-
-  ## Examples
-
-      iex> instance = %LemmingsOs.LemmingInstances.LemmingInstance{
-      ...>   department_id: "department-1",
-      ...>   lemming_id: "lemming-1"
-      ...> }
-      iex> LemmingsOs.Tools.Adapters.Filesystem.read_text_file(instance, %{"path" => "notes.txt"})
-      {:error, %{code: "tool.fs.not_found", details: %{path: "notes.txt"}, message: "File not found"}}
   """
-  @spec read_text_file(LemmingInstance.t(), map()) ::
+  @spec read_text_file(LemmingInstance.t(), map(), runtime_meta()) ::
           {:ok, success_result()} | {:error, error_result()}
-  def read_text_file(%LemmingInstance{} = instance, args) when is_map(args) do
+  def read_text_file(%LemmingInstance{} = instance, args, runtime_meta \\ %{})
+      when is_map(args) and is_map(runtime_meta) do
     with {:ok, relative_path} <- validate_read_args(args),
-         {:ok,
-          %{
-            absolute_path: absolute_path,
-            relative_path: normalized_relative_path,
-            root_path: root_path,
-            workspace_path: workspace_path
-          }} <-
-           resolve_workspace_path(instance, relative_path),
-         {:ok, content} <- read_utf8_file(absolute_path) do
+         {:ok, %{absolute_path: absolute_path, relative_path: normalized_relative_path}} <-
+           resolve_workspace_path(instance, relative_path, runtime_meta),
+         {:ok, content} <- read_utf8_file(absolute_path, normalized_relative_path) do
       {:ok,
        %{
          summary: "Read file #{normalized_relative_path}",
          preview: String.slice(content, 0, 280),
          result: %{
            path: normalized_relative_path,
-           root_path: root_path,
-           workspace_path: workspace_path,
            content: content,
            bytes: byte_size(content)
          }
@@ -59,32 +52,14 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
 
   @doc """
   Executes the `fs.write_text_file` adapter.
-
-  ## Examples
-
-      iex> instance = %LemmingsOs.LemmingInstances.LemmingInstance{
-      ...>   department_id: "department-1",
-      ...>   lemming_id: "lemming-1"
-      ...> }
-      iex> LemmingsOs.Tools.Adapters.Filesystem.write_text_file(instance, %{"path" => "notes.txt", "content" => "hello"})
-      {:ok,
-      %{result: %{bytes: 5,
-  path: "notes.txt", root_path: "/workspace/department-1/lemming-1",
-  workspace_path: "/workspace/department-1/lemming-1/notes.txt"},
-  summary: "Wrote file notes.txt", preview: "hello"}}
   """
-  @spec write_text_file(LemmingInstance.t(), map()) ::
+  @spec write_text_file(LemmingInstance.t(), map(), runtime_meta()) ::
           {:ok, success_result()} | {:error, error_result()}
-  def write_text_file(%LemmingInstance{} = instance, args) when is_map(args) do
+  def write_text_file(%LemmingInstance{} = instance, args, runtime_meta \\ %{})
+      when is_map(args) and is_map(runtime_meta) do
     with {:ok, {relative_path, content}} <- validate_write_args(args),
-         {:ok,
-          %{
-            absolute_path: absolute_path,
-            relative_path: normalized_relative_path,
-            root_path: root_path,
-            workspace_path: workspace_path
-          }} <-
-           resolve_workspace_path(instance, relative_path),
+         {:ok, %{absolute_path: absolute_path, relative_path: normalized_relative_path}} <-
+           resolve_workspace_path(instance, relative_path, runtime_meta),
          :ok <- ensure_parent_directory(absolute_path),
          :ok <- write_utf8_file(absolute_path, content) do
       {:ok,
@@ -93,8 +68,6 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
          preview: String.slice(content, 0, 280),
          result: %{
            path: normalized_relative_path,
-           root_path: root_path,
-           workspace_path: workspace_path,
            bytes: byte_size(content)
          }
        }}
@@ -130,127 +103,57 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
      }}
   end
 
-  defp resolve_workspace_path(
-         %LemmingInstance{department_id: department_id, lemming_id: lemming_id},
-         relative_path
-       )
-       when is_binary(department_id) and is_binary(lemming_id) and is_binary(relative_path) do
-    with :ok <- validate_relative_path(relative_path) do
-      resolve_valid_workspace_path(department_id, lemming_id, relative_path)
-    end
-  end
+  defp resolve_workspace_path(%LemmingInstance{} = instance, relative_path, runtime_meta) do
+    case work_area_ref(instance, runtime_meta) do
+      work_area_ref when is_binary(work_area_ref) and work_area_ref != "" ->
+        relative_path
+        |> then(&WorkArea.resolve(work_area_ref, &1))
+        |> normalize_resolve_result(relative_path)
 
-  defp resolve_workspace_path(_instance, _relative_path) do
-    {:error,
-     %{
-       code: "tool.fs.invalid_instance_scope",
-       message: "Instance scope is incomplete",
-       details: %{}
-     }}
-  end
-
-  defp validate_relative_path(path) when is_binary(path) do
-    cond do
-      path == "" ->
+      _other ->
         {:error,
          %{
-           code: "tool.validation.invalid_args",
-           message: "Invalid tool arguments",
-           details: %{field: "path"}
+           code: "tool.fs.invalid_instance_scope",
+           message: "Instance scope is incomplete",
+           details: %{}
          }}
-
-      Path.type(path) == :absolute ->
-        {:error,
-         %{
-           code: "tool.fs.path_must_be_relative",
-           message: "Path must be workspace-relative",
-           details: %{path: path}
-         }}
-
-      true ->
-        :ok
     end
   end
 
-  defp resolve_valid_workspace_path(department_id, lemming_id, relative_path) do
-    workspace_root = workspace_root() |> Path.expand()
-    work_area_root = Path.join([workspace_root, department_id, lemming_id])
-    absolute_path = Path.expand(relative_path, work_area_root)
+  defp work_area_ref(_instance, %{work_area_ref: work_area_ref}) when is_binary(work_area_ref),
+    do: work_area_ref
 
-    if path_within_root?(absolute_path, work_area_root) do
-      build_workspace_path_info(work_area_root, absolute_path, department_id, lemming_id)
-    else
-      path_outside_workspace_error(relative_path)
-    end
-  end
+  defp work_area_ref(_instance, %{"work_area_ref" => work_area_ref})
+       when is_binary(work_area_ref),
+       do: work_area_ref
 
-  defp build_workspace_path_info(work_area_root, absolute_path, department_id, lemming_id) do
-    root_path = Path.join(["/workspace", department_id, lemming_id])
-    normalized_relative_path = Path.relative_to(absolute_path, work_area_root)
-    workspace_path = Path.join([root_path, normalized_relative_path])
+  defp work_area_ref(%LemmingInstance{id: instance_id}, _runtime_meta)
+       when is_binary(instance_id),
+       do: instance_id
 
-    with :ok <- validate_no_symlink_components(work_area_root, normalized_relative_path) do
-      {:ok,
-       %{
-         absolute_path: absolute_path,
-         relative_path: normalized_relative_path,
-         root_path: root_path,
-         workspace_path: workspace_path
-       }}
-    end
-  end
+  defp work_area_ref(_instance, _runtime_meta), do: nil
 
-  defp path_outside_workspace_error(relative_path) do
+  defp normalize_resolve_result({:ok, resolved}, _relative_path), do: {:ok, resolved}
+
+  defp normalize_resolve_result({:error, :work_area_unavailable}, relative_path) do
     {:error,
      %{
-       code: "tool.fs.path_outside_workspace",
-       message: "Path escapes workspace boundary",
+       code: "tool.fs.work_area_unavailable",
+       message: "WorkArea is unavailable",
        details: %{path: relative_path}
      }}
   end
 
-  defp path_within_root?(absolute_path, root_path)
-       when is_binary(absolute_path) and is_binary(root_path) do
-    normalized_absolute = Path.expand(absolute_path)
-    normalized_root = Path.expand(root_path)
-
-    normalized_absolute == normalized_root or
-      String.starts_with?(normalized_absolute, normalized_root <> "/")
+  defp normalize_resolve_result({:error, _reason}, relative_path) do
+    {:error,
+     %{
+       code: "tool.validation.invalid_path",
+       message: "Invalid workspace-relative path",
+       details: %{path: relative_path}
+     }}
   end
 
-  defp validate_no_symlink_components(root_path, relative_path)
-       when is_binary(root_path) and is_binary(relative_path) do
-    root_path
-    |> Path.expand()
-    |> validate_no_symlink_components(Path.split(relative_path), relative_path)
-  end
-
-  defp validate_no_symlink_components(_current_path, [], _relative_path), do: :ok
-
-  defp validate_no_symlink_components(current_path, [segment | rest], relative_path) do
-    next_path = Path.join(current_path, segment)
-
-    case File.lstat(next_path) do
-      {:ok, %File.Stat{type: :symlink}} ->
-        {:error,
-         %{
-           code: "tool.fs.path_outside_workspace",
-           message: "Path escapes workspace boundary",
-           details: %{path: relative_path}
-         }}
-
-      {:ok, _stat} ->
-        validate_no_symlink_components(next_path, rest, relative_path)
-
-      {:error, :enoent} ->
-        :ok
-
-      {:error, _reason} ->
-        :ok
-    end
-  end
-
-  defp read_utf8_file(path) when is_binary(path) do
+  defp read_utf8_file(path, relative_path) when is_binary(path) do
     case File.read(path) do
       {:ok, content} when is_binary(content) ->
         {:ok, content}
@@ -260,7 +163,7 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
          %{
            code: "tool.fs.not_found",
            message: "File not found",
-           details: %{path: Path.basename(path)}
+           details: %{path: relative_path}
          }}
 
       {:error, reason} ->
@@ -304,13 +207,5 @@ defmodule LemmingsOs.Tools.Adapters.Filesystem do
            details: %{reason: inspect(reason)}
          }}
     end
-  end
-
-  defp workspace_root do
-    Application.get_env(
-      :lemmings_os,
-      :runtime_workspace_root,
-      Path.expand("../../../priv/runtime/workspace", __DIR__)
-    )
   end
 end

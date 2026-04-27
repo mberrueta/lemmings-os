@@ -76,6 +76,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Tools.Runtime, as: ToolsRuntime
+  alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds.World
 
   @runtime_table :lemming_instance_runtime
@@ -106,6 +107,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   @type state :: %{
           instance_id: binary(),
+          work_area_ref: binary(),
           department_id: binary() | nil,
           instance: LemmingInstance.t() | map(),
           config_snapshot: map(),
@@ -427,9 +429,11 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       status = instance_status(instance)
       now_fun = Keyword.get(opts, :now_fun, &DateTime.utc_now/0)
       now = now_fun.()
+      work_area_ref = Keyword.get(opts, :work_area_ref, instance_id)
 
       state = %{
         instance_id: instance_id,
+        work_area_ref: work_area_ref,
         department_id: instance_department_id(instance),
         instance: instance,
         config_snapshot: config_snapshot || %{},
@@ -478,6 +482,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         :ok ->
           state =
             state
+            |> maybe_ensure_root_work_area()
             |> maybe_load_context_messages()
             |> persist_started_at()
             |> put_runtime_state()
@@ -491,6 +496,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
             world_id: instance_world_id(state.instance),
             city_id: instance_city_id(state.instance),
             department_id: state.department_id,
+            work_area_ref: state.work_area_ref,
             status: state.status,
             queue_depth: :queue.len(state.queue),
             retry_count: state.retry_count,
@@ -504,6 +510,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
               %{count: 1},
               Telemetry.instance_metadata(state.instance, %{
                 instance_id: state.instance_id,
+                work_area_ref: state.work_area_ref,
                 status: state.status,
                 queue_depth: :queue.len(state.queue),
                 retry_count: state.retry_count,
@@ -515,6 +522,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
             ActivityLog.record(:runtime, "executor", "Executor started", %{
               instance_id: state.instance_id,
               department_id: state.department_id,
+              work_area_ref: state.work_area_ref,
               status: state.status
             })
 
@@ -566,6 +574,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   def handle_call(:snapshot, _from, state) do
     snapshot = %{
       instance_id: state.instance_id,
+      work_area_ref: state.work_area_ref,
       department_id: state.department_id,
       world_id: instance_world_id(state.instance),
       city_id: instance_city_id(state.instance),
@@ -977,11 +986,20 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp execute_tool_runtime(tool_runtime_mod, state, world, tool_name, tool_args) do
-    case module_loaded_and_exports?(tool_runtime_mod, :execute, 4) do
-      true ->
+    cond do
+      module_loaded_and_exports?(tool_runtime_mod, :execute, 5) ->
+        tool_runtime_mod.execute(
+          world,
+          state.instance,
+          tool_name,
+          tool_args,
+          tool_runtime_meta(state)
+        )
+
+      module_loaded_and_exports?(tool_runtime_mod, :execute, 4) ->
         tool_runtime_mod.execute(world, state.instance, tool_name, tool_args)
 
-      false ->
+      true ->
         {:error,
          %{
            tool_name: tool_name,
@@ -990,6 +1008,16 @@ defmodule LemmingsOs.LemmingInstances.Executor do
            details: %{}
          }}
     end
+  end
+
+  defp tool_runtime_meta(state) do
+    %{
+      actor_instance_id: state.instance_id,
+      work_area_ref: state.work_area_ref,
+      world_id: instance_world_id(state.instance),
+      city_id: instance_city_id(state.instance),
+      department_id: state.department_id
+    }
   end
 
   defp persist_tool_success(state, tool_execution, execution_result, started_at) do
@@ -1801,6 +1829,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp runtime_state_map(state) do
     %{
+      work_area_ref: state.work_area_ref,
       department_id: instance_department_id(state.instance),
       world_id: instance_world_id(state.instance),
       city_id: instance_city_id(state.instance),
@@ -1824,6 +1853,34 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       last_activity_at: state.last_activity_at
     }
   end
+
+  defp maybe_ensure_root_work_area(
+         %{work_area_ref: instance_id, instance_id: instance_id} = state
+       ) do
+    case WorkArea.ensure(state.work_area_ref) do
+      :ok ->
+        state
+
+      {:error, reason} ->
+        _ =
+          WorkArea.log_creation_failure(state.work_area_ref, reason, %{
+            instance_id: state.instance_id,
+            world_id: instance_world_id(state.instance),
+            city_id: instance_city_id(state.instance),
+            department_id: state.department_id
+          })
+
+        _ =
+          Events.emit(state, "runtime.work_area.create_failed", %{
+            work_area_ref: state.work_area_ref,
+            reason: inspect(reason)
+          })
+
+        state
+    end
+  end
+
+  defp maybe_ensure_root_work_area(state), do: state
 
   defp maybe_load_context_messages(%{context_mod: nil} = state), do: state
   defp maybe_load_context_messages(%{load_context_messages?: false} = state), do: state

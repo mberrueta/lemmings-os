@@ -6,29 +6,29 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   alias LemmingsOs.Worlds.World
 
   setup do
-    old_workspace_root = Application.get_env(:lemmings_os, :runtime_workspace_root)
+    old_work_areas_path = Application.get_env(:lemmings_os, :work_areas_path)
     old_allow_private_hosts = Application.fetch_env(:lemmings_os, :tools_web_allow_private_hosts)
 
-    workspace_root =
+    work_areas_path =
       Path.join(
         System.tmp_dir!(),
         "lemmings_tools_runtime_test_#{System.unique_integer([:positive])}"
       )
 
-    Application.put_env(:lemmings_os, :runtime_workspace_root, workspace_root)
+    Application.put_env(:lemmings_os, :work_areas_path, work_areas_path)
     Application.put_env(:lemmings_os, :tools_web_allow_private_hosts, true)
-    File.mkdir_p!(workspace_root)
+    File.mkdir_p!(work_areas_path)
 
     on_exit(fn ->
-      if old_workspace_root do
-        Application.put_env(:lemmings_os, :runtime_workspace_root, old_workspace_root)
+      if old_work_areas_path do
+        Application.put_env(:lemmings_os, :work_areas_path, old_work_areas_path)
       else
-        Application.delete_env(:lemmings_os, :runtime_workspace_root)
+        Application.delete_env(:lemmings_os, :work_areas_path)
       end
 
       restore_env(:tools_web_allow_private_hosts, old_allow_private_hosts)
 
-      File.rm_rf(workspace_root)
+      File.rm_rf(work_areas_path)
     end)
 
     world = %World{id: Ecto.UUID.generate()}
@@ -40,7 +40,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       lemming_id: Ecto.UUID.generate()
     }
 
-    File.mkdir_p!(Path.join([workspace_root, instance.department_id, instance.lemming_id]))
+    File.mkdir_p!(Path.join(work_areas_path, instance.id))
 
     {:ok, world: world, instance: instance}
   end
@@ -60,8 +60,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert write_result.summary == "Wrote file reports/result.md"
       assert write_result.result.path == "reports/result.md"
 
-      assert write_result.result.workspace_path ==
-               "/workspace/#{instance.department_id}/#{instance.lemming_id}/reports/result.md"
+      refute Map.has_key?(write_result.result, :workspace_path)
 
       assert {:ok, read_result} =
                Runtime.execute(world, instance, "fs.read_text_file", %{
@@ -75,13 +74,13 @@ defmodule LemmingsOs.Tools.RuntimeTest do
     end
 
     test "rejects absolute and escaping paths", %{world: world, instance: instance} do
-      assert {:error, %{code: "tool.fs.path_must_be_relative"}} =
+      assert {:error, %{code: "tool.validation.invalid_path"}} =
                Runtime.execute(world, instance, "fs.write_text_file", %{
                  "path" => "/etc/passwd",
                  "content" => "nope"
                })
 
-      assert {:error, %{code: "tool.fs.path_outside_workspace"}} =
+      assert {:error, %{code: "tool.validation.invalid_path"}} =
                Runtime.execute(world, instance, "fs.read_text_file", %{"path" => "../secret.txt"})
     end
   end

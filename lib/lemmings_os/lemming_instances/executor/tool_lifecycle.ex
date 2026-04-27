@@ -39,6 +39,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
       world_id: map_field(Map.get(state, :instance), :world_id),
       city_id: map_field(Map.get(state, :instance), :city_id),
       department_id: Map.get(state, :department_id),
+      work_area_ref: Map.get(state, :work_area_ref),
+      path: relative_path(tool_execution),
       current_item_id: current_item_id(Map.get(state, :current_item))
     )
 
@@ -55,6 +57,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
       world_id: map_field(Map.get(state, :instance), :world_id),
       city_id: map_field(Map.get(state, :instance), :city_id),
       department_id: Map.get(state, :department_id),
+      work_area_ref: Map.get(state, :work_area_ref),
+      path: relative_path(tool_execution),
       current_item_id: current_item_id(Map.get(state, :current_item))
     )
 
@@ -72,6 +76,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
       world_id: map_field(Map.get(state, :instance), :world_id),
       city_id: map_field(Map.get(state, :instance), :city_id),
       department_id: Map.get(state, :department_id),
+      work_area_ref: Map.get(state, :work_area_ref),
+      path: relative_path(tool_execution),
       current_item_id: current_item_id(Map.get(state, :current_item))
     )
 
@@ -90,7 +96,11 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
         Telemetry.tool_execution_metadata(
           Map.get(state, :instance),
           tool_execution,
-          %{instance_id: Map.get(state, :instance_id)}
+          %{
+            instance_id: Map.get(state, :instance_id),
+            work_area_ref: Map.get(state, :work_area_ref),
+            relative_path: relative_path(tool_execution)
+          }
         )
       )
 
@@ -105,7 +115,11 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
         Telemetry.tool_execution_metadata(
           Map.get(state, :instance),
           tool_execution,
-          %{instance_id: Map.get(state, :instance_id)}
+          %{
+            instance_id: Map.get(state, :instance_id),
+            work_area_ref: Map.get(state, :work_area_ref),
+            relative_path: relative_path(tool_execution)
+          }
         )
       )
 
@@ -122,6 +136,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
           tool_execution,
           %{
             instance_id: Map.get(state, :instance_id),
+            work_area_ref: Map.get(state, :work_area_ref),
+            relative_path: relative_path(tool_execution),
             reason: tool_error_reason(tool_execution.error)
           }
         )
@@ -142,6 +158,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
         world_id: map_field(Map.get(state, :instance), :world_id),
         city_id: map_field(Map.get(state, :instance), :city_id),
         department_id: Map.get(state, :department_id),
+        work_area_ref: Map.get(state, :work_area_ref),
+        relative_path: relative_path(tool_execution),
         tool_execution_id: tool_execution.id,
         tool_name: tool_execution.tool_name,
         status: tool_execution.status,
@@ -154,6 +172,12 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolLifecycle do
   defp tool_error_reason(%{"code" => code}) when is_binary(code), do: code
   defp tool_error_reason(%{code: code}) when is_binary(code), do: code
   defp tool_error_reason(_error), do: nil
+
+  defp relative_path(%{args: %{"path" => path}}) when is_binary(path), do: path
+  defp relative_path(%{args: %{path: path}}) when is_binary(path), do: path
+  defp relative_path(%{result: %{"path" => path}}) when is_binary(path), do: path
+  defp relative_path(%{result: %{path: path}}) when is_binary(path), do: path
+  defp relative_path(_tool_execution), do: nil
 
   defp current_item_id(%{id: id}) when is_binary(id), do: id
   defp current_item_id(_current_item), do: nil

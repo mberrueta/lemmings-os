@@ -80,10 +80,7 @@ defmodule LemmingsOs.LemmingInstances do
           |> snapshot_value()
           |> ConfigSnapshot.enrich()
 
-        work_area_path = build_work_area_path(lemming)
-
-        with :ok <- create_work_area(work_area_path),
-             {:ok, %{instance: instance, message: message}} <-
+        with {:ok, %{instance: instance, message: message}} <-
                persist_spawn(
                  lemming,
                  config_snapshot,
@@ -97,8 +94,7 @@ defmodule LemmingsOs.LemmingInstances do
             city_id: instance.city_id,
             department_id: instance.department_id,
             message_id: message.id,
-            status: instance.status,
-            path: work_area_path
+            status: instance.status
           )
 
           _ =
@@ -107,8 +103,7 @@ defmodule LemmingsOs.LemmingInstances do
               %{count: 1},
               Telemetry.instance_metadata(instance, %{
                 status: instance.status,
-                message_id: message.id,
-                work_area_path: work_area_path
+                message_id: message.id
               })
             )
 
@@ -116,15 +111,10 @@ defmodule LemmingsOs.LemmingInstances do
             ActivityLog.record(:runtime, "instance", "Runtime instance spawned", %{
               instance_id: instance.id,
               lemming_id: instance.lemming_id,
-              message_id: message.id,
-              work_area_path: work_area_path
+              message_id: message.id
             })
 
           {:ok, instance}
-        else
-          {:error, _reason} = error ->
-            cleanup_work_area(work_area_path)
-            error
         end
     end
   end
@@ -569,11 +559,6 @@ defmodule LemmingsOs.LemmingInstances do
     end
   end
 
-  defp build_work_area_path(%Lemming{department_id: department_id, id: lemming_id})
-       when is_binary(department_id) and is_binary(lemming_id) do
-    Path.join([department_id, lemming_id])
-  end
-
   @doc """
   Resolves a workspace-relative artifact path for an instance into an absolute path.
   """
@@ -622,46 +607,12 @@ defmodule LemmingsOs.LemmingInstances do
     end
   end
 
-  defp create_work_area(work_area_path) when is_binary(work_area_path) do
-    workspace_root()
-    |> Path.expand()
-    |> Path.join(work_area_path)
-    |> File.mkdir_p()
-    |> case do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.error("runtime instance work area could not be created",
-          event: "instance.work_area.create_failed",
-          path: work_area_path,
-          reason: inspect(reason)
-        )
-
-        {:error, :work_area_unavailable}
-    end
-  end
-
-  defp cleanup_work_area(work_area_path) when is_binary(work_area_path) do
-    work_area_path
-    |> work_area_absolute_path()
-    |> File.rm_rf()
-
-    :ok
-  end
-
   defp workspace_root do
     Application.get_env(
       :lemmings_os,
       :runtime_workspace_root,
       Path.expand("../../../priv/runtime/workspace", __DIR__)
     )
-  end
-
-  defp work_area_absolute_path(work_area_path) do
-    workspace_root()
-    |> Path.expand()
-    |> Path.join(work_area_path)
   end
 
   defp path_within_root?(absolute_path, root_path)
@@ -755,6 +706,7 @@ defmodule LemmingsOs.LemmingInstances do
 
   defp normalize_runtime_state(state) do
     %{
+      work_area_ref: Map.get(state, :work_area_ref),
       retry_count: Map.get(state, :retry_count, 0),
       max_retries: Map.get(state, :max_retries, 3),
       queue_depth: runtime_queue_depth(Map.get(state, :queue)),

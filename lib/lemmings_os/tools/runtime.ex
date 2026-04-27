@@ -43,15 +43,24 @@ defmodule LemmingsOs.Tools.Runtime do
           {:ok, success()} | {:error, error()}
   def execute(world, instance, tool_name, args)
 
+  def execute(world, instance, tool_name, args) do
+    execute(world, instance, tool_name, args, %{})
+  end
+
+  @spec execute(World.t(), LemmingInstance.t(), String.t(), map(), map()) ::
+          {:ok, success()} | {:error, error()}
+  def execute(world, instance, tool_name, args, runtime_meta)
+
   def execute(
         %World{id: world_id},
         %LemmingInstance{world_id: world_id} = instance,
         tool_name,
-        args
+        args,
+        runtime_meta
       )
-      when is_binary(tool_name) and is_map(args) do
+      when is_binary(tool_name) and is_map(args) and is_map(runtime_meta) do
     if Catalog.supported_tool?(tool_name) do
-      dispatch_tool_call(instance, tool_name, args)
+      dispatch_tool_call(instance, tool_name, args, runtime_meta)
     else
       {:error,
        %{
@@ -63,7 +72,8 @@ defmodule LemmingsOs.Tools.Runtime do
     end
   end
 
-  def execute(%World{}, %LemmingInstance{}, tool_name, _args) when is_binary(tool_name) do
+  def execute(%World{}, %LemmingInstance{}, tool_name, _args, _runtime_meta)
+      when is_binary(tool_name) do
     {:error,
      %{
        tool_name: tool_name,
@@ -73,7 +83,7 @@ defmodule LemmingsOs.Tools.Runtime do
      }}
   end
 
-  def execute(%World{}, %LemmingInstance{}, tool_name, _args) do
+  def execute(%World{}, %LemmingInstance{}, tool_name, _args, _runtime_meta) do
     {:error,
      %{
        tool_name: nil,
@@ -83,19 +93,27 @@ defmodule LemmingsOs.Tools.Runtime do
      }}
   end
 
-  defp dispatch_tool_call(instance, "fs.read_text_file", args) do
-    normalize_tool_result("fs.read_text_file", args, Filesystem.read_text_file(instance, args))
+  defp dispatch_tool_call(instance, "fs.read_text_file", args, runtime_meta) do
+    normalize_tool_result(
+      "fs.read_text_file",
+      args,
+      Filesystem.read_text_file(instance, args, runtime_meta)
+    )
   end
 
-  defp dispatch_tool_call(instance, "fs.write_text_file", args) do
-    normalize_tool_result("fs.write_text_file", args, Filesystem.write_text_file(instance, args))
+  defp dispatch_tool_call(instance, "fs.write_text_file", args, runtime_meta) do
+    normalize_tool_result(
+      "fs.write_text_file",
+      args,
+      Filesystem.write_text_file(instance, args, runtime_meta)
+    )
   end
 
-  defp dispatch_tool_call(_instance, "web.search", args) do
+  defp dispatch_tool_call(_instance, "web.search", args, _runtime_meta) do
     normalize_tool_result("web.search", args, Web.search(args))
   end
 
-  defp dispatch_tool_call(_instance, "web.fetch", args) do
+  defp dispatch_tool_call(_instance, "web.fetch", args, _runtime_meta) do
     normalize_tool_result("web.fetch", args, Web.fetch(args))
   end
 

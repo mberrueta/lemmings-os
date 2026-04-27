@@ -29,6 +29,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
       do: {:ok, %{id: "call-1", request_text: attrs.request}}
   end
 
+  defmodule CapturingRequestCalls do
+    def request_call(instance, attrs, opts) do
+      send(instance.config_snapshot.test_pid, {:request_call_opts, opts})
+      {:ok, %{id: "call-1", request_text: attrs.request}}
+    end
+  end
+
   defmodule RejectingCalls do
     def request_call(_instance, _attrs, _opts), do: {:error, :not_allowed}
   end
@@ -104,6 +111,37 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
              List.last(rejected_state.context_messages).content,
              "Assistant requested lemming_call"
            )
+  end
+
+  test "execute_lemming_call/2 passes parent work_area_ref as hidden runtime opts" do
+    response =
+      LemmingsOs.ModelRuntime.Response.new(
+        action: :lemming_call,
+        lemming_target: "ops-worker",
+        lemming_request: "Draft child notes",
+        continue_call_id: nil,
+        provider: "fake",
+        model: "fake-model",
+        raw: %{}
+      )
+
+    state = %{
+      instance: %{id: "instance-1", config_snapshot: %{}},
+      config_snapshot: %{test_pid: self()},
+      context_messages: [],
+      lemming_calls_mod: CapturingRequestCalls,
+      work_area_ref: "root-instance-1"
+    }
+
+    assert {:ok, _next_state, %{id: "call-1"}} =
+             CommunicationRuntime.execute_lemming_call(state, response)
+
+    assert_receive {:request_call_opts,
+                    [
+                      runtime_opts: [
+                        executor_opts: [work_area_ref: "root-instance-1"]
+                      ]
+                    ]}
   end
 
   test "resume_after_lemming_call/3 resumes processing when state is eligible" do

@@ -62,10 +62,10 @@ defmodule LemmingsOs.RuntimeTest do
 
     work_area_root =
       :lemmings_os
-      |> Application.fetch_env!(:runtime_workspace_root)
+      |> Application.fetch_env!(:work_areas_path)
       |> Path.expand()
 
-    assert File.dir?(Path.join(work_area_root, Path.join([department.id, lemming.id])))
+    assert File.dir?(Path.join(work_area_root, instance.id))
 
     assert eventually_status(instance.id) == "queued"
 

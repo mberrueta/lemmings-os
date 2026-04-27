@@ -306,6 +306,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
 
     %{
       instance_id: Map.get(state, :instance_id),
+      work_area_ref: Map.get(state, :work_area_ref),
       current_item_id: current_item_id(Map.get(state, :current_item)),
       phase: Map.get(state, :phase),
       retry_count: Map.get(state, :retry_count),
