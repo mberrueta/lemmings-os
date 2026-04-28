@@ -218,6 +218,7 @@ Break down the feature into discrete, sequential tasks.
 - Each task should be completable in 1-4 hours of agent work
 - If a task would take longer, split it
 - Each task should have clear, verifiable outputs
+- Do not add low-signal metadata fields such as `Blocked by`, `Blocks`, or `Estimated Effort`; the sequence in `plan.md` is enough.
 
 ---
 
@@ -308,6 +309,8 @@ Each task file follows this template:
 ## Status
 - **Status**: ⏳ PENDING | 🔄 IN_PROGRESS | ✅ COMPLETED | ❌ REJECTED
 - **Approved**: [ ] Human sign-off
+
+Do not include `Blocked by`, `Blocks`, or `Estimated Effort` fields in task files.
 
 ## Assigned Agent
 `[agent-name]` - [Brief description of agent's specialty]
@@ -441,16 +444,15 @@ After creating all files, provide this summary:
 `llms/tasks/[NNN]_[feature_name]/plan.md`
 
 ### Tasks Generated
-| # | File | Agent | Est. Effort |
+| # | File | Agent  |
 |---|------|-------|-------------|
-| 01 | `01_[name].md` | `[agent]` | S/M/L |
-| 02 | `02_[name].md` | `[agent]` | S/M/L |
+| 01 | `01_[name].md` | `[agent]` |
+| 02 | `02_[name].md` | `[agent]` |
 | ... | ... | ... | ... |
 
 ### Technical Assessment
 - **Complexity**: Low / Medium / High
 - **Risk Level**: Low / Medium / High
-- **Estimated Total Effort**: [X] tasks, [Y] agent-hours
 
 ### Key Assumptions (Require Human Review)
 1. [Most critical assumption]
