@@ -1,5 +1,5 @@
 defmodule LemmingsOs.Tools.RuntimeTest do
-  use ExUnit.Case, async: false
+  use LemmingsOs.DataCase, async: false
 
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.Runtime
@@ -8,6 +8,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   setup do
     old_work_areas_path = Application.get_env(:lemmings_os, :work_areas_path)
     old_allow_private_hosts = Application.fetch_env(:lemmings_os, :tools_web_allow_private_hosts)
+    old_trusted_tool_config = Application.fetch_env(:lemmings_os, :tools_runtime_trusted_config)
+    old_github_token = System.get_env("GITHUB_TOKEN")
 
     work_areas_path =
       Path.join(
@@ -27,17 +29,23 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       end
 
       restore_env(:tools_web_allow_private_hosts, old_allow_private_hosts)
+      restore_env(:tools_runtime_trusted_config, old_trusted_tool_config)
+      restore_system_env("GITHUB_TOKEN", old_github_token)
 
       File.rm_rf(work_areas_path)
     end)
 
-    world = %World{id: Ecto.UUID.generate()}
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+    lemming = insert(:lemming, world: world, city: city, department: department)
 
     instance = %LemmingInstance{
       id: Ecto.UUID.generate(),
       world_id: world.id,
-      department_id: Ecto.UUID.generate(),
-      lemming_id: Ecto.UUID.generate()
+      city_id: city.id,
+      department_id: department.id,
+      lemming_id: lemming.id
     }
 
     File.mkdir_p!(Path.join(work_areas_path, instance.id))
@@ -140,6 +148,79 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert result.result.status == 200
       assert result.result.body == "runtime tools fetch payload"
     end
+
+    test "resolves trusted secret references from tool config and injects raw value only in adapter request",
+         %{world: world, instance: instance} do
+      bypass = Bypass.open()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$secrets.github.token"}
+          }
+        }
+      )
+
+      Bypass.expect_once(bypass, "GET", "/with-secret", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == [
+                 "dev_only_runtime_secret_token"
+               ]
+
+        Plug.Conn.resp(conn, 200, "runtime tools fetch payload")
+      end)
+
+      assert {:ok, result} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/with-secret"
+               })
+
+      assert result.tool_name == "web.fetch"
+      assert result.result.status == 200
+    end
+
+    test "does not execute adapter when trusted secret resolution fails", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      parent = self()
+      System.delete_env("GITHUB_TOKEN")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$secrets.github.token"}
+          }
+        }
+      )
+
+      Bypass.stub(bypass, "GET", "/missing-secret", fn conn ->
+        send(parent, :adapter_called)
+        Plug.Conn.resp(conn, 200, "should not execute")
+      end)
+
+      assert {:error, %{code: "tool.secret.missing", details: details}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/missing-secret"
+               })
+
+      assert details.secret_ref == "$secrets.github.token"
+      assert details.bank_key == "github.token"
+      refute_received :adapter_called
+    end
+
+    test "does not resolve secret references from tool args", %{world: world, instance: instance} do
+      Application.put_env(:lemmings_os, :tools_runtime_trusted_config, %{})
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      assert {:error, %{code: "tool.web.invalid_url", details: %{url: "$secrets.github.token"}}} =
+               Runtime.execute(world, instance, "web.fetch", %{"url" => "$secrets.github.token"})
+    end
   end
 
   describe "execute/4 failures" do
@@ -158,4 +239,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
   defp restore_env(key, {:ok, value}), do: Application.put_env(:lemmings_os, key, value)
   defp restore_env(key, :error), do: Application.delete_env(:lemmings_os, key)
+
+  defp restore_system_env(key, nil), do: System.delete_env(key)
+  defp restore_system_env(key, value), do: System.put_env(key, value)
 end

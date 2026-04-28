@@ -1,8 +1,8 @@
 # Task 05: Generic Durable Events
 
 ## Status
-- **Status**: PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETE
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 `dev-logging-daily-guardian`
@@ -30,3 +30,9 @@ Ensure the app has a simple reusable durable event API and every required Secret
 
 ## Review Notes
 Reject if event data is in-memory only, Secret Bank-specific, or duplicates secret value material in any form.
+
+## Execution Notes
+- Durable event storage reuses the canonical `events` table introduced for Secret Bank data model.
+- Generic API is implemented in `LemmingsOs.Events` (`record_event/4`, `list_recent_events/2`) and reused by Secret Bank.
+- Secret Bank now emits: `secret.created`, `secret.replaced`, `secret.deleted`, `secret.accessed`, `secret.access_failed`.
+- Event names align with ADR-0018 naming style (`domain.action`) and keep `event_family: "audit"` for these governance events.

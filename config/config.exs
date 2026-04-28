@@ -18,6 +18,27 @@ config :lemmings_os, :runtime_city_heartbeat,
 config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
 config :lemmings_os, :runtime_engine_on_startup, true
 
+if config_env() in [:dev, :test] do
+  config :lemmings_os, LemmingsOs.Vault,
+    json_library: Jason,
+    ciphers: [
+      default:
+        {Cloak.Ciphers.AES.GCM,
+         tag: "AES.GCM.V1",
+         key: :crypto.hash(:sha256, "dev_test_only_secret_bank_key_material_do_not_use_in_prod")}
+    ]
+end
+
+config :lemmings_os, LemmingsOs.SecretBank,
+  allowed_env_vars: [
+    "GITHUB_TOKEN",
+    "OPENROUTER_API_KEY"
+  ],
+  env_fallbacks: [
+    "github.token",
+    {"openrouter.default", "OPENROUTER_API_KEY"}
+  ]
+
 # TODO: temporary default selection
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,

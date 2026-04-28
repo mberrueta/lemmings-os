@@ -24,9 +24,12 @@ defmodule LemmingsOs.Tools.Adapters.Web do
       {:error, %{code: "tool.web.request_failed", details: %{reason: _}, message: "Web search request failed"}}
   """
   @spec search(map()) :: {:ok, success_result()} | {:error, error_result()}
-  def search(args) when is_map(args) do
+  def search(args) when is_map(args), do: search(args, %{})
+
+  @spec search(map(), map()) :: {:ok, success_result()} | {:error, error_result()}
+  def search(args, trusted_config) when is_map(args) and is_map(trusted_config) do
     with {:ok, query} <- validate_search_args(args),
-         {:ok, payload} <- request_search(query),
+         {:ok, payload} <- request_search(query, trusted_config),
          {:ok, results} <- extract_search_results(payload) do
       {:ok,
        %{
@@ -46,9 +49,12 @@ defmodule LemmingsOs.Tools.Adapters.Web do
       {:error, %{code: "tool.web.invalid_url", details: %{url: "invalid"}, message: "Invalid URL"}}
   """
   @spec fetch(map()) :: {:ok, success_result()} | {:error, error_result()}
-  def fetch(args) when is_map(args) do
+  def fetch(args) when is_map(args), do: fetch(args, %{})
+
+  @spec fetch(map(), map()) :: {:ok, success_result()} | {:error, error_result()}
+  def fetch(args, trusted_config) when is_map(args) and is_map(trusted_config) do
     with {:ok, url} <- validate_fetch_args(args),
-         {:ok, response} <- request_fetch(url) do
+         {:ok, response} <- request_fetch(url, trusted_config) do
       body = to_string(response.body || "")
 
       {:ok,
@@ -107,12 +113,14 @@ defmodule LemmingsOs.Tools.Adapters.Web do
     end
   end
 
-  defp request_search(query) when is_binary(query) do
+  defp request_search(query, trusted_config) when is_binary(query) and is_map(trusted_config) do
     endpoint = search_endpoint()
 
     with :ok <- validate_endpoint_egress(endpoint) do
+      headers = trusted_headers(trusted_config)
+
       req_options =
-        [url: endpoint, params: [q: query, format: "json", no_html: 1]]
+        [url: endpoint, params: [q: query, format: "json", no_html: 1], headers: headers]
         |> Keyword.merge(req_timeout_options())
 
       case Req.get(req_options) do
@@ -132,14 +140,18 @@ defmodule LemmingsOs.Tools.Adapters.Web do
            %{
              code: "tool.web.request_failed",
              message: "Web search request failed",
-             details: %{reason: inspect(reason)}
+             details: %{reason: request_error_reason(reason)}
            }}
       end
     end
   end
 
-  defp request_fetch(url) when is_binary(url) do
-    case Req.get(Keyword.merge([url: url], req_timeout_options())) do
+  defp request_fetch(url, trusted_config) when is_binary(url) and is_map(trusted_config) do
+    req_options =
+      [url: url, headers: trusted_headers(trusted_config)]
+      |> Keyword.merge(req_timeout_options())
+
+    case Req.get(req_options) do
       {:ok, %Req.Response{} = response} when response.status in 200..299 ->
         {:ok, response}
 
@@ -156,7 +168,7 @@ defmodule LemmingsOs.Tools.Adapters.Web do
          %{
            code: "tool.web.request_failed",
            message: "Web fetch request failed",
-           details: %{reason: inspect(reason)}
+           details: %{reason: request_error_reason(reason)}
          }}
     end
   end
@@ -278,6 +290,30 @@ defmodule LemmingsOs.Tools.Adapters.Web do
     do: String.slice(snippet, 0, 280)
 
   defp first_result_preview(_results), do: nil
+
+  defp trusted_headers(%{headers: headers}), do: normalize_headers(headers)
+  defp trusted_headers(%{"headers" => headers}), do: normalize_headers(headers)
+  defp trusted_headers(_trusted_config), do: []
+
+  defp normalize_headers(headers) when is_map(headers) do
+    headers
+    |> Enum.reduce([], fn
+      {key, value}, acc when is_binary(value) ->
+        [{to_string(key), value} | acc]
+
+      _entry, acc ->
+        acc
+    end)
+    |> Enum.reverse()
+  end
+
+  defp normalize_headers(_headers), do: []
+
+  defp request_error_reason(%Req.TransportError{reason: reason}) when is_atom(reason),
+    do: Atom.to_string(reason)
+
+  defp request_error_reason(%Req.TransportError{}), do: "transport_error"
+  defp request_error_reason(_reason), do: "request_failed"
 
   defp search_endpoint do
     Application.get_env(:lemmings_os, :tools_web_search_endpoint, "https://api.duckduckgo.com/")

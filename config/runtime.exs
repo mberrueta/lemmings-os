@@ -75,6 +75,21 @@ if config_env() == :prod do
     # pool_count: 4,
     socket_options: maybe_ipv6
 
+  secret_bank_key =
+    "LEMMINGS_SECRET_BANK_KEY_BASE64"
+    |> System.fetch_env!()
+    |> Base.decode64!()
+
+  if byte_size(secret_bank_key) != 32 do
+    raise "LEMMINGS_SECRET_BANK_KEY_BASE64 must decode to exactly 32 bytes"
+  end
+
+  config :lemmings_os, LemmingsOs.Vault,
+    json_library: Jason,
+    ciphers: [
+      default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: secret_bank_key}
+    ]
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
