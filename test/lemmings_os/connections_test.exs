@@ -3,6 +3,7 @@ defmodule LemmingsOs.ConnectionsTest do
 
   alias LemmingsOs.Connections
   alias LemmingsOs.Events
+  alias LemmingsOs.SecretBank
 
   doctest LemmingsOs.Connections
 
@@ -233,6 +234,210 @@ defmodule LemmingsOs.ConnectionsTest do
 
       assert nil == Connections.resolve_visible_connection(world_b, "world-a-secret")
       assert nil == Connections.resolve_visible_connection(city_b, "world-a-secret")
+    end
+  end
+
+  describe "test_connection/2" do
+    test "succeeds with valid mock config and resolvable secret refs" do
+      world = insert(:world)
+
+      assert {:ok, _metadata} =
+               SecretBank.upsert_secret(world, "MOCK_API_KEY", "dev_only_connection_secret_value")
+
+      insert(:world_connection,
+        world: world,
+        slug: "mock-success",
+        type: "mock",
+        provider: "mock",
+        status: "enabled",
+        config: %{"mode" => "echo", "base_url" => "https://example.test"},
+        secret_refs: %{"api_key" => "$MOCK_API_KEY"}
+      )
+
+      assert {:ok, %{connection: updated_connection, result: result}} =
+               Connections.test_connection(world, "mock-success")
+
+      assert updated_connection.last_test_status == "succeeded"
+      assert is_nil(updated_connection.last_test_error)
+      assert %DateTime{} = updated_connection.last_tested_at
+      assert result.mode == "echo"
+      assert result.outcome == "mock_echo_ok"
+      assert result.resolved_secret_count == 1
+      assert result.secret_ref_keys == ["api_key"]
+
+      event_types =
+        Events.list_recent_events(world,
+          event_types: [
+            "connection.test.started",
+            "connection.test.succeeded",
+            "connection.test.failed"
+          ],
+          limit: 10
+        )
+        |> Enum.map(& &1.event_type)
+
+      assert "connection.test.started" in event_types
+      assert "connection.test.succeeded" in event_types
+      refute "connection.test.failed" in event_types
+
+      [event] =
+        Events.list_recent_events(world,
+          event_types: ["connection.test.succeeded"],
+          limit: 1
+        )
+
+      assert event.payload["connection_id"] == updated_connection.id
+      assert event.payload["connection_slug"] == "mock-success"
+      assert event.payload["connection_type"] == "mock"
+      assert event.payload["provider"] == "mock"
+      assert event.payload["status"] == "enabled"
+      assert event.payload["last_test_status"] == "succeeded"
+      assert event.payload["last_test_error"] == nil
+
+      refute String.contains?(inspect(event.payload), "dev_only_connection_secret_value")
+    end
+
+    test "persists failed test state for invalid mock config" do
+      world = insert(:world)
+
+      insert(:world_connection,
+        world: world,
+        slug: "mock-invalid-config",
+        type: "mock",
+        provider: "mock",
+        status: "enabled",
+        config: %{"mode" => "echo"},
+        secret_refs: %{"api_key" => "$MISSING_TOKEN"}
+      )
+
+      assert {:error, :invalid_config} = Connections.test_connection(world, "mock-invalid-config")
+
+      updated = Connections.get_connection_by_slug(world, "mock-invalid-config")
+
+      assert updated.last_test_status == "failed"
+      assert updated.last_test_error == "invalid_config"
+      assert %DateTime{} = updated.last_tested_at
+
+      [failed_event] =
+        Events.list_recent_events(world,
+          event_types: ["connection.test.failed"],
+          limit: 1
+        )
+
+      assert failed_event.payload["connection_slug"] == "mock-invalid-config"
+      assert failed_event.payload["connection_type"] == "mock"
+      assert failed_event.payload["provider"] == "mock"
+      assert failed_event.payload["status"] == "enabled"
+      assert failed_event.payload["last_test_status"] == "failed"
+      assert failed_event.payload["last_test_error"] == "invalid_config"
+      assert failed_event.payload["reason"] == "invalid_config"
+      refute String.contains?(inspect(failed_event.payload), "$MISSING_TOKEN")
+    end
+
+    test "fails safely when required secret ref cannot be resolved" do
+      world = insert(:world)
+
+      insert(:world_connection,
+        world: world,
+        slug: "mock-missing-secret",
+        type: "mock",
+        provider: "mock",
+        status: "enabled",
+        config: %{"mode" => "echo", "base_url" => "https://example.test"},
+        secret_refs: %{"api_key" => "$NOT_CONFIGURED_ANYWHERE"}
+      )
+
+      assert {:error, :missing_secret} = Connections.test_connection(world, "mock-missing-secret")
+
+      updated = Connections.get_connection_by_slug(world, "mock-missing-secret")
+
+      assert updated.last_test_status == "failed"
+      assert updated.last_test_error == "missing_secret"
+      assert %DateTime{} = updated.last_tested_at
+      refute updated.last_test_error == "dev_only_connection_secret_value"
+    end
+
+    test "disabled and invalid connections fail test execution and persist failure" do
+      world = insert(:world)
+
+      insert(:world_connection,
+        world: world,
+        slug: "disabled-conn",
+        status: "disabled",
+        config: %{"mode" => "echo", "base_url" => "https://example.test"},
+        secret_refs: %{"api_key" => "$NOT_USED"}
+      )
+
+      insert(:world_connection,
+        world: world,
+        slug: "invalid-conn",
+        status: "invalid",
+        config: %{"mode" => "echo", "base_url" => "https://example.test"},
+        secret_refs: %{"api_key" => "$NOT_USED"}
+      )
+
+      assert {:error, :disabled} = Connections.test_connection(world, "disabled-conn")
+      assert {:error, :invalid} = Connections.test_connection(world, "invalid-conn")
+
+      assert "disabled" ==
+               Connections.get_connection_by_slug(world, "disabled-conn").last_test_error
+
+      assert "invalid" ==
+               Connections.get_connection_by_slug(world, "invalid-conn").last_test_error
+    end
+
+    test "unsupported provider combinations fail without provider-specific execution" do
+      world = insert(:world)
+
+      insert(:world_connection,
+        world: world,
+        slug: "non-mock-provider",
+        type: "generic",
+        provider: "generic",
+        status: "enabled",
+        config: %{},
+        secret_refs: %{}
+      )
+
+      assert {:error, :unsupported_provider} =
+               Connections.test_connection(world, "non-mock-provider")
+
+      updated = Connections.get_connection_by_slug(world, "non-mock-provider")
+      assert updated.last_test_status == "failed"
+      assert updated.last_test_error == "unsupported_provider"
+    end
+
+    test "testing inherited connection updates source row and does not create a child override" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+
+      assert {:ok, _metadata} =
+               SecretBank.upsert_secret(world, "MOCK_API_KEY", "dev_only_world_mock_secret")
+
+      world_connection =
+        insert(:world_connection,
+          world: world,
+          slug: "shared-inherited",
+          status: "enabled",
+          config: %{"mode" => "echo", "base_url" => "https://example.test"},
+          secret_refs: %{"api_key" => "$MOCK_API_KEY"}
+        )
+
+      assert [] == Connections.list_connections(department)
+
+      assert {:ok, %{connection: tested_connection}} =
+               Connections.test_connection(department, "shared-inherited")
+
+      assert tested_connection.id == world_connection.id
+
+      updated_world_connection = Connections.get_connection(world, world_connection.id)
+      assert updated_world_connection.last_test_status == "succeeded"
+      assert is_nil(updated_world_connection.last_test_error)
+      assert %DateTime{} = updated_world_connection.last_tested_at
+
+      assert nil == Connections.get_connection(department, world_connection.id)
+      assert [] == Connections.list_connections(department)
     end
   end
 end

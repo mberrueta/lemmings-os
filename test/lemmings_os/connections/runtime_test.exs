@@ -56,18 +56,36 @@ defmodule LemmingsOs.Connections.RuntimeTest do
     test "returns disabled and invalid errors for unusable statuses" do
       world = insert(:world)
 
-      insert(:world_connection, world: world, slug: "disabled-conn", status: "disabled")
-      insert(:world_connection, world: world, slug: "invalid-conn", status: "invalid")
+      disabled_connection =
+        insert(:world_connection, world: world, slug: "disabled-conn", status: "disabled")
+
+      invalid_connection =
+        insert(:world_connection, world: world, slug: "invalid-conn", status: "invalid")
 
       assert {:error, :disabled} = Runtime.resolve_connection(world, "disabled-conn")
       assert {:error, :invalid} = Runtime.resolve_connection(world, "invalid-conn")
 
       failure_reasons =
         Events.list_recent_events(world, event_types: ["connection.resolve.failed"], limit: 10)
-        |> Enum.map(& &1.payload["reason"])
+        |> Enum.map(& &1.payload)
 
-      assert "disabled" in failure_reasons
-      assert "invalid" in failure_reasons
+      assert Enum.any?(failure_reasons, fn payload ->
+               payload["reason"] == "disabled" and
+                 payload["connection_id"] == disabled_connection.id and
+                 payload["connection_slug"] == "disabled-conn" and
+                 payload["connection_type"] == disabled_connection.type and
+                 payload["provider"] == disabled_connection.provider and
+                 payload["status"] == "disabled"
+             end)
+
+      assert Enum.any?(failure_reasons, fn payload ->
+               payload["reason"] == "invalid" and
+                 payload["connection_id"] == invalid_connection.id and
+                 payload["connection_slug"] == "invalid-conn" and
+                 payload["connection_type"] == invalid_connection.type and
+                 payload["provider"] == invalid_connection.provider and
+                 payload["status"] == "invalid"
+             end)
     end
 
     test "returns missing for non-visible or absent slug" do
@@ -85,6 +103,17 @@ defmodule LemmingsOs.Connections.RuntimeTest do
 
       assert {:error, :missing} = Runtime.resolve_connection(department_b, "dept-a-only")
       assert {:error, :missing} = Runtime.resolve_connection(world, "unknown")
+
+      [failure_event | _] =
+        Events.list_recent_events(world, event_types: ["connection.resolve.failed"], limit: 10)
+
+      assert failure_event.payload["reason"] == "missing"
+      assert failure_event.payload["connection_id"] == nil
+      assert failure_event.payload["connection_type"] == nil
+      assert failure_event.payload["provider"] == nil
+      assert failure_event.payload["status"] == nil
+      assert failure_event.payload["connection_slug"] in ["dept-a-only", "unknown"]
+      refute String.contains?(inspect(failure_event.payload), "$")
     end
 
     test "returns inaccessible for invalid scope shape" do

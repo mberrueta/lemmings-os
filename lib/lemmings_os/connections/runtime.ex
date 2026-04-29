@@ -114,12 +114,12 @@ defmodule LemmingsOs.Connections.Runtime do
         record_resolve_failed(scope, slug, :missing)
         {:error, :missing}
 
-      %{connection: %Connection{status: "disabled"}} ->
-        record_resolve_failed(scope, slug, :disabled)
+      %{connection: %Connection{status: "disabled"} = connection} ->
+        record_resolve_failed(scope, slug, :disabled, connection)
         {:error, :disabled}
 
-      %{connection: %Connection{status: "invalid"}} ->
-        record_resolve_failed(scope, slug, :invalid)
+      %{connection: %Connection{status: "invalid"} = connection} ->
+        record_resolve_failed(scope, slug, :invalid, connection)
         {:error, :invalid}
 
       %{} = visible_row ->
@@ -164,13 +164,38 @@ defmodule LemmingsOs.Connections.Runtime do
     )
   end
 
-  defp record_resolve_failed(scope, slug, reason) do
+  defp record_resolve_failed(scope, slug, reason),
+    do: record_resolve_failed(scope, slug, reason, nil)
+
+  defp record_resolve_failed(scope, slug, reason, connection) do
     record_event(
       "connection.resolve.failed",
       scope_data(scope),
       "Connection #{slug} resolve failed",
-      %{connection_slug: slug, reason: Atom.to_string(reason)}
+      resolve_failed_payload(slug, reason, connection)
     )
+  end
+
+  defp resolve_failed_payload(_slug, reason, %Connection{} = connection) do
+    %{
+      connection_id: connection.id,
+      connection_slug: connection.slug,
+      connection_type: connection.type,
+      provider: connection.provider,
+      status: connection.status,
+      reason: Atom.to_string(reason)
+    }
+  end
+
+  defp resolve_failed_payload(slug, reason, nil) do
+    %{
+      connection_id: nil,
+      connection_slug: slug,
+      connection_type: nil,
+      provider: nil,
+      status: nil,
+      reason: Atom.to_string(reason)
+    }
   end
 
   defp error_reason({:error, :invalid_scope}), do: {:error, :inaccessible}
