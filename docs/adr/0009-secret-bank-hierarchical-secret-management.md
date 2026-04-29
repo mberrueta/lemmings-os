@@ -38,7 +38,7 @@ The Bank stores **logical secret keys** and resolves them according to a **hiera
 Scopes:
 
 ```
-Department → City → World
+Lemming → Department → City → World → env allowlist
 ```
 
 When resolving a secret, the runtime always prefers the **nearest scope**.
@@ -46,15 +46,41 @@ When resolving a secret, the runtime always prefers the **nearest scope**.
 Example:
 
 ```
-resolve_secret("github.token")
+resolve_secret("$GITHUB_TOKEN")
 
 Lookup order:
-1. Department
-2. City
-3. World
+1. Lemming
+2. Department
+3. City
+4. World
+5. allowlisted environment fallback
 ```
 
 The first matching secret found is returned to the Tool Runtime.
+
+## Shipped Secret Bank MVP note
+
+The first implemented slice intentionally ships a narrower convention-based
+model than the full target architecture in this ADR.
+
+Current behavior:
+
+- bank keys are uppercase env-style identifiers such as `GITHUB_TOKEN`, validated
+  by `^[A-Z_][A-Z0-9_]*$`;
+- trusted tool config references secrets as `$GITHUB_TOKEN` or
+  `${GITHUB_TOKEN}`;
+- `$secrets.*` references, including `$secrets.github.token`, are rejected as
+  invalid;
+- env fallback is configured through `LemmingsOs.SecretBank` application config
+  using `allowed_env_vars` plus `env_fallbacks`;
+- there is no `secret_bank_tool_bindings` table, tool binding UI, or full
+  connection-object management in this MVP.
+
+In the shipped MVP, "Lemming" means the persisted durable `lemmings` row, not a
+future reusable Lemming Type template.
+
+The logical-key examples below (`github.token`) and binding-table model remain
+target architecture, not shipped behavior for this slice.
 
 ---
 
@@ -146,6 +172,10 @@ Tool: github_repo_reader
 secret_bindings:
   github.token: secrets.github.personal
 ```
+
+The shipped Secret Bank MVP does not implement this binding table or binding UI.
+Instead, the trusted adapter configuration directly contains `$KEY` references
+that the adapter resolves immediately before tool execution.
 
 ---
 
@@ -249,13 +279,19 @@ Example:
 LEMMINGS_MASTER_KEY
 ```
 
+The shipped MVP uses `LEMMINGS_SECRET_BANK_KEY_BASE64`, which must decode to
+exactly 32 bytes in production.
+
 The master key is never stored in the database.
 
 Secrets are encrypted before persistence and decrypted only when injected into the Tool Runtime.
 
-The v1 encryption algorithm is **XChaCha20-Poly1305**.
+The target v1 encryption algorithm in the original decision was
+**XChaCha20-Poly1305**. The shipped Secret Bank MVP uses Cloak's
+`Cloak.Ciphers.AES.GCM` through `LemmingsOs.Vault` and stores ciphertext in
+`value_encrypted`.
 
-Rationale for this choice:
+Original rationale for the target XChaCha20-Poly1305 choice:
 
 - Provides authenticated encryption (confidentiality + integrity)
 - Uses extended nonces (192-bit) which significantly reduces the risk of nonce reuse errors in distributed systems
@@ -263,7 +299,9 @@ Rationale for this choice:
 - Considered state-of-the-art for application-level secret encryption
 - Simpler operational model compared to schemes requiring strict nonce management
 
-If the master key is lost or replaced without a coordinated migration process, previously stored secrets become unreadable and cannot be recovered.
+For the shipped MVP, if the Cloak key material is lost or replaced without a
+coordinated migration process, previously stored secrets become unreadable and
+cannot be recovered.
 
 For that reason, installation and operational documentation must clearly explain:
 
@@ -369,6 +407,8 @@ Connection objects provide:
 
 Connection objects still rely on the same underlying Bank resolution model and secret bindings.
 
+Connection objects are not implemented in the shipped Secret Bank MVP.
+
 ---
 
 # Consequences
@@ -376,13 +416,14 @@ Connection objects still rely on the same underlying Bank resolution model and s
 ## Positive
 
 - Lemmings and runtime state are structurally isolated from secret values; a
-  storage breach of Postgres, ETS, or DETS does not expose credentials.
+  storage breach of transcripts, runtime snapshots, ETS, DETS, logs, or audit
+  events does not expose credentials. In the shipped MVP, Postgres contains
+  Secret Bank ciphertext plus safe metadata, not raw values.
 - Secret resolution through a single Bank abstraction means policy inheritance
   and audit coverage apply consistently to every credential, regardless of the
   tool consuming it.
-- Connection Objects group related credentials behind a logical name; tool
-  authors reference `connection_ref = "github_prod"` rather than managing
-  individual secret keys.
+- Connection Objects can group related credentials behind a logical name in the
+  target architecture; they are not part of the shipped MVP.
 - The write-only immutability model prevents accidental secret exposure through
   the control plane UI or API.
 
@@ -390,12 +431,12 @@ Connection objects still rely on the same underlying Bank resolution model and s
 
 - Loss of the master key renders all stored secrets permanently unreadable;
   there is no recovery path without the key.
-- v1 secret storage is limited to environment-variable-backed values; operators
-  who need secret rotation, fine-grained TTLs, or audit trails beyond the
-  platform's own log must integrate an external manager as a future extension.
-- The Bank is City-local in v1; there is no cross-City secret replication.
-  If a City node is unavailable, its secrets are inaccessible until the node
-  recovers.
+- The shipped MVP supports encrypted local values and allowlisted environment
+  fallback, but it does not support external secret managers, rotation
+  automation, fine-grained TTLs, or connection management.
+- The target Bank is City-local. The shipped MVP stores encrypted values in the
+  shared World database and resolves them in the local runtime; cross-City
+  secret distribution is not implemented.
 
 ## Mitigations
 
@@ -403,10 +444,10 @@ Connection objects still rely on the same underlying Bank resolution model and s
   securely, stored in a separate secure location (not the same system as the
   database), and backed up. Installation documentation must make the recovery
   consequences explicit.
-- The environment-variable storage model is acceptable for v1 self-hosted
-  deployments. External secret manager integration (Vault, Infisical, cloud KMS)
-  is a defined Future Extension and the Bank abstraction is designed to support
-  it without changing the tool-facing API.
+- The encrypted-local-value plus allowlisted-env-fallback model is acceptable
+  for the current self-hosted MVP. External secret manager integration (Vault,
+  Infisical, cloud KMS) is a defined Future Extension and the Bank abstraction
+  is designed to support it without changing the tool-facing API.
 
 ---
 

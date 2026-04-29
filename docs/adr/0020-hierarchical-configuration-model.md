@@ -238,6 +238,33 @@ Subsystems must:
 
 Implementation sequencing may introduce tool-related storage in stages, but that sequencing does not change the contract above.
 
+## 11.1 Secret Bank MVP Configuration Note
+
+Secret Bank env fallback configuration is currently stored in application
+configuration, not in hierarchy JSONB buckets and not in the configuration
+resolver.
+
+Current shape:
+
+```elixir
+config :lemmings_os, LemmingsOs.SecretBank,
+  allowed_env_vars: ["$GITHUB_TOKEN", "$OPENROUTER_API_KEY"],
+  env_fallbacks: [
+    "$GITHUB_TOKEN",
+    {"OPENROUTER_API_KEY", "$OPENROUTER_API_KEY"}
+  ]
+```
+
+The fallback list is a closed policy: a configured bank key can read an env var
+only when that env var is also present in `allowed_env_vars`. The earlier
+logical-key example
+`env_fallbacks: ["github.token", {"openrouter.default", "OPENROUTER_API_KEY"}]`
+is future architecture, not accepted by the current uppercase key validator.
+
+Secret values themselves are not configuration documents. Persisted local values
+live in `secret_bank_secrets.value_encrypted`; safe effective metadata is
+resolved by `LemmingsOs.SecretBank`.
+
 ---
 
 # 12. Consequences

@@ -168,7 +168,29 @@ Postgres **must never store**:
 - internal agent thoughts
 - discarded branches
 - raw tool outputs not promoted to the main thread
-- secrets
+- raw runtime secret values in transcripts, snapshots, tool results, prompts, or
+  context
+
+## 5.1 Secret Bank Encrypted Storage Note
+
+The "Postgres must never store secrets" rule above applies to conversational
+state, runtime snapshots, prompts, tool results, and Lemming context.
+
+The Secret Bank is a dedicated encrypted credential store. In the shipped MVP,
+local Secret Bank values are persisted in Postgres only as Cloak/Cloak.Ecto
+ciphertext in
+`secret_bank_secrets.value_encrypted`.
+
+Safe metadata remains visible to database readers:
+
+- bank key
+- hierarchy scope IDs
+- timestamps
+
+Raw secret values must still never appear in transcripts, runtime snapshots,
+tool results, prompts, ETS/DETS state, logs, telemetry, audit events, or
+model-visible context. The trusted runtime resolution API may hold decrypted
+values in memory only long enough to execute the consuming tool path.
 
 Phase 1 deliberately keeps transcript persistence and execution queuing as
 separate representations of the same initial user request:

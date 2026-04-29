@@ -176,6 +176,12 @@ High-level components:
 
 See [docs/architecture.md](docs/architecture.md) for details.
 
+Feature documentation:
+
+- [Secret Bank](docs/features/secret_bank.md) — encrypted local runtime secrets,
+  hierarchy resolution, env fallback, write-only operator flows, and safe audit
+  events.
+
 ---
 
 ## Tech Stack

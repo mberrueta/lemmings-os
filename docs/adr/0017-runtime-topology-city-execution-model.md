@@ -224,6 +224,18 @@ wording in this ADR implied capabilities (distributed Erlang clustering,
 automatic discovery, remote health polling) that are not yet implemented. This
 section narrows the ADR to match what is actually shipped.
 
+## Secret Bank MVP locality note
+
+The current Secret Bank implementation stores encrypted local values in the
+shared World PostgreSQL database and resolves them in the local application
+runtime using hierarchy IDs. Raw values are only returned to trusted runtime/tool
+code and are not sent through inter-City messaging.
+
+Because distributed City attachment and cross-City secret distribution are not
+implemented, this MVP should be understood as single-runtime/local-admin
+secret management over shared persistence. The City-local isolation model in the
+rest of this ADR remains the target for future multi-City runtime execution.
+
 ## Startup self-registration
 
 Each runtime node registers itself as a City during application startup:

@@ -305,6 +305,27 @@ Telemetry metadata includes the hierarchy and tool identity needed for runtime d
 
 The durable v1 history is the `lemming_instance_tool_executions` table, not the platform audit-event table. That table is runtime history scoped to one instance; it supports transcript reconstruction and operator inspection but does not replace the canonical append-only audit envelope.
 
+## 5.3.1 Secret Bank MVP Durable Events
+
+The Secret Bank MVP uses the canonical `events` table for durable audit events.
+Implemented event types are:
+
+- `secret.created`
+- `secret.replaced`
+- `secret.deleted`
+- `secret.resolved`
+- `secret.resolve_failed`
+- `secret.used_by_tool`
+
+The shipped implementation does not emit the older planning names
+`secret.accessed` or `secret.access_failed`.
+
+Secret event payloads may contain safe metadata such as bank key, secret
+reference, requested hierarchy scope, resolved source, reason, tool name,
+adapter name, and lemming instance ID. They must never contain raw secret
+values, old values, new values, env values, masked previews, hashes, or
+fingerprints.
+
 ## 5.4 Shared Envelope, Distinct Semantics
 
 Audit and telemetry use the same base envelope so that infrastructure remains simple and query patterns remain consistent.
