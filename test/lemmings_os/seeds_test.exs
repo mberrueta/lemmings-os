@@ -1,6 +1,8 @@
 defmodule LemmingsOs.SeedsTest do
   use LemmingsOs.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
   alias LemmingsOs.Cities
   alias LemmingsOs.Departments
   alias LemmingsOs.Lemmings
@@ -8,9 +10,10 @@ defmodule LemmingsOs.SeedsTest do
   alias LemmingsOs.WorldBootstrapTestHelpers
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
+  alias LemmingsOs.SecretBank.Secret
 
   describe "priv/repo/seeds.exs" do
-    test "rerunning seeds preserves the first bootstrap city and keeps seeded counts stable" do
+    test "rerunning seeds preserves the first bootstrap city, keeps seeded counts stable, and keeps sample secret idempotent" do
       Repo.delete_all(World)
 
       path =
@@ -28,6 +31,8 @@ defmodule LemmingsOs.SeedsTest do
       world = Worlds.get_default_world()
       seeded_primary_city = Cities.get_city_by_slug(world, "local_city")
       seeded_counts = hierarchy_counts(world, seeded_primary_city)
+      seeded_secret_count = secret_count(world, "GITHUB_TOKEN")
+      seeded_secret = Repo.one(secret_query(world, "GITHUB_TOKEN"))
 
       run_seeds!()
 
@@ -36,6 +41,20 @@ defmodule LemmingsOs.SeedsTest do
 
       assert rerun_primary_city.id == bootstrap_city.id
       assert hierarchy_counts(world, rerun_primary_city) == seeded_counts
+      assert secret_count(world, "GITHUB_TOKEN") == seeded_secret_count
+
+      rerun_secret = Repo.one(secret_query(world, "GITHUB_TOKEN"))
+
+      if seeded_secret do
+        assert rerun_secret.id == seeded_secret.id
+        assert is_binary(rerun_secret.value_encrypted)
+        refute rerun_secret.value_encrypted == "dev_only_mock_github_token"
+
+        assert :nomatch =
+                 :binary.match(rerun_secret.value_encrypted, "dev_only_mock_github_token")
+      else
+        assert is_nil(rerun_secret)
+      end
 
       assert Enum.sort(Enum.map(Cities.list_cities(world), & &1.slug)) == [
                "beta-city",
@@ -71,5 +90,13 @@ defmodule LemmingsOs.SeedsTest do
     records
     |> Enum.map(& &1.slug)
     |> Enum.sort()
+  end
+
+  defp secret_count(world, bank_key) do
+    Repo.aggregate(secret_query(world, bank_key), :count)
+  end
+
+  defp secret_query(world, bank_key) do
+    from(secret in Secret, where: secret.world_id == ^world.id and secret.bank_key == ^bank_key)
   end
 end

@@ -98,6 +98,7 @@ defmodule LemmingsOsWeb do
         LemmingImageComponents,
         LemmingComponents,
         MapComponents,
+        SecretBankComponents,
         SidebarComponents,
         SystemComponents,
         WorldComponents

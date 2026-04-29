@@ -17,6 +17,29 @@ const liveSocket = new LiveSocket("/live", Socket, {
 topbar.config({barColors: {0: "#49f28e"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+window.addEventListener("phx:secret_form:reset", ({detail}) => {
+  const formId = detail?.form_id
+  if (!formId) return
+
+  const form = document.getElementById(formId)
+  if (!form) return
+
+  form.reset()
+  focusSecretFormField(formId, "bank_key")
+})
+
+window.addEventListener("phx:secret_form:focus", ({detail}) => {
+  focusSecretFormField(detail?.form_id, detail?.field)
+})
+
+function focusSecretFormField(formId, fieldName) {
+  if (!formId || !fieldName) return
+
+  const form = document.getElementById(formId)
+  const field = form?.querySelector(`[name="secret[${fieldName}]"]`)
+
+  if (field instanceof HTMLElement) field.focus()
+}
 
 liveSocket.connect()
 window.liveSocket = liveSocket

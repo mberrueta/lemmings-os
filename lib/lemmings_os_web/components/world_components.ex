@@ -12,6 +12,10 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :import_result, :map, default: nil
   attr :active_tab, :string, default: "overview"
   attr :cities, :list, default: []
+  attr :secret_form, :any, default: nil
+  attr :secret_metadata, :list, default: []
+  attr :secret_activity, :list, default: []
+  attr :secret_env_policy, :list, default: []
 
   def world_page(assigns) do
     assigns =
@@ -41,6 +45,10 @@ defmodule LemmingsOsWeb.WorldComponents do
         declared_runtime={@declared_runtime}
         declared_budget={@declared_budget}
         cities={@cities}
+        secret_form={@secret_form}
+        secret_metadata={@secret_metadata}
+        secret_activity={@secret_activity}
+        secret_env_policy={@secret_env_policy}
       />
     </.content_container>
     """
@@ -57,6 +65,10 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :declared_runtime, :map, required: true
   attr :declared_budget, :map, required: true
   attr :cities, :list, default: []
+  attr :secret_form, :any, required: true
+  attr :secret_metadata, :list, required: true
+  attr :secret_activity, :list, required: true
+  attr :secret_env_policy, :list, required: true
 
   defp world_snapshot(assigns) do
     ~H"""
@@ -153,6 +165,7 @@ defmodule LemmingsOsWeb.WorldComponents do
         id="world-tab-overview"
         phx-click="select_tab"
         phx-value-tab="overview"
+        aria_pressed={pressed_attr(@active_tab == "overview")}
         variant={tab_button_variant(@active_tab, "overview")}
       >
         {dgettext("world", ".tab_overview")}
@@ -161,6 +174,7 @@ defmodule LemmingsOsWeb.WorldComponents do
         id="world-tab-import"
         phx-click="select_tab"
         phx-value-tab="import"
+        aria_pressed={pressed_attr(@active_tab == "import")}
         variant={tab_button_variant(@active_tab, "import")}
       >
         {dgettext("world", ".tab_import")}
@@ -169,6 +183,7 @@ defmodule LemmingsOsWeb.WorldComponents do
         id="world-tab-bootstrap"
         phx-click="select_tab"
         phx-value-tab="bootstrap"
+        aria_pressed={pressed_attr(@active_tab == "bootstrap")}
         variant={tab_button_variant(@active_tab, "bootstrap")}
       >
         {dgettext("world", ".tab_bootstrap")}
@@ -177,9 +192,19 @@ defmodule LemmingsOsWeb.WorldComponents do
         id="world-tab-runtime"
         phx-click="select_tab"
         phx-value-tab="runtime"
+        aria_pressed={pressed_attr(@active_tab == "runtime")}
         variant={tab_button_variant(@active_tab, "runtime")}
       >
         {dgettext("world", ".tab_runtime")}
+      </.button>
+      <.button
+        id="world-tab-secrets"
+        phx-click="select_tab"
+        phx-value-tab="secrets"
+        aria_pressed={pressed_attr(@active_tab == "secrets")}
+        variant={tab_button_variant(@active_tab, "secrets")}
+      >
+        {dgettext("world", ".tab_secrets")}
       </.button>
     </div>
 
@@ -429,6 +454,18 @@ defmodule LemmingsOsWeb.WorldComponents do
         </div>
       </div>
     </.panel>
+
+    <SecretBankComponents.secret_surface
+      :if={@active_tab == "secrets"}
+      id_prefix="world"
+      form={@secret_form}
+      metadata={@secret_metadata}
+      activity={@secret_activity}
+      env_fallback_policy={@secret_env_policy}
+      save_event="save_world_secret"
+      edit_event="edit_world_secret"
+      delete_event="delete_world_secret"
+    />
     """
   end
 
@@ -657,6 +694,10 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :local_overrides, :map, default: nil
   attr :department_lemmings, :list, default: []
   attr :primary_manager, :map, default: nil
+  attr :secret_form, :any, default: nil
+  attr :secret_metadata, :list, default: []
+  attr :secret_activity, :list, default: []
+  attr :secret_env_policy, :list, default: []
 
   def department_detail_page(assigns) do
     ~H"""
@@ -678,6 +719,7 @@ defmodule LemmingsOsWeb.WorldComponents do
           patch={
             ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "overview")}"
           }
+          aria-current={if @active_tab == "overview", do: "page"}
           class={department_tab_class(@active_tab == "overview")}
         >
           {dgettext("world", ".department_tab_overview")}
@@ -687,6 +729,7 @@ defmodule LemmingsOsWeb.WorldComponents do
           patch={
             ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "lemmings")}"
           }
+          aria-current={if @active_tab == "lemmings", do: "page"}
           class={department_tab_class(@active_tab == "lemmings")}
         >
           {dgettext("world", ".department_tab_lemmings")}
@@ -696,9 +739,20 @@ defmodule LemmingsOsWeb.WorldComponents do
           patch={
             ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "settings")}"
           }
+          aria-current={if @active_tab == "settings", do: "page"}
           class={department_tab_class(@active_tab == "settings")}
         >
           {dgettext("world", ".department_tab_settings")}
+        </.link>
+        <.link
+          id="department-tab-secrets"
+          patch={
+            ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "secrets")}"
+          }
+          aria-current={if @active_tab == "secrets", do: "page"}
+          class={department_tab_class(@active_tab == "secrets")}
+        >
+          {dgettext("world", ".tab_secrets")}
         </.link>
       </div>
 
@@ -1059,6 +1113,19 @@ defmodule LemmingsOsWeb.WorldComponents do
           </.form>
         </.panel>
       </div>
+
+      <SecretBankComponents.secret_surface
+        :if={@active_tab == "secrets"}
+        id_prefix="department"
+        form={@secret_form}
+        metadata={@secret_metadata}
+        activity={@secret_activity}
+        env_fallback_policy={@secret_env_policy}
+        save_event="save_department_secret"
+        edit_event="edit_department_secret"
+        delete_event="delete_department_secret"
+        subtitle={dgettext("world", ".secret_department_subtitle")}
+      />
     </.panel>
     """
   end
@@ -1071,11 +1138,11 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   defp department_tab_class(true),
     do:
-      "inline-flex h-11 items-center justify-center gap-2 border-2 border-emerald-400/50 bg-emerald-400/10 px-4 text-sm font-medium text-emerald-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+      "inline-flex h-11 items-center justify-center gap-2 border-2 border-emerald-400/50 bg-emerald-400/10 px-4 text-sm font-medium text-emerald-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
 
   defp department_tab_class(false),
     do:
-      "inline-flex h-11 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/80 px-4 text-sm font-medium text-zinc-100 transition duration-200 ease-out hover:-translate-y-px"
+      "inline-flex h-11 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/80 px-4 text-sm font-medium text-zinc-100 transition duration-200 ease-out hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
 
   defp display_setting(value), do: Helpers.display_value(value)
 
@@ -1219,6 +1286,9 @@ defmodule LemmingsOsWeb.WorldComponents do
 
   defp tab_button_variant(active_tab, active_tab), do: "secondary"
   defp tab_button_variant(_active_tab, _tab), do: "neutral"
+
+  defp pressed_attr(true), do: "true"
+  defp pressed_attr(false), do: "false"
 
   # Maps a real persisted city summary to the canvas format.
   # col/row are synthesized deterministically from the city ID so the same city

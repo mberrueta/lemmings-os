@@ -11,6 +11,7 @@ defmodule LemmingsOs.Application do
   def start(_type, _args) do
     children =
       [
+        LemmingsOs.Vault,
         LemmingsOs.Repo,
         LemmingsOsWeb.Telemetry,
         LemmingsOs.LemmingInstances.DetsStore,

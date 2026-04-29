@@ -9,6 +9,8 @@ defmodule LemmingsOs.Tools.Runtime do
   alias LemmingsOs.Tools.Catalog
   alias LemmingsOs.Worlds.World
 
+  @trusted_tool_config_env :tools_runtime_trusted_config
+
   @type success :: %{
           tool_name: String.t(),
           args: map(),
@@ -52,7 +54,7 @@ defmodule LemmingsOs.Tools.Runtime do
   def execute(world, instance, tool_name, args, runtime_meta)
 
   def execute(
-        %World{id: world_id},
+        %World{id: world_id} = world,
         %LemmingInstance{world_id: world_id} = instance,
         tool_name,
         args,
@@ -60,7 +62,8 @@ defmodule LemmingsOs.Tools.Runtime do
       )
       when is_binary(tool_name) and is_map(args) and is_map(runtime_meta) do
     if Catalog.supported_tool?(tool_name) do
-      dispatch_tool_call(instance, tool_name, args, runtime_meta)
+      trusted_config = trusted_tool_config(tool_name, runtime_meta)
+      dispatch_tool_call(world, instance, tool_name, args, runtime_meta, trusted_config)
     else
       {:error,
        %{
@@ -93,7 +96,14 @@ defmodule LemmingsOs.Tools.Runtime do
      }}
   end
 
-  defp dispatch_tool_call(instance, "fs.read_text_file", args, runtime_meta) do
+  defp dispatch_tool_call(
+         _world,
+         instance,
+         "fs.read_text_file",
+         args,
+         runtime_meta,
+         _trusted_config
+       ) do
     normalize_tool_result(
       "fs.read_text_file",
       args,
@@ -101,7 +111,14 @@ defmodule LemmingsOs.Tools.Runtime do
     )
   end
 
-  defp dispatch_tool_call(instance, "fs.write_text_file", args, runtime_meta) do
+  defp dispatch_tool_call(
+         _world,
+         instance,
+         "fs.write_text_file",
+         args,
+         runtime_meta,
+         _trusted_config
+       ) do
     normalize_tool_result(
       "fs.write_text_file",
       args,
@@ -109,12 +126,12 @@ defmodule LemmingsOs.Tools.Runtime do
     )
   end
 
-  defp dispatch_tool_call(_instance, "web.search", args, _runtime_meta) do
-    normalize_tool_result("web.search", args, Web.search(args))
+  defp dispatch_tool_call(world, instance, "web.search", args, _runtime_meta, trusted_config) do
+    normalize_tool_result("web.search", args, Web.search(world, instance, args, trusted_config))
   end
 
-  defp dispatch_tool_call(_instance, "web.fetch", args, _runtime_meta) do
-    normalize_tool_result("web.fetch", args, Web.fetch(args))
+  defp dispatch_tool_call(world, instance, "web.fetch", args, _runtime_meta, trusted_config) do
+    normalize_tool_result("web.fetch", args, Web.fetch(world, instance, args, trusted_config))
   end
 
   defp normalize_tool_result(
@@ -143,4 +160,30 @@ defmodule LemmingsOs.Tools.Runtime do
        details: Map.get(error, :details, %{})
      }}
   end
+
+  defp trusted_tool_config(tool_name, runtime_meta)
+       when is_binary(tool_name) and is_map(runtime_meta) do
+    app_config =
+      trusted_tool_config_map(Application.get_env(:lemmings_os, @trusted_tool_config_env, %{}))
+
+    runtime_config = runtime_tool_config(runtime_meta)
+    merged = Map.merge(app_config, runtime_config)
+    Map.get(merged, tool_name, %{})
+  end
+
+  defp trusted_tool_config_map(config) when is_map(config) do
+    Map.new(config, fn {key, value} -> {to_string(key), normalize_tool_config(value)} end)
+  end
+
+  defp trusted_tool_config_map(_config), do: %{}
+
+  defp runtime_tool_config(%{trusted_tool_config: config}), do: trusted_tool_config_map(config)
+
+  defp runtime_tool_config(%{"trusted_tool_config" => config}),
+    do: trusted_tool_config_map(config)
+
+  defp runtime_tool_config(_runtime_meta), do: %{}
+
+  defp normalize_tool_config(config) when is_map(config), do: config
+  defp normalize_tool_config(_config), do: %{}
 end

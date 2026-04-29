@@ -156,4 +156,132 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     assert has_element?(view, "#world-bootstrap-status[data-status='ok']")
     refute has_element?(view, "#world-page-empty-state")
   end
+
+  test "renders read-only env fallback policy metadata in secrets tab", %{conn: conn} do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    put_secret_bank_config(
+      allowed_env_vars: ["$GITHUB_TOKEN"],
+      env_fallbacks: ["$GITHUB_TOKEN", {"OPENROUTER_API_KEY", "$OPENROUTER_API_KEY"}]
+    )
+
+    insert(:world,
+      slug: "local",
+      name: "Local World",
+      bootstrap_path: path,
+      bootstrap_source: "direct",
+      last_import_status: "ok"
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/world")
+
+    view |> element("#world-tab-secrets") |> render_click()
+
+    assert has_element?(view, "#world-secrets-env-fallback-panel")
+    assert has_element?(view, "#world-secrets-env-fallback-row-github-token")
+    assert has_element?(view, "#world-secrets-env-fallback-type-github-token", "convention")
+    assert has_element?(view, "#world-secrets-env-fallback-status-github-token", "allowlisted")
+    assert has_element?(view, "#world-secrets-env-fallback-row-github-token", "$GITHUB_TOKEN")
+    assert has_element?(view, "#world-secrets-env-fallback-row-openrouter-api-key")
+
+    assert has_element?(
+             view,
+             "#world-secrets-env-fallback-row-openrouter-api-key",
+             "$OPENROUTER_API_KEY"
+           )
+
+    assert has_element?(
+             view,
+             "#world-secrets-env-fallback-type-openrouter-api-key",
+             "explicit override"
+           )
+
+    assert has_element?(
+             view,
+             "#world-secrets-env-fallback-status-openrouter-api-key",
+             "blocked by allowlist"
+           )
+  end
+
+  test "secret create and delete controls expose accessible names and safe state", %{conn: conn} do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    insert(:world,
+      slug: "local",
+      name: "Local World",
+      bootstrap_path: path,
+      bootstrap_source: "direct",
+      last_import_status: "ok"
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/world")
+
+    view |> element("#world-tab-secrets") |> render_click()
+
+    assert has_element?(view, "#world-tab-secrets[aria-pressed='true']")
+    assert has_element?(view, "#world-secret-form[aria-describedby='world-secret-form-help']")
+    assert has_element?(view, "#world-secrets-activity-empty[role='status'][aria-live='polite']")
+
+    assert has_element?(
+             view,
+             "#world-secret-bank-key[required][aria-describedby='world-secret-bank-key-help']"
+           )
+
+    assert has_element?(
+             view,
+             "#world-secret-value[type='password'][required][aria-describedby='world-secret-value-help']"
+           )
+
+    view
+    |> element("#world-secret-form")
+    |> render_submit(%{
+      "secret" => %{
+        "bank_key" => "GITHUB_TOKEN",
+        "value" => "dev_only_accessibility_secret"
+      }
+    })
+
+    assert has_element?(
+             view,
+             "#world-secret-action-state-github-token",
+             "Local value can be replaced and deleted at this scope."
+           )
+
+    assert has_element?(
+             view,
+             "#world-secret-edit-github-token[aria-label='Edit local secret GITHUB_TOKEN']"
+           )
+
+    assert has_element?(
+             view,
+             "#world-secret-delete-github-token[aria-label='Delete local secret GITHUB_TOKEN'][data-confirm='Delete this local secret value?']"
+           )
+
+    assert has_element?(
+             view,
+             "#world-secrets-activity-scroll[role='region'][aria-labelledby='world-secrets-activity-heading'][aria-live='polite']"
+           )
+
+    assert has_element?(view, "ul#world-secrets-activity-list")
+    assert has_element?(view, "#world-secrets-activity-list time[datetime]")
+
+    refute render(view) =~ "dev_only_accessibility_secret"
+
+    view |> element("#world-secret-delete-github-token") |> render_click()
+
+    refute has_element?(view, "#world-secret-delete-github-token")
+    assert has_element?(view, "#flash-info", "Local secret deleted")
+  end
+
+  defp put_secret_bank_config(config) do
+    previous = Application.get_env(:lemmings_os, LemmingsOs.SecretBank, [])
+
+    Application.put_env(:lemmings_os, LemmingsOs.SecretBank, config)
+
+    on_exit(fn ->
+      Application.put_env(:lemmings_os, LemmingsOs.SecretBank, previous)
+    end)
+  end
 end

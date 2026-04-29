@@ -216,7 +216,8 @@ Typical audit events include:
 - assignment changed
 - secret created
 - secret replaced
-- secret accessed by Tool Runtime
+- secret resolved by Secret Bank
+- secret used by a tool
 - tool invocation requested
 - tool invocation denied
 - approval requested
@@ -304,6 +305,27 @@ Telemetry metadata includes the hierarchy and tool identity needed for runtime d
 
 The durable v1 history is the `lemming_instance_tool_executions` table, not the platform audit-event table. That table is runtime history scoped to one instance; it supports transcript reconstruction and operator inspection but does not replace the canonical append-only audit envelope.
 
+## 5.3.1 Secret Bank MVP Durable Events
+
+The Secret Bank MVP uses the canonical `events` table for durable audit events.
+Implemented event types are:
+
+- `secret.created`
+- `secret.replaced`
+- `secret.deleted`
+- `secret.resolved`
+- `secret.resolve_failed`
+- `secret.used_by_tool`
+
+The shipped implementation does not emit the older planning names
+`secret.accessed` or `secret.access_failed`.
+
+Secret event payloads may contain safe metadata such as bank key, secret
+reference, requested hierarchy scope, resolved source, reason, tool name,
+adapter name, and lemming instance ID. They must never contain raw secret
+values, old values, new values, env values, masked previews, hashes, or
+fingerprints.
+
 ## 5.4 Shared Envelope, Distinct Semantics
 
 Audit and telemetry use the same base envelope so that infrastructure remains simple and query patterns remain consistent.
@@ -387,7 +409,9 @@ Examples:
 
 - `auth.login_succeeded`
 - `auth.login_failed`
-- `secret.accessed`
+- `secret.resolved`
+- `secret.resolve_failed`
+- `secret.used_by_tool`
 - `tool.invocation_requested`
 - `tool.invocation_denied`
 - `approval.requested`
@@ -865,7 +889,9 @@ Recommended style:
 ```text
 auth.login_succeeded
 secret.created
-secret.accessed
+secret.resolved
+secret.resolve_failed
+secret.used_by_tool
 tool.invocation_requested
 tool.invocation_denied
 approval.requested
@@ -906,31 +932,31 @@ System behavior must not depend on parsing `message`.
 
 # 15. Examples
 
-## 15.1 Secret Access Audit Event
+## 15.1 Secret Tool Usage Audit Event
 
 ```json
 {
   "event_id": "evt_001",
   "event_family": "audit",
-  "event_type": "secret.accessed",
+  "event_type": "secret.used_by_tool",
   "occurred_at": "2026-03-14T18:20:00Z",
   "inserted_at": "2026-03-14T18:20:00Z",
   "world_id": "prod",
   "city_id": "salvador",
   "department_id": "infra",
-  "actor_type": "tool_runtime",
-  "actor_id": "tool_runtime",
   "resource_type": "secret",
-  "resource_id": "secrets.github.company",
+  "resource_id": "GITHUB_TOKEN",
   "correlation_id": "corr_78421",
   "tool_invocation_id": "inv_78421",
-  "action": "access",
+  "action": "use",
   "status": "succeeded",
-  "message": "Secret resolved for approved tool invocation",
+  "message": "GITHUB_TOKEN used by web.fetch",
   "payload": {
-    "tool": "github_issue_creator",
-    "binding": "github.token",
-    "resolution_scope": "department"
+    "key": "GITHUB_TOKEN",
+    "tool_name": "web.fetch",
+    "adapter_name": "LemmingsOs.Tools.Adapters.Web",
+    "lemming_instance_id": "inst_78421",
+    "resolved_source": "department"
   }
 }
 ```

@@ -23,13 +23,24 @@ and easy to reason about.
 
 The system already supports:
 
-- multiple authenticated users
-- fixed built-in roles
-- scoped user assignments
+- multiple authenticated users (target architecture)
+- fixed built-in roles (target architecture)
+- scoped user assignments (target architecture)
 - hierarchical runtime resources
 
 Therefore a consistent authorization model is required to determine whether a user may
 operate on a given resource.
+
+## Secret Bank MVP sequencing note
+
+The Secret Bank MVP does not yet apply this authorization model. The World,
+City, Department, and Lemming Secret surfaces assume the current implicit local
+admin. Secret create, replace, delete, metadata listing, and runtime resolution
+validate hierarchy scope consistency, but they do not check authenticated user
+roles or assignments.
+
+Future authorization work must wrap Secret Bank admin actions with the role and
+scope checks defined here. It must not add value reveal/export behavior.
 
 ---
 

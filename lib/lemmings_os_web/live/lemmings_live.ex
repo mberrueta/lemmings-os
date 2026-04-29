@@ -15,6 +15,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Runtime
+  alias LemmingsOs.SecretBank
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
 
@@ -44,7 +45,12 @@ defmodule LemmingsOsWeb.LemmingsLive do
        lemming_instances: [],
        recent_lemming_instances: [],
        overview_path: nil,
-       edit_path: nil
+       edit_path: nil,
+       secrets_path: nil,
+       lemming_secret_form: blank_secret_form(),
+       lemming_secret_metadata: [],
+       lemming_secret_env_policy: [],
+       lemming_secret_activity: []
      )}
   end
 
@@ -125,6 +131,84 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   def handle_event("export_lemming", _params, socket) do
     {:noreply, put_flash(socket, :error, dgettext("lemmings", ".flash_export_no_lemming"))}
+  end
+
+  def handle_event("save_lemming_secret", %{"secret" => params}, socket) do
+    with %Lemming{} = lemming <- socket.assigns.selected_lemming,
+         {:ok, _metadata} <-
+           SecretBank.upsert_secret(lemming, params["bank_key"], params["value"]) do
+      lemming = load_selected_lemming(lemming.id)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("world", ".secret_saved"))
+       |> assign(:lemming_secret_form, blank_secret_form())
+       |> push_event("secret_form:reset", %{form_id: "lemming-secret-form"})
+       |> assign_selected_lemming(lemming)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_lemming_unavailable"))}
+
+      {:error, :invalid_key} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           dgettext("errors", ".error_invalid_key")
+         )
+         |> assign(:lemming_secret_form, secret_form_with_key(params["bank_key"]))
+         |> push_event("secret_form:focus", %{form_id: "lemming-secret-form", field: "bank_key"})}
+
+      {:error, :invalid_value} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("errors", ".error_secret_value_required"))
+         |> assign(:lemming_secret_form, secret_form_with_key(params["bank_key"]))
+         |> push_event("secret_form:focus", %{form_id: "lemming-secret-form", field: "value"})}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("errors", ".error_secret_save_failed"))
+         |> assign(:lemming_secret_form, secret_form_with_key(params["bank_key"]))}
+    end
+  end
+
+  def handle_event("delete_lemming_secret", %{"bank-key" => bank_key}, socket) do
+    with %Lemming{} = lemming <- socket.assigns.selected_lemming,
+         {:ok, _metadata} <- SecretBank.delete_secret(lemming, bank_key) do
+      lemming = load_selected_lemming(lemming.id)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("world", ".secret_deleted"))
+       |> push_event("secret_form:focus", %{form_id: "lemming-secret-form", field: "bank_key"})
+       |> assign_selected_lemming(lemming)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_lemming_unavailable"))}
+
+      {:error, :inherited_secret_not_deletable} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("errors", ".error_secret_inherited_not_deletable")
+         )}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_secret_key_not_found"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_secret_delete_failed"))}
+    end
+  end
+
+  def handle_event("edit_lemming_secret", %{"bank-key" => bank_key}, socket) do
+    {:noreply,
+     socket
+     |> assign(:lemming_secret_form, secret_form_with_key(bank_key))
+     |> push_event("secret_form:focus", %{form_id: "lemming-secret-form", field: "value"})}
   end
 
   def handle_event("open_spawn_modal", _params, socket) do
@@ -231,7 +315,12 @@ defmodule LemmingsOsWeb.LemmingsLive do
           lemming_instances: [],
           recent_lemming_instances: [],
           overview_path: nil,
-          edit_path: nil
+          edit_path: nil,
+          secrets_path: nil,
+          lemming_secret_form: blank_secret_form(),
+          lemming_secret_metadata: [],
+          lemming_secret_env_policy: [],
+          lemming_secret_activity: []
         )
         |> put_shell_breadcrumb(default_shell_breadcrumb(:lemmings))
     end
@@ -261,7 +350,12 @@ defmodule LemmingsOsWeb.LemmingsLive do
       lemming_instances: [],
       recent_lemming_instances: [],
       overview_path: nil,
-      edit_path: nil
+      edit_path: nil,
+      secrets_path: nil,
+      lemming_secret_form: blank_secret_form(),
+      lemming_secret_metadata: [],
+      lemming_secret_env_policy: [],
+      lemming_secret_activity: []
     )
   end
 
@@ -279,6 +373,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
       selected_lemming_effective_config: Resolver.resolve(lemming),
       selected_lemming_inheriting?: inheriting_all_configuration?(lemming),
       settings_form: to_form(changeset, as: :lemming),
+      lemming_secret_form: blank_secret_form(),
       spawn_form: blank_spawn_form(),
       spawn_modal_open?: false
     )
@@ -287,7 +382,11 @@ defmodule LemmingsOsWeb.LemmingsLive do
       lemming_instances: load_lemming_instances(socket.assigns.world, lemming),
       recent_lemming_instances: load_recent_lemming_instances(socket.assigns.world, lemming),
       overview_path: detail_path(lemming, socket, "overview"),
-      edit_path: detail_path(lemming, socket, "edit")
+      edit_path: detail_path(lemming, socket, "edit"),
+      secrets_path: detail_path(lemming, socket, "secrets"),
+      lemming_secret_metadata: SecretBank.list_effective_metadata(lemming),
+      lemming_secret_env_policy: SecretBank.list_env_fallback_policy(),
+      lemming_secret_activity: SecretBank.list_recent_activity(lemming, limit: 10)
     )
   end
 
@@ -506,6 +605,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
   end
 
   defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "edit"}), do: "edit"
+  defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "secrets"}), do: "secrets"
   defp active_detail_tab(%{assigns: %{live_action: :show}}, _params), do: "overview"
   defp active_detail_tab(_socket, _params), do: "overview"
 
@@ -655,5 +755,11 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   defp instance_session_path(%{id: instance_id}, world_id) do
     ~p"/lemmings/instances/#{instance_id}?#{%{world: world_id}}"
+  end
+
+  defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)
+
+  defp secret_form_with_key(bank_key) do
+    to_form(%{"bank_key" => String.trim(bank_key || ""), "value" => ""}, as: :secret)
   end
 end

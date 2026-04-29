@@ -1,13 +1,19 @@
 defmodule LemmingsOs.Tools.RuntimeTest do
-  use ExUnit.Case, async: false
+  use LemmingsOs.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
+  alias LemmingsOs.Events.Event
   alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.Repo
   alias LemmingsOs.Tools.Runtime
   alias LemmingsOs.Worlds.World
 
   setup do
     old_work_areas_path = Application.get_env(:lemmings_os, :work_areas_path)
     old_allow_private_hosts = Application.fetch_env(:lemmings_os, :tools_web_allow_private_hosts)
+    old_trusted_tool_config = Application.fetch_env(:lemmings_os, :tools_runtime_trusted_config)
+    old_github_token = System.get_env("GITHUB_TOKEN")
 
     work_areas_path =
       Path.join(
@@ -27,17 +33,23 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       end
 
       restore_env(:tools_web_allow_private_hosts, old_allow_private_hosts)
+      restore_env(:tools_runtime_trusted_config, old_trusted_tool_config)
+      restore_system_env("GITHUB_TOKEN", old_github_token)
 
       File.rm_rf(work_areas_path)
     end)
 
-    world = %World{id: Ecto.UUID.generate()}
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+    lemming = insert(:lemming, world: world, city: city, department: department)
 
     instance = %LemmingInstance{
       id: Ecto.UUID.generate(),
       world_id: world.id,
-      department_id: Ecto.UUID.generate(),
-      lemming_id: Ecto.UUID.generate()
+      city_id: city.id,
+      department_id: department.id,
+      lemming_id: lemming.id
     }
 
     File.mkdir_p!(Path.join(work_areas_path, instance.id))
@@ -140,6 +152,295 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert result.result.status == 200
       assert result.result.body == "runtime tools fetch payload"
     end
+
+    test "resolves trusted secret references from tool config and injects raw value only in adapter request",
+         %{world: world, instance: instance} do
+      bypass = Bypass.open()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "allowed_hosts" => ["localhost"],
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.expect_once(bypass, "GET", "/with-secret", fn conn ->
+        assert Plug.Conn.get_req_header(conn, "authorization") == [
+                 "dev_only_runtime_secret_token"
+               ]
+
+        Plug.Conn.resp(conn, 200, "runtime tools fetch payload")
+      end)
+
+      assert {:ok, result} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/with-secret"
+               })
+
+      assert result.tool_name == "web.fetch"
+      assert result.result.status == 200
+
+      events =
+        Repo.all(
+          from(event in Event,
+            where:
+              event.world_id == ^world.id and
+                event.event_type in ^["secret.resolved", "secret.used_by_tool"],
+            order_by: [asc: event.inserted_at, asc: event.id]
+          )
+        )
+
+      assert MapSet.new(Enum.map(events, & &1.event_type)) ==
+               MapSet.new(["secret.resolved", "secret.used_by_tool"])
+
+      resolved = Enum.find(events, &(&1.event_type == "secret.resolved"))
+      used_by_tool = Enum.find(events, &(&1.event_type == "secret.used_by_tool"))
+
+      assert fetch_map(resolved.payload, :key) == "GITHUB_TOKEN"
+      assert fetch_map(resolved.payload, :resolved_source) == "env"
+
+      assert fetch_map(used_by_tool.payload, :key) == "GITHUB_TOKEN"
+      assert fetch_map(used_by_tool.payload, :tool_name) == "web.fetch"
+      assert fetch_map(used_by_tool.payload, :adapter_name) == "LemmingsOs.Tools.Adapters.Web"
+      assert fetch_map(used_by_tool.payload, :lemming_instance_id) == instance.id
+      assert fetch_map(used_by_tool.payload, :world_id) == world.id
+      assert fetch_map(used_by_tool.payload, :city_id) == instance.city_id
+      assert fetch_map(used_by_tool.payload, :department_id) == instance.department_id
+      assert fetch_map(used_by_tool.payload, :lemming_id) == instance.lemming_id
+      assert fetch_map(used_by_tool.payload, :resolved_source) == "env"
+      assert used_by_tool.status == "succeeded"
+
+      refute inspect(Enum.map(events, & &1.payload)) =~ "dev_only_runtime_secret_token"
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.world_id == ^world.id and
+                     event.event_type in ^["secret.accessed", "secret.access_failed"]
+               )
+             )
+    end
+
+    test "redacts reflected resolved secrets before returning adapter output", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "allowed_hosts" => ["localhost"],
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.expect_once(bypass, "GET", "/echo-secret", fn conn ->
+        [authorization] = Plug.Conn.get_req_header(conn, "authorization")
+        Plug.Conn.resp(conn, 200, "reflected header=#{authorization}")
+      end)
+
+      assert {:ok, result} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/echo-secret"
+               })
+
+      assert result.tool_name == "web.fetch"
+      assert result.result.body == "reflected header=[REDACTED]"
+      assert result.preview == "reflected header=[REDACTED]"
+      refute inspect(result) =~ "dev_only_runtime_secret_token"
+    end
+
+    test "blocks secret-bearing headers unless the destination host is explicitly allowlisted", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      parent = self()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.stub(bypass, "GET", "/blocked-secret", fn conn ->
+        send(parent, :adapter_called)
+        Plug.Conn.resp(conn, 200, "should not execute")
+      end)
+
+      assert {:error, %{code: "tool.secret.destination_not_allowed", details: details}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/blocked-secret"
+               })
+
+      assert details.host == "localhost"
+      refute_received :adapter_called
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where: event.world_id == ^world.id and event.event_type == "secret.used_by_tool"
+               )
+             )
+    end
+
+    test "records secret header use as failed when the adapter request fails", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "allowed_hosts" => ["localhost"],
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.expect_once(bypass, "GET", "/server-error", fn conn ->
+        Plug.Conn.resp(conn, 500, "upstream failed")
+      end)
+
+      assert {:error, %{code: "tool.web.bad_status"}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/server-error"
+               })
+
+      [used_by_tool] =
+        Repo.all(
+          from(event in Event,
+            where: event.world_id == ^world.id and event.event_type == "secret.used_by_tool"
+          )
+        )
+
+      assert used_by_tool.status == "failed"
+      assert fetch_map(used_by_tool.payload, :key) == "GITHUB_TOKEN"
+      refute inspect(used_by_tool.payload) =~ "dev_only_runtime_secret_token"
+    end
+
+    test "does not execute adapter when trusted secret resolution fails", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      parent = self()
+      System.delete_env("GITHUB_TOKEN")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.stub(bypass, "GET", "/missing-secret", fn conn ->
+        send(parent, :adapter_called)
+        Plug.Conn.resp(conn, 200, "should not execute")
+      end)
+
+      assert {:error, %{code: "tool.secret.missing", details: details}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/missing-secret"
+               })
+
+      assert details.secret_ref == "$GITHUB_TOKEN"
+      assert details.bank_key == "GITHUB_TOKEN"
+      refute_received :adapter_called
+
+      [failed] =
+        Repo.all(
+          from(event in Event,
+            where: event.world_id == ^world.id and event.event_type == "secret.resolve_failed"
+          )
+        )
+
+      assert fetch_map(failed.payload, :key) == "GITHUB_TOKEN"
+      assert fetch_map(failed.payload, :reason) == "missing_secret"
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.world_id == ^world.id and
+                     event.event_type in ^[
+                       "secret.accessed",
+                       "secret.access_failed",
+                       "secret.used_by_tool"
+                     ]
+               )
+             )
+    end
+
+    test "does not resolve secret references from tool args", %{world: world, instance: instance} do
+      Application.put_env(:lemmings_os, :tools_runtime_trusted_config, %{})
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      assert {:error, %{code: "tool.web.invalid_url", details: %{url: "$GITHUB_TOKEN"}}} =
+               Runtime.execute(world, instance, "web.fetch", %{"url" => "$GITHUB_TOKEN"})
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.world_id == ^world.id and
+                     event.event_type in ^["secret.resolved", "secret.used_by_tool"] and
+                     fragment("?->>'key' = ?", event.payload, "GITHUB_TOKEN")
+               )
+             )
+    end
+
+    test "rejects legacy $secrets.* references in trusted config", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      parent = self()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$secrets.GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.stub(bypass, "GET", "/legacy-ref", fn conn ->
+        send(parent, :adapter_called)
+        Plug.Conn.resp(conn, 200, "should not execute")
+      end)
+
+      assert {:error, %{code: "tool.secret.invalid_reference", details: details}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/legacy-ref"
+               })
+
+      assert details.secret_ref == "$secrets.GITHUB_TOKEN"
+      assert details.reason == "invalid_key"
+      refute_received :adapter_called
+    end
   end
 
   describe "execute/4 failures" do
@@ -158,4 +459,11 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
   defp restore_env(key, {:ok, value}), do: Application.put_env(:lemmings_os, key, value)
   defp restore_env(key, :error), do: Application.delete_env(:lemmings_os, key)
+
+  defp restore_system_env(key, nil), do: System.delete_env(key)
+  defp restore_system_env(key, value), do: System.put_env(key, value)
+
+  defp fetch_map(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
 end

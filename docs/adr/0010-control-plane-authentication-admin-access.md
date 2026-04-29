@@ -37,6 +37,17 @@ Runtime Plane
 
 The Secret Bank subsystem manages runtime credentials for tools and must **not** be used for administrator authentication.
 
+## Secret Bank MVP sequencing note
+
+As of the Secret Bank MVP, the control plane still runs in the local-admin mode
+used by the current Phoenix application. The Secret Bank UI and context APIs do
+not enforce login, sessions, RBAC, per-user secret permissions, or per-user
+actor attribution.
+
+This is an implementation sequencing constraint, not a change to this ADR's
+target authentication model. Deployments must treat the current control plane as
+trusted/private network software until ADR-0010 is implemented.
+
 This ADR also recognizes that LemmingsOS is more valuable than a purely personal single-user tool. For small teams, the system benefits significantly from allowing multiple authenticated users with access limited by hierarchy level.
 
 ---
@@ -526,4 +537,3 @@ Potential improvements include:
 - control plane network restrictions
 
 These features will be defined in future ADRs once the core runtime architecture stabilizes.
-

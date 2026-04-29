@@ -14,6 +14,7 @@ alias LemmingsOs.Cities
 alias LemmingsOs.Cities.Runtime, as: RuntimeCities
 alias LemmingsOs.Departments
 alias LemmingsOs.Lemmings
+alias LemmingsOs.SecretBank
 alias LemmingsOs.Worlds
 alias LemmingsOs.Worlds.World
 
@@ -351,11 +352,20 @@ upsert_lemming! = fn world, city, department, attrs ->
   end
 end
 
+create_sample_secret! = fn world ->
+  if SecretBank.list_effective_metadata(world, bank_key: "GITHUB_TOKEN") == [] do
+    {:ok, _metadata} =
+      SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_mock_github_token")
+  end
+end
+
 {:ok, world} =
   case Worlds.get_default_world() do
     %World{} = world -> {:ok, world}
     nil -> Worlds.upsert_world(default_world_attrs)
   end
+
+create_sample_secret!.(world)
 
 runtime_city_attrs = RuntimeCities.runtime_city_attrs()
 
@@ -412,7 +422,7 @@ lemming_count =
   |> length()
 
 seed_summary =
-  "Seeded world #{world.slug} with #{length(seeded)} cities, #{department_count} departments, and #{lemming_count} lemmings."
+  "Seeded world #{world.slug} with #{length(seeded)} cities, #{department_count} departments, #{lemming_count} lemmings, and sample Secret Bank metadata."
 
 if Mix.env() != :test or System.get_env("SEEDS_VERBOSE") in ["1", "true"] do
   IO.puts(seed_summary)

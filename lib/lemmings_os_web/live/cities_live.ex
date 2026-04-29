@@ -29,6 +29,7 @@ defmodule LemmingsOsWeb.CitiesLive do
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Helpers
+  alias LemmingsOs.SecretBank
   alias LemmingsOs.Worlds
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
 
@@ -41,6 +42,10 @@ defmodule LemmingsOsWeb.CitiesLive do
      |> assign(:form_mode, nil)
      |> assign(:form_city_id, nil)
      |> assign(:editing_city, nil)
+     |> assign(:city_secret_form, blank_secret_form())
+     |> assign(:city_secret_metadata, [])
+     |> assign(:city_secret_env_policy, [])
+     |> assign(:city_secret_activity, [])
      |> load_snapshot(params)}
   end
 
@@ -130,6 +135,79 @@ defmodule LemmingsOsWeb.CitiesLive do
     end
   end
 
+  def handle_event("save_city_secret", %{"secret" => params}, socket) do
+    with {:ok, city} <- load_selected_city_scope(socket),
+         {:ok, _metadata} <- SecretBank.upsert_secret(city, params["bank_key"], params["value"]) do
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("world", ".secret_saved"))
+       |> assign(:city_secret_form, blank_secret_form())
+       |> push_event("secret_form:reset", %{form_id: "city-secret-form"})
+       |> load_snapshot(%{"city" => city.id})}
+    else
+      {:error, :invalid_scope} ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_city_unavailable"))}
+
+      {:error, :invalid_key} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           dgettext("errors", ".error_invalid_key")
+         )
+         |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))
+         |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "bank_key"})}
+
+      {:error, :invalid_value} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("errors", ".error_secret_value_required"))
+         |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))
+         |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "value"})}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("errors", ".error_secret_save_failed"))
+         |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))}
+    end
+  end
+
+  def handle_event("delete_city_secret", %{"bank-key" => bank_key}, socket) do
+    with {:ok, city} <- load_selected_city_scope(socket),
+         {:ok, _metadata} <- SecretBank.delete_secret(city, bank_key) do
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("world", ".secret_deleted"))
+       |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "bank_key"})
+       |> load_snapshot(%{"city" => city.id})}
+    else
+      {:error, :invalid_scope} ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_city_unavailable"))}
+
+      {:error, :inherited_secret_not_deletable} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("errors", ".error_secret_inherited_not_deletable")
+         )}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_secret_key_not_found"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_secret_delete_failed"))}
+    end
+  end
+
+  def handle_event("edit_city_secret", %{"bank-key" => bank_key}, socket) do
+    {:noreply,
+     socket
+     |> assign(:city_secret_form, secret_form_with_key(bank_key))
+     |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "value"})}
+  end
+
   # ============================================
   # Private Helpers
   # ============================================
@@ -140,12 +218,17 @@ defmodule LemmingsOsWeb.CitiesLive do
         socket
         |> assign(:snapshot, snapshot)
         |> stream(:cities, snapshot.cities, reset: true)
+        |> assign_city_secret_surface(snapshot)
         |> put_shell_breadcrumb(shell_breadcrumb(snapshot))
 
       {:error, :not_found} ->
         socket
         |> assign(:snapshot, nil)
         |> stream(:cities, [], reset: true)
+        |> assign(:city_secret_form, blank_secret_form())
+        |> assign(:city_secret_metadata, [])
+        |> assign(:city_secret_env_policy, [])
+        |> assign(:city_secret_activity, [])
         |> put_shell_breadcrumb([shell_item(:cities, "/cities")])
     end
   end
@@ -218,5 +301,51 @@ defmodule LemmingsOsWeb.CitiesLive do
       _ ->
         {:noreply, put_flash(socket, :error, dgettext("world", ".flash_city_save_error"))}
     end
+  end
+
+  defp assign_city_secret_surface(socket, %{selected_city: nil}),
+    do: reset_city_secret_surface(socket)
+
+  defp assign_city_secret_surface(socket, %{selected_city: %{id: city_id}} = snapshot)
+       when is_binary(city_id) do
+    with {:ok, world} <- fetch_snapshot_world(snapshot),
+         %City{} = city <- Cities.get_city(world, city_id) do
+      socket
+      |> assign(:city_secret_metadata, SecretBank.list_effective_metadata(city))
+      |> assign(:city_secret_env_policy, SecretBank.list_env_fallback_policy())
+      |> assign(:city_secret_activity, SecretBank.list_recent_activity(city, limit: 10))
+    else
+      _ -> reset_city_secret_surface(socket)
+    end
+  end
+
+  defp assign_city_secret_surface(socket, _snapshot), do: reset_city_secret_surface(socket)
+
+  defp reset_city_secret_surface(socket) do
+    socket
+    |> assign(:city_secret_form, blank_secret_form())
+    |> assign(:city_secret_metadata, [])
+    |> assign(:city_secret_env_policy, [])
+    |> assign(:city_secret_activity, [])
+  end
+
+  defp load_selected_city_scope(%{
+         assigns: %{snapshot: %{selected_city: %{id: city_id}} = snapshot}
+       })
+       when is_binary(city_id) do
+    with {:ok, world} <- fetch_snapshot_world(snapshot),
+         %City{} = city <- Cities.get_city(world, city_id) do
+      {:ok, city}
+    else
+      _ -> {:error, :invalid_scope}
+    end
+  end
+
+  defp load_selected_city_scope(_socket), do: {:error, :invalid_scope}
+
+  defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)
+
+  defp secret_form_with_key(bank_key) do
+    to_form(%{"bank_key" => String.trim(bank_key || ""), "value" => ""}, as: :secret)
   end
 end
