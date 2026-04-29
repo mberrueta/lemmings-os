@@ -187,6 +187,9 @@ Department
 ```
 
 This allows local overrides without duplicating configuration globally.
+Before any write, metadata listing, or runtime resolution, the Secret Bank
+validates that the requested scope IDs belong to the same persisted ancestry
+chain and rejects mismatched World, City, Department, or Lemming scopes.
 
 Example:
 
@@ -308,11 +311,15 @@ secret, m1, c1, d1, t1, access gh_token, inserted_at
 
 Typical secret‑related events include:
 
-- secret created
-- secret replaced
-- secret accessed by Tool Runtime
+- `secret.created`
+- `secret.replaced`
+- `secret.deleted`
+- `secret.resolved`
+- `secret.resolve_failed`
+- `secret.used_by_tool`
 
-Audit logs must **never include the secret value itself**.
+Audit logs must **never include the secret value itself**, derived previews,
+hashes, fingerprints, or transformed copies of secret material.
 
 The goal of auditing is operational traceability, not secret recovery.
 
@@ -409,4 +416,3 @@ Possible future capabilities include:
 
 - external secret manager integration (Vault, cloud KMS, etc.)
 - automatic secret rotation
-

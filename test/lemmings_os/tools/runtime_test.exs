@@ -183,6 +183,78 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
       assert result.tool_name == "web.fetch"
       assert result.result.status == 200
+
+      events =
+        Repo.all(
+          from(event in Event,
+            where:
+              event.world_id == ^world.id and
+                event.event_type in ^["secret.resolved", "secret.used_by_tool"],
+            order_by: [asc: event.inserted_at, asc: event.id]
+          )
+        )
+
+      assert MapSet.new(Enum.map(events, & &1.event_type)) ==
+               MapSet.new(["secret.resolved", "secret.used_by_tool"])
+
+      resolved = Enum.find(events, &(&1.event_type == "secret.resolved"))
+      used_by_tool = Enum.find(events, &(&1.event_type == "secret.used_by_tool"))
+
+      assert fetch_map(resolved.payload, :key) == "GITHUB_TOKEN"
+      assert fetch_map(resolved.payload, :resolved_source) == "env"
+
+      assert fetch_map(used_by_tool.payload, :key) == "GITHUB_TOKEN"
+      assert fetch_map(used_by_tool.payload, :tool_name) == "web.fetch"
+      assert fetch_map(used_by_tool.payload, :adapter_name) == "LemmingsOs.Tools.Adapters.Web"
+      assert fetch_map(used_by_tool.payload, :lemming_instance_id) == instance.id
+      assert fetch_map(used_by_tool.payload, :world_id) == world.id
+      assert fetch_map(used_by_tool.payload, :city_id) == instance.city_id
+      assert fetch_map(used_by_tool.payload, :department_id) == instance.department_id
+      assert fetch_map(used_by_tool.payload, :lemming_id) == instance.lemming_id
+      assert fetch_map(used_by_tool.payload, :resolved_source) == "env"
+
+      refute inspect(Enum.map(events, & &1.payload)) =~ "dev_only_runtime_secret_token"
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.world_id == ^world.id and
+                     event.event_type in ^["secret.accessed", "secret.access_failed"]
+               )
+             )
+    end
+
+    test "redacts reflected resolved secrets before returning adapter output", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.expect_once(bypass, "GET", "/echo-secret", fn conn ->
+        [authorization] = Plug.Conn.get_req_header(conn, "authorization")
+        Plug.Conn.resp(conn, 200, "reflected header=#{authorization}")
+      end)
+
+      assert {:ok, result} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/echo-secret"
+               })
+
+      assert result.tool_name == "web.fetch"
+      assert result.result.body == "reflected header=[REDACTED]"
+      assert result.preview == "reflected header=[REDACTED]"
+      refute inspect(result) =~ "dev_only_runtime_secret_token"
     end
 
     test "does not execute adapter when trusted secret resolution fails", %{
@@ -216,6 +288,28 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert details.secret_ref == "$GITHUB_TOKEN"
       assert details.bank_key == "GITHUB_TOKEN"
       refute_received :adapter_called
+
+      [failed] =
+        Repo.all(
+          from(event in Event,
+            where: event.world_id == ^world.id and event.event_type == "secret.resolve_failed"
+          )
+        )
+
+      assert fetch_map(failed.payload, :key) == "GITHUB_TOKEN"
+      assert fetch_map(failed.payload, :reason) == "missing_secret"
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.world_id == ^world.id and
+                     event.event_type in ^[
+                       "secret.accessed",
+                       "secret.access_failed",
+                       "secret.used_by_tool"
+                     ]
+               )
+             )
     end
 
     test "does not resolve secret references from tool args", %{world: world, instance: instance} do
@@ -228,8 +322,9 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       refute Repo.exists?(
                from(event in Event,
                  where:
-                   event.world_id == ^world.id and event.event_type == "secret.accessed" and
-                     fragment("?->>'secret_ref' = ?", event.payload, "$GITHUB_TOKEN")
+                   event.world_id == ^world.id and
+                     event.event_type in ^["secret.resolved", "secret.used_by_tool"] and
+                     fragment("?->>'key' = ?", event.payload, "GITHUB_TOKEN")
                )
              )
     end
@@ -287,4 +382,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
   defp restore_system_env(key, nil), do: System.delete_env(key)
   defp restore_system_env(key, value), do: System.put_env(key, value)
+
+  defp fetch_map(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
 end

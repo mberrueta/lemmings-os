@@ -26,8 +26,9 @@ defmodule LemmingsOs.SecretBank do
     secret.created
     secret.replaced
     secret.deleted
-    secret.accessed
-    secret.access_failed
+    secret.resolved
+    secret.resolve_failed
+    secret.used_by_tool
   )
 
   @type metadata :: %{
@@ -75,9 +76,10 @@ defmodule LemmingsOs.SecretBank do
   @spec upsert_secret(World.t() | City.t() | Department.t() | Lemming.t(), String.t(), String.t()) ::
           {:ok, metadata()} | {:error, Ecto.Changeset.t() | atom()}
   def upsert_secret(scope, key_or_ref, value) do
-    with {:ok, scope_data} <- scope_data(scope),
+    with {:ok, scope_data} <- raw_scope_data(scope),
          {:ok, bank_key} <- normalize_key(key_or_ref),
-         {:ok, value} <- normalize_string(value) do
+         {:ok, value} <- normalize_string(value),
+         :ok <- validate_scope_consistency(scope_data) do
       case get_local_secret(scope_data, bank_key) do
         {:ok, %Secret{} = secret} ->
           secret
@@ -110,8 +112,9 @@ defmodule LemmingsOs.SecretBank do
   @spec delete_secret(World.t() | City.t() | Department.t() | Lemming.t(), String.t()) ::
           {:ok, metadata()} | {:error, atom()}
   def delete_secret(scope, key_or_ref) do
-    with {:ok, scope_data} <- scope_data(scope),
-         {:ok, bank_key} <- normalize_key(key_or_ref) do
+    with {:ok, scope_data} <- raw_scope_data(scope),
+         {:ok, bank_key} <- normalize_key(key_or_ref),
+         :ok <- validate_scope_consistency(scope_data) do
       delete_local_secret(scope, scope_data, bank_key)
     end
   end
@@ -124,10 +127,10 @@ defmodule LemmingsOs.SecretBank do
   ## Examples
 
       iex> LemmingsOs.SecretBank.list_effective_metadata(%{})
-      []
+      {:error, :invalid_scope}
   """
   @spec list_effective_metadata(World.t() | City.t() | Department.t() | Lemming.t(), keyword()) ::
-          [metadata()]
+          [metadata()] | {:error, :invalid_scope | :scope_mismatch}
   def list_effective_metadata(scope, opts \\ []) when is_list(opts) do
     case scope_chain(scope) do
       {:ok, chain} ->
@@ -138,8 +141,8 @@ defmodule LemmingsOs.SecretBank do
         (locals ++ env)
         |> Enum.sort_by(& &1.bank_key)
 
-      {:error, _reason} ->
-        []
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -151,14 +154,20 @@ defmodule LemmingsOs.SecretBank do
   - `:limit` defaults to `25`
   """
   @spec list_recent_activity(World.t() | City.t() | Department.t() | Lemming.t(), keyword()) ::
-          [activity()]
+          [activity()] | {:error, :invalid_scope | :scope_mismatch}
   def list_recent_activity(scope, opts \\ []) when is_list(opts) do
     event_types = Keyword.get(opts, :event_types, @secret_event_types)
     limit = Keyword.get(opts, :limit, 25)
 
-    scope
-    |> Events.list_recent_events(event_types: event_types, limit: limit)
-    |> Enum.map(&to_activity/1)
+    case scope_data(scope) do
+      {:ok, scope_data} ->
+        scope_data
+        |> Events.list_recent_events(event_types: event_types, limit: limit)
+        |> Enum.map(&to_activity/1)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -182,9 +191,8 @@ defmodule LemmingsOs.SecretBank do
 
   ## Examples
 
-      iex> world = %LemmingsOs.Worlds.World{id: Ecto.UUID.generate()}
-      iex> LemmingsOs.SecretBank.resolve_runtime_secret(world, "$UNKNOWN_KEY")
-      {:error, :missing_secret}
+      iex> LemmingsOs.SecretBank.resolve_runtime_secret(%{}, "$UNKNOWN_KEY")
+      {:error, :invalid_scope}
   """
   @spec resolve_runtime_secret(
           World.t() | City.t() | Department.t() | Lemming.t(),
@@ -192,7 +200,8 @@ defmodule LemmingsOs.SecretBank do
           keyword()
         ) ::
           {:ok, runtime_secret()}
-          | {:error, :invalid_scope | :invalid_key | :missing_secret | :decrypt_failed}
+          | {:error,
+             :invalid_scope | :scope_mismatch | :invalid_key | :missing_secret | :decrypt_failed}
   def resolve_runtime_secret(scope, key_or_ref, opts \\ []) when is_list(opts) do
     with {:ok, chain} <- scope_chain(scope),
          {:ok, bank_key} <- normalize_key(key_or_ref) do
@@ -213,11 +222,11 @@ defmodule LemmingsOs.SecretBank do
          {:ok, env_var} <- configured_env_var(bank_key),
          {:ok, value} <- env_value(env_var) do
       runtime_secret = %{bank_key: bank_key, value: value, scope: "env", source: "env"}
-      record_accessed_event(chain, runtime_secret, key_or_ref, opts)
+      record_resolved_event(chain, runtime_secret)
       {:ok, runtime_secret}
     else
       {:ok, %{} = runtime_secret} ->
-        record_accessed_event(chain, runtime_secret, key_or_ref, opts)
+        record_resolved_event(chain, runtime_secret)
         {:ok, runtime_secret}
 
       {:error, :not_found} ->
@@ -335,6 +344,8 @@ defmodule LemmingsOs.SecretBank do
 
   defp delete_local_secret(scope, _scope_data, bank_key, nil),
     do: delete_missing_local_secret(list_effective_metadata(scope, bank_key: bank_key))
+
+  defp delete_missing_local_secret({:error, reason}), do: {:error, reason}
 
   defp delete_missing_local_secret([]), do: {:error, :not_found}
 
@@ -459,14 +470,21 @@ defmodule LemmingsOs.SecretBank do
     })
   end
 
-  defp scope_data(%World{id: world_id}) when is_binary(world_id),
+  defp scope_data(scope) do
+    with {:ok, scope_data} <- raw_scope_data(scope),
+         :ok <- validate_scope_consistency(scope_data) do
+      {:ok, scope_data}
+    end
+  end
+
+  defp raw_scope_data(%World{id: world_id}) when is_binary(world_id),
     do: {:ok, %{world_id: world_id, city_id: nil, department_id: nil, lemming_id: nil}}
 
-  defp scope_data(%City{id: city_id, world_id: world_id})
+  defp raw_scope_data(%City{id: city_id, world_id: world_id})
        when is_binary(world_id) and is_binary(city_id),
        do: {:ok, %{world_id: world_id, city_id: city_id, department_id: nil, lemming_id: nil}}
 
-  defp scope_data(%Department{id: department_id, world_id: world_id, city_id: city_id})
+  defp raw_scope_data(%Department{id: department_id, world_id: world_id, city_id: city_id})
        when is_binary(world_id) and is_binary(city_id) and is_binary(department_id) do
     {:ok,
      %{
@@ -477,7 +495,7 @@ defmodule LemmingsOs.SecretBank do
      }}
   end
 
-  defp scope_data(%Lemming{
+  defp raw_scope_data(%Lemming{
          id: lemming_id,
          world_id: world_id,
          city_id: city_id,
@@ -494,7 +512,74 @@ defmodule LemmingsOs.SecretBank do
      }}
   end
 
-  defp scope_data(_scope), do: {:error, :invalid_scope}
+  defp raw_scope_data(_scope), do: {:error, :invalid_scope}
+
+  defp validate_scope_consistency(%{
+         world_id: world_id,
+         city_id: nil,
+         department_id: nil,
+         lemming_id: nil
+       })
+       when is_binary(world_id) do
+    World
+    |> where([world], world.id == ^world_id)
+    |> Repo.exists?()
+    |> scope_consistency_result()
+  end
+
+  defp validate_scope_consistency(%{
+         world_id: world_id,
+         city_id: city_id,
+         department_id: nil,
+         lemming_id: nil
+       }) do
+    City
+    |> where([city], city.id == ^city_id and city.world_id == ^world_id)
+    |> Repo.exists?()
+    |> scope_consistency_result()
+  end
+
+  defp validate_scope_consistency(%{
+         world_id: world_id,
+         city_id: city_id,
+         department_id: department_id,
+         lemming_id: nil
+       }) do
+    Department
+    |> join(:inner, [department], city in City, on: city.id == department.city_id)
+    |> where(
+      [department, city],
+      department.id == ^department_id and department.world_id == ^world_id and
+        department.city_id == ^city_id and city.world_id == ^world_id
+    )
+    |> Repo.exists?()
+    |> scope_consistency_result()
+  end
+
+  defp validate_scope_consistency(%{
+         world_id: world_id,
+         city_id: city_id,
+         department_id: department_id,
+         lemming_id: lemming_id
+       }) do
+    Lemming
+    |> join(:inner, [lemming], department in Department,
+      on: department.id == lemming.department_id
+    )
+    |> join(:inner, [lemming, department], city in City, on: city.id == lemming.city_id)
+    |> where(
+      [lemming, department, city],
+      lemming.id == ^lemming_id and lemming.world_id == ^world_id and
+        lemming.city_id == ^city_id and lemming.department_id == ^department_id and
+        department.world_id == ^world_id and department.city_id == ^city_id and
+        city.world_id == ^world_id
+    )
+    |> Repo.exists?()
+    |> scope_consistency_result()
+  end
+
+  defp scope_consistency_result(true), do: :ok
+  defp scope_consistency_result(false), do: {:error, :scope_mismatch}
 
   defp scope_chain(scope) do
     case scope_data(scope) do
@@ -738,41 +823,63 @@ defmodule LemmingsOs.SecretBank do
     end
   end
 
-  defp record_accessed_event([requested_scope | _rest], runtime_secret, key_or_ref, opts) do
-    tool_name = Keyword.get(opts, :tool_name)
+  defp record_resolved_event([requested_scope | _rest], runtime_secret) do
     bank_key = runtime_secret.bank_key
 
     record_secret_event(
-      "secret.accessed",
+      "secret.resolved",
       requested_scope,
-      accessed_message(bank_key, tool_name),
-      %{
-        secret_ref: normalized_secret_ref(key_or_ref),
-        bank_key: bank_key,
-        requested_scope: requested_scope,
-        resolved_source: runtime_secret.scope,
-        tool_name: tool_name
-      }
+      resolved_message(bank_key),
+      resolved_payload(bank_key, requested_scope, runtime_secret.scope)
     )
   end
 
-  defp record_access_failed_event([requested_scope | _rest], bank_key, key_or_ref, reason, opts) do
-    tool_name = Keyword.get(opts, :tool_name)
-    safe_bank_key = bank_key || normalized_secret_ref(key_or_ref)
+  defp record_access_failed_event([requested_scope | _rest], bank_key, key_or_ref, reason, _opts) do
+    safe_key = bank_key || normalized_key(key_or_ref)
 
     record_secret_event(
-      "secret.access_failed",
+      "secret.resolve_failed",
       requested_scope,
-      failed_message(safe_bank_key),
-      %{
-        secret_ref: normalized_secret_ref(key_or_ref),
-        bank_key: safe_bank_key,
-        requested_scope: requested_scope,
-        reason: to_string(reason),
-        tool_name: tool_name
-      }
+      failed_message(safe_key),
+      resolve_failed_payload(safe_key, requested_scope, reason)
     )
   end
+
+  defp resolved_payload(bank_key, requested_scope, resolved_source) do
+    %{
+      key: bank_key,
+      requested_scope: safe_scope_payload(requested_scope),
+      resolved_source: resolved_source
+    }
+  end
+
+  defp resolve_failed_payload(bank_key, requested_scope, reason) do
+    %{
+      key: bank_key,
+      requested_scope: safe_scope_payload(requested_scope),
+      reason: safe_reason(reason)
+    }
+  end
+
+  defp safe_scope_payload(scope_data) when is_map(scope_data) do
+    scope_data
+    |> Map.take([:world_id, :city_id, :department_id, :lemming_id])
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  defp safe_reason(reason)
+       when reason in [
+              :invalid_scope,
+              :scope_mismatch,
+              :invalid_key,
+              :missing_secret,
+              :decrypt_failed,
+              :not_found
+            ],
+       do: Atom.to_string(reason)
+
+  defp safe_reason(_reason), do: "unknown"
 
   defp record_secret_event(event_type, scope_data, message, payload) do
     sanitized_payload =
@@ -786,42 +893,38 @@ defmodule LemmingsOs.SecretBank do
       action: event_action(event_type),
       status: event_status(event_type),
       resource_type: "secret",
-      resource_id: Map.get(sanitized_payload, :bank_key)
+      resource_id: Map.get(sanitized_payload, :bank_key) || Map.get(sanitized_payload, :key)
     )
   end
 
   defp event_action("secret.created"), do: "create"
   defp event_action("secret.replaced"), do: "replace"
   defp event_action("secret.deleted"), do: "delete"
-  defp event_action("secret.accessed"), do: "access"
-  defp event_action("secret.access_failed"), do: "access"
+  defp event_action("secret.resolved"), do: "resolve"
+  defp event_action("secret.resolve_failed"), do: "resolve"
 
-  defp event_status("secret.access_failed"), do: "failed"
+  defp event_status("secret.resolve_failed"), do: "failed"
   defp event_status(_event_type), do: "succeeded"
 
   defp secret_message(bank_key, "secret.created"), do: "#{bank_key} created"
   defp secret_message(bank_key, "secret.replaced"), do: "#{bank_key} replaced"
   defp secret_message(bank_key, "secret.deleted"), do: "#{bank_key} deleted"
 
-  defp accessed_message(bank_key, tool_name) when is_binary(tool_name) and tool_name != "" do
-    "#{bank_key} used in #{tool_name}"
-  end
-
-  defp accessed_message(bank_key, _tool_name), do: "#{bank_key} accessed"
+  defp resolved_message(bank_key), do: "#{bank_key} resolved"
 
   defp failed_message(bank_key) when is_binary(bank_key) and bank_key != "",
-    do: "#{bank_key} access failed"
+    do: "#{bank_key} resolve failed"
 
-  defp failed_message(_bank_key), do: "secret access failed"
+  defp failed_message(_bank_key), do: "secret resolve failed"
 
-  defp normalized_secret_ref(key_or_ref) when is_binary(key_or_ref) do
+  defp normalized_key(key_or_ref) when is_binary(key_or_ref) do
     case normalize_key(key_or_ref) do
-      {:ok, bank_key} -> to_secret_ref(bank_key)
+      {:ok, bank_key} -> bank_key
       {:error, _reason} -> nil
     end
   end
 
-  defp normalized_secret_ref(_key_or_ref), do: nil
+  defp normalized_key(_key_or_ref), do: nil
 
   defp to_secret_ref(bank_key) when is_binary(bank_key) and bank_key != "",
     do: "#{@secret_ref_prefix}#{bank_key}"

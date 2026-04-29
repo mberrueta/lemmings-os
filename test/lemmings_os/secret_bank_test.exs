@@ -4,9 +4,13 @@ defmodule LemmingsOs.SecretBankTest do
   import Ecto.Query, only: [from: 2]
 
   alias LemmingsOs.Events.Event
+  alias LemmingsOs.Cities.City
+  alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
   alias LemmingsOs.SecretBank
   alias LemmingsOs.SecretBank.Secret
+  alias LemmingsOs.Worlds.World
 
   doctest LemmingsOs.SecretBank
 
@@ -188,7 +192,217 @@ defmodule LemmingsOs.SecretBankTest do
       assert {:error, :invalid_scope} =
                SecretBank.upsert_secret(%{}, "$secrets.github", "dev_only_value")
 
+      assert {:error, :invalid_scope} = SecretBank.list_effective_metadata(%{})
       assert {:error, :not_found} = SecretBank.delete_secret(world, "MISSING_TOKEN")
+    end
+  end
+
+  describe "scope hierarchy consistency" do
+    test "rejects non-persisted world scopes before env fallback resolution" do
+      put_secret_bank_config(
+        allowed_env_vars: ["$GITHUB_TOKEN"],
+        env_fallbacks: ["$GITHUB_TOKEN"]
+      )
+
+      System.put_env("GITHUB_TOKEN", "dev_only_unscoped_env_token")
+
+      on_exit(fn ->
+        System.delete_env("GITHUB_TOKEN")
+      end)
+
+      world = %World{id: Ecto.UUID.generate()}
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_unscoped_local_token")
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.list_effective_metadata(world, bank_key: "GITHUB_TOKEN")
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.list_recent_activity(world, limit: 5)
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.resolve_runtime_secret(world, "GITHUB_TOKEN")
+
+      refute secret_events_contain?([
+               "dev_only_unscoped_env_token",
+               "dev_only_unscoped_local_token"
+             ])
+    end
+
+    test "rejects city-scoped create and replace calls with a mismatched world" do
+      world = insert(:world)
+      other_world = insert(:world)
+      city = insert(:city, world: world)
+      mismatched_city = %{city | world_id: other_world.id}
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.upsert_secret(mismatched_city, "GITHUB_TOKEN", "dev_only_city_value")
+
+      assert {:ok, _metadata} =
+               SecretBank.upsert_secret(city, "GITHUB_TOKEN", "dev_only_original_city_value")
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.upsert_secret(mismatched_city, "GITHUB_TOKEN", "dev_only_replace_value")
+
+      assert {:ok, resolved} = SecretBank.resolve_runtime_secret(city, "GITHUB_TOKEN")
+      assert resolved.value == "dev_only_original_city_value"
+
+      refute secret_events_contain?([
+               "dev_only_city_value",
+               "dev_only_replace_value",
+               "dev_only_original_city_value"
+             ])
+    end
+
+    test "rejects manually constructed spoofed structs with valid IDs and forged parent fields" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+
+      other_world = insert(:world)
+      other_city = insert(:city, world: other_world)
+      other_department = insert(:department, world: other_world, city: other_city)
+
+      spoofed_city = %City{id: city.id, world_id: other_world.id}
+
+      spoofed_department = %Department{
+        id: department.id,
+        world_id: other_world.id,
+        city_id: other_city.id
+      }
+
+      spoofed_lemming = %Lemming{
+        id: lemming.id,
+        world_id: other_world.id,
+        city_id: other_city.id,
+        department_id: other_department.id
+      }
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.upsert_secret(spoofed_city, "GITHUB_TOKEN", "dev_only_spoofed_city")
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.upsert_secret(
+                 spoofed_department,
+                 "GITHUB_TOKEN",
+                 "dev_only_spoofed_department"
+               )
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.resolve_runtime_secret(spoofed_lemming, "GITHUB_TOKEN")
+
+      refute secret_events_contain?([
+               "dev_only_spoofed_city",
+               "dev_only_spoofed_department"
+             ])
+    end
+
+    test "rejects department-scoped creates with a mismatched city or world" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      other_world = insert(:world)
+      other_city = insert(:city, world: other_world)
+      department = insert(:department, world: world, city: city)
+
+      assert {:error, :scope_mismatch} =
+               department
+               |> Map.put(:city_id, other_city.id)
+               |> SecretBank.upsert_secret("GITHUB_TOKEN", "dev_only_wrong_city_value")
+
+      assert {:error, :scope_mismatch} =
+               department
+               |> Map.put(:world_id, other_world.id)
+               |> SecretBank.upsert_secret("GITHUB_TOKEN", "dev_only_wrong_world_value")
+
+      refute secret_events_contain?([
+               "dev_only_wrong_city_value",
+               "dev_only_wrong_world_value"
+             ])
+    end
+
+    test "rejects lemming-scoped creates with a mismatched department, city, or world" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+
+      other_world = insert(:world)
+      other_city = insert(:city, world: other_world)
+      other_department = insert(:department, world: other_world, city: other_city)
+
+      assert {:error, :scope_mismatch} =
+               lemming
+               |> Map.put(:department_id, other_department.id)
+               |> SecretBank.upsert_secret("GITHUB_TOKEN", "dev_only_wrong_department_value")
+
+      assert {:error, :scope_mismatch} =
+               lemming
+               |> Map.put(:city_id, other_city.id)
+               |> SecretBank.upsert_secret("GITHUB_TOKEN", "dev_only_wrong_city_value")
+
+      assert {:error, :scope_mismatch} =
+               lemming
+               |> Map.put(:world_id, other_world.id)
+               |> SecretBank.upsert_secret("GITHUB_TOKEN", "dev_only_wrong_world_value")
+
+      refute secret_events_contain?([
+               "dev_only_wrong_department_value",
+               "dev_only_wrong_city_value",
+               "dev_only_wrong_world_value"
+             ])
+    end
+
+    test "rejects delete and effective metadata list calls with an inconsistent scope" do
+      world = insert(:world)
+      other_world = insert(:world)
+      city = insert(:city, world: world)
+      mismatched_city = %{city | world_id: other_world.id}
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.delete_secret(mismatched_city, "GITHUB_TOKEN")
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.list_effective_metadata(mismatched_city, bank_key: "GITHUB_TOKEN")
+
+      assert {:error, :scope_mismatch} =
+               SecretBank.list_recent_activity(mismatched_city, limit: 5)
+    end
+
+    test "does not resolve cross-world inherited secrets through mismatched child scopes" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+
+      other_world = insert(:world)
+      other_city = insert(:city, world: other_world)
+      other_department = insert(:department, world: other_world, city: other_city)
+
+      assert {:ok, _metadata} =
+               SecretBank.upsert_secret(other_world, "GITHUB_TOKEN", "dev_only_other_world_value")
+
+      assert {:error, :scope_mismatch} =
+               city
+               |> Map.put(:world_id, other_world.id)
+               |> SecretBank.resolve_runtime_secret("GITHUB_TOKEN")
+
+      assert {:error, :scope_mismatch} =
+               department
+               |> Map.merge(%{world_id: other_world.id, city_id: other_city.id})
+               |> SecretBank.resolve_runtime_secret("GITHUB_TOKEN")
+
+      assert {:error, :scope_mismatch} =
+               lemming
+               |> Map.merge(%{
+                 world_id: other_world.id,
+                 city_id: other_city.id,
+                 department_id: other_department.id
+               })
+               |> SecretBank.resolve_runtime_secret("GITHUB_TOKEN")
+
+      refute secret_events_contain?(["dev_only_other_world_value"])
     end
   end
 
@@ -354,7 +568,7 @@ defmodule LemmingsOs.SecretBankTest do
              end)
     end
 
-    test "records accessed and access_failed events with scope and reason" do
+    test "records resolved and resolve_failed events with safe metadata" do
       world = insert(:world)
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
@@ -380,19 +594,30 @@ defmodule LemmingsOs.SecretBankTest do
       activities = SecretBank.list_recent_activity(lemming, limit: 10)
       activity_types = Enum.map(activities, & &1.event_type)
 
-      assert "secret.accessed" in activity_types
-      assert "secret.access_failed" in activity_types
+      assert "secret.resolved" in activity_types
+      assert "secret.resolve_failed" in activity_types
+      refute "secret.accessed" in activity_types
+      refute "secret.access_failed" in activity_types
 
-      accessed = Enum.find(activities, &(&1.event_type == "secret.accessed"))
-      failed = Enum.find(activities, &(&1.event_type == "secret.access_failed"))
+      resolved = Enum.find(activities, &(&1.event_type == "secret.resolved"))
+      failed = Enum.find(activities, &(&1.event_type == "secret.resolve_failed"))
 
-      assert accessed.message == "GITHUB_TOKEN used in tools.gh"
-      assert fetch_map(accessed.payload, :resolved_source) == "department"
-      assert fetch_map(accessed.payload, :tool_name) == "tools.gh"
+      assert resolved.message == "GITHUB_TOKEN resolved"
+      assert fetch_map(resolved.payload, :key) == "GITHUB_TOKEN"
+      assert fetch_map(resolved.payload, :resolved_source) == "department"
 
-      assert failed.message == "STRIPE_TOKEN access failed"
+      requested_scope = fetch_map(resolved.payload, :requested_scope)
+      assert fetch_map(requested_scope, :world_id) == world.id
+      assert fetch_map(requested_scope, :city_id) == city.id
+      assert fetch_map(requested_scope, :department_id) == department.id
+      assert fetch_map(requested_scope, :lemming_id) == lemming.id
+
+      assert failed.message == "STRIPE_TOKEN resolve failed"
+      assert fetch_map(failed.payload, :key) == "STRIPE_TOKEN"
       assert fetch_map(failed.payload, :reason) == "missing_secret"
-      assert fetch_map(failed.payload, :tool_name) == "tools.gh"
+
+      refute inspect(resolved.payload) =~ "dev_only_department_value"
+      refute inspect(failed.payload) =~ "dev_only_department_value"
     end
 
     test "lists recent activity filtered by scope relevance and event type" do
@@ -446,6 +671,16 @@ defmodule LemmingsOs.SecretBankTest do
     on_exit(fn ->
       Application.put_env(:lemmings_os, SecretBank, previous)
     end)
+  end
+
+  defp secret_events_contain?(values) when is_list(values) do
+    event_text =
+      Event
+      |> Repo.all()
+      |> Enum.filter(&String.starts_with?(&1.event_type, "secret."))
+      |> inspect()
+
+    Enum.any?(values, &String.contains?(event_text, &1))
   end
 
   defp fetch_map(map, key) when is_map(map) do

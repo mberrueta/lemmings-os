@@ -216,7 +216,8 @@ Typical audit events include:
 - assignment changed
 - secret created
 - secret replaced
-- secret accessed by Tool Runtime
+- secret resolved by Secret Bank
+- secret used by a tool
 - tool invocation requested
 - tool invocation denied
 - approval requested
@@ -387,7 +388,9 @@ Examples:
 
 - `auth.login_succeeded`
 - `auth.login_failed`
-- `secret.accessed`
+- `secret.resolved`
+- `secret.resolve_failed`
+- `secret.used_by_tool`
 - `tool.invocation_requested`
 - `tool.invocation_denied`
 - `approval.requested`
@@ -865,7 +868,9 @@ Recommended style:
 ```text
 auth.login_succeeded
 secret.created
-secret.accessed
+secret.resolved
+secret.resolve_failed
+secret.used_by_tool
 tool.invocation_requested
 tool.invocation_denied
 approval.requested
@@ -906,31 +911,31 @@ System behavior must not depend on parsing `message`.
 
 # 15. Examples
 
-## 15.1 Secret Access Audit Event
+## 15.1 Secret Tool Usage Audit Event
 
 ```json
 {
   "event_id": "evt_001",
   "event_family": "audit",
-  "event_type": "secret.accessed",
+  "event_type": "secret.used_by_tool",
   "occurred_at": "2026-03-14T18:20:00Z",
   "inserted_at": "2026-03-14T18:20:00Z",
   "world_id": "prod",
   "city_id": "salvador",
   "department_id": "infra",
-  "actor_type": "tool_runtime",
-  "actor_id": "tool_runtime",
   "resource_type": "secret",
-  "resource_id": "secrets.github.company",
+  "resource_id": "GITHUB_TOKEN",
   "correlation_id": "corr_78421",
   "tool_invocation_id": "inv_78421",
-  "action": "access",
+  "action": "use",
   "status": "succeeded",
-  "message": "Secret resolved for approved tool invocation",
+  "message": "GITHUB_TOKEN used by web.fetch",
   "payload": {
-    "tool": "github_issue_creator",
-    "binding": "github.token",
-    "resolution_scope": "department"
+    "key": "GITHUB_TOKEN",
+    "tool_name": "web.fetch",
+    "adapter_name": "LemmingsOs.Tools.Adapters.Web",
+    "lemming_instance_id": "inst_78421",
+    "resolved_source": "department"
   }
 }
 ```
