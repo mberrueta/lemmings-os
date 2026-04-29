@@ -49,6 +49,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
        secrets_path: nil,
        lemming_secret_form: blank_secret_form(),
        lemming_secret_metadata: [],
+       lemming_secret_env_policy: [],
        lemming_secret_activity: []
      )}
   end
@@ -312,6 +313,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
           secrets_path: nil,
           lemming_secret_form: blank_secret_form(),
           lemming_secret_metadata: [],
+          lemming_secret_env_policy: [],
           lemming_secret_activity: []
         )
         |> put_shell_breadcrumb(default_shell_breadcrumb(:lemmings))
@@ -346,6 +348,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
       secrets_path: nil,
       lemming_secret_form: blank_secret_form(),
       lemming_secret_metadata: [],
+      lemming_secret_env_policy: [],
       lemming_secret_activity: []
     )
   end
@@ -376,6 +379,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
       edit_path: detail_path(lemming, socket, "edit"),
       secrets_path: detail_path(lemming, socket, "secrets"),
       lemming_secret_metadata: SecretBank.list_effective_metadata(lemming),
+      lemming_secret_env_policy: SecretBank.list_env_fallback_policy(),
       lemming_secret_activity: SecretBank.list_recent_activity(lemming, limit: 10)
     )
   end

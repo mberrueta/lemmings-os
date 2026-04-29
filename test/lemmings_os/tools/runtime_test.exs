@@ -159,7 +159,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
         :tools_runtime_trusted_config,
         %{
           "web.fetch" => %{
-            "headers" => %{"authorization" => "$secrets.GITHUB_TOKEN"}
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
           }
         }
       )
@@ -194,7 +194,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
         :tools_runtime_trusted_config,
         %{
           "web.fetch" => %{
-            "headers" => %{"authorization" => "$secrets.GITHUB_TOKEN"}
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
           }
         }
       )
@@ -209,7 +209,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
                  "url" => "http://localhost:#{bypass.port}/missing-secret"
                })
 
-      assert details.secret_ref == "$secrets.GITHUB_TOKEN"
+      assert details.secret_ref == "$GITHUB_TOKEN"
       assert details.bank_key == "GITHUB_TOKEN"
       refute_received :adapter_called
     end
@@ -218,8 +218,41 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       Application.put_env(:lemmings_os, :tools_runtime_trusted_config, %{})
       System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
 
-      assert {:error, %{code: "tool.web.invalid_url", details: %{url: "$secrets.GITHUB_TOKEN"}}} =
-               Runtime.execute(world, instance, "web.fetch", %{"url" => "$secrets.GITHUB_TOKEN"})
+      assert {:error, %{code: "tool.web.invalid_url", details: %{url: "$GITHUB_TOKEN"}}} =
+               Runtime.execute(world, instance, "web.fetch", %{"url" => "$GITHUB_TOKEN"})
+    end
+
+    test "rejects legacy $secrets.* references in trusted config", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      parent = self()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$secrets.GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.stub(bypass, "GET", "/legacy-ref", fn conn ->
+        send(parent, :adapter_called)
+        Plug.Conn.resp(conn, 200, "should not execute")
+      end)
+
+      assert {:error, %{code: "tool.secret.invalid_reference", details: details}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/legacy-ref"
+               })
+
+      assert details.secret_ref == "$secrets.GITHUB_TOKEN"
+      assert details.reason == "invalid_key"
+      refute_received :adapter_called
     end
   end
 

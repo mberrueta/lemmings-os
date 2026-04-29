@@ -11,7 +11,7 @@ defmodule LemmingsOs.Tools.Runtime do
   alias LemmingsOs.Tools.Catalog
   alias LemmingsOs.Worlds.World
 
-  @secret_prefix "$secrets."
+  @secret_ref_prefix "$"
   @trusted_tool_config_env :tools_runtime_trusted_config
 
   @type success :: %{
@@ -224,7 +224,7 @@ defmodule LemmingsOs.Tools.Runtime do
   end
 
   defp trusted_tool_config_contains_secret_ref?(value) when is_binary(value),
-    do: String.starts_with?(value, @secret_prefix)
+    do: secret_ref?(value)
 
   defp trusted_tool_config_contains_secret_ref?(_value), do: false
 
@@ -247,7 +247,7 @@ defmodule LemmingsOs.Tools.Runtime do
   end
 
   defp resolve_secret_refs(tool_name, scope, value) when is_binary(value) do
-    case String.starts_with?(value, @secret_prefix) do
+    case secret_ref?(value) do
       true ->
         case SecretBank.resolve_runtime_secret(scope, value, tool_name: tool_name) do
           {:ok, %{value: secret_value}} when is_binary(secret_value) ->
@@ -304,6 +304,14 @@ defmodule LemmingsOs.Tools.Runtime do
   end
 
   defp normalize_secret_ref(secret_ref) when is_binary(secret_ref) do
-    String.replace_prefix(secret_ref, @secret_prefix, "")
+    secret_ref
+    |> String.trim()
+    |> String.trim_leading(@secret_ref_prefix)
+    |> String.trim_leading("{")
+    |> String.trim_trailing("}")
+  end
+
+  defp secret_ref?(value) when is_binary(value) do
+    String.starts_with?(String.trim(value), @secret_ref_prefix)
   end
 end

@@ -11,6 +11,7 @@ defmodule LemmingsOsWeb.SecretBankComponents do
   attr :form, :any, required: true
   attr :metadata, :list, default: []
   attr :activity, :list, default: []
+  attr :env_fallback_policy, :list, default: []
   attr :save_event, :string, required: true
   attr :edit_event, :string, required: true
   attr :delete_event, :string, required: true
@@ -163,6 +164,85 @@ defmodule LemmingsOsWeb.SecretBankComponents do
           </div>
         </div>
       </.panel>
+
+      <.panel id={"#{@id_prefix}-secrets-env-fallback-panel"} class="mt-4">
+        <:title>{dgettext("world", "Environment fallback policy")}</:title>
+        <:subtitle>
+          {dgettext("world", "Read-only mappings configured in application config.")}
+        </:subtitle>
+
+        <p
+          id={"#{@id_prefix}-secrets-env-fallback-explainer"}
+          class="text-xs uppercase tracking-wider text-zinc-500"
+        >
+          {dgettext(
+            "world",
+            "Reference example: $GITHUB_TOKEN. Explicit override example: $OPENROUTER_API_KEY -> $OPENROUTER_API_KEY."
+          )}
+        </p>
+
+        <div :if={@env_fallback_policy == []} id={"#{@id_prefix}-secrets-env-fallback-empty"}>
+          <.empty_state
+            id={"#{@id_prefix}-secrets-env-fallback-empty-state"}
+            title={dgettext("world", "No env fallback mappings configured")}
+            copy={
+              dgettext(
+                "world",
+                "Configure env fallbacks in application config. This UI does not edit mappings."
+              )
+            }
+          />
+        </div>
+
+        <div
+          :if={@env_fallback_policy != []}
+          id={"#{@id_prefix}-secrets-env-fallback-list"}
+          class="mt-3 space-y-3"
+        >
+          <div
+            :for={entry <- @env_fallback_policy}
+            id={"#{@id_prefix}-secrets-env-fallback-row-#{dom_fragment(entry.bank_key)}"}
+            class="flex flex-col gap-3 border-2 border-zinc-700 bg-zinc-950/70 p-4 lg:flex-row lg:items-center lg:justify-between"
+          >
+            <div class="space-y-1">
+              <p
+                id={"#{@id_prefix}-secrets-env-fallback-bank-key-#{dom_fragment(entry.bank_key)}"}
+                class="font-mono text-sm text-zinc-100"
+              >
+                {entry.bank_key}
+              </p>
+              <p class="text-xs text-zinc-400">
+                {secret_ref_example(entry.bank_key)} -> {env_var_label(entry.env_var)}
+              </p>
+              <p
+                :if={!entry.allowlisted}
+                id={"#{@id_prefix}-secrets-env-fallback-warning-#{dom_fragment(entry.bank_key)}"}
+                class="text-xs text-amber-300"
+              >
+                {dgettext(
+                  "world",
+                  "Blocked by allowlist. Add this env var to allowed_env_vars to enable fallback."
+                )}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <.badge
+                id={"#{@id_prefix}-secrets-env-fallback-type-#{dom_fragment(entry.bank_key)}"}
+                tone="info"
+              >
+                {mapping_kind_label(entry.mapping_kind)}
+              </.badge>
+              <.badge
+                id={"#{@id_prefix}-secrets-env-fallback-status-#{dom_fragment(entry.bank_key)}"}
+                tone={allowlist_badge_tone(entry.allowlisted)}
+              >
+                {allowlist_label(entry.allowlisted)}
+              </.badge>
+            </div>
+          </div>
+        </div>
+      </.panel>
     </.panel>
     """
   end
@@ -184,6 +264,28 @@ defmodule LemmingsOsWeb.SecretBankComponents do
 
   defp timestamp_label(%DateTime{} = value), do: Helpers.format_datetime(value)
   defp timestamp_label(_value), do: "-"
+
+  defp mapping_kind_label("convention"), do: dgettext("world", "convention")
+  defp mapping_kind_label("explicit_override"), do: dgettext("world", "explicit override")
+  defp mapping_kind_label(_value), do: dgettext("world", "unknown")
+
+  defp allowlist_badge_tone(true), do: "success"
+  defp allowlist_badge_tone(false), do: "warning"
+
+  defp allowlist_label(true), do: dgettext("world", "allowlisted")
+  defp allowlist_label(false), do: dgettext("world", "blocked by allowlist")
+
+  defp env_var_label(env_var) when is_binary(env_var) and env_var != "" do
+    "$" <> String.trim_leading(env_var, "$")
+  end
+
+  defp env_var_label(_env_var), do: "$UNKNOWN_ENV_VAR"
+
+  defp secret_ref_example(bank_key) when is_binary(bank_key) do
+    "$" <> bank_key
+  end
+
+  defp secret_ref_example(_bank_key), do: "$EXAMPLE_KEY"
 
   defp dom_fragment(nil), do: "unknown"
 

@@ -34,6 +34,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> assign(:department_primary_manager, nil)
      |> assign(:department_secret_form, blank_secret_form())
      |> assign(:department_secret_metadata, [])
+     |> assign(:department_secret_env_policy, [])
      |> assign(:department_secret_activity, [])}
   end
 
@@ -249,6 +250,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         |> assign(:department_lemmings, [])
         |> assign(:department_primary_manager, nil)
         |> assign(:department_secret_metadata, [])
+        |> assign(:department_secret_env_policy, [])
         |> assign(:department_secret_activity, [])
         |> put_shell_breadcrumb(default_shell_breadcrumb(:departments))
     end
@@ -294,6 +296,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_primary_manager, nil)
     |> assign(:department_secret_form, blank_secret_form())
     |> assign(:department_secret_metadata, [])
+    |> assign(:department_secret_env_policy, [])
     |> assign(:department_secret_activity, [])
   end
 
@@ -310,6 +313,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_primary_manager, collaboration.primary_manager)
     |> assign(:department_secret_form, blank_secret_form())
     |> assign(:department_secret_metadata, SecretBank.list_effective_metadata(department))
+    |> assign(:department_secret_env_policy, SecretBank.list_env_fallback_policy())
     |> assign(:department_secret_activity, SecretBank.list_recent_activity(department, limit: 10))
   end
 

@@ -44,6 +44,7 @@ defmodule LemmingsOsWeb.CitiesLive do
      |> assign(:editing_city, nil)
      |> assign(:city_secret_form, blank_secret_form())
      |> assign(:city_secret_metadata, [])
+     |> assign(:city_secret_env_policy, [])
      |> assign(:city_secret_activity, [])
      |> load_snapshot(params)}
   end
@@ -220,6 +221,7 @@ defmodule LemmingsOsWeb.CitiesLive do
         |> stream(:cities, [], reset: true)
         |> assign(:city_secret_form, blank_secret_form())
         |> assign(:city_secret_metadata, [])
+        |> assign(:city_secret_env_policy, [])
         |> assign(:city_secret_activity, [])
         |> put_shell_breadcrumb([shell_item(:cities, "/cities")])
     end
@@ -304,6 +306,7 @@ defmodule LemmingsOsWeb.CitiesLive do
          %City{} = city <- Cities.get_city(world, city_id) do
       socket
       |> assign(:city_secret_metadata, SecretBank.list_effective_metadata(city))
+      |> assign(:city_secret_env_policy, SecretBank.list_env_fallback_policy())
       |> assign(:city_secret_activity, SecretBank.list_recent_activity(city, limit: 10))
     else
       _ -> reset_city_secret_surface(socket)
@@ -316,6 +319,7 @@ defmodule LemmingsOsWeb.CitiesLive do
     socket
     |> assign(:city_secret_form, blank_secret_form())
     |> assign(:city_secret_metadata, [])
+    |> assign(:city_secret_env_policy, [])
     |> assign(:city_secret_activity, [])
   end
 

@@ -22,6 +22,7 @@ defmodule LemmingsOsWeb.WorldLive do
      |> assign(:last_import_result, nil)
      |> assign(:world_secret_form, blank_secret_form())
      |> assign(:world_secret_metadata, [])
+     |> assign(:world_secret_env_policy, [])
      |> assign(:world_secret_activity, [])
      |> load_snapshot()}
   end
@@ -128,6 +129,7 @@ defmodule LemmingsOsWeb.WorldLive do
         |> assign(:last_import_result, normalize_import_result(import_result))
         |> assign(:world_secret_form, blank_secret_form())
         |> assign(:world_secret_metadata, [])
+        |> assign(:world_secret_env_policy, [])
         |> assign(:world_secret_activity, [])
     end
   end
@@ -202,6 +204,7 @@ defmodule LemmingsOsWeb.WorldLive do
   defp assign_world_secret_surface(socket, %World{} = world) do
     socket
     |> assign(:world_secret_metadata, SecretBank.list_effective_metadata(world))
+    |> assign(:world_secret_env_policy, SecretBank.list_env_fallback_policy())
     |> assign(:world_secret_activity, SecretBank.list_recent_activity(world, limit: 10))
   end
 
@@ -209,6 +212,7 @@ defmodule LemmingsOsWeb.WorldLive do
     socket
     |> assign(:world_secret_form, blank_secret_form())
     |> assign(:world_secret_metadata, [])
+    |> assign(:world_secret_env_policy, [])
     |> assign(:world_secret_activity, [])
   end
 

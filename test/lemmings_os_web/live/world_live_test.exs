@@ -156,4 +156,61 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     assert has_element?(view, "#world-bootstrap-status[data-status='ok']")
     refute has_element?(view, "#world-page-empty-state")
   end
+
+  test "renders read-only env fallback policy metadata in secrets tab", %{conn: conn} do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    put_secret_bank_config(
+      allowed_env_vars: ["$GITHUB_TOKEN"],
+      env_fallbacks: ["$GITHUB_TOKEN", {"OPENROUTER_API_KEY", "$OPENROUTER_API_KEY"}]
+    )
+
+    insert(:world,
+      slug: "local",
+      name: "Local World",
+      bootstrap_path: path,
+      bootstrap_source: "direct",
+      last_import_status: "ok"
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/world")
+
+    view |> element("#world-tab-secrets") |> render_click()
+
+    assert has_element?(view, "#world-secrets-env-fallback-panel")
+    assert has_element?(view, "#world-secrets-env-fallback-row-github-token")
+    assert has_element?(view, "#world-secrets-env-fallback-type-github-token", "convention")
+    assert has_element?(view, "#world-secrets-env-fallback-status-github-token", "allowlisted")
+    assert has_element?(view, "#world-secrets-env-fallback-row-github-token", "$GITHUB_TOKEN")
+    assert has_element?(view, "#world-secrets-env-fallback-row-openrouter-api-key")
+
+    assert has_element?(
+             view,
+             "#world-secrets-env-fallback-row-openrouter-api-key",
+             "$OPENROUTER_API_KEY"
+           )
+
+    assert has_element?(
+             view,
+             "#world-secrets-env-fallback-type-openrouter-api-key",
+             "explicit override"
+           )
+
+    assert has_element?(
+             view,
+             "#world-secrets-env-fallback-status-openrouter-api-key",
+             "blocked by allowlist"
+           )
+  end
+
+  defp put_secret_bank_config(config) do
+    previous = Application.get_env(:lemmings_os, LemmingsOs.SecretBank, [])
+
+    Application.put_env(:lemmings_os, LemmingsOs.SecretBank, config)
+
+    on_exit(fn ->
+      Application.put_env(:lemmings_os, LemmingsOs.SecretBank, previous)
+    end)
+  end
 end

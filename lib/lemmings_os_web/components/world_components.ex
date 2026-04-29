@@ -15,6 +15,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :secret_form, :any, default: nil
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
+  attr :secret_env_policy, :list, default: []
 
   def world_page(assigns) do
     assigns =
@@ -47,6 +48,7 @@ defmodule LemmingsOsWeb.WorldComponents do
         secret_form={@secret_form}
         secret_metadata={@secret_metadata}
         secret_activity={@secret_activity}
+        secret_env_policy={@secret_env_policy}
       />
     </.content_container>
     """
@@ -66,6 +68,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :secret_form, :any, required: true
   attr :secret_metadata, :list, required: true
   attr :secret_activity, :list, required: true
+  attr :secret_env_policy, :list, required: true
 
   defp world_snapshot(assigns) do
     ~H"""
@@ -453,6 +456,7 @@ defmodule LemmingsOsWeb.WorldComponents do
       form={@secret_form}
       metadata={@secret_metadata}
       activity={@secret_activity}
+      env_fallback_policy={@secret_env_policy}
       save_event="save_world_secret"
       edit_event="edit_world_secret"
       delete_event="delete_world_secret"
@@ -688,6 +692,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :secret_form, :any, default: nil
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
+  attr :secret_env_policy, :list, default: []
 
   def department_detail_page(assigns) do
     ~H"""
@@ -1106,6 +1111,7 @@ defmodule LemmingsOsWeb.WorldComponents do
         form={@secret_form}
         metadata={@secret_metadata}
         activity={@secret_activity}
+        env_fallback_policy={@secret_env_policy}
         save_event="save_department_secret"
         edit_event="edit_department_secret"
         delete_event="delete_department_secret"

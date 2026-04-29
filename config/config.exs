@@ -31,12 +31,12 @@ end
 
 config :lemmings_os, LemmingsOs.SecretBank,
   allowed_env_vars: [
-    "GITHUB_TOKEN",
-    "OPENROUTER_API_KEY"
+    "$GITHUB_TOKEN",
+    "$OPENROUTER_API_KEY"
   ],
   env_fallbacks: [
-    "GITHUB_TOKEN",
-    {"OPENROUTER_API_KEY", "OPENROUTER_API_KEY"}
+    "$GITHUB_TOKEN",
+    {"OPENROUTER_API_KEY", "$OPENROUTER_API_KEY"}
   ]
 
 # TODO: temporary default selection

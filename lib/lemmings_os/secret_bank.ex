@@ -20,7 +20,7 @@ defmodule LemmingsOs.SecretBank do
   alias LemmingsOs.SecretBank.Secret
   alias LemmingsOs.Worlds.World
 
-  @secret_prefix "$secrets."
+  @secret_ref_prefix "$"
   @bank_key_pattern ~r/^[A-Z_][A-Z0-9_]*$/
   @secret_event_types ~w(
     secret.created
@@ -54,6 +54,13 @@ defmodule LemmingsOs.SecretBank do
           required(:value) => String.t(),
           required(:scope) => String.t(),
           required(:source) => String.t()
+        }
+
+  @type env_fallback_policy :: %{
+          required(:bank_key) => String.t(),
+          required(:env_var) => String.t(),
+          required(:mapping_kind) => String.t(),
+          required(:allowlisted) => boolean()
         }
 
   @doc """
@@ -155,16 +162,28 @@ defmodule LemmingsOs.SecretBank do
   end
 
   @doc """
+  Lists configured environment fallback mappings as read-only safe metadata.
+
+  Entries distinguish convention-derived mappings from explicit overrides and
+  indicate whether each env var is present in `allowed_env_vars`.
+  """
+  @spec list_env_fallback_policy() :: [env_fallback_policy()]
+  def list_env_fallback_policy do
+    env_fallback_entries()
+    |> Enum.sort_by(& &1.bank_key)
+  end
+
+  @doc """
   Resolves one secret key for trusted runtime usage.
 
-  Accepts either a normalized key (for example `"GITHUB_TOKEN"`) or a Secret
-  Bank reference (for example `"$secrets.GITHUB_TOKEN"`). Resolution order is:
+  Accepts either a normalized key (for example `"GITHUB_TOKEN"`) or a secret
+  reference (for example `"$GITHUB_TOKEN"`). Resolution order is:
   `lemming -> department -> city -> world -> env`.
 
   ## Examples
 
       iex> world = %LemmingsOs.Worlds.World{id: Ecto.UUID.generate()}
-      iex> LemmingsOs.SecretBank.resolve_runtime_secret(world, "$secrets.UNKNOWN_KEY")
+      iex> LemmingsOs.SecretBank.resolve_runtime_secret(world, "$UNKNOWN_KEY")
       {:error, :missing_secret}
   """
   @spec resolve_runtime_secret(
@@ -546,7 +565,7 @@ defmodule LemmingsOs.SecretBank do
   defp normalize_key(key_or_ref) when is_binary(key_or_ref) do
     key_or_ref
     |> String.trim()
-    |> String.replace_prefix(@secret_prefix, "")
+    |> normalize_key_candidate()
     |> valid_bank_key()
   end
 
@@ -554,6 +573,17 @@ defmodule LemmingsOs.SecretBank do
 
   defp normalize_string(value) when is_binary(value), do: non_empty_value(String.trim(value))
   defp normalize_string(_value), do: {:error, :invalid_value}
+
+  defp normalize_key_candidate("$secrets." <> _legacy), do: "__invalid__"
+
+  defp normalize_key_candidate("$" <> value) do
+    case value do
+      "{" <> wrapped -> String.trim_trailing(wrapped, "}")
+      _other -> value
+    end
+  end
+
+  defp normalize_key_candidate(value), do: value
 
   defp valid_bank_key(""), do: {:error, :invalid_key}
 
@@ -575,33 +605,74 @@ defmodule LemmingsOs.SecretBank do
   end
 
   defp configured_env_fallbacks do
+    env_fallback_entries()
+    |> Enum.filter(& &1.allowlisted)
+    |> Enum.map(fn entry -> {entry.bank_key, entry.env_var} end)
+  end
+
+  defp env_fallback_entries do
+    allowed_envs = allowed_env_vars()
+
     :lemmings_os
     |> Application.get_env(__MODULE__, [])
     |> Keyword.get(:env_fallbacks, [])
-    |> Enum.flat_map(&normalize_env_fallback/1)
-    |> Enum.filter(fn {_key, env_var} -> env_var_allowed?(env_var) end)
+    |> Enum.reduce(%{}, fn fallback, entries ->
+      case normalize_env_fallback_entry(fallback, allowed_envs) do
+        {:ok, entry} -> Map.put(entries, entry.bank_key, entry)
+        :error -> entries
+      end
+    end)
+    |> Map.values()
   end
 
-  defp normalize_env_fallback({bank_key, env_var})
+  defp normalize_env_fallback_entry({bank_key, env_var}, allowed_envs)
        when is_binary(bank_key) and is_binary(env_var) do
     case normalize_key(bank_key) do
-      {:ok, key} -> [{key, normalize_env_name(env_var)}]
-      {:error, _reason} -> []
+      {:ok, key} ->
+        normalized_env_var = normalize_env_name(env_var)
+
+        {:ok,
+         %{
+           bank_key: key,
+           env_var: normalized_env_var,
+           mapping_kind: "explicit_override",
+           allowlisted: MapSet.member?(allowed_envs, normalized_env_var)
+         }}
+
+      {:error, _reason} ->
+        :error
     end
   end
 
-  defp normalize_env_fallback(bank_key) when is_binary(bank_key) do
+  defp normalize_env_fallback_entry(bank_key, allowed_envs) when is_binary(bank_key) do
     case normalize_key(bank_key) do
-      {:ok, key} -> [{key, derive_env_var(key)}]
-      {:error, _reason} -> []
+      {:ok, key} ->
+        derived_env_var = derive_env_var(key)
+
+        {:ok,
+         %{
+           bank_key: key,
+           env_var: derived_env_var,
+           mapping_kind: "convention",
+           allowlisted: MapSet.member?(allowed_envs, derived_env_var)
+         }}
+
+      {:error, _reason} ->
+        :error
     end
   end
 
-  defp normalize_env_fallback(_fallback), do: []
+  defp normalize_env_fallback_entry(_fallback, _allowed_envs), do: :error
 
-  # Small string helper for env names: uppercase and remove spaces.
+  # Small string helper for env names:
+  # - accepts `GITHUB_TOKEN`, `$GITHUB_TOKEN`, or `${GITHUB_TOKEN}`
+  # - stores canonical env var names without `$`
   defp normalize_env_name(value) when is_binary(value) do
     value
+    |> String.trim()
+    |> String.trim_leading("$")
+    |> String.trim_leading("{")
+    |> String.trim_trailing("}")
     |> String.replace(" ", "")
     |> String.upcase()
   end
@@ -744,19 +815,16 @@ defmodule LemmingsOs.SecretBank do
   defp failed_message(_bank_key), do: "secret access failed"
 
   defp normalized_secret_ref(key_or_ref) when is_binary(key_or_ref) do
-    key_or_ref
-    |> String.trim()
-    |> String.replace_prefix(@secret_prefix, "")
-    |> case do
-      "" -> nil
-      value -> to_secret_ref(value)
+    case normalize_key(key_or_ref) do
+      {:ok, bank_key} -> to_secret_ref(bank_key)
+      {:error, _reason} -> nil
     end
   end
 
   defp normalized_secret_ref(_key_or_ref), do: nil
 
   defp to_secret_ref(bank_key) when is_binary(bank_key) and bank_key != "",
-    do: "#{@secret_prefix}#{bank_key}"
+    do: "#{@secret_ref_prefix}#{bank_key}"
 
   defp to_activity(%Event{} = event) do
     %{

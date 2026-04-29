@@ -162,6 +162,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :secret_form, :any, default: nil
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
+  attr :secret_env_policy, :list, default: []
   attr :lemming_instances, :list, default: []
   attr :recent_lemming_instances, :list, default: []
   attr :spawn_form, :any, default: nil
@@ -294,6 +295,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
           secret_form={@secret_form}
           secret_metadata={@secret_metadata}
           secret_activity={@secret_activity}
+          secret_env_policy={@secret_env_policy}
         />
 
         <.lemming_instances_workspace
@@ -321,6 +323,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :secret_form, :any, default: nil
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
+  attr :secret_env_policy, :list, default: []
 
   def lemming_detail_workspace(assigns) do
     assigns = assign(assigns, :budgets, Map.get(assigns.effective_config.costs_config, :budgets))
@@ -552,6 +555,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         form={@secret_form}
         metadata={@secret_metadata}
         activity={@secret_activity}
+        env_fallback_policy={@secret_env_policy}
         save_event="save_lemming_secret"
         edit_event="edit_lemming_secret"
         delete_event="delete_lemming_secret"
