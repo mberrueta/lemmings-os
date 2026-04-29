@@ -454,6 +454,7 @@ defmodule LemmingsOsWeb.WorldComponents do
       metadata={@secret_metadata}
       activity={@secret_activity}
       save_event="save_world_secret"
+      edit_event="edit_world_secret"
       delete_event="delete_world_secret"
     />
     """
@@ -1106,6 +1107,7 @@ defmodule LemmingsOsWeb.WorldComponents do
         metadata={@secret_metadata}
         activity={@secret_activity}
         save_event="save_department_secret"
+        edit_event="edit_department_secret"
         delete_event="delete_department_secret"
         subtitle={dgettext("world", "Write-only Secret Bank values scoped to this department.")}
       />

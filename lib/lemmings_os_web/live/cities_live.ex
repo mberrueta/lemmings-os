@@ -140,7 +140,8 @@ defmodule LemmingsOsWeb.CitiesLive do
       {:noreply,
        socket
        |> put_flash(:info, dgettext("world", "Secret saved"))
-       |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))
+       |> assign(:city_secret_form, blank_secret_form())
+       |> push_event("secret_form:reset", %{form_id: "city-secret-form"})
        |> load_snapshot(%{"city" => city.id})}
     else
       {:error, :invalid_scope} ->
@@ -149,7 +150,10 @@ defmodule LemmingsOsWeb.CitiesLive do
       {:error, :invalid_key} ->
         {:noreply,
          socket
-         |> put_flash(:error, dgettext("world", "Secret key is required"))
+         |> put_flash(
+           :error,
+           dgettext("errors", ".error_invalid_key")
+         )
          |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))}
 
       {:error, :invalid_value} ->
@@ -191,6 +195,10 @@ defmodule LemmingsOsWeb.CitiesLive do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, dgettext("world", "Failed to delete secret"))}
     end
+  end
+
+  def handle_event("edit_city_secret", %{"bank-key" => bank_key}, socket) do
+    {:noreply, assign(socket, :city_secret_form, secret_form_with_key(bank_key))}
   end
 
   # ============================================

@@ -15,9 +15,9 @@ defmodule LemmingsOs.SecretBankTest do
       world = insert(:world)
 
       assert {:ok, metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_mock_secret_value")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_mock_secret_value")
 
-      assert metadata.bank_key == "github.token"
+      assert metadata.bank_key == "GITHUB_TOKEN"
       assert metadata.scope == "world"
       assert metadata.source == "local"
       assert metadata.configured
@@ -28,7 +28,7 @@ defmodule LemmingsOs.SecretBankTest do
         Ecto.Adapters.SQL.query!(
           Repo,
           "select value_encrypted from secret_bank_secrets where bank_key = $1",
-          ["github.token"]
+          ["GITHUB_TOKEN"]
         )
 
       assert is_binary(ciphertext)
@@ -37,7 +37,7 @@ defmodule LemmingsOs.SecretBankTest do
     end
 
     test "redacts decrypted runtime values from inspect output" do
-      secret = %Secret{bank_key: "github.token", value: "dev_only_mock_secret_value"}
+      secret = %Secret{bank_key: "GITHUB_TOKEN", value: "dev_only_mock_secret_value"}
 
       refute inspect(secret) =~ "dev_only_mock_secret_value"
     end
@@ -51,14 +51,14 @@ defmodule LemmingsOs.SecretBankTest do
       lemming = insert(:lemming, world: world, city: city, department: department)
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_world_token")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_world_token")
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(department, "github.token", "dev_only_department_token")
+               SecretBank.upsert_secret(department, "GITHUB_TOKEN", "dev_only_department_token")
 
-      [metadata] = SecretBank.list_effective_metadata(lemming, bank_key: "$secrets.github.token")
+      [metadata] = SecretBank.list_effective_metadata(lemming, bank_key: "$secrets.GITHUB_TOKEN")
 
-      assert metadata.bank_key == "github.token"
+      assert metadata.bank_key == "GITHUB_TOKEN"
       assert metadata.scope == "department"
       assert metadata.source == "local"
       assert metadata.configured
@@ -75,8 +75,8 @@ defmodule LemmingsOs.SecretBankTest do
           "OPENROUTER_API_KEY"
         ],
         env_fallbacks: [
-          "github.token",
-          {"openrouter.default", "OPENROUTER_API_KEY"}
+          "GITHUB_TOKEN",
+          {"OPENROUTER_API_KEY", "OPENROUTER_API_KEY"}
         ]
       )
 
@@ -89,7 +89,7 @@ defmodule LemmingsOs.SecretBankTest do
       end)
 
       [github_metadata] =
-        SecretBank.list_effective_metadata(world, bank_key: "$secrets.github.token")
+        SecretBank.list_effective_metadata(world, bank_key: "$secrets.GITHUB_TOKEN")
 
       assert github_metadata.source == "env"
       assert github_metadata.scope == "env"
@@ -99,10 +99,10 @@ defmodule LemmingsOs.SecretBankTest do
       refute Map.has_key?(github_metadata, :env_var)
 
       [openrouter_metadata] =
-        SecretBank.list_effective_metadata(world, bank_key: "openrouter.default")
+        SecretBank.list_effective_metadata(world, bank_key: "OPENROUTER_API_KEY")
 
       refute openrouter_metadata.configured
-      assert [] = SecretBank.list_effective_metadata(world, bank_key: "unknown.key")
+      assert [] = SecretBank.list_effective_metadata(world, bank_key: "UNKNOWN_KEY")
     end
 
     test "does not read env vars outside the explicit env var allowlist" do
@@ -111,7 +111,7 @@ defmodule LemmingsOs.SecretBankTest do
       put_secret_bank_config(
         allowed_env_vars: ["GITHUB_TOKEN"],
         env_fallbacks: [
-          {"openrouter.default", "OPENROUTER_API_KEY"}
+          {"OPENROUTER_API_KEY", "OPENROUTER_API_KEY"}
         ]
       )
 
@@ -122,7 +122,7 @@ defmodule LemmingsOs.SecretBankTest do
       end)
 
       assert [] =
-               SecretBank.list_effective_metadata(world, bank_key: "$secrets.openrouter.default")
+               SecretBank.list_effective_metadata(world, bank_key: "$secrets.OPENROUTER_API_KEY")
     end
   end
 
@@ -132,24 +132,24 @@ defmodule LemmingsOs.SecretBankTest do
       city = insert(:city, world: world)
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_world_token")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_world_token")
 
       assert {:error, :inherited_secret_not_deletable} =
-               SecretBank.delete_secret(city, "github.token")
+               SecretBank.delete_secret(city, "GITHUB_TOKEN")
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(city, "github.token", "dev_only_city_token")
+               SecretBank.upsert_secret(city, "GITHUB_TOKEN", "dev_only_city_token")
 
       assert {:ok, metadata} =
-               SecretBank.upsert_secret(city, "github.token", "dev_only_replaced_city_token")
+               SecretBank.upsert_secret(city, "GITHUB_TOKEN", "dev_only_replaced_city_token")
 
       assert metadata.scope == "city"
       assert metadata.allowed_actions == ["upsert", "delete"]
 
-      assert {:ok, deleted_metadata} = SecretBank.delete_secret(city, "github.token")
+      assert {:ok, deleted_metadata} = SecretBank.delete_secret(city, "GITHUB_TOKEN")
       assert deleted_metadata.scope == "city"
 
-      [inherited_metadata] = SecretBank.list_effective_metadata(city, bank_key: "github.token")
+      [inherited_metadata] = SecretBank.list_effective_metadata(city, bank_key: "GITHUB_TOKEN")
       assert inherited_metadata.scope == "world"
       assert inherited_metadata.allowed_actions == ["upsert"]
     end
@@ -160,7 +160,7 @@ defmodule LemmingsOs.SecretBankTest do
       assert {:error, :invalid_scope} =
                SecretBank.upsert_secret(%{}, "$secrets.github", "dev_only_value")
 
-      assert {:error, :not_found} = SecretBank.delete_secret(world, "missing.token")
+      assert {:error, :not_found} = SecretBank.delete_secret(world, "MISSING_TOKEN")
     end
   end
 
@@ -172,20 +172,20 @@ defmodule LemmingsOs.SecretBankTest do
       lemming = insert(:lemming, world: world, city: city, department: department)
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_world_token")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_world_token")
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(city, "github.token", "dev_only_city_token")
+               SecretBank.upsert_secret(city, "GITHUB_TOKEN", "dev_only_city_token")
 
       assert {:ok, resolved} =
-               SecretBank.resolve_runtime_secret(lemming, "$secrets.github.token")
+               SecretBank.resolve_runtime_secret(lemming, "$secrets.GITHUB_TOKEN")
 
-      assert resolved.bank_key == "github.token"
+      assert resolved.bank_key == "GITHUB_TOKEN"
       assert resolved.value == "dev_only_city_token"
       assert resolved.scope == "city"
       assert resolved.source == "local"
 
-      assert {:ok, resolved_again} = SecretBank.resolve_runtime_secret(lemming, "github.token")
+      assert {:ok, resolved_again} = SecretBank.resolve_runtime_secret(lemming, "GITHUB_TOKEN")
       assert resolved_again == resolved
     end
 
@@ -194,7 +194,7 @@ defmodule LemmingsOs.SecretBankTest do
 
       put_secret_bank_config(
         allowed_env_vars: ["GITHUB_TOKEN"],
-        env_fallbacks: ["github.token"]
+        env_fallbacks: ["GITHUB_TOKEN"]
       )
 
       System.put_env("GITHUB_TOKEN", "dev_only_mock_env_token")
@@ -203,8 +203,8 @@ defmodule LemmingsOs.SecretBankTest do
         System.delete_env("GITHUB_TOKEN")
       end)
 
-      assert {:ok, resolved} = SecretBank.resolve_runtime_secret(world, "$secrets.github.token")
-      assert resolved.bank_key == "github.token"
+      assert {:ok, resolved} = SecretBank.resolve_runtime_secret(world, "$secrets.GITHUB_TOKEN")
+      assert resolved.bank_key == "GITHUB_TOKEN"
       assert resolved.value == "dev_only_mock_env_token"
       assert resolved.scope == "env"
       assert resolved.source == "env"
@@ -215,7 +215,7 @@ defmodule LemmingsOs.SecretBankTest do
 
       put_secret_bank_config(
         allowed_env_vars: ["OPENROUTER_API_KEY"],
-        env_fallbacks: [{"openrouter.default", "OPENROUTER_API_KEY"}]
+        env_fallbacks: [{"OPENROUTER_API_KEY", "OPENROUTER_API_KEY"}]
       )
 
       System.put_env("OPENROUTER_API_KEY", "dev_only_mock_openrouter_token")
@@ -224,7 +224,7 @@ defmodule LemmingsOs.SecretBankTest do
         System.delete_env("OPENROUTER_API_KEY")
       end)
 
-      assert {:ok, resolved} = SecretBank.resolve_runtime_secret(world, "openrouter.default")
+      assert {:ok, resolved} = SecretBank.resolve_runtime_secret(world, "OPENROUTER_API_KEY")
       assert resolved.value == "dev_only_mock_openrouter_token"
       assert resolved.scope == "env"
       assert resolved.source == "env"
@@ -235,13 +235,13 @@ defmodule LemmingsOs.SecretBankTest do
 
       put_secret_bank_config(
         allowed_env_vars: ["GITHUB_TOKEN"],
-        env_fallbacks: ["github.token"]
+        env_fallbacks: ["GITHUB_TOKEN"]
       )
 
       System.delete_env("GITHUB_TOKEN")
 
       assert {:error, :missing_secret} =
-               SecretBank.resolve_runtime_secret(world, "$secrets.github.token")
+               SecretBank.resolve_runtime_secret(world, "$secrets.GITHUB_TOKEN")
     end
 
     test "does not read env var outside the explicit allowlist" do
@@ -249,7 +249,7 @@ defmodule LemmingsOs.SecretBankTest do
 
       put_secret_bank_config(
         allowed_env_vars: ["GITHUB_TOKEN"],
-        env_fallbacks: [{"openrouter.default", "OPENROUTER_API_KEY"}]
+        env_fallbacks: [{"OPENROUTER_API_KEY", "OPENROUTER_API_KEY"}]
       )
 
       System.put_env("OPENROUTER_API_KEY", "dev_only_mock_openrouter_token")
@@ -259,13 +259,13 @@ defmodule LemmingsOs.SecretBankTest do
       end)
 
       assert {:error, :missing_secret} =
-               SecretBank.resolve_runtime_secret(world, "$secrets.openrouter.default")
+               SecretBank.resolve_runtime_secret(world, "$secrets.OPENROUTER_API_KEY")
     end
 
     test "returns safe errors for invalid scope and invalid key" do
       world = insert(:world)
 
-      assert {:error, :invalid_scope} = SecretBank.resolve_runtime_secret(%{}, "github.token")
+      assert {:error, :invalid_scope} = SecretBank.resolve_runtime_secret(%{}, "GITHUB_TOKEN")
       assert {:error, :invalid_key} = SecretBank.resolve_runtime_secret(world, "")
     end
 
@@ -273,7 +273,7 @@ defmodule LemmingsOs.SecretBankTest do
       world = insert(:world)
 
       assert {:ok, metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_world_token")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_world_token")
 
       %{num_rows: 1} =
         Ecto.Adapters.SQL.query!(
@@ -283,7 +283,7 @@ defmodule LemmingsOs.SecretBankTest do
         )
 
       assert {:error, :decrypt_failed} =
-               SecretBank.resolve_runtime_secret(world, "$secrets.github.token")
+               SecretBank.resolve_runtime_secret(world, "$secrets.GITHUB_TOKEN")
     end
   end
 
@@ -292,12 +292,12 @@ defmodule LemmingsOs.SecretBankTest do
       world = insert(:world)
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_created_value")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_created_value")
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_replaced_value")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_replaced_value")
 
-      assert {:ok, _metadata} = SecretBank.delete_secret(world, "github.token")
+      assert {:ok, _metadata} = SecretBank.delete_secret(world, "GITHUB_TOKEN")
 
       events =
         Repo.all(
@@ -313,8 +313,8 @@ defmodule LemmingsOs.SecretBankTest do
                MapSet.new(["secret.created", "secret.replaced", "secret.deleted"])
 
       assert Enum.all?(events, fn event ->
-               fetch_map(event.payload, :bank_key) == "github.token" and
-                 fetch_map(event.payload, :secret_ref) == "$secrets.github.token"
+               fetch_map(event.payload, :bank_key) == "GITHUB_TOKEN" and
+                 fetch_map(event.payload, :secret_ref) == "$secrets.GITHUB_TOKEN"
              end)
 
       refute Enum.any?(events, fn event ->
@@ -330,19 +330,19 @@ defmodule LemmingsOs.SecretBankTest do
       lemming = insert(:lemming, world: world, city: city, department: department)
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(department, "github.token", "dev_only_department_value")
+               SecretBank.upsert_secret(department, "GITHUB_TOKEN", "dev_only_department_value")
 
       assert {:ok, _resolved} =
                SecretBank.resolve_runtime_secret(
                  lemming,
-                 "$secrets.github.token",
+                 "$secrets.GITHUB_TOKEN",
                  tool_name: "tools.gh"
                )
 
       assert {:error, :missing_secret} =
                SecretBank.resolve_runtime_secret(
                  lemming,
-                 "$secrets.stripe.token",
+                 "$secrets.STRIPE_TOKEN",
                  tool_name: "tools.gh"
                )
 
@@ -355,11 +355,11 @@ defmodule LemmingsOs.SecretBankTest do
       accessed = Enum.find(activities, &(&1.event_type == "secret.accessed"))
       failed = Enum.find(activities, &(&1.event_type == "secret.access_failed"))
 
-      assert accessed.message == "github.token used in tools.gh"
+      assert accessed.message == "GITHUB_TOKEN used in tools.gh"
       assert fetch_map(accessed.payload, :resolved_source) == "department"
       assert fetch_map(accessed.payload, :tool_name) == "tools.gh"
 
-      assert failed.message == "stripe.token access failed"
+      assert failed.message == "STRIPE_TOKEN access failed"
       assert fetch_map(failed.payload, :reason) == "missing_secret"
       assert fetch_map(failed.payload, :tool_name) == "tools.gh"
     end
@@ -371,13 +371,13 @@ defmodule LemmingsOs.SecretBankTest do
       department = insert(:department, world: world, city: city)
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(world, "github.token", "dev_only_world_value")
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_world_value")
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(department, "github.token", "dev_only_department_value")
+               SecretBank.upsert_secret(department, "GITHUB_TOKEN", "dev_only_department_value")
 
       assert {:ok, _metadata} =
-               SecretBank.upsert_secret(other_city, "stripe.token", "dev_only_other_city_value")
+               SecretBank.upsert_secret(other_city, "STRIPE_TOKEN", "dev_only_other_city_value")
 
       activities =
         SecretBank.list_recent_activity(department,
@@ -390,7 +390,7 @@ defmodule LemmingsOs.SecretBankTest do
 
       assert "world" in scopes
       assert "department" in scopes
-      refute Enum.any?(messages, &String.contains?(&1, "stripe.token"))
+      refute Enum.any?(messages, &String.contains?(&1, "STRIPE_TOKEN"))
       refute Enum.any?(activities, &(&1.event_type != "secret.created"))
     end
   end

@@ -17,6 +17,15 @@ const liveSocket = new LiveSocket("/live", Socket, {
 topbar.config({barColors: {0: "#49f28e"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+window.addEventListener("phx:secret_form:reset", ({detail}) => {
+  const formId = detail?.form_id
+  if (!formId) return
+
+  const form = document.getElementById(formId)
+  if (!form) return
+
+  form.reset()
+})
 
 liveSocket.connect()
 window.liveSocket = liveSocket

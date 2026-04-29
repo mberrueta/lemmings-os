@@ -353,9 +353,9 @@ upsert_lemming! = fn world, city, department, attrs ->
 end
 
 create_sample_secret! = fn world ->
-  if SecretBank.list_effective_metadata(world, bank_key: "github.token") == [] do
+  if SecretBank.list_effective_metadata(world, bank_key: "GITHUB_TOKEN") == [] do
     {:ok, _metadata} =
-      SecretBank.upsert_secret(world, "github.token", "dev_only_mock_github_token")
+      SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_mock_github_token")
   end
 end
 

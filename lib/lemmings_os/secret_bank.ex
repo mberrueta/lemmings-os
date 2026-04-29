@@ -21,6 +21,7 @@ defmodule LemmingsOs.SecretBank do
   alias LemmingsOs.Worlds.World
 
   @secret_prefix "$secrets."
+  @bank_key_pattern ~r/^[A-Z_][A-Z0-9_]*$/
   @secret_event_types ~w(
     secret.created
     secret.replaced
@@ -156,14 +157,14 @@ defmodule LemmingsOs.SecretBank do
   @doc """
   Resolves one secret key for trusted runtime usage.
 
-  Accepts either a normalized key (for example `"github.token"`) or a Secret
-  Bank reference (for example `"$secrets.github.token"`). Resolution order is:
+  Accepts either a normalized key (for example `"GITHUB_TOKEN"`) or a Secret
+  Bank reference (for example `"$secrets.GITHUB_TOKEN"`). Resolution order is:
   `lemming -> department -> city -> world -> env`.
 
   ## Examples
 
       iex> world = %LemmingsOs.Worlds.World{id: Ecto.UUID.generate()}
-      iex> LemmingsOs.SecretBank.resolve_runtime_secret(world, "$secrets.unknown.key")
+      iex> LemmingsOs.SecretBank.resolve_runtime_secret(world, "$secrets.UNKNOWN_KEY")
       {:error, :missing_secret}
   """
   @spec resolve_runtime_secret(
@@ -546,7 +547,7 @@ defmodule LemmingsOs.SecretBank do
     key_or_ref
     |> String.trim()
     |> String.replace_prefix(@secret_prefix, "")
-    |> non_empty_key()
+    |> valid_bank_key()
   end
 
   defp normalize_key(_key_or_ref), do: {:error, :invalid_key}
@@ -554,8 +555,11 @@ defmodule LemmingsOs.SecretBank do
   defp normalize_string(value) when is_binary(value), do: non_empty_value(String.trim(value))
   defp normalize_string(_value), do: {:error, :invalid_value}
 
-  defp non_empty_key(""), do: {:error, :invalid_key}
-  defp non_empty_key(value), do: {:ok, value}
+  defp valid_bank_key(""), do: {:error, :invalid_key}
+
+  defp valid_bank_key(value) do
+    if String.match?(value, @bank_key_pattern), do: {:ok, value}, else: {:error, :invalid_key}
+  end
 
   defp non_empty_value(""), do: {:error, :invalid_value}
   defp non_empty_value(value), do: {:ok, value}
@@ -604,7 +608,6 @@ defmodule LemmingsOs.SecretBank do
 
   defp derive_env_var(bank_key) do
     bank_key
-    |> String.replace(".", "_")
     |> normalize_env_name()
   end
 

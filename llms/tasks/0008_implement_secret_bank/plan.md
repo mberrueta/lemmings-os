@@ -139,8 +139,8 @@ The Secret Bank stores convention-based Bank keys. Tools reference secrets with 
 Runtime normalization:
 
 ```text
-Tool config reference: $secrets.github.token
-Secret Bank key:       github.token
+Tool config reference: $secrets.GITHUB_TOKEN
+Secret Bank key:       GITHUB_TOKEN
 Env fallback name:     GITHUB_TOKEN
 ```
 
@@ -155,12 +155,12 @@ Example config shape:
 ```elixir
 config :lemmings_os, :secret_bank,
   env_fallbacks: [
-    "github.token",
-    {"openrouter.default", "OPENROUTER_API_KEY"}
+    "GITHUB_TOKEN",
+    {"OPENROUTER_API_KEY", "OPENROUTER_API_KEY"}
   ]
 ```
 
-This allows `github.token` to read `GITHUB_TOKEN` by convention and `openrouter.default` to read `OPENROUTER_API_KEY` by explicit override.
+This allows `GITHUB_TOKEN` to read `GITHUB_TOKEN` by convention and `OPENROUTER_API_KEY` to read `OPENROUTER_API_KEY` by explicit override.
 
 ---
 
@@ -190,13 +190,13 @@ For example:
 
 ```text
 env allowlist:
-  openrouter.default = configured from OPENROUTER_API_KEY
+  OPENROUTER_API_KEY = configured from OPENROUTER_API_KEY
 
 world_main:
-  openrouter.default = configured
+  OPENROUTER_API_KEY = configured
 
 city_a:
-  openrouter.default = configured
+  OPENROUTER_API_KEY = configured
 
 this_department:
   no local value
@@ -223,7 +223,7 @@ Env values are not created, replaced, deleted, displayed, copied, exported, or p
 Expected display:
 
 ```text
-openrouter.default  (env)  [configured]
+OPENROUTER_API_KEY  (env)  [configured]
 ```
 
 ### 7.2 World
@@ -235,13 +235,13 @@ A World secret overrides the env allowlist source for the same Secret Bank key.
 Expected display on the World page:
 
 ```text
-openrouter.default  (this_world)  [configured]
+OPENROUTER_API_KEY  (this_world)  [configured]
 ```
 
 If the World has no local value but env has one:
 
 ```text
-openrouter.default  (env)  [configured]
+OPENROUTER_API_KEY  (env)  [configured]
 ```
 
 ### 7.3 City
@@ -253,19 +253,19 @@ A City secret overrides World and env values for the same Secret Bank key.
 Expected display on a City detail surface:
 
 ```text
-openrouter.default  (this_city)  [configured]
+OPENROUTER_API_KEY  (this_city)  [configured]
 ```
 
 If inherited from World:
 
 ```text
-openrouter.default  (world_main)  [configured]
+OPENROUTER_API_KEY  (world_main)  [configured]
 ```
 
 If inherited from env:
 
 ```text
-openrouter.default  (env)  [configured]
+OPENROUTER_API_KEY  (env)  [configured]
 ```
 
 ### 7.4 Department
@@ -277,7 +277,7 @@ A Department secret overrides City, World, and env values for the same Secret Ba
 Expected display before local override:
 
 ```text
-github.token  (city_a)  [configured]
+GITHUB_TOKEN  (city_a)  [configured]
 ```
 
 The inherited secret cannot be deleted from the Department page.
@@ -285,7 +285,7 @@ The inherited secret cannot be deleted from the Department page.
 The admin may create a local Department secret using the same Secret Bank key:
 
 ```text
-github.token  (this_department)  [configured]
+GITHUB_TOKEN  (this_department)  [configured]
 ```
 
 After the local override exists, the inherited City secret stops appearing as the effective value.
@@ -301,13 +301,13 @@ A Lemming secret overrides Department, City, World, and env values for the same 
 Expected display before local override:
 
 ```text
-openrouter.default  (this_department)  [configured]
+OPENROUTER_API_KEY  (this_department)  [configured]
 ```
 
 Expected display after local Lemming override:
 
 ```text
-openrouter.default  (this_lemming)  [configured]
+OPENROUTER_API_KEY  (this_lemming)  [configured]
 ```
 
 ---
@@ -368,11 +368,11 @@ The UI must show where the effective secret comes from.
 Examples:
 
 ```text
-github.token  (env)              [configured]
-github.token  (world_main)       [configured]
-github.token  (city_a)           [configured]
-github.token  (this_department)  [configured]
-github.token  (this_lemming)     [configured]
+GITHUB_TOKEN  (env)              [configured]
+GITHUB_TOKEN  (world_main)       [configured]
+GITHUB_TOKEN  (city_a)           [configured]
+GITHUB_TOKEN  (this_department)  [configured]
+GITHUB_TOKEN  (this_lemming)     [configured]
 ```
 
 For inherited secrets:
@@ -420,7 +420,7 @@ The previous value is never shown.
 Replace flow:
 
 ```text
-BANK_KEY: github.token
+BANK_KEY: GITHUB_TOKEN
 New value: [input]
 Confirm replace
 ```
@@ -453,9 +453,9 @@ The Secret Bank exists so runtime services and tools can resolve credentials saf
 Runtime/tool execution resolves secrets through this flow:
 
 ```text
-Tool config contains $secrets.github.token
-  -> Tool Runtime normalizes it to github.token
-  -> Secret Bank resolves github.token for runtime scope
+Tool config contains $secrets.GITHUB_TOKEN
+  -> Tool Runtime normalizes it to GITHUB_TOKEN
+  -> Secret Bank resolves GITHUB_TOKEN for runtime scope
   -> Raw value is injected only inside trusted Tool Runtime execution
 ```
 
@@ -472,7 +472,7 @@ Lemmings and LLMs must never receive raw secret values.
 Lemmings may only receive safe references or error states such as:
 
 ```text
-secret_ref: github.token
+secret_ref: GITHUB_TOKEN
 status: configured
 ```
 
@@ -568,9 +568,9 @@ The `Secrets` surface should expose recent durable safe activity for the current
 Example:
 
 ```text
-2026-04-28 10:15  secret.replaced       github.token  this_department
-2026-04-28 10:18  secret.accessed       github.token             github_issue_creator
-2026-04-28 10:21  secret.access_failed  stripe.token             missing_secret
+2026-04-28 10:15  secret.replaced       GITHUB_TOKEN  this_department
+2026-04-28 10:18  secret.accessed       GITHUB_TOKEN             github_issue_creator
+2026-04-28 10:21  secret.access_failed  STRIPE_TOKEN             missing_secret
 ```
 
 This monitoring is intended for local admin troubleshooting, not advanced compliance reporting.
@@ -723,16 +723,16 @@ Given:
 
 ```text
 city_a:
-  github.token = configured
+  GITHUB_TOKEN = configured
 
 this_department:
-  no github.token
+  no GITHUB_TOKEN
 ```
 
 The Department `Secrets` surface shows:
 
 ```text
-github.token  (city_a)  [configured]
+GITHUB_TOKEN  (city_a)  [configured]
 ```
 
 The admin cannot delete it from Department.
@@ -745,16 +745,16 @@ Given:
 
 ```text
 city_a:
-  github.token = configured
+  GITHUB_TOKEN = configured
 
 this_department:
-  github.token = configured
+  GITHUB_TOKEN = configured
 ```
 
 The Department `Secrets` surface shows:
 
 ```text
-github.token  (this_department)  [configured]
+GITHUB_TOKEN  (this_department)  [configured]
 ```
 
 The inherited City value no longer appears as the effective secret for that key.
@@ -767,16 +767,16 @@ Given:
 
 ```text
 city_a:
-  github.token = configured
+  GITHUB_TOKEN = configured
 
 this_department:
-  github.token = configured
+  GITHUB_TOKEN = configured
 ```
 
-When the admin deletes `github.token` from `this_department`, the Department `Secrets` surface shows:
+When the admin deletes `GITHUB_TOKEN` from `this_department`, the Department `Secrets` surface shows:
 
 ```text
-github.token  (city_a)  [configured]
+GITHUB_TOKEN  (city_a)  [configured]
 ```
 
 ### 16.4 Env allowlist fallback
@@ -785,27 +785,27 @@ Given:
 
 ```text
 env allowlist:
-  openrouter.default -> OPENROUTER_API_KEY = configured
+  OPENROUTER_API_KEY -> OPENROUTER_API_KEY = configured
 
 world:
-  no openrouter.default
+  no OPENROUTER_API_KEY
 
 city:
-  no openrouter.default
+  no OPENROUTER_API_KEY
 
 department:
-  no openrouter.default
+  no OPENROUTER_API_KEY
 ```
 
 The Department `Secrets` surface shows:
 
 ```text
-openrouter.default  (env)  [configured]
+OPENROUTER_API_KEY  (env)  [configured]
 ```
 
 The admin cannot delete it from Department.
 
-The admin can override it locally by creating `openrouter.default` in Department.
+The admin can override it locally by creating `OPENROUTER_API_KEY` in Department.
 
 ### 16.5 Tool secret reference and runtime access
 
@@ -813,18 +813,18 @@ Given:
 
 ```text
 Tool config reference:
-  $secrets.github.token
+  $secrets.GITHUB_TOKEN
 
 Lemming scope effective secret:
-  github.token = configured from Department
+  GITHUB_TOKEN = configured from Department
 ```
 
-When the tool runs, the runtime resolves `github.token` at the Lemming scope and injects the raw value only into the trusted Tool Runtime execution.
+When the tool runs, the runtime resolves `GITHUB_TOKEN` at the Lemming scope and injects the raw value only into the trusted Tool Runtime execution.
 
 The Lemming and LLM may see only safe state such as:
 
 ```text
-github.token = configured
+GITHUB_TOKEN = configured
 ```
 
 They must not see the raw value or Secret Bank key inventory.

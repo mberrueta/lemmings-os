@@ -159,7 +159,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
         :tools_runtime_trusted_config,
         %{
           "web.fetch" => %{
-            "headers" => %{"authorization" => "$secrets.github.token"}
+            "headers" => %{"authorization" => "$secrets.GITHUB_TOKEN"}
           }
         }
       )
@@ -194,7 +194,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
         :tools_runtime_trusted_config,
         %{
           "web.fetch" => %{
-            "headers" => %{"authorization" => "$secrets.github.token"}
+            "headers" => %{"authorization" => "$secrets.GITHUB_TOKEN"}
           }
         }
       )
@@ -209,8 +209,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
                  "url" => "http://localhost:#{bypass.port}/missing-secret"
                })
 
-      assert details.secret_ref == "$secrets.github.token"
-      assert details.bank_key == "github.token"
+      assert details.secret_ref == "$secrets.GITHUB_TOKEN"
+      assert details.bank_key == "GITHUB_TOKEN"
       refute_received :adapter_called
     end
 
@@ -218,8 +218,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       Application.put_env(:lemmings_os, :tools_runtime_trusted_config, %{})
       System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
 
-      assert {:error, %{code: "tool.web.invalid_url", details: %{url: "$secrets.github.token"}}} =
-               Runtime.execute(world, instance, "web.fetch", %{"url" => "$secrets.github.token"})
+      assert {:error, %{code: "tool.web.invalid_url", details: %{url: "$secrets.GITHUB_TOKEN"}}} =
+               Runtime.execute(world, instance, "web.fetch", %{"url" => "$secrets.GITHUB_TOKEN"})
     end
   end
 

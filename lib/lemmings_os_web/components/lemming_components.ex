@@ -553,6 +553,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         metadata={@secret_metadata}
         activity={@secret_activity}
         save_event="save_lemming_secret"
+        edit_event="edit_lemming_secret"
         delete_event="delete_lemming_secret"
         subtitle={dgettext("world", "Write-only Secret Bank values scoped to this lemming.")}
       />

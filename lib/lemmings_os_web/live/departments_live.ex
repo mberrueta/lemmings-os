@@ -129,7 +129,8 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       {:noreply,
        socket
        |> put_flash(:info, dgettext("world", "Secret saved"))
-       |> assign(:department_secret_form, secret_form_with_key(params["bank_key"]))
+       |> assign(:department_secret_form, blank_secret_form())
+       |> push_event("secret_form:reset", %{form_id: "department-secret-form"})
        |> assign_department_detail(department, socket.assigns.selected_department_tab)}
     else
       nil ->
@@ -138,7 +139,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       {:error, :invalid_key} ->
         {:noreply,
          socket
-         |> put_flash(:error, dgettext("world", "Secret key is required"))
+         |> put_flash(
+           :error,
+           dgettext("errors", ".error_invalid_key")
+         )
          |> assign(:department_secret_form, secret_form_with_key(params["bank_key"]))}
 
       {:error, :invalid_value} ->
@@ -182,6 +186,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, dgettext("world", "Failed to delete secret"))}
     end
+  end
+
+  def handle_event("edit_department_secret", %{"bank-key" => bank_key}, socket) do
+    {:noreply, assign(socket, :department_secret_form, secret_form_with_key(bank_key))}
   end
 
   defp build_shell_breadcrumb(nil, nil), do: default_shell_breadcrumb(:departments)

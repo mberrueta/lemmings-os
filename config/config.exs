@@ -35,8 +35,8 @@ config :lemmings_os, LemmingsOs.SecretBank,
     "OPENROUTER_API_KEY"
   ],
   env_fallbacks: [
-    "github.token",
-    {"openrouter.default", "OPENROUTER_API_KEY"}
+    "GITHUB_TOKEN",
+    {"OPENROUTER_API_KEY", "OPENROUTER_API_KEY"}
   ]
 
 # TODO: temporary default selection

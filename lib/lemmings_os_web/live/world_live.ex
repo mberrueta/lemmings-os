@@ -49,7 +49,8 @@ defmodule LemmingsOsWeb.WorldLive do
       {:noreply,
        socket
        |> put_flash(:info, dgettext("world", "Secret saved"))
-       |> assign(:world_secret_form, secret_form_with_key(params["bank_key"]))
+       |> assign(:world_secret_form, blank_secret_form())
+       |> push_event("secret_form:reset", %{form_id: "world-secret-form"})
        |> assign_world_secret_surface(world)}
     else
       {:error, :invalid_scope} ->
@@ -58,7 +59,10 @@ defmodule LemmingsOsWeb.WorldLive do
       {:error, :invalid_key} ->
         {:noreply,
          socket
-         |> put_flash(:error, dgettext("world", "Secret key is required"))
+         |> put_flash(
+           :error,
+           dgettext("errors", ".error_invalid_key")
+         )
          |> assign(:world_secret_form, secret_form_with_key(params["bank_key"]))}
 
       {:error, :invalid_value} ->
@@ -100,6 +104,10 @@ defmodule LemmingsOsWeb.WorldLive do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, dgettext("world", "Failed to delete secret"))}
     end
+  end
+
+  def handle_event("edit_world_secret", %{"bank-key" => bank_key}, socket) do
+    {:noreply, assign(socket, :world_secret_form, secret_form_with_key(bank_key))}
   end
 
   defp load_snapshot(socket, import_result \\ nil) do

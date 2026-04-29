@@ -12,6 +12,7 @@ defmodule LemmingsOsWeb.SecretBankComponents do
   attr :metadata, :list, default: []
   attr :activity, :list, default: []
   attr :save_event, :string, required: true
+  attr :edit_event, :string, required: true
   attr :delete_event, :string, required: true
   attr :title, :string, default: "Secrets"
   attr :subtitle, :string, default: "Write-only Secret Bank values for this scope."
@@ -40,7 +41,7 @@ defmodule LemmingsOsWeb.SecretBankComponents do
               field={@form[:bank_key]}
               type="text"
               label={dgettext("world", "Secret key")}
-              placeholder="github.token"
+              placeholder="GITHUB_TOKEN"
               autocomplete="off"
             />
             <.input
@@ -52,7 +53,7 @@ defmodule LemmingsOsWeb.SecretBankComponents do
               autocomplete="new-password"
             />
 
-            <div class="flex justify-end">
+            <div class="flex pt-10 justify-end">
               <.button id={"#{@id_prefix}-secret-save"} type="submit" variant="secondary">
                 {dgettext("world", "Save secret")}
               </.button>
@@ -72,23 +73,26 @@ defmodule LemmingsOsWeb.SecretBankComponents do
             />
           </div>
 
-          <ul
+          <div
             :if={@activity != []}
-            id={"#{@id_prefix}-secrets-activity-list"}
-            class="space-y-2 text-sm"
+            id={"#{@id_prefix}-secrets-activity-scroll"}
+            class="max-h-72 overflow-y-auto pr-1"
           >
-            <li
-              :for={item <- @activity}
-              id={"#{@id_prefix}-secret-activity-#{item.id}"}
-              class="border-2 border-zinc-700 bg-zinc-950/70 p-3"
-            >
-              <p class="font-mono text-xs uppercase tracking-wider text-zinc-500">
-                {Helpers.format_datetime(item.occurred_at)}
-              </p>
-              <p class="text-zinc-100">{item.message}</p>
-              <p class="font-mono text-xs text-zinc-400">{item.event_type}</p>
-            </li>
-          </ul>
+            <ul id={"#{@id_prefix}-secrets-activity-list"} class="space-y-2 text-sm">
+              <li
+                :for={item <- Enum.take(@activity, 10)}
+                id={"#{@id_prefix}-secret-activity-#{item.id}"}
+                class="border-2 border-zinc-700 bg-zinc-950/70 p-3"
+              >
+                <p class="flex items-center justify-between gap-4">
+                  <span class="text-zinc-100">{item.message}</span>
+                  <span class="font-mono text-xs uppercase tracking-wider text-zinc-500">
+                    {Helpers.format_datetime(item.occurred_at)}
+                  </span>
+                </p>
+              </li>
+            </ul>
+          </div>
         </.panel>
       </div>
 
@@ -115,9 +119,11 @@ defmodule LemmingsOsWeb.SecretBankComponents do
             class="flex flex-col gap-3 border-2 border-zinc-700 bg-zinc-950/70 p-4 lg:flex-row lg:items-center lg:justify-between"
           >
             <div class="space-y-1">
-              <p class="font-mono text-sm text-zinc-100">{entry.bank_key}</p>
-              <p class="text-xs uppercase tracking-wider text-zinc-500">
-                ({entry.scope}) {configured_label(entry.configured)}
+              <p class="font-mono text-sm text-zinc-100">
+                {entry.bank_key}
+                <span class="text-xs uppercase tracking-wider text-zinc-500">
+                  ({entry.scope}) {configured_label(entry.configured)}
+                </span>
               </p>
               <p class="text-xs text-zinc-400">
                 {dgettext("world", "updated")}: {timestamp_label(
@@ -126,14 +132,19 @@ defmodule LemmingsOsWeb.SecretBankComponents do
               </p>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
-              <.badge
-                :for={action <- entry.allowed_actions}
-                id={"#{@id_prefix}-secret-action-#{action}-#{dom_fragment(entry.bank_key)}"}
-                tone="default"
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <button
+                :if={editable?(entry)}
+                id={"#{@id_prefix}-secret-edit-#{dom_fragment(entry.bank_key)}"}
+                type="button"
+                phx-click={@edit_event}
+                phx-value-bank-key={entry.bank_key}
+                title={dgettext("world", "Edit secret")}
+                aria-label={dgettext("world", "Edit secret")}
+                class="inline-flex h-9 w-9 items-center justify-center border-2 border-zinc-600 bg-zinc-900/80 text-zinc-200 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
               >
-                {action}
-              </.badge>
+                <.icon name="hero-pencil-square" class="size-4" />
+              </button>
 
               <button
                 :if={deletable?(entry)}
@@ -142,9 +153,11 @@ defmodule LemmingsOsWeb.SecretBankComponents do
                 phx-click={@delete_event}
                 phx-value-bank-key={entry.bank_key}
                 data-confirm={dgettext("world", "Delete this local secret value?")}
-                class="inline-flex h-9 items-center justify-center gap-2 border-2 border-red-400 bg-red-500/10 px-3 text-xs font-medium text-red-300 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+                title={dgettext("world", "Delete local value")}
+                aria-label={dgettext("world", "Delete local value")}
+                class="inline-flex h-9 w-9 items-center justify-center border-2 border-red-400 bg-red-500/10 text-red-300 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
               >
-                {dgettext("world", "Delete local value")}
+                <.icon name="hero-trash" class="size-4" />
               </button>
             </div>
           </div>
@@ -153,6 +166,12 @@ defmodule LemmingsOsWeb.SecretBankComponents do
     </.panel>
     """
   end
+
+  defp editable?(%{allowed_actions: actions}) when is_list(actions) do
+    Enum.member?(actions, "upsert")
+  end
+
+  defp editable?(_entry), do: false
 
   defp deletable?(%{allowed_actions: actions}) when is_list(actions) do
     Enum.member?(actions, "delete")

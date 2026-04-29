@@ -136,6 +136,14 @@ msgstr "Intentando reconectar"
 msgid ".error_something_went_wrong"
 msgstr "Algo salio mal!"
 
+#: lib/lemmings_os_web/live/cities_live.ex:154
+#: lib/lemmings_os_web/live/departments_live.ex:143
+#: lib/lemmings_os_web/live/lemmings_live.ex:155
+#: lib/lemmings_os_web/live/world_live.ex:63
+#, elixir-autogen
+msgid ".error_invalid_key"
+msgstr "Formato de clave secreta invalido. Usa letras MAYUSCULAS, numeros y _."
+
 #: lib/lemmings_os_web/components/core_components.ex:651
 #: lib/lemmings_os_web/components/core_components.ex:654
 #, elixir-autogen

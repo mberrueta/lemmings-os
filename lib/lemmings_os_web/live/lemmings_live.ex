@@ -141,7 +141,8 @@ defmodule LemmingsOsWeb.LemmingsLive do
       {:noreply,
        socket
        |> put_flash(:info, dgettext("world", "Secret saved"))
-       |> assign(:lemming_secret_form, secret_form_with_key(params["bank_key"]))
+       |> assign(:lemming_secret_form, blank_secret_form())
+       |> push_event("secret_form:reset", %{form_id: "lemming-secret-form"})
        |> assign_selected_lemming(lemming)}
     else
       nil ->
@@ -150,7 +151,10 @@ defmodule LemmingsOsWeb.LemmingsLive do
       {:error, :invalid_key} ->
         {:noreply,
          socket
-         |> put_flash(:error, dgettext("world", "Secret key is required"))
+         |> put_flash(
+           :error,
+           dgettext("errors", ".error_invalid_key")
+         )
          |> assign(:lemming_secret_form, secret_form_with_key(params["bank_key"]))}
 
       {:error, :invalid_value} ->
@@ -194,6 +198,10 @@ defmodule LemmingsOsWeb.LemmingsLive do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, dgettext("world", "Failed to delete secret"))}
     end
+  end
+
+  def handle_event("edit_lemming_secret", %{"bank-key" => bank_key}, socket) do
+    {:noreply, assign(socket, :lemming_secret_form, secret_form_with_key(bank_key))}
   end
 
   def handle_event("open_spawn_modal", _params, socket) do
