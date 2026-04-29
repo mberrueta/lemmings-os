@@ -250,6 +250,16 @@
               />
             </div>
           </.panel>
+          <SecretBankComponents.secret_surface
+            :if={@snapshot.selected_city}
+            id_prefix="city"
+            form={@city_secret_form}
+            metadata={@city_secret_metadata}
+            activity={@city_secret_activity}
+            save_event="save_city_secret"
+            delete_event="delete_city_secret"
+            subtitle={dgettext("world", "Write-only Secret Bank values scoped to this city.")}
+          />
           <.city_effective_config_panel
             :if={@snapshot.selected_city}
             city={@snapshot.selected_city}

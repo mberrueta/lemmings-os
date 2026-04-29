@@ -158,6 +158,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :settings_form, :any, default: nil
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
+  attr :secrets_path, :string, default: nil
+  attr :secret_form, :any, default: nil
+  attr :secret_metadata, :list, default: []
+  attr :secret_activity, :list, default: []
   attr :lemming_instances, :list, default: []
   attr :recent_lemming_instances, :list, default: []
   attr :spawn_form, :any, default: nil
@@ -286,6 +290,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
           settings_form={@settings_form}
           overview_path={@overview_path}
           edit_path={@edit_path}
+          secrets_path={@secrets_path}
+          secret_form={@secret_form}
+          secret_metadata={@secret_metadata}
+          secret_activity={@secret_activity}
         />
 
         <.lemming_instances_workspace
@@ -309,6 +317,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :settings_form, :any, default: nil
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
+  attr :secrets_path, :string, default: nil
+  attr :secret_form, :any, default: nil
+  attr :secret_metadata, :list, default: []
+  attr :secret_activity, :list, default: []
 
   def lemming_detail_workspace(assigns) do
     assigns = assign(assigns, :budgets, Map.get(assigns.effective_config.costs_config, :budgets))
@@ -320,9 +332,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
     >
       <div id="lemming-detail-mode" class="flex flex-col gap-0.5">
         <span class="text-sm font-medium text-zinc-100">
-          {if @active_tab == "edit",
-            do: dgettext("lemmings", ".tab_edit"),
-            else: dgettext("lemmings", ".tab_overview")}
+          {detail_mode_label(@active_tab)}
         </span>
         <span
           id="lemming-detail-slug"
@@ -330,6 +340,30 @@ defmodule LemmingsOsWeb.LemmingComponents do
         >
           {@lemming.slug}
         </span>
+      </div>
+
+      <div id="lemming-detail-tabs" class="mb-4 flex flex-wrap gap-2">
+        <.link
+          id="lemming-tab-overview"
+          patch={@overview_path}
+          class={detail_tab_class(@active_tab == "overview")}
+        >
+          {dgettext("lemmings", ".tab_overview")}
+        </.link>
+        <.link
+          id="lemming-tab-edit"
+          patch={@edit_path}
+          class={detail_tab_class(@active_tab == "edit")}
+        >
+          {dgettext("lemmings", ".tab_edit")}
+        </.link>
+        <.link
+          id="lemming-tab-secrets"
+          patch={@secrets_path}
+          class={detail_tab_class(@active_tab == "secrets")}
+        >
+          {dgettext("world", "Secrets")}
+        </.link>
       </div>
 
       <div :if={@active_tab == "overview"} class="space-y-6">
@@ -511,6 +545,17 @@ defmodule LemmingsOsWeb.LemmingComponents do
           </.form>
         </.panel>
       </div>
+
+      <SecretBankComponents.secret_surface
+        :if={@active_tab == "secrets"}
+        id_prefix="lemming"
+        form={@secret_form}
+        metadata={@secret_metadata}
+        activity={@secret_activity}
+        save_event="save_lemming_secret"
+        delete_event="delete_lemming_secret"
+        subtitle={dgettext("world", "Write-only Secret Bank values scoped to this lemming.")}
+      />
     </.panel>
     """
   end
@@ -993,6 +1038,18 @@ defmodule LemmingsOsWeb.LemmingComponents do
     |> maybe_put(:city, selected_city && selected_city.id)
     |> maybe_put(:dept, selected_department && selected_department.id)
   end
+
+  defp detail_mode_label("edit"), do: dgettext("lemmings", ".tab_edit")
+  defp detail_mode_label("secrets"), do: dgettext("world", "Secrets")
+  defp detail_mode_label(_tab), do: dgettext("lemmings", ".tab_overview")
+
+  defp detail_tab_class(true),
+    do:
+      "inline-flex h-10 items-center justify-center gap-2 border-2 border-emerald-400/50 bg-emerald-400/10 px-3 text-sm font-medium text-emerald-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+
+  defp detail_tab_class(false),
+    do:
+      "inline-flex h-10 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/80 px-3 text-sm font-medium text-zinc-100 transition duration-200 ease-out hover:-translate-y-px"
 
   defp maybe_put(params, _key, nil), do: params
   defp maybe_put(params, key, value), do: Map.put(params, key, value)

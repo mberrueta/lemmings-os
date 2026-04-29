@@ -8,12 +8,13 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
+  alias LemmingsOs.SecretBank
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
   alias LemmingsOsWeb.PageData.DepartmentCollaborationSnapshot
 
-  @detail_tabs ~w(overview lemmings settings)
+  @detail_tabs ~w(overview lemmings settings secrets)
 
   def mount(_params, _session, socket) do
     {:ok,
@@ -30,7 +31,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> assign(:department_effective_config, nil)
      |> assign(:department_local_overrides, nil)
      |> assign(:department_lemmings, [])
-     |> assign(:department_primary_manager, nil)}
+     |> assign(:department_primary_manager, nil)
+     |> assign(:department_secret_form, blank_secret_form())
+     |> assign(:department_secret_metadata, [])
+     |> assign(:department_secret_activity, [])}
   end
 
   def handle_params(params, _uri, socket) do
@@ -116,6 +120,70 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     end
   end
 
+  def handle_event("save_department_secret", %{"secret" => params}, socket) do
+    with %Department{} = department <- socket.assigns.selected_department,
+         {:ok, _metadata} <-
+           SecretBank.upsert_secret(department, params["bank_key"], params["value"]) do
+      department = reload_department_detail(department)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("world", "Secret saved"))
+       |> assign(:department_secret_form, secret_form_with_key(params["bank_key"]))
+       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("world", "Department is unavailable"))}
+
+      {:error, :invalid_key} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("world", "Secret key is required"))
+         |> assign(:department_secret_form, secret_form_with_key(params["bank_key"]))}
+
+      {:error, :invalid_value} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("world", "Secret value is required"))
+         |> assign(:department_secret_form, secret_form_with_key(params["bank_key"]))}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, dgettext("world", "Failed to save secret"))
+         |> assign(:department_secret_form, secret_form_with_key(params["bank_key"]))}
+    end
+  end
+
+  def handle_event("delete_department_secret", %{"bank-key" => bank_key}, socket) do
+    with %Department{} = department <- socket.assigns.selected_department,
+         {:ok, _metadata} <- SecretBank.delete_secret(department, bank_key) do
+      department = reload_department_detail(department)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("world", "Local secret deleted"))
+       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("world", "Department is unavailable"))}
+
+      {:error, :inherited_secret_not_deletable} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("world", "Only local values can be deleted at this scope")
+         )}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, dgettext("world", "Secret key not found"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("world", "Failed to delete secret"))}
+    end
+  end
+
   defp build_shell_breadcrumb(nil, nil), do: default_shell_breadcrumb(:departments)
 
   defp build_shell_breadcrumb(city, nil) do
@@ -172,6 +240,8 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         |> assign(:department_local_overrides, nil)
         |> assign(:department_lemmings, [])
         |> assign(:department_primary_manager, nil)
+        |> assign(:department_secret_metadata, [])
+        |> assign(:department_secret_activity, [])
         |> put_shell_breadcrumb(default_shell_breadcrumb(:departments))
     end
   end
@@ -214,6 +284,9 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_local_overrides, nil)
     |> assign(:department_lemmings, [])
     |> assign(:department_primary_manager, nil)
+    |> assign(:department_secret_form, blank_secret_form())
+    |> assign(:department_secret_metadata, [])
+    |> assign(:department_secret_activity, [])
   end
 
   defp assign_department_detail(socket, %Department{} = department, requested_tab) do
@@ -227,6 +300,9 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_local_overrides, department_local_overrides(department))
     |> assign(:department_lemmings, collaboration.lemming_types)
     |> assign(:department_primary_manager, collaboration.primary_manager)
+    |> assign(:department_secret_form, blank_secret_form())
+    |> assign(:department_secret_metadata, SecretBank.list_effective_metadata(department))
+    |> assign(:department_secret_activity, SecretBank.list_recent_activity(department, limit: 10))
   end
 
   defp build_department_settings_form(%Department{} = department) do
@@ -323,5 +399,11 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       end
 
     to_form(%{"city_id" => selected_city_id}, as: :city_selector)
+  end
+
+  defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)
+
+  defp secret_form_with_key(bank_key) do
+    to_form(%{"bank_key" => String.trim(bank_key || ""), "value" => ""}, as: :secret)
   end
 end

@@ -12,6 +12,9 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :import_result, :map, default: nil
   attr :active_tab, :string, default: "overview"
   attr :cities, :list, default: []
+  attr :secret_form, :any, default: nil
+  attr :secret_metadata, :list, default: []
+  attr :secret_activity, :list, default: []
 
   def world_page(assigns) do
     assigns =
@@ -41,6 +44,9 @@ defmodule LemmingsOsWeb.WorldComponents do
         declared_runtime={@declared_runtime}
         declared_budget={@declared_budget}
         cities={@cities}
+        secret_form={@secret_form}
+        secret_metadata={@secret_metadata}
+        secret_activity={@secret_activity}
       />
     </.content_container>
     """
@@ -57,6 +63,9 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :declared_runtime, :map, required: true
   attr :declared_budget, :map, required: true
   attr :cities, :list, default: []
+  attr :secret_form, :any, required: true
+  attr :secret_metadata, :list, required: true
+  attr :secret_activity, :list, required: true
 
   defp world_snapshot(assigns) do
     ~H"""
@@ -180,6 +189,14 @@ defmodule LemmingsOsWeb.WorldComponents do
         variant={tab_button_variant(@active_tab, "runtime")}
       >
         {dgettext("world", ".tab_runtime")}
+      </.button>
+      <.button
+        id="world-tab-secrets"
+        phx-click="select_tab"
+        phx-value-tab="secrets"
+        variant={tab_button_variant(@active_tab, "secrets")}
+      >
+        {dgettext("world", "Secrets")}
       </.button>
     </div>
 
@@ -429,6 +446,16 @@ defmodule LemmingsOsWeb.WorldComponents do
         </div>
       </div>
     </.panel>
+
+    <SecretBankComponents.secret_surface
+      :if={@active_tab == "secrets"}
+      id_prefix="world"
+      form={@secret_form}
+      metadata={@secret_metadata}
+      activity={@secret_activity}
+      save_event="save_world_secret"
+      delete_event="delete_world_secret"
+    />
     """
   end
 
@@ -657,6 +684,9 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :local_overrides, :map, default: nil
   attr :department_lemmings, :list, default: []
   attr :primary_manager, :map, default: nil
+  attr :secret_form, :any, default: nil
+  attr :secret_metadata, :list, default: []
+  attr :secret_activity, :list, default: []
 
   def department_detail_page(assigns) do
     ~H"""
@@ -699,6 +729,15 @@ defmodule LemmingsOsWeb.WorldComponents do
           class={department_tab_class(@active_tab == "settings")}
         >
           {dgettext("world", ".department_tab_settings")}
+        </.link>
+        <.link
+          id="department-tab-secrets"
+          patch={
+            ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "secrets")}"
+          }
+          class={department_tab_class(@active_tab == "secrets")}
+        >
+          {dgettext("world", "Secrets")}
         </.link>
       </div>
 
@@ -1059,6 +1098,17 @@ defmodule LemmingsOsWeb.WorldComponents do
           </.form>
         </.panel>
       </div>
+
+      <SecretBankComponents.secret_surface
+        :if={@active_tab == "secrets"}
+        id_prefix="department"
+        form={@secret_form}
+        metadata={@secret_metadata}
+        activity={@secret_activity}
+        save_event="save_department_secret"
+        delete_event="delete_department_secret"
+        subtitle={dgettext("world", "Write-only Secret Bank values scoped to this department.")}
+      />
     </.panel>
     """
   end
