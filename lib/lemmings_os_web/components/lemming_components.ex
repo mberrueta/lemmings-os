@@ -349,6 +349,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <.link
           id="lemming-tab-overview"
           patch={@overview_path}
+          aria-current={if @active_tab == "overview", do: "page"}
           class={detail_tab_class(@active_tab == "overview")}
         >
           {dgettext("lemmings", ".tab_overview")}
@@ -356,6 +357,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <.link
           id="lemming-tab-edit"
           patch={@edit_path}
+          aria-current={if @active_tab == "edit", do: "page"}
           class={detail_tab_class(@active_tab == "edit")}
         >
           {dgettext("lemmings", ".tab_edit")}
@@ -363,9 +365,10 @@ defmodule LemmingsOsWeb.LemmingComponents do
         <.link
           id="lemming-tab-secrets"
           patch={@secrets_path}
+          aria-current={if @active_tab == "secrets", do: "page"}
           class={detail_tab_class(@active_tab == "secrets")}
         >
-          {dgettext("world", "Secrets")}
+          {dgettext("world", ".tab_secrets")}
         </.link>
       </div>
 
@@ -559,7 +562,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
         save_event="save_lemming_secret"
         edit_event="edit_lemming_secret"
         delete_event="delete_lemming_secret"
-        subtitle={dgettext("world", "Write-only Secret Bank values scoped to this lemming.")}
+        subtitle={dgettext("world", ".secret_lemming_subtitle")}
       />
     </.panel>
     """
@@ -1045,16 +1048,16 @@ defmodule LemmingsOsWeb.LemmingComponents do
   end
 
   defp detail_mode_label("edit"), do: dgettext("lemmings", ".tab_edit")
-  defp detail_mode_label("secrets"), do: dgettext("world", "Secrets")
+  defp detail_mode_label("secrets"), do: dgettext("world", ".tab_secrets")
   defp detail_mode_label(_tab), do: dgettext("lemmings", ".tab_overview")
 
   defp detail_tab_class(true),
     do:
-      "inline-flex h-10 items-center justify-center gap-2 border-2 border-emerald-400/50 bg-emerald-400/10 px-3 text-sm font-medium text-emerald-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105"
+      "inline-flex h-10 items-center justify-center gap-2 border-2 border-emerald-400/50 bg-emerald-400/10 px-3 text-sm font-medium text-emerald-400 shadow-lg transition duration-200 ease-out hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
 
   defp detail_tab_class(false),
     do:
-      "inline-flex h-10 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/80 px-3 text-sm font-medium text-zinc-100 transition duration-200 ease-out hover:-translate-y-px"
+      "inline-flex h-10 items-center justify-center gap-2 border-2 border-zinc-700 bg-zinc-950/80 px-3 text-sm font-medium text-zinc-100 transition duration-200 ease-out hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
 
   defp maybe_put(params, _key, nil), do: params
   defp maybe_put(params, key, value), do: Map.put(params, key, value)

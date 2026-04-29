@@ -25,7 +25,21 @@ window.addEventListener("phx:secret_form:reset", ({detail}) => {
   if (!form) return
 
   form.reset()
+  focusSecretFormField(formId, "bank_key")
 })
+
+window.addEventListener("phx:secret_form:focus", ({detail}) => {
+  focusSecretFormField(detail?.form_id, detail?.field)
+})
+
+function focusSecretFormField(formId, fieldName) {
+  if (!formId || !fieldName) return
+
+  const form = document.getElementById(formId)
+  const field = form?.querySelector(`[name="secret[${fieldName}]"]`)
+
+  if (field instanceof HTMLElement) field.focus()
+}
 
 liveSocket.connect()
 window.liveSocket = liveSocket

@@ -55,32 +55,34 @@ defmodule LemmingsOsWeb.CoreComponents do
   end
 
   attr :rest, :global,
-    include: ~w(href navigate patch method download name value disabled type form phx-click)
+    include:
+      ~w(href navigate patch method download name value disabled type form phx-click phx-disable-with aria-current aria-describedby aria-pressed)
 
   attr :variant, :string,
     default: "primary",
     values: ~w(primary secondary accent neutral ghost quiet)
 
+  attr :aria_pressed, :string, default: nil
   attr :class, :string, default: nil
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
     assigns =
       assign(assigns, :button_class, [
-        "inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 hover:-translate-y-px hover:brightness-110",
+        "inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 hover:-translate-y-px hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950",
         button_variant(assigns.variant),
         assigns.class
       ])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""
-      <.link class={@button_class} {@rest}>
+      <.link class={@button_class} aria-pressed={@aria_pressed} {@rest}>
         {render_slot(@inner_block)}
       </.link>
       """
     else
       ~H"""
-      <button class={@button_class} {@rest}>
+      <button class={@button_class} aria-pressed={@aria_pressed} {@rest}>
         {render_slot(@inner_block)}
       </button>
       """
@@ -110,7 +112,7 @@ defmodule LemmingsOsWeb.CoreComponents do
 
   attr :rest, :global,
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
-                multiple pattern placeholder readonly required rows size step)
+                multiple pattern placeholder readonly required rows size step aria-describedby)
 
   def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
@@ -128,6 +130,11 @@ defmodule LemmingsOsWeb.CoreComponents do
       assign_new(assigns, :checked, fn ->
         Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value])
       end)
+      |> assign(:error_id, input_error_id(assigns.id, assigns.errors))
+      |> assign(
+        :describedby,
+        input_describedby(assigns.rest, input_error_id(assigns.id, assigns.errors))
+      )
 
     ~H"""
     <label class="inline-flex items-center gap-2.5 cursor-pointer text-zinc-300 hover:text-zinc-100 transition-colors">
@@ -143,14 +150,23 @@ defmodule LemmingsOsWeb.CoreComponents do
             "size-4 border-2 border-zinc-700 bg-zinc-950 text-emerald-400 focus:ring-emerald-400 focus:ring-offset-zinc-950 rounded-none"
         }
         {@rest}
+        aria-invalid={@errors != []}
+        aria-describedby={@describedby}
       />
       <span class="text-sm font-medium">{@label}</span>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={msg <- @errors} id={@error_id}>{msg}</.error>
     </label>
     """
   end
 
   def input(%{type: "select"} = assigns) do
+    error_id = input_error_id(assigns.id, assigns.errors)
+
+    assigns =
+      assigns
+      |> assign(:error_id, error_id)
+      |> assign(:describedby, input_describedby(assigns.rest, error_id))
+
     ~H"""
     <div class="flex flex-col gap-1.5">
       <label
@@ -170,16 +186,25 @@ defmodule LemmingsOsWeb.CoreComponents do
         ]}
         multiple={@multiple}
         {@rest}
+        aria-invalid={@errors != []}
+        aria-describedby={@describedby}
       >
         <option :if={@prompt} value="">{@prompt}</option>
         {Phoenix.HTML.Form.options_for_select(@options, @value)}
       </select>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={msg <- @errors} id={@error_id}>{msg}</.error>
     </div>
     """
   end
 
   def input(%{type: "textarea"} = assigns) do
+    error_id = input_error_id(assigns.id, assigns.errors)
+
+    assigns =
+      assigns
+      |> assign(:error_id, error_id)
+      |> assign(:describedby, input_describedby(assigns.rest, error_id))
+
     ~H"""
     <div class="flex flex-col gap-1.5">
       <label
@@ -198,13 +223,22 @@ defmodule LemmingsOsWeb.CoreComponents do
           @errors != [] && (@error_class || "border-red-400 focus:border-red-400")
         ]}
         {@rest}
+        aria-invalid={@errors != []}
+        aria-describedby={@describedby}
       >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={msg <- @errors} id={@error_id}>{msg}</.error>
     </div>
     """
   end
 
   def input(assigns) do
+    error_id = input_error_id(assigns.id, assigns.errors)
+
+    assigns =
+      assigns
+      |> assign(:error_id, error_id)
+      |> assign(:describedby, input_describedby(assigns.rest, error_id))
+
     ~H"""
     <div class="flex flex-col gap-1.5">
       <label
@@ -225,19 +259,40 @@ defmodule LemmingsOsWeb.CoreComponents do
           @errors != [] && (@error_class || "border-red-400 focus:border-red-400")
         ]}
         {@rest}
+        aria-invalid={@errors != []}
+        aria-describedby={@describedby}
       />
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={msg <- @errors} id={@error_id}>{msg}</.error>
     </div>
     """
   end
 
+  attr :id, :string, default: nil
+  slot :inner_block, required: true
+
   defp error(assigns) do
     ~H"""
-    <p class="flex items-center gap-1.5 mt-1 text-xs font-medium text-red-400">
+    <p id={@id} class="flex items-center gap-1.5 mt-1 text-xs font-medium text-red-400">
       <.icon name="hero-exclamation-circle" class="size-4" />
       {render_slot(@inner_block)}
     </p>
     """
+  end
+
+  defp input_error_id(_id, []), do: nil
+  defp input_error_id(nil, _errors), do: nil
+  defp input_error_id(id, _errors), do: "#{id}-error"
+
+  defp input_describedby(rest, error_id) do
+    rest_describedby = rest[:"aria-describedby"] || rest["aria-describedby"]
+
+    [rest_describedby, error_id]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" ")
+    |> case do
+      "" -> nil
+      describedby -> describedby
+    end
   end
 
   slot :inner_block, required: true

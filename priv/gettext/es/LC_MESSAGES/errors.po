@@ -136,28 +136,28 @@ msgstr "Intentando reconectar"
 msgid ".error_something_went_wrong"
 msgstr "Algo salio mal!"
 
-#: lib/lemmings_os_web/live/cities_live.ex:154
-#: lib/lemmings_os_web/live/departments_live.ex:143
-#: lib/lemmings_os_web/live/lemmings_live.ex:155
-#: lib/lemmings_os_web/live/world_live.ex:63
+#: lib/lemmings_os_web/live/cities_live.ex:156
+#: lib/lemmings_os_web/live/departments_live.ex:145
+#: lib/lemmings_os_web/live/lemmings_live.ex:157
+#: lib/lemmings_os_web/live/world_live.ex:65
 #, elixir-autogen
 msgid ".error_invalid_key"
 msgstr "Formato de clave secreta invalido. Usa letras MAYUSCULAS, numeros y _."
 
-#: lib/lemmings_os_web/components/core_components.ex:651
-#: lib/lemmings_os_web/components/core_components.ex:654
+#: lib/lemmings_os_web/components/core_components.ex:706
+#: lib/lemmings_os_web/components/core_components.ex:709
 #, elixir-autogen
 msgid ".issue_severity_error"
 msgstr "Error"
 
-#: lib/lemmings_os_web/components/core_components.ex:653
-#: lib/lemmings_os_web/components/core_components.ex:656
+#: lib/lemmings_os_web/components/core_components.ex:708
+#: lib/lemmings_os_web/components/core_components.ex:711
 #, elixir-autogen
 msgid ".issue_severity_info"
 msgstr "Info"
 
-#: lib/lemmings_os_web/components/core_components.ex:652
-#: lib/lemmings_os_web/components/core_components.ex:655
+#: lib/lemmings_os_web/components/core_components.ex:707
+#: lib/lemmings_os_web/components/core_components.ex:710
 #, elixir-autogen
 msgid ".issue_severity_warning"
 msgstr "Advertencia"
@@ -278,6 +278,7 @@ msgstr ""
 msgid ".lemming_delete_denied_safety_indeterminate"
 msgstr "La eliminacion del lemming no esta disponible porque todavia no se puede demostrar que sea segura."
 
+#: lib/lemmings_os/events/event.ex:115
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:108
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:122
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:72
@@ -290,12 +291,14 @@ msgstr "La eliminacion del lemming no esta disponible porque todavia no se puede
 msgid ".invalid_choice"
 msgstr ""
 
+#: lib/lemmings_os/events/event.ex:128
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:102
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:142
 #, elixir-autogen, elixir-format
 msgid ".invalid_value_type"
 msgstr ""
 
+#: lib/lemmings_os/events/event.ex:113
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:107
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:121
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:133
@@ -304,14 +307,17 @@ msgstr ""
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:89
 #: lib/lemmings_os/lemming_instances/message.ex:61
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:83
-#: lib/lemmings_os_web/live/instance_live.ex:617
+#: lib/lemmings_os/secret_bank/secret.ex:64
+#: lib/lemmings_os_web/live/instance_live.ex:685
 #, elixir-autogen, elixir-format
 msgid ".required"
 msgstr ""
 
+#: lib/lemmings_os/events/event.ex:139
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:156
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:88
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:117
+#: lib/lemmings_os/secret_bank/secret.ex:84
 #, elixir-autogen, elixir-format
 msgid ".invalid_value"
 msgstr ""
@@ -437,3 +443,67 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Tool iteration limit reached before final reply."
 msgstr ""
+
+#: lib/lemmings_os_web/live/cities_live.ex:149
+#: lib/lemmings_os_web/live/cities_live.ex:186
+#, elixir-autogen, elixir-format
+msgid ".error_city_unavailable"
+msgstr "La ciudad no está disponible"
+
+#: lib/lemmings_os_web/live/departments_live.ex:138
+#: lib/lemmings_os_web/live/departments_live.ex:180
+#, elixir-autogen, elixir-format
+msgid ".error_department_unavailable"
+msgstr "El departamento no está disponible"
+
+#: lib/lemmings_os_web/live/lemmings_live.ex:150
+#: lib/lemmings_os_web/live/lemmings_live.ex:189
+#, elixir-autogen, elixir-format
+msgid ".error_lemming_unavailable"
+msgstr "El lemming no está disponible"
+
+#: lib/lemmings_os_web/live/cities_live.ex:200
+#: lib/lemmings_os_web/live/departments_live.ex:194
+#: lib/lemmings_os_web/live/lemmings_live.ex:203
+#: lib/lemmings_os_web/live/world_live.ex:109
+#, elixir-autogen, elixir-format
+msgid ".error_secret_delete_failed"
+msgstr "No se pudo eliminar el secreto"
+
+#: lib/lemmings_os_web/live/cities_live.ex:193
+#: lib/lemmings_os_web/live/departments_live.ex:187
+#: lib/lemmings_os_web/live/lemmings_live.ex:196
+#: lib/lemmings_os_web/live/world_live.ex:102
+#, elixir-autogen, elixir-format
+msgid ".error_secret_inherited_not_deletable"
+msgstr "Solo los valores locales pueden eliminarse en este alcance"
+
+#: lib/lemmings_os_web/live/cities_live.ex:197
+#: lib/lemmings_os_web/live/departments_live.ex:191
+#: lib/lemmings_os_web/live/lemmings_live.ex:200
+#: lib/lemmings_os_web/live/world_live.ex:106
+#, elixir-autogen, elixir-format
+msgid ".error_secret_key_not_found"
+msgstr "Clave secreta no encontrada"
+
+#: lib/lemmings_os_web/live/cities_live.ex:171
+#: lib/lemmings_os_web/live/departments_live.ex:163
+#: lib/lemmings_os_web/live/lemmings_live.ex:172
+#: lib/lemmings_os_web/live/world_live.ex:80
+#, elixir-autogen, elixir-format
+msgid ".error_secret_save_failed"
+msgstr "No se pudo guardar el secreto"
+
+#: lib/lemmings_os_web/live/cities_live.ex:164
+#: lib/lemmings_os_web/live/departments_live.ex:156
+#: lib/lemmings_os_web/live/lemmings_live.ex:165
+#: lib/lemmings_os_web/live/world_live.ex:73
+#, elixir-autogen, elixir-format
+msgid ".error_secret_value_required"
+msgstr "El valor secreto es obligatorio"
+
+#: lib/lemmings_os_web/live/world_live.ex:58
+#: lib/lemmings_os_web/live/world_live.ex:95
+#, elixir-autogen, elixir-format
+msgid ".error_world_unavailable"
+msgstr "El mundo no está disponible"

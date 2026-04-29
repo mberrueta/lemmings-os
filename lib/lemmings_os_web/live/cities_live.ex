@@ -140,13 +140,13 @@ defmodule LemmingsOsWeb.CitiesLive do
          {:ok, _metadata} <- SecretBank.upsert_secret(city, params["bank_key"], params["value"]) do
       {:noreply,
        socket
-       |> put_flash(:info, dgettext("world", "Secret saved"))
+       |> put_flash(:info, dgettext("world", ".secret_saved"))
        |> assign(:city_secret_form, blank_secret_form())
        |> push_event("secret_form:reset", %{form_id: "city-secret-form"})
        |> load_snapshot(%{"city" => city.id})}
     else
       {:error, :invalid_scope} ->
-        {:noreply, put_flash(socket, :error, dgettext("world", "City is unavailable"))}
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_city_unavailable"))}
 
       {:error, :invalid_key} ->
         {:noreply,
@@ -155,18 +155,20 @@ defmodule LemmingsOsWeb.CitiesLive do
            :error,
            dgettext("errors", ".error_invalid_key")
          )
-         |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))}
+         |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))
+         |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "bank_key"})}
 
       {:error, :invalid_value} ->
         {:noreply,
          socket
-         |> put_flash(:error, dgettext("world", "Secret value is required"))
-         |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))}
+         |> put_flash(:error, dgettext("errors", ".error_secret_value_required"))
+         |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))
+         |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "value"})}
 
       {:error, _reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, dgettext("world", "Failed to save secret"))
+         |> put_flash(:error, dgettext("errors", ".error_secret_save_failed"))
          |> assign(:city_secret_form, secret_form_with_key(params["bank_key"]))}
     end
   end
@@ -176,30 +178,34 @@ defmodule LemmingsOsWeb.CitiesLive do
          {:ok, _metadata} <- SecretBank.delete_secret(city, bank_key) do
       {:noreply,
        socket
-       |> put_flash(:info, dgettext("world", "Local secret deleted"))
+       |> put_flash(:info, dgettext("world", ".secret_deleted"))
+       |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "bank_key"})
        |> load_snapshot(%{"city" => city.id})}
     else
       {:error, :invalid_scope} ->
-        {:noreply, put_flash(socket, :error, dgettext("world", "City is unavailable"))}
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_city_unavailable"))}
 
       {:error, :inherited_secret_not_deletable} ->
         {:noreply,
          put_flash(
            socket,
            :error,
-           dgettext("world", "Only local values can be deleted at this scope")
+           dgettext("errors", ".error_secret_inherited_not_deletable")
          )}
 
       {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, dgettext("world", "Secret key not found"))}
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_secret_key_not_found"))}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, dgettext("world", "Failed to delete secret"))}
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_secret_delete_failed"))}
     end
   end
 
   def handle_event("edit_city_secret", %{"bank-key" => bank_key}, socket) do
-    {:noreply, assign(socket, :city_secret_form, secret_form_with_key(bank_key))}
+    {:noreply,
+     socket
+     |> assign(:city_secret_form, secret_form_with_key(bank_key))
+     |> push_event("secret_form:focus", %{form_id: "city-secret-form", field: "value"})}
   end
 
   # ============================================
