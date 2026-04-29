@@ -11,6 +11,7 @@ defmodule LemmingsOs.SecretBank do
 
   import Ecto.Query, warn: false
 
+  alias Ecto.Changeset
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Events
@@ -84,15 +85,13 @@ defmodule LemmingsOs.SecretBank do
         {:ok, %Secret{} = secret} ->
           secret
           |> Secret.changeset(%{bank_key: bank_key, value: value})
-          |> Repo.update()
-          |> metadata_write_result(scope_data, "secret.replaced")
+          |> audited_secret_write(scope_data, "secret.replaced")
 
         {:error, :not_found} ->
           %Secret{}
           |> struct(scope_data)
           |> Secret.changeset(%{bank_key: bank_key, value: value})
-          |> Repo.insert()
-          |> metadata_write_result(scope_data, "secret.created")
+          |> audited_secret_write(scope_data, "secret.created")
       end
     end
   end
@@ -289,26 +288,39 @@ defmodule LemmingsOs.SecretBank do
   defp local_runtime_value(value) when is_binary(value) and value != "", do: {:ok, value}
   defp local_runtime_value(_value), do: {:error, :decrypt_failed}
 
+  defp audited_secret_write(changeset, scope_data, event_type) do
+    Repo.transaction(fn ->
+      changeset
+      |> Repo.insert_or_update()
+      |> metadata_write_result(scope_data, event_type)
+      |> case do
+        {:ok, metadata} -> metadata
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+    |> transaction_result()
+  end
+
   defp metadata_write_result({:ok, %Secret{} = secret}, scope_data, event_type) do
     metadata = to_local_metadata(secret, scope_data)
 
-    _ =
-      record_secret_event(
-        event_type,
-        scope_data,
-        secret_message(secret.bank_key, event_type),
-        %{
-          secret_ref: to_secret_ref(secret.bank_key),
-          bank_key: secret.bank_key,
-          scope: metadata.scope,
-          source: metadata.source
-        }
-      )
-
-    {:ok, metadata}
+    case record_secret_event(
+           event_type,
+           scope_data,
+           secret_message(secret.bank_key, event_type),
+           %{
+             secret_ref: to_secret_ref(secret.bank_key),
+             bank_key: secret.bank_key,
+             scope: metadata.scope,
+             source: metadata.source
+           }
+         ) do
+      {:ok, _event} -> {:ok, metadata}
+      {:error, reason} -> {:error, {:audit_event_failed, reason}}
+    end
   end
 
-  defp metadata_write_result({:error, %Ecto.Changeset{} = changeset}, _scope_data, _event_type),
+  defp metadata_write_result({:error, %Changeset{} = changeset}, _scope_data, _event_type),
     do: {:error, changeset}
 
   defp delete_local_secret(scope, scope_data, bank_key),
@@ -321,25 +333,13 @@ defmodule LemmingsOs.SecretBank do
       )
 
   defp delete_local_secret(_scope, scope_data, bank_key, metadata) when not is_nil(metadata) do
-    {1, _rows} =
+    Repo.transaction(fn ->
       Secret
       |> filter_query(scope_filters(scope_data, bank_key))
       |> Repo.delete_all()
-
-    _ =
-      record_secret_event(
-        "secret.deleted",
-        scope_data,
-        secret_message(bank_key, "secret.deleted"),
-        %{
-          secret_ref: to_secret_ref(bank_key),
-          bank_key: bank_key,
-          scope: metadata.scope,
-          source: metadata.source
-        }
-      )
-
-    {:ok, metadata}
+      |> audited_secret_delete_result(scope_data, bank_key, metadata)
+    end)
+    |> transaction_result()
   end
 
   defp delete_local_secret(scope, _scope_data, bank_key, nil),
@@ -351,6 +351,26 @@ defmodule LemmingsOs.SecretBank do
 
   defp delete_missing_local_secret([_metadata | _rest]),
     do: {:error, :inherited_secret_not_deletable}
+
+  defp audited_secret_delete_result({1, _rows}, scope_data, bank_key, metadata) do
+    case record_secret_event(
+           "secret.deleted",
+           scope_data,
+           secret_message(bank_key, "secret.deleted"),
+           %{
+             secret_ref: to_secret_ref(bank_key),
+             bank_key: bank_key,
+             scope: metadata.scope,
+             source: metadata.source
+           }
+         ) do
+      {:ok, _event} -> metadata
+      {:error, reason} -> Repo.rollback({:audit_event_failed, reason})
+    end
+  end
+
+  defp audited_secret_delete_result({_count, _rows}, _scope_data, _bank_key, _metadata),
+    do: Repo.rollback(:not_found)
 
   defp local_metadata_for_scope(scope_data, bank_key) do
     Secret
@@ -656,7 +676,14 @@ defmodule LemmingsOs.SecretBank do
 
   defp normalize_key(_key_or_ref), do: {:error, :invalid_key}
 
-  defp normalize_string(value) when is_binary(value), do: non_empty_value(String.trim(value))
+  defp normalize_string(value) when is_binary(value) do
+    if String.trim(value) == "" do
+      {:error, :invalid_value}
+    else
+      {:ok, value}
+    end
+  end
+
   defp normalize_string(_value), do: {:error, :invalid_value}
 
   defp normalize_key_candidate("$secrets." <> _legacy), do: "__invalid__"
@@ -675,9 +702,6 @@ defmodule LemmingsOs.SecretBank do
   defp valid_bank_key(value) do
     if String.match?(value, @bank_key_pattern), do: {:ok, value}, else: {:error, :invalid_key}
   end
-
-  defp non_empty_value(""), do: {:error, :invalid_value}
-  defp non_empty_value(value), do: {:ok, value}
 
   defp configured_env_var(bank_key) do
     configured_env_fallbacks()
@@ -884,6 +908,7 @@ defmodule LemmingsOs.SecretBank do
   defp record_secret_event(event_type, scope_data, message, payload) do
     sanitized_payload =
       payload
+      |> Map.merge(safe_scope_payload(scope_data))
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
       |> Map.new()
 
@@ -896,6 +921,15 @@ defmodule LemmingsOs.SecretBank do
       resource_id: Map.get(sanitized_payload, :bank_key) || Map.get(sanitized_payload, :key)
     )
   end
+
+  defp transaction_result({:ok, metadata}), do: {:ok, metadata}
+  defp transaction_result({:error, %Changeset{} = changeset}), do: {:error, changeset}
+
+  defp transaction_result({:error, {:audit_event_failed, _reason}}),
+    do: {:error, :audit_event_failed}
+
+  defp transaction_result({:error, reason}) when is_atom(reason), do: {:error, reason}
+  defp transaction_result({:error, _reason}), do: {:error, :audit_event_failed}
 
   defp event_action("secret.created"), do: "create"
   defp event_action("secret.replaced"), do: "replace"

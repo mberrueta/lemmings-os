@@ -163,6 +163,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
         :tools_runtime_trusted_config,
         %{
           "web.fetch" => %{
+            "allowed_hosts" => ["localhost"],
             "headers" => %{"authorization" => "$GITHUB_TOKEN"}
           }
         }
@@ -212,6 +213,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert fetch_map(used_by_tool.payload, :department_id) == instance.department_id
       assert fetch_map(used_by_tool.payload, :lemming_id) == instance.lemming_id
       assert fetch_map(used_by_tool.payload, :resolved_source) == "env"
+      assert used_by_tool.status == "succeeded"
 
       refute inspect(Enum.map(events, & &1.payload)) =~ "dev_only_runtime_secret_token"
 
@@ -236,6 +238,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
         :tools_runtime_trusted_config,
         %{
           "web.fetch" => %{
+            "allowed_hosts" => ["localhost"],
             "headers" => %{"authorization" => "$GITHUB_TOKEN"}
           }
         }
@@ -255,6 +258,83 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert result.result.body == "reflected header=[REDACTED]"
       assert result.preview == "reflected header=[REDACTED]"
       refute inspect(result) =~ "dev_only_runtime_secret_token"
+    end
+
+    test "blocks secret-bearing headers unless the destination host is explicitly allowlisted", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      parent = self()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.stub(bypass, "GET", "/blocked-secret", fn conn ->
+        send(parent, :adapter_called)
+        Plug.Conn.resp(conn, 200, "should not execute")
+      end)
+
+      assert {:error, %{code: "tool.secret.destination_not_allowed", details: details}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/blocked-secret"
+               })
+
+      assert details.host == "localhost"
+      refute_received :adapter_called
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where: event.world_id == ^world.id and event.event_type == "secret.used_by_tool"
+               )
+             )
+    end
+
+    test "records secret header use as failed when the adapter request fails", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      System.put_env("GITHUB_TOKEN", "dev_only_runtime_secret_token")
+
+      Application.put_env(
+        :lemmings_os,
+        :tools_runtime_trusted_config,
+        %{
+          "web.fetch" => %{
+            "allowed_hosts" => ["localhost"],
+            "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+          }
+        }
+      )
+
+      Bypass.expect_once(bypass, "GET", "/server-error", fn conn ->
+        Plug.Conn.resp(conn, 500, "upstream failed")
+      end)
+
+      assert {:error, %{code: "tool.web.bad_status"}} =
+               Runtime.execute(world, instance, "web.fetch", %{
+                 "url" => "http://localhost:#{bypass.port}/server-error"
+               })
+
+      [used_by_tool] =
+        Repo.all(
+          from(event in Event,
+            where: event.world_id == ^world.id and event.event_type == "secret.used_by_tool"
+          )
+        )
+
+      assert used_by_tool.status == "failed"
+      assert fetch_map(used_by_tool.payload, :key) == "GITHUB_TOKEN"
+      refute inspect(used_by_tool.payload) =~ "dev_only_runtime_secret_token"
     end
 
     test "does not execute adapter when trusted secret resolution fails", %{

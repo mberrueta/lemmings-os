@@ -166,9 +166,9 @@ defmodule LemmingsOs.Tools.Adapters.Web do
        when is_binary(query) and is_map(trusted_config) do
     endpoint = search_endpoint()
 
-    with :ok <- validate_endpoint_egress(endpoint) do
+    with :ok <- validate_endpoint_egress(endpoint),
+         :ok <- validate_secret_header_destination(endpoint, trusted_config, secret_audit) do
       headers = trusted_headers(trusted_config)
-      record_used_by_tool_events(secret_audit)
 
       req_options =
         [url: endpoint, params: [q: query, format: "json", no_html: 1], headers: headers]
@@ -176,9 +176,12 @@ defmodule LemmingsOs.Tools.Adapters.Web do
 
       case Req.get(req_options) do
         {:ok, %Req.Response{} = response} when response.status in 200..299 ->
+          record_used_by_tool_events(secret_audit, "succeeded")
           {:ok, response.body}
 
         {:ok, %Req.Response{} = response} ->
+          record_used_by_tool_events(secret_audit, "failed")
+
           {:error,
            %{
              code: "tool.web.bad_status",
@@ -187,6 +190,8 @@ defmodule LemmingsOs.Tools.Adapters.Web do
            }}
 
         {:error, reason} ->
+          record_used_by_tool_events(secret_audit, "failed")
+
           {:error,
            %{
              code: "tool.web.request_failed",
@@ -202,32 +207,38 @@ defmodule LemmingsOs.Tools.Adapters.Web do
 
   defp request_fetch(url, trusted_config, secret_audit)
        when is_binary(url) and is_map(trusted_config) do
-    headers = trusted_headers(trusted_config)
-    record_used_by_tool_events(secret_audit)
+    with :ok <- validate_secret_header_destination(url, trusted_config, secret_audit) do
+      headers = trusted_headers(trusted_config)
 
-    req_options =
-      [url: url, headers: headers]
-      |> Keyword.merge(req_timeout_options())
+      req_options =
+        [url: url, headers: headers]
+        |> Keyword.merge(req_timeout_options())
 
-    case Req.get(req_options) do
-      {:ok, %Req.Response{} = response} when response.status in 200..299 ->
-        {:ok, response}
+      case Req.get(req_options) do
+        {:ok, %Req.Response{} = response} when response.status in 200..299 ->
+          record_used_by_tool_events(secret_audit, "succeeded")
+          {:ok, response}
 
-      {:ok, %Req.Response{} = response} ->
-        {:error,
-         %{
-           code: "tool.web.bad_status",
-           message: "Web fetch returned a non-success status",
-           details: %{status: response.status}
-         }}
+        {:ok, %Req.Response{} = response} ->
+          record_used_by_tool_events(secret_audit, "failed")
 
-      {:error, reason} ->
-        {:error,
-         %{
-           code: "tool.web.request_failed",
-           message: "Web fetch request failed",
-           details: %{reason: request_error_reason(reason)}
-         }}
+          {:error,
+           %{
+             code: "tool.web.bad_status",
+             message: "Web fetch returned a non-success status",
+             details: %{status: response.status}
+           }}
+
+        {:error, reason} ->
+          record_used_by_tool_events(secret_audit, "failed")
+
+          {:error,
+           %{
+             code: "tool.web.request_failed",
+             message: "Web fetch request failed",
+             details: %{reason: request_error_reason(reason)}
+           }}
+      end
     end
   end
 
@@ -383,6 +394,90 @@ defmodule LemmingsOs.Tools.Adapters.Web do
   end
 
   defp normalize_headers(_headers), do: []
+
+  defp validate_secret_header_destination(_url, _trusted_config, nil), do: :ok
+
+  defp validate_secret_header_destination(url, trusted_config, secret_audit) do
+    if secret_audit_has_header_secret?(secret_audit) do
+      with {:ok, host} <- url_host(url),
+           true <- host_allowed_for_secret_headers?(host, trusted_config) do
+        :ok
+      else
+        {:error, error} ->
+          {:error, error}
+
+        false ->
+          {:error,
+           %{
+             code: "tool.secret.destination_not_allowed",
+             message: "Tool secret destination is not allowed",
+             details: %{host: url_host_value(url)}
+           }}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp secret_audit_has_header_secret?(%{entries: entries}) when is_list(entries),
+    do: Enum.any?(entries, &header_secret_entry?/1)
+
+  defp secret_audit_has_header_secret?(_secret_audit), do: false
+
+  defp url_host(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{host: host} when is_binary(host) ->
+        {:ok, normalize_host(host)}
+
+      _uri ->
+        {:error,
+         %{
+           code: "tool.web.invalid_url",
+           message: "Invalid URL",
+           details: %{url: url}
+         }}
+    end
+  end
+
+  defp url_host_value(url) when is_binary(url) do
+    case url_host(url) do
+      {:ok, host} -> host
+      {:error, _error} -> nil
+    end
+  end
+
+  defp host_allowed_for_secret_headers?(host, trusted_config) do
+    trusted_config
+    |> allowed_secret_header_hosts()
+    |> MapSet.member?(host)
+  end
+
+  defp allowed_secret_header_hosts(%{allowed_hosts: hosts}), do: normalize_host_set(hosts)
+  defp allowed_secret_header_hosts(%{"allowed_hosts" => hosts}), do: normalize_host_set(hosts)
+
+  defp allowed_secret_header_hosts(%{secret_header_allowed_hosts: hosts}),
+    do: normalize_host_set(hosts)
+
+  defp allowed_secret_header_hosts(%{"secret_header_allowed_hosts" => hosts}),
+    do: normalize_host_set(hosts)
+
+  defp allowed_secret_header_hosts(_trusted_config), do: MapSet.new()
+
+  defp normalize_host_set(hosts) when is_list(hosts) do
+    hosts
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&normalize_host/1)
+    |> MapSet.new()
+  end
+
+  defp normalize_host_set(_hosts), do: MapSet.new()
+
+  defp normalize_host(host) when is_binary(host) do
+    host
+    |> String.trim()
+    |> String.trim("[]")
+    |> String.downcase()
+  end
 
   defp private_execution_config(world, instance, tool_name, trusted_config) do
     case trusted_config_contains_secret_ref?(trusted_config) do
@@ -562,7 +657,8 @@ defmodule LemmingsOs.Tools.Adapters.Web do
   defp maybe_put_tool_name(error, tool_name) when is_binary(tool_name),
     do: Map.put(error, :tool_name, tool_name)
 
-  defp record_used_by_tool_events(%{entries: entries} = secret_audit) when is_list(entries) do
+  defp record_used_by_tool_events(%{entries: entries} = secret_audit, status)
+       when is_list(entries) and status in ["succeeded", "failed"] do
     entries
     |> Enum.filter(&header_secret_entry?/1)
     |> Enum.uniq_by(&{&1.key, &1.resolved_source})
@@ -575,14 +671,14 @@ defmodule LemmingsOs.Tools.Adapters.Web do
           payload: used_by_tool_payload(secret_audit, entry),
           event_family: "audit",
           action: "use",
-          status: "succeeded",
+          status: status,
           resource_type: "secret",
           resource_id: entry.key
         )
     end)
   end
 
-  defp record_used_by_tool_events(_secret_audit), do: :ok
+  defp record_used_by_tool_events(_secret_audit, _status), do: :ok
 
   defp header_secret_entry?(%{path: ["headers", _header_name | _rest]}), do: true
   defp header_secret_entry?(_entry), do: false

@@ -109,6 +109,23 @@ resolve secret-like strings from model-provided tool arguments. For example, a
 `web.fetch` URL argument of `$GITHUB_TOKEN` is treated as an invalid URL, not as
 a secret request.
 
+Secret-bearing HTTP headers are sent only to explicitly allowlisted destination
+hosts in the trusted tool configuration:
+
+```elixir
+config :lemmings_os, :tools_runtime_trusted_config, %{
+  "web.fetch" => %{
+    "allowed_hosts" => ["api.github.com"],
+    "headers" => %{"authorization" => "$GITHUB_TOKEN"}
+  }
+}
+```
+
+Without `allowed_hosts` or `secret_header_allowed_hosts`, a resolved secret
+header is blocked before the outbound request is made. The allowlist is exact
+host matching and exists to prevent model-supplied URLs from receiving
+credentials intended for another provider.
+
 ## Hierarchy and Resolution
 
 Effective metadata is displayed from least specific to most specific as:
@@ -168,9 +185,10 @@ LemmingsOs.SecretBank.resolve_runtime_secret(scope, "$GITHUB_TOKEN")
 
 The web tool adapter walks trusted config maps/lists, resolves `$KEY` strings,
 uses the raw values only inside the adapter request path, and tracks the resolved
-values for response redaction. If an external service reflects a resolved secret
-back in a response body, the adapter replaces it with `[REDACTED]` before
-returning or persisting the tool result.
+values for response redaction. Header secrets require an explicit trusted host
+allowlist for the request destination. If an external service reflects a
+resolved secret back in a response body, the adapter replaces it with
+`[REDACTED]` before returning or persisting the tool result.
 
 The adapter records `secret.used_by_tool` only for resolved secrets used in
 trusted request headers. Missing, invalid, scope-mismatched, or undecryptable
@@ -184,9 +202,9 @@ Durable event types currently emitted:
 
 | Event | Trigger | Safe payload |
 |---|---|---|
-| `secret.created` | Local secret created | `secret_ref`, `bank_key`, `scope`, `source` |
-| `secret.replaced` | Local value replaced | `secret_ref`, `bank_key`, `scope`, `source` |
-| `secret.deleted` | Local value deleted | `secret_ref`, `bank_key`, `scope`, `source` |
+| `secret.created` | Local secret created | `secret_ref`, `bank_key`, `scope`, `source`, hierarchy IDs |
+| `secret.replaced` | Local value replaced | `secret_ref`, `bank_key`, `scope`, `source`, hierarchy IDs |
+| `secret.deleted` | Local value deleted | `secret_ref`, `bank_key`, `scope`, `source`, hierarchy IDs |
 | `secret.resolved` | Runtime resolution succeeded | `key`, `requested_scope`, `resolved_source` |
 | `secret.resolve_failed` | Runtime resolution failed | `key`, `requested_scope`, `reason` |
 | `secret.used_by_tool` | Web adapter used a resolved header secret | `key`, `tool_name`, `adapter_name`, `lemming_instance_id`, hierarchy IDs, `resolved_source` |
@@ -194,8 +212,10 @@ Durable event types currently emitted:
 The older event names `secret.accessed` and `secret.access_failed` are not used
 by the shipped implementation.
 
-Audit events must not include raw secret values, old values, new values, env
-values, derived previews, hashes, or fingerprints.
+Secret create, replace, and delete operations fail closed if their durable audit
+event cannot be persisted in the same database transaction. Audit events must
+not include raw secret values, old values, new values, env values, derived
+previews, hashes, or fingerprints.
 
 ## Local IEx and Dev Verification
 

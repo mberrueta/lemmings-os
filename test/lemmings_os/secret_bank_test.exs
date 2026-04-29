@@ -45,6 +45,18 @@ defmodule LemmingsOs.SecretBankTest do
 
       refute inspect(secret) =~ "dev_only_mock_secret_value"
     end
+
+    test "preserves secret value bytes except rejecting blank-only values" do
+      world = insert(:world)
+
+      assert {:ok, _metadata} =
+               SecretBank.upsert_secret(world, "GITHUB_TOKEN", "  dev_only_token_with_space  ")
+
+      assert {:ok, resolved} = SecretBank.resolve_runtime_secret(world, "GITHUB_TOKEN")
+      assert resolved.value == "  dev_only_token_with_space  "
+
+      assert {:error, :invalid_value} = SecretBank.upsert_secret(world, "STRIPE_TOKEN", " \n\t ")
+    end
   end
 
   describe "effective metadata" do
@@ -559,7 +571,8 @@ defmodule LemmingsOs.SecretBankTest do
 
       assert Enum.all?(events, fn event ->
                fetch_map(event.payload, :bank_key) == "GITHUB_TOKEN" and
-                 fetch_map(event.payload, :secret_ref) == "$GITHUB_TOKEN"
+                 fetch_map(event.payload, :secret_ref) == "$GITHUB_TOKEN" and
+                 fetch_map(event.payload, :world_id) == world.id
              end)
 
       refute Enum.any?(events, fn event ->
