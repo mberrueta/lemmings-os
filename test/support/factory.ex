@@ -10,6 +10,7 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
   alias LemmingsOs.Config.ToolsConfig
+  alias LemmingsOs.Connections.Connection
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingCalls.LemmingCall
@@ -209,5 +210,46 @@ defmodule LemmingsOs.Factory do
       started_at: nil,
       completed_at: nil
     }
+  end
+
+  def connection_factory do
+    world = build(:world)
+
+    %Connection{
+      world: world,
+      city: nil,
+      department: nil,
+      slug: "connection-#{sequence(:connection_unique, & &1)}",
+      name: "Connection #{sequence(:connection_name_unique, & &1)}",
+      type: "mock",
+      provider: "mock",
+      status: "enabled",
+      config: %{},
+      secret_refs: %{"api_key" => "$GITHUB_TOKEN"},
+      metadata: %{},
+      last_tested_at: nil,
+      last_test_status: nil,
+      last_test_error: nil
+    }
+  end
+
+  def world_connection_factory do
+    build(:connection)
+  end
+
+  def city_connection_factory do
+    city = build(:city)
+
+    build(:connection, world: city.world, city: city, department: nil)
+  end
+
+  def department_connection_factory do
+    department = build(:department)
+
+    build(:connection,
+      world: department.world,
+      city: department.city,
+      department: department
+    )
   end
 end
