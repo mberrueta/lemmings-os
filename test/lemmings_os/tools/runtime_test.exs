@@ -1,7 +1,11 @@
 defmodule LemmingsOs.Tools.RuntimeTest do
   use LemmingsOs.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
+  alias LemmingsOs.Events.Event
   alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.Repo
   alias LemmingsOs.Tools.Runtime
   alias LemmingsOs.Worlds.World
 
@@ -220,6 +224,14 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
       assert {:error, %{code: "tool.web.invalid_url", details: %{url: "$GITHUB_TOKEN"}}} =
                Runtime.execute(world, instance, "web.fetch", %{"url" => "$GITHUB_TOKEN"})
+
+      refute Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.world_id == ^world.id and event.event_type == "secret.accessed" and
+                     fragment("?->>'secret_ref' = ?", event.payload, "$GITHUB_TOKEN")
+               )
+             )
     end
 
     test "rejects legacy $secrets.* references in trusted config", %{

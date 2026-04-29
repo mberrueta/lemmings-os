@@ -426,6 +426,18 @@ defmodule LemmingsOs.SecretBankTest do
     end
   end
 
+  describe "schema safety constraints" do
+    test "does not define a secret_bank_tool_bindings table in the database schema" do
+      %{rows: [[table_name]]} =
+        Ecto.Adapters.SQL.query!(
+          Repo,
+          "select to_regclass('public.secret_bank_tool_bindings')"
+        )
+
+      assert is_nil(table_name)
+    end
+  end
+
   defp put_secret_bank_config(config) do
     previous = Application.get_env(:lemmings_os, SecretBank, [])
 
