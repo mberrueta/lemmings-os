@@ -1,130 +1,81 @@
-# Connection Model Product Plan
+# Connection Model Plan (Current Baseline)
 
-## 0. Planning Metadata
+## Status
+- Baseline aligned to current implementation.
 
-- Task Directory: `llms/tasks/0009_implement_connections/`
-- Status: `REVISED_MVP`
-- Source Issue: <https://github.com/mberrueta/lemmings-os/issues/28>
-- Product Contract: this file
+## Goal
+Keep Connections as a simplified reusable integration config model scoped by hierarchy:
 
-## 1. Goal
+- World
+- City
+- Department
 
-Implement a simplified Connections MVP with one Connection per `type` per exact scope.
+Nearest visible scope wins by `type`.
 
-A Connection stores one non-secret/safe `config` payload that may include Secret Bank references (for example `"$GITHUB_TOKEN"`).
-
-## 2. Core Decisions
-
-- Exactly one Connection per `type` per scope.
-- Supported scopes remain World, City, Department.
-- Child scopes override parent Connection of the same `type`.
-- No `slug`, `name`, `provider`, `secret_refs`, `metadata`, `last_tested_at`, `last_test_status`, `last_test_error`.
-- One `last_test` text field stores the latest sanitized test summary.
-- Runtime facade resolves identity/visibility/status/safe config only.
-- Runtime facade must not call Secret Bank.
-- Only type Caller modules resolve Secret Bank refs just-in-time.
-- Caller modules return sanitized success/failure only (never raw secrets).
-
-## 3. Data Model
-
-`connections` table fields:
+## Implemented Data Model
+`connections` stores:
 
 - `id`
 - `world_id`
 - `city_id` nullable
 - `department_id` nullable
-- `type` string, required
-- `status` string, required, default `"enabled"`
-- `config` map, required, default `%{}`
-- `last_test` text nullable
-- `inserted_at`
-- `updated_at`
+- `type`
+- `status` (`enabled|disabled|invalid`)
+- `config` map
+- `last_test` text
+- timestamps
 
-Scope shapes:
+Not in this simplified model:
 
-- World: `world_id` set, `city_id` null, `department_id` null
-- City: `world_id` + `city_id`, `department_id` null
+- `slug`
+- `name`
+- `provider`
+- `secret_refs` column
+- `metadata`
+- split test fields (`last_tested_at`, `last_test_status`, `last_test_error`)
+
+## Scope Rules
+- World: `world_id`, no `city_id`/`department_id`
+- City: `world_id` + `city_id`, no `department_id`
 - Department: `world_id` + `city_id` + `department_id`
-- `department_id` is never allowed without `city_id`
 
-Uniqueness (partial unique indexes):
+Uniqueness: one row per `type` per exact scope (partial unique indexes).
 
-- world scope: `[:world_id, :type]` where `city_id IS NULL AND department_id IS NULL`
-- city scope: `[:world_id, :city_id, :type]` where `city_id IS NOT NULL AND department_id IS NULL`
-- department scope: `[:world_id, :city_id, :department_id, :type]` where `city_id IS NOT NULL AND department_id IS NOT NULL`
+## Runtime and Secret Boundary
+- `LemmingsOs.Connections.Runtime` resolves visibility/status and returns safe descriptors.
+- Runtime does not resolve secrets.
+- Secret resolution is caller-only (`LemmingsOs.Connections.Providers.MockCaller`) via Secret Bank, just-in-time.
+- Secret refs live inside `config` values (for example `"$MOCK_API_KEY"`), not in a separate DB column.
 
-Parent deletion:
+## Implemented Type Registry
+- Registry module: `LemmingsOs.Connections.TypeRegistry`
+- Current executable type: `mock` (`LemmingsOs.Connections.Providers.MockCaller`)
 
-- Scope-owner FKs use `on_delete: :delete_all`.
-- No FK behavior may nilify scope-owner IDs and promote scope.
+## UI Baseline
+- Connections surfaces are integrated in World/City/Department tabs.
+- UI supports create, edit, delete local, enable/disable, and test.
+- Source scope indicators show local vs inherited.
+- Config input supports YAML/JSON payload parsing.
 
-## 4. Type Registry
+## Observability Baseline
+Implemented event vocabulary:
 
-Connections are type-registry backed.
+- `connection.created`
+- `connection.updated`
+- `connection.deleted`
+- `connection.enabled`
+- `connection.disabled`
+- `connection.marked_invalid`
+- `connection.resolve.started`
+- `connection.resolve.succeeded`
+- `connection.resolve.failed`
+- `connection.test.started`
+- `connection.test.succeeded`
+- `connection.test.failed`
 
-Registry responsibilities:
+Payloads are safe metadata only (no raw secret values).
 
-- list supported types for UI
-- map `type` to caller module
-- provide type label
-- provide default config example
-- provide config validation behavior
-- indicate test support
-
-Current MVP type:
-
-- `mock -> LemmingsOs.Connections.Providers.MockCaller`
-
-## 5. Runtime Boundary
-
-- Facade resolves nearest visible Connection by `type`.
-- Facade enforces status usability (`enabled` only).
-- Facade returns only safe descriptor fields.
-- Facade never resolves secrets and never returns secret values.
-
-Caller boundary:
-
-- Resolve secret refs from configured fields inside trusted execution.
-- Execute deterministic type behavior.
-- Return sanitized result maps/errors.
-- Never return raw secret values.
-
-## 6. UI Contract
-
-Connections UI (local admin):
-
-- surface Connections inside existing World/City/Department pages (tabbed like Secrets)
-- each scope page manages Connections for that exact scope (no standalone `/connections` page)
-- select `type` from registry
-- auto-fill config textarea when type changes using registry default example
-- edit config as YAML or JSON
-- save parsed config to `config` column
-- show local/inherited source scope
-- allow delete only for local rows
-- allow test action
-- never render resolved secrets
-
-Generated label is display-only, for example:
-
-- `World / mock`
-- `City / github`
-- `Department / openrouter`
-
-No DB column for display label.
-
-## 7. Testing Requirements
-
-- schema tests for simplified fields and per-scope type uniqueness
-- hierarchy tests for nearest-wins by `type`
-- UI tests for type dropdown and default config population
-- runtime facade tests proving it does not call Secret Bank
-- caller tests proving caller-only secret resolution
-- tests proving raw secrets never appear in UI/events/logs/errors/runtime facade results/`last_test`
-
-## 8. Out of Scope
-
-- real GitHub/OpenRouter integrations
-- broader Tool Runtime refactor
-- auth/RBAC/approval workflow
-- raw secret storage
-- compatibility maintenance for old slug/provider/secret_refs model
+## Out of Scope
+- Real provider integrations.
+- Tool runtime refactors.
+- Auth/RBAC/approval workflows.
