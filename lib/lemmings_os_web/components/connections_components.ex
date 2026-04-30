@@ -131,6 +131,9 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
 
           <div :if={@rows != []} class="overflow-x-auto">
             <table class="min-w-full border-separate border-spacing-y-2 text-sm">
+              <caption class="sr-only">
+                {dgettext("layout", ".title_connections")}
+              </caption>
               <thead>
                 <tr class="text-left text-xs uppercase tracking-widest text-zinc-400">
                   <th class="px-2 py-1">{dgettext("layout", ".connections_column_name")}</th>
@@ -145,7 +148,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                   id={"#{@id_prefix}-connections-row-#{row.connection.id}"}
                   class="rounded-md border border-zinc-700 bg-zinc-900/30"
                 >
-                  <td class="px-2 py-2 text-zinc-100">
+                  <th scope="row" class="px-2 py-2 text-zinc-100">
                     <div class="font-medium">{ConnectionsSurface.connection_label(row)}</div>
                     <span
                       id={"#{@id_prefix}-connections-source-#{row.connection.id}"}
@@ -161,7 +164,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                         row
                       )}
                     </span>
-                  </td>
+                  </th>
                   <td class="px-2 py-2 text-zinc-300">{row.connection.type}</td>
                   <td class="px-2 py-2">
                     <span
@@ -177,7 +180,15 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                     >
                       {row.connection.status}
                     </span>
-                    <div class="text-xs text-zinc-400">
+                    <div
+                      id={"#{@id_prefix}-connections-last-test-#{row.connection.id}"}
+                      class="text-xs text-zinc-400"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <span class="sr-only">
+                        {dgettext("layout", ".connections_column_last_test")}:
+                      </span>
                       {Helpers.display_value(row.connection.last_test)}
                     </div>
                   </td>
@@ -190,6 +201,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                         phx-value-type={row.connection.type}
                         class="rounded border border-emerald-500/50 p-1 text-emerald-300"
                         title={dgettext("layout", ".connections_action_test")}
+                        aria-label={dgettext("layout", ".connections_action_test")}
                       >
                         <.icon name="hero-beaker" class="size-4" />
                       </button>
@@ -202,6 +214,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                         phx-value-action="enable"
                         class="rounded border border-zinc-500/50 p-1 text-zinc-300"
                         title={dgettext("layout", ".connections_action_enable")}
+                        aria-label={dgettext("layout", ".connections_action_enable")}
                       >
                         <.icon name="hero-play" class="size-4" />
                       </button>
@@ -214,6 +227,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                         phx-value-action="disable"
                         class="rounded border border-zinc-500/50 p-1 text-zinc-300"
                         title={dgettext("layout", ".connections_action_disable")}
+                        aria-label={dgettext("layout", ".connections_action_disable")}
                       >
                         <.icon name="hero-pause" class="size-4" />
                       </button>
@@ -225,6 +239,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                         phx-value-connection_id={row.connection.id}
                         class="rounded border border-zinc-500/50 p-1 text-zinc-300"
                         title={dgettext("layout", ".connections_action_edit")}
+                        aria-label={dgettext("layout", ".connections_action_edit")}
                       >
                         <.icon name="hero-pencil-square" class="size-4" />
                       </button>
@@ -236,6 +251,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                         phx-value-connection_id={row.connection.id}
                         class="rounded border border-rose-500/50 p-1 text-rose-300"
                         title={dgettext("layout", ".connections_action_delete")}
+                        aria-label={dgettext("layout", ".connections_action_delete")}
                       >
                         <.icon name="hero-trash" class="size-4" />
                       </button>

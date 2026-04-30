@@ -21,7 +21,7 @@ defmodule LemmingsOs.Connections.Connection do
 
   @statuses ~w(enabled disabled invalid)
   @required ~w(world_id type status config)a
-  @optional ~w(city_id department_id last_test)a
+  @optional ~w(city_id department_id)a
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,

@@ -13,7 +13,9 @@ defmodule LemmingsOs.Connections.Providers.MockCaller do
   @secret_ref_keys ["api_key"]
 
   @type call_error ::
-          :unsupported_type
+          :disabled
+          | :invalid
+          | :unsupported_type
           | :invalid_config
           | :missing_secret
           | :secret_resolution_failed
@@ -131,6 +133,9 @@ defmodule LemmingsOs.Connections.Providers.MockCaller do
       {:error, :unsupported_type}
   """
   @spec call(map(), Connection.t()) :: {:ok, map()} | {:error, call_error()}
+  def call(_scope, %Connection{status: "disabled"}), do: {:error, :disabled}
+  def call(_scope, %Connection{status: "invalid"}), do: {:error, :invalid}
+
   def call(scope, %Connection{type: "mock", config: config}) when is_map(scope) do
     with :ok <- validate_config(config),
          {:ok, resolved_secret_keys} <- resolve_secret_refs(scope, config) do

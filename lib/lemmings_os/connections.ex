@@ -42,19 +42,14 @@ defmodule LemmingsOs.Connections do
   @doc """
   Lists persisted connections at the exact requested scope.
 
-  Supports `%World{}`, `%City{}`, `%Department{}`, or scope maps with
-  `world_id`, `city_id`, and `department_id` keys.
-
-  Invalid scope shapes and invalid child-scope ownership fail closed and return
-  an empty list.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
-      iex> LemmingsOs.Connections.list_connections(%{city_id: "city-without-world"})
+      iex> LemmingsOs.Connections.list_connections(%{})
       []
   """
-  @spec list_connections(World.t() | City.t() | Department.t() | map(), keyword()) ::
-          [Connection.t()]
+  @spec list_connections(World.t() | City.t() | Department.t(), keyword()) :: [Connection.t()]
   def list_connections(scope, opts \\ []) when is_list(opts) do
     case scope_data(scope) do
       {:ok, scope_data} ->
@@ -71,15 +66,14 @@ defmodule LemmingsOs.Connections do
   @doc """
   Returns one persisted local connection by id at the exact requested scope.
 
-  Invalid scope shapes and invalid child-scope ownership fail closed and return
-  `nil`.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
       iex> LemmingsOs.Connections.get_connection(%{}, "connection-id")
       nil
   """
-  @spec get_connection(World.t() | City.t() | Department.t() | map(), Ecto.UUID.t(), keyword()) ::
+  @spec get_connection(World.t() | City.t() | Department.t(), Ecto.UUID.t(), keyword()) ::
           Connection.t() | nil
   def get_connection(scope, id, opts \\ []) when is_binary(id) and is_list(opts) do
     case scope_data(scope) do
@@ -96,8 +90,7 @@ defmodule LemmingsOs.Connections do
   @doc """
   Returns one persisted local connection by type at the exact requested scope.
 
-  Invalid scope shapes and invalid child-scope ownership fail closed and return
-  `nil`.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
@@ -105,7 +98,7 @@ defmodule LemmingsOs.Connections do
       nil
   """
   @spec get_connection_by_type(
-          World.t() | City.t() | Department.t() | map(),
+          World.t() | City.t() | Department.t(),
           String.t(),
           keyword()
         ) :: Connection.t() | nil
@@ -131,15 +124,14 @@ defmodule LemmingsOs.Connections do
   - `:inherited?` inverse of `:local?`
   - `:scope_depth` lower is nearer (`0` local, then parents)
 
-  Invalid scope shapes and invalid child-scope ownership fail closed and return
-  an empty list.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
       iex> LemmingsOs.Connections.list_visible_connections(%{})
       []
   """
-  @spec list_visible_connections(World.t() | City.t() | Department.t() | map(), keyword()) :: [
+  @spec list_visible_connections(World.t() | City.t() | Department.t(), keyword()) :: [
           map()
         ]
   def list_visible_connections(scope, opts \\ []) when is_list(opts) do
@@ -161,8 +153,7 @@ defmodule LemmingsOs.Connections do
   @doc """
   Resolves one visible connection read model by type with nearest-wins semantics.
 
-  Invalid scope shapes and invalid child-scope ownership fail closed and return
-  `nil`.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
@@ -170,7 +161,7 @@ defmodule LemmingsOs.Connections do
       nil
   """
   @spec resolve_visible_connection(
-          World.t() | City.t() | Department.t() | map(),
+          World.t() | City.t() | Department.t(),
           String.t(),
           keyword()
         ) :: map() | nil
@@ -184,15 +175,14 @@ defmodule LemmingsOs.Connections do
   @doc """
   Creates a connection at the exact requested scope.
 
-  Invalid scope shapes and invalid child-scope ownership are rejected before
-  persistence.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
       iex> LemmingsOs.Connections.create_connection(%{}, %{})
       {:error, :invalid_scope}
   """
-  @spec create_connection(World.t() | City.t() | Department.t() | map(), map()) ::
+  @spec create_connection(World.t() | City.t() | Department.t(), map()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope}
   def create_connection(scope, attrs) when is_map(attrs) do
     with {:ok, scope_data} <- scope_data(scope) do
@@ -218,8 +208,7 @@ defmodule LemmingsOs.Connections do
   @doc """
   Updates a local connection at the exact requested scope.
 
-  Invalid scope shapes and invalid child-scope ownership are rejected before
-  persistence.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
@@ -227,7 +216,7 @@ defmodule LemmingsOs.Connections do
       iex> LemmingsOs.Connections.update_connection(%{}, connection, %{})
       {:error, :invalid_scope}
   """
-  @spec update_connection(World.t() | City.t() | Department.t() | map(), Connection.t(), map()) ::
+  @spec update_connection(World.t() | City.t() | Department.t(), Connection.t(), map()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
   def update_connection(scope, %Connection{} = connection, attrs) when is_map(attrs) do
     with {:ok, scope_data} <- scope_data(scope),
@@ -241,8 +230,7 @@ defmodule LemmingsOs.Connections do
   @doc """
   Deletes a local connection at the exact requested scope.
 
-  Invalid scope shapes and invalid child-scope ownership are rejected before
-  persistence.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
@@ -250,7 +238,7 @@ defmodule LemmingsOs.Connections do
       iex> LemmingsOs.Connections.delete_connection(%{}, connection)
       {:error, :invalid_scope}
   """
-  @spec delete_connection(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
+  @spec delete_connection(World.t() | City.t() | Department.t(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
   def delete_connection(scope, %Connection{} = connection) do
     with {:ok, scope_data} <- scope_data(scope),
@@ -273,8 +261,7 @@ defmodule LemmingsOs.Connections do
   @doc """
   Marks a local connection as enabled.
 
-  Invalid scope shapes and invalid child-scope ownership are rejected before
-  persistence.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
@@ -282,7 +269,7 @@ defmodule LemmingsOs.Connections do
       iex> LemmingsOs.Connections.enable_connection(%{}, connection)
       {:error, :invalid_scope}
   """
-  @spec enable_connection(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
+  @spec enable_connection(World.t() | City.t() | Department.t(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
   def enable_connection(scope, %Connection{} = connection) do
     set_connection_status(scope, connection, "enabled", "connection.enabled", &enabled_message/1)
@@ -291,8 +278,7 @@ defmodule LemmingsOs.Connections do
   @doc """
   Marks a local connection as disabled.
 
-  Invalid scope shapes and invalid child-scope ownership are rejected before
-  persistence.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
@@ -300,7 +286,7 @@ defmodule LemmingsOs.Connections do
       iex> LemmingsOs.Connections.disable_connection(%{}, connection)
       {:error, :invalid_scope}
   """
-  @spec disable_connection(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
+  @spec disable_connection(World.t() | City.t() | Department.t(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
   def disable_connection(scope, %Connection{} = connection) do
     set_connection_status(
@@ -315,8 +301,7 @@ defmodule LemmingsOs.Connections do
   @doc """
   Marks a local connection as invalid.
 
-  Invalid scope shapes and invalid child-scope ownership are rejected before
-  persistence.
+  Accepts `%World{}`, `%City{}`, or `%Department{}` scopes.
 
   ## Examples
 
@@ -324,7 +309,7 @@ defmodule LemmingsOs.Connections do
       iex> LemmingsOs.Connections.mark_connection_invalid(%{}, connection)
       {:error, :invalid_scope}
   """
-  @spec mark_connection_invalid(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
+  @spec mark_connection_invalid(World.t() | City.t() | Department.t(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
   def mark_connection_invalid(scope, %Connection{} = connection) do
     set_connection_status(
@@ -349,7 +334,7 @@ defmodule LemmingsOs.Connections do
       iex> LemmingsOs.Connections.test_connection(%{}, nil)
       {:error, :invalid_type}
   """
-  @spec test_connection(World.t() | City.t() | Department.t() | map(), String.t()) ::
+  @spec test_connection(World.t() | City.t() | Department.t(), String.t()) ::
           {:ok, %{connection: Connection.t(), result: map()}}
           | {:error,
              :invalid_scope
@@ -363,15 +348,28 @@ defmodule LemmingsOs.Connections do
              | :secret_resolution_failed
              | :provider_test_failed
              | Ecto.Changeset.t()}
-  def test_connection(scope, type) when is_binary(type) do
+  def test_connection(%World{} = scope, type) when is_binary(type) do
+    do_test_connection(scope, type)
+  end
+
+  def test_connection(%City{} = scope, type) when is_binary(type) do
+    do_test_connection(scope, type)
+  end
+
+  def test_connection(%Department{} = scope, type) when is_binary(type) do
+    do_test_connection(scope, type)
+  end
+
+  def test_connection(_scope, type) when is_binary(type), do: {:error, :invalid_scope}
+  def test_connection(_scope, _type), do: {:error, :invalid_type}
+
+  defp do_test_connection(scope, type) do
     with {:ok, scope_data} <- scope_data(scope),
          {:ok, visible_row} <- visible_connection(scope, type),
          :ok <- record_test_started(visible_row.connection) do
       run_connection_test(scope_struct(scope_data), visible_row.connection)
     end
   end
-
-  def test_connection(_scope, _type), do: {:error, :invalid_type}
 
   defp set_connection_status(scope, %Connection{} = connection, status, event_type, message_fun) do
     with {:ok, scope_data} <- scope_data(scope),
@@ -500,8 +498,6 @@ defmodule LemmingsOs.Connections do
     |> Map.new()
   end
 
-  defp safe_test_result(_result), do: %{outcome: "ok"}
-
   defp safe_result_string(value) when is_binary(value), do: sanitize_test_text(value)
   defp safe_result_string(value) when is_atom(value), do: Atom.to_string(value)
   defp safe_result_string(_value), do: nil
@@ -562,66 +558,7 @@ defmodule LemmingsOs.Connections do
        when is_binary(world_id) and is_binary(city_id) and is_binary(department_id),
        do: {:ok, %{world_id: world_id, city_id: city_id, department_id: department_id}}
 
-  defp scope_data(%{} = scope) do
-    world_id = fetch(scope, :world_id)
-    city_id = fetch(scope, :city_id)
-    department_id = fetch(scope, :department_id)
-
-    scope_data = %{world_id: world_id, city_id: city_id, department_id: department_id}
-
-    if valid_scope_shape?(world_id, city_id, department_id) and valid_scope_ownership?(scope_data) do
-      {:ok, scope_data}
-    else
-      {:error, :invalid_scope}
-    end
-  end
-
   defp scope_data(_scope), do: {:error, :invalid_scope}
-
-  defp valid_scope_shape?(world_id, nil, nil) when is_binary(world_id), do: true
-
-  defp valid_scope_shape?(world_id, city_id, nil) when is_binary(world_id) and is_binary(city_id),
-    do: true
-
-  defp valid_scope_shape?(world_id, city_id, department_id)
-       when is_binary(world_id) and is_binary(city_id) and is_binary(department_id),
-       do: true
-
-  defp valid_scope_shape?(_world_id, _city_id, _department_id), do: false
-
-  defp valid_scope_ownership?(%{city_id: nil, department_id: nil}), do: true
-
-  defp valid_scope_ownership?(%{world_id: world_id, city_id: city_id, department_id: nil}) do
-    valid_uuid?(world_id) and valid_uuid?(city_id) and
-      Repo.exists?(
-        from(city in City,
-          where: city.id == ^city_id and city.world_id == ^world_id
-        )
-      )
-  end
-
-  defp valid_scope_ownership?(%{
-         world_id: world_id,
-         city_id: city_id,
-         department_id: department_id
-       }) do
-    valid_uuid?(world_id) and valid_uuid?(city_id) and valid_uuid?(department_id) and
-      Repo.exists?(
-        from(department in Department,
-          where:
-            department.id == ^department_id and department.city_id == ^city_id and
-              department.world_id == ^world_id
-        )
-      )
-  end
-
-  defp valid_scope_ownership?(_scope_data), do: false
-
-  defp valid_uuid?(id) when is_binary(id) do
-    match?({:ok, _uuid}, Ecto.UUID.cast(id))
-  end
-
-  defp valid_uuid?(_id), do: false
 
   defp event_opts(%Connection{} = connection, action) do
     [
@@ -698,10 +635,6 @@ defmodule LemmingsOs.Connections do
 
   defp scope_struct(%{world_id: world_id, city_id: city_id, department_id: department_id}),
     do: %Department{id: department_id, city_id: city_id, world_id: world_id}
-
-  defp fetch(scope, key) when is_map(scope) do
-    Map.get(scope, key) || Map.get(scope, Atom.to_string(key))
-  end
 
   defp visible_candidates(scope_data, opts) do
     scope_chain(scope_data)

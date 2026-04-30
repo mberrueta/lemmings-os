@@ -77,4 +77,33 @@ defmodule LemmingsOs.Connections.Providers.MockCallerTest do
                limit: 5
              )
   end
+
+  test "rejects disabled and invalid connections before any secret resolution" do
+    world = insert(:world)
+
+    assert {:ok, _metadata} = SecretBank.upsert_secret(world, "MOCK_API_KEY", "very_secret_value")
+
+    disabled_connection =
+      insert(:world_connection,
+        world: world,
+        type: "mock",
+        status: "disabled",
+        config: %{
+          "mode" => "echo",
+          "base_url" => "https://example.test/mock",
+          "api_key" => "$MOCK_API_KEY"
+        }
+      )
+
+    invalid_connection = %{disabled_connection | status: "invalid"}
+
+    assert {:error, :disabled} = MockCaller.call(world, disabled_connection)
+    assert {:error, :invalid} = MockCaller.call(world, invalid_connection)
+
+    assert [] ==
+             Events.list_recent_events(world,
+               event_types: ["secret.resolved"],
+               limit: 10
+             )
+  end
 end

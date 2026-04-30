@@ -6,14 +6,11 @@ defmodule LemmingsOs.Connections.Runtime do
   It does not resolve Secret Bank references and never returns raw credentials.
   """
 
-  import Ecto.Query, warn: false
-
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Connections
   alias LemmingsOs.Connections.Connection
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Events
-  alias LemmingsOs.Repo
   alias LemmingsOs.Worlds.World
 
   @type resolve_error :: :missing | :inaccessible | :disabled | :invalid
@@ -54,7 +51,7 @@ defmodule LemmingsOs.Connections.Runtime do
   - `{:ok, descriptor}` for usable connections
   - `{:error, :missing | :inaccessible | :disabled | :invalid}` otherwise
   """
-  @spec resolve_connection(World.t() | City.t() | Department.t() | map(), String.t(), keyword()) ::
+  @spec resolve_connection(World.t() | City.t() | Department.t(), String.t(), keyword()) ::
           {:ok, descriptor()} | {:error, resolve_error()}
   def resolve_connection(scope, type, opts \\ [])
 
@@ -182,68 +179,5 @@ defmodule LemmingsOs.Connections.Runtime do
        when is_binary(world_id) and is_binary(city_id) and is_binary(department_id),
        do: {:ok, %{world_id: world_id, city_id: city_id, department_id: department_id}}
 
-  defp scope_data(%{} = scope) do
-    world_id = fetch(scope, :world_id)
-    city_id = fetch(scope, :city_id)
-    department_id = fetch(scope, :department_id)
-
-    scope_data = %{world_id: world_id, city_id: city_id, department_id: department_id}
-
-    if valid_scope_shape?(world_id, city_id, department_id) and valid_scope_ownership?(scope_data) do
-      {:ok, scope_data}
-    else
-      {:error, :invalid_scope}
-    end
-  end
-
   defp scope_data(_scope), do: {:error, :invalid_scope}
-
-  defp valid_scope_shape?(world_id, nil, nil) when is_binary(world_id), do: true
-
-  defp valid_scope_shape?(world_id, city_id, nil) when is_binary(world_id) and is_binary(city_id),
-    do: true
-
-  defp valid_scope_shape?(world_id, city_id, department_id)
-       when is_binary(world_id) and is_binary(city_id) and is_binary(department_id),
-       do: true
-
-  defp valid_scope_shape?(_world_id, _city_id, _department_id), do: false
-
-  defp valid_scope_ownership?(%{city_id: nil, department_id: nil}), do: true
-
-  defp valid_scope_ownership?(%{world_id: world_id, city_id: city_id, department_id: nil}) do
-    valid_uuid?(world_id) and valid_uuid?(city_id) and
-      Repo.exists?(
-        from(city in City,
-          where: city.id == ^city_id and city.world_id == ^world_id
-        )
-      )
-  end
-
-  defp valid_scope_ownership?(%{
-         world_id: world_id,
-         city_id: city_id,
-         department_id: department_id
-       }) do
-    valid_uuid?(world_id) and valid_uuid?(city_id) and valid_uuid?(department_id) and
-      Repo.exists?(
-        from(department in Department,
-          where:
-            department.id == ^department_id and department.city_id == ^city_id and
-              department.world_id == ^world_id
-        )
-      )
-  end
-
-  defp valid_scope_ownership?(_scope_data), do: false
-
-  defp valid_uuid?(id) when is_binary(id) do
-    match?({:ok, _uuid}, Ecto.UUID.cast(id))
-  end
-
-  defp valid_uuid?(_id), do: false
-
-  defp fetch(scope, key) when is_map(scope) do
-    Map.get(scope, key) || Map.get(scope, Atom.to_string(key))
-  end
 end

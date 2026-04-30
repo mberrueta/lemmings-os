@@ -74,38 +74,29 @@ defmodule LemmingsOs.ConnectionsTest do
       refute String.contains?(inspect(event.payload), "$GITHUB_TOKEN")
     end
 
-    test "returns invalid_scope for malformed map scope" do
-      assert {:error, :invalid_scope} =
-               Connections.create_connection(%{city_id: Ecto.UUID.generate()}, %{})
+    test "returns invalid_scope for non-struct scope" do
+      assert {:error, :invalid_scope} = Connections.create_connection(%{}, %{})
     end
 
-    test "rejects raw map scopes with mismatched city or department ownership" do
-      world_a = insert(:world)
-      world_b = insert(:world)
-      city_b = insert(:city, world: world_b)
-      department_b = insert(:department, world: world_b, city: city_b)
+    test "ignores caller-provided last_test when creating connection" do
+      world = insert(:world)
 
-      attrs = %{
-        type: "mock",
-        status: "enabled",
-        config: %{
-          "mode" => "echo",
-          "base_url" => "https://example.test/mock",
-          "api_key" => "$MOCK_API_KEY"
-        }
-      }
+      assert {:ok, connection} =
+               Connections.create_connection(world, %{
+                 type: "mock",
+                 status: "enabled",
+                 last_test: "leak_me_if_broken",
+                 config: %{
+                   "mode" => "echo",
+                   "base_url" => "https://example.test/mock",
+                   "api_key" => "$MOCK_API_KEY"
+                 }
+               })
 
-      assert {:error, :invalid_scope} =
-               Connections.create_connection(
-                 %{world_id: world_a.id, city_id: city_b.id},
-                 attrs
-               )
+      assert is_nil(connection.last_test)
 
-      assert {:error, :invalid_scope} =
-               Connections.create_connection(
-                 %{world_id: world_a.id, city_id: city_b.id, department_id: department_b.id},
-                 attrs
-               )
+      [event] = Events.list_recent_events(world, event_types: ["connection.created"], limit: 1)
+      refute String.contains?(inspect(event.payload), "leak_me_if_broken")
     end
   end
 
@@ -143,6 +134,26 @@ defmodule LemmingsOs.ConnectionsTest do
                    "api_key" => "$NOPE_MOCK_API_KEY"
                  }
                })
+    end
+
+    test "ignores caller-provided last_test when updating connection" do
+      world = insert(:world)
+      connection = insert(:world_connection, world: world, last_test: "succeeded: mock_echo_ok")
+
+      assert {:ok, updated} =
+               Connections.update_connection(world, connection, %{
+                 last_test: "leak_me_if_broken",
+                 config: %{
+                   "mode" => "echo",
+                   "base_url" => "https://updated.example.test/mock",
+                   "api_key" => "$UPDATED_MOCK_API_KEY"
+                 }
+               })
+
+      assert updated.last_test == "succeeded: mock_echo_ok"
+
+      [event] = Events.list_recent_events(world, event_types: ["connection.updated"], limit: 1)
+      refute String.contains?(inspect(event.payload), "leak_me_if_broken")
     end
   end
 
@@ -295,27 +306,9 @@ defmodule LemmingsOs.ConnectionsTest do
       assert nil == Connections.resolve_visible_connection(city_b, "mock")
     end
 
-    test "raw map scopes with mismatched child ownership fail closed" do
-      world_a = insert(:world)
-      world_b = insert(:world)
-      city_b = insert(:city, world: world_b)
-      department_b = insert(:department, world: world_b, city: city_b)
-
-      insert(:city_connection, world: world_b, city: city_b, type: "mock")
-
-      mismatched_city_scope = %{world_id: world_a.id, city_id: city_b.id}
-
-      assert [] == Connections.list_visible_connections(mismatched_city_scope)
-      assert nil == Connections.resolve_visible_connection(mismatched_city_scope, "mock")
-
-      mismatched_department_scope = %{
-        world_id: world_a.id,
-        city_id: city_b.id,
-        department_id: department_b.id
-      }
-
-      assert [] == Connections.list_visible_connections(mismatched_department_scope)
-      assert nil == Connections.resolve_visible_connection(mismatched_department_scope, "mock")
+    test "non-struct scope inputs fail closed" do
+      assert [] == Connections.list_visible_connections(%{})
+      assert nil == Connections.resolve_visible_connection(%{}, "mock")
     end
   end
 
