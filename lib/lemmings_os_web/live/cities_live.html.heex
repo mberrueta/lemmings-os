@@ -217,7 +217,42 @@
               </div>
             </:actions>
 
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div id="city-detail-tabs" class="mb-4 flex flex-wrap gap-2">
+              <.button
+                id="city-tab-overview"
+                type="button"
+                phx-click="select_city_tab"
+                phx-value-tab="overview"
+                variant={if(@selected_city_tab == "overview", do: "secondary", else: "neutral")}
+              >
+                {dgettext("world", ".tab_overview")}
+              </.button>
+              <.button
+                id="city-tab-secrets"
+                type="button"
+                phx-click="select_city_tab"
+                phx-value-tab="secrets"
+                variant={if(@selected_city_tab == "secrets", do: "secondary", else: "neutral")}
+              >
+                {dgettext("world", ".tab_secrets")}
+              </.button>
+              <.button
+                id="city-tab-connections"
+                type="button"
+                phx-click="select_city_tab"
+                phx-value-tab="connections"
+                variant={
+                  if(@selected_city_tab == "connections", do: "secondary", else: "neutral")
+                }
+              >
+                {dgettext("layout", ".nav_connections")}
+              </.button>
+            </div>
+
+            <div
+              :if={@selected_city_tab == "overview"}
+              class="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+            >
               <.stat_item
                 id="city-slug-field"
                 label={dgettext("world", ".label_city_slug")}
@@ -251,7 +286,7 @@
             </div>
           </.panel>
           <SecretBankComponents.secret_surface
-            :if={@snapshot.selected_city}
+            :if={@snapshot.selected_city && @selected_city_tab == "secrets"}
             id_prefix="city"
             form={@city_secret_form}
             metadata={@city_secret_metadata}
@@ -262,12 +297,35 @@
             delete_event="delete_city_secret"
             subtitle={dgettext("world", ".secret_city_subtitle")}
           />
+          <ConnectionsComponents.connection_surface
+            :if={@snapshot.selected_city && @selected_city_tab == "connections"}
+            id_prefix="city"
+            scope_kind="city"
+            scope_available?={not is_nil(@snapshot.selected_city)}
+            types={@city_connection_types}
+            create_form={@city_connection_create_form}
+            create_open?={@city_connection_create_open}
+            rows={@city_connection_rows}
+            editing_connection_id={@city_connection_editing_id}
+            edit_form={@city_connection_edit_form}
+            create_submit_event="create_city_connection"
+            create_type_change_event="change_city_connection_create_type"
+            open_create_event="open_city_connection_create"
+            close_create_event="close_city_connection_create"
+            start_edit_event="start_city_connection_edit"
+            cancel_edit_event="cancel_city_connection_edit"
+            save_edit_event="save_city_connection_edit"
+            edit_type_change_event="change_city_connection_edit_type"
+            delete_event="delete_city_connection"
+            lifecycle_event="city_connection_lifecycle"
+            test_event="test_city_connection"
+          />
           <.city_effective_config_panel
-            :if={@snapshot.selected_city}
+            :if={@snapshot.selected_city && @selected_city_tab == "overview"}
             city={@snapshot.selected_city}
           />
           <.city_departments_panel
-            :if={@snapshot.selected_city}
+            :if={@snapshot.selected_city && @selected_city_tab == "overview"}
             city={@snapshot.selected_city}
           />
         </div>

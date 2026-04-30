@@ -219,17 +219,14 @@ defmodule LemmingsOs.Factory do
       world: world,
       city: nil,
       department: nil,
-      slug: "connection-#{sequence(:connection_unique, & &1)}",
-      name: "Connection #{sequence(:connection_name_unique, & &1)}",
       type: "mock",
-      provider: "mock",
       status: "enabled",
-      config: %{},
-      secret_refs: %{"api_key" => "$GITHUB_TOKEN"},
-      metadata: %{},
-      last_tested_at: nil,
-      last_test_status: nil,
-      last_test_error: nil
+      config: %{
+        "mode" => "echo",
+        "base_url" => "https://example.test/mock",
+        "api_key" => "$MOCK_API_KEY"
+      },
+      last_test: nil
     }
   end
 

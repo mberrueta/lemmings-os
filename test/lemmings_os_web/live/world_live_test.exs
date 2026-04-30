@@ -4,6 +4,7 @@ defmodule LemmingsOsWeb.WorldLiveTest do
   import LemmingsOs.Factory
   import Phoenix.LiveViewTest
 
+  alias LemmingsOs.Connections
   alias LemmingsOs.Repo
   alias LemmingsOs.Worlds.World
   alias LemmingsOs.Worlds.Cache
@@ -273,6 +274,88 @@ defmodule LemmingsOsWeb.WorldLiveTest do
 
     refute has_element?(view, "#world-secret-delete-github-token")
     assert has_element?(view, "#flash-info", "Local secret deleted")
+  end
+
+  test "connections tab creates, edits, tests, and deletes world connection", %{conn: conn} do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    world =
+      insert(:world,
+        slug: "local",
+        name: "Local World",
+        bootstrap_path: path,
+        bootstrap_source: "direct",
+        last_import_status: "ok"
+      )
+
+    assert {:ok, _metadata} =
+             LemmingsOs.SecretBank.upsert_secret(world, "MOCK_API_KEY", "world_tab_secret")
+
+    {:ok, view, _html} = live(conn, ~p"/world")
+
+    view |> element("#world-tab-connections") |> render_click()
+
+    assert has_element?(view, "#world-connections-panel")
+    assert has_element?(view, "#world-connections-open-create")
+
+    view |> element("#world-connections-open-create") |> render_click()
+
+    assert has_element?(view, "#world-connections-create-type")
+    assert render(view) =~ "$MOCK_API_KEY"
+
+    view
+    |> element("#world-connections-create-form")
+    |> render_submit(%{
+      "connection_create" => %{
+        "type" => "mock",
+        "status" => "enabled",
+        "config" =>
+          ~s({"mode":"echo","base_url":"https://world.example.test/mock","api_key":"$MOCK_API_KEY"})
+      }
+    })
+
+    created = Connections.get_connection_by_type(world, "mock")
+    assert created
+    assert has_element?(view, "#world-connections-row-#{created.id}")
+
+    view
+    |> element("#world-connections-edit-#{created.id}")
+    |> render_click()
+
+    view
+    |> element("#world-connections-edit-form-#{created.id}")
+    |> render_submit(%{
+      "connection_edit" => %{
+        "connection_id" => created.id,
+        "type" => "mock",
+        "status" => "enabled",
+        "config" =>
+          ~s({"mode":"echo","base_url":"https://world-updated.example.test/mock","api_key":"$MOCK_API_KEY"})
+      }
+    })
+
+    assert Connections.get_connection(world, created.id).config["base_url"] ==
+             "https://world-updated.example.test/mock"
+
+    view
+    |> element("#world-connections-test-#{created.id}")
+    |> render_click()
+
+    assert Connections.get_connection(world, created.id).last_test in [
+             "succeeded: mock_echo_ok",
+             "failed: missing_secret",
+             "failed: secret_resolution_failed",
+             "failed: invalid_config"
+           ]
+
+    refute render(view) =~ "world_tab_secret"
+
+    view
+    |> element("#world-connections-delete-#{created.id}")
+    |> render_click()
+
+    refute Connections.get_connection(world, created.id)
   end
 
   defp put_secret_bank_config(config) do

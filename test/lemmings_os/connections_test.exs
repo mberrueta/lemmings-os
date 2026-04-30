@@ -13,23 +13,39 @@ defmodule LemmingsOs.ConnectionsTest do
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
 
-      world_connection = insert(:world_connection, world: world, slug: "world-main")
-      _city_connection = insert(:city_connection, world: world, city: city, slug: "city-main")
+      world_connection = insert(:world_connection, world: world, type: "mock")
+
+      _city_connection =
+        insert(:city_connection,
+          world: world,
+          city: city,
+          type: "mock",
+          config: %{
+            "mode" => "echo",
+            "base_url" => "https://city.example.test/mock",
+            "api_key" => "$CITY_MOCK_API_KEY"
+          }
+        )
 
       _department_connection =
         insert(:department_connection,
           world: world,
           city: city,
           department: department,
-          slug: "department-main"
+          type: "mock",
+          config: %{
+            "mode" => "echo",
+            "base_url" => "https://department.example.test/mock",
+            "api_key" => "$DEPARTMENT_MOCK_API_KEY"
+          }
         )
 
       assert [result] = Connections.list_connections(world)
       assert result.id == world_connection.id
 
       assert nil == Connections.get_connection(city, world_connection.id)
-      assert %{} = Connections.get_connection_by_slug(world, "world-main")
-      assert nil == Connections.get_connection_by_slug(city, "world-main")
+      assert %{} = Connections.get_connection_by_type(world, "mock")
+      assert nil == Connections.get_connection_by_type(city, "not-registered")
     end
   end
 
@@ -39,14 +55,13 @@ defmodule LemmingsOs.ConnectionsTest do
 
       assert {:ok, connection} =
                Connections.create_connection(world, %{
-                 slug: "github-main",
-                 name: "GitHub Main",
                  type: "mock",
-                 provider: "mock",
                  status: "enabled",
-                 config: %{"base_url" => "https://example.test"},
-                 secret_refs: %{"api_key" => "$GITHUB_TOKEN"},
-                 metadata: %{"env" => "dev"}
+                 config: %{
+                   "mode" => "echo",
+                   "base_url" => "https://example.test/mock",
+                   "api_key" => "$GITHUB_TOKEN"
+                 }
                })
 
       assert connection.world_id == world.id
@@ -55,8 +70,8 @@ defmodule LemmingsOs.ConnectionsTest do
 
       [event] = Events.list_recent_events(world, event_types: ["connection.created"], limit: 1)
       assert event.payload["connection_id"] == connection.id
-      assert event.payload["secret_ref_keys"] == ["api_key"]
-      refute Map.has_key?(event.payload, "secret_refs")
+      assert event.payload["connection_type"] == "mock"
+      refute String.contains?(inspect(event.payload), "$GITHUB_TOKEN")
     end
 
     test "returns invalid_scope for malformed map scope" do
@@ -66,16 +81,24 @@ defmodule LemmingsOs.ConnectionsTest do
   end
 
   describe "update_connection/3" do
-    test "updates local connection and records lifecycle event" do
+    test "updates local connection config and records lifecycle event" do
       world = insert(:world)
-      connection = insert(:world_connection, world: world, name: "Before")
+      connection = insert(:world_connection, world: world)
 
-      assert {:ok, updated} = Connections.update_connection(world, connection, %{name: "After"})
-      assert updated.name == "After"
+      assert {:ok, updated} =
+               Connections.update_connection(world, connection, %{
+                 config: %{
+                   "mode" => "echo",
+                   "base_url" => "https://updated.example.test/mock",
+                   "api_key" => "$UPDATED_MOCK_API_KEY"
+                 }
+               })
+
+      assert updated.config["base_url"] == "https://updated.example.test/mock"
 
       [event] = Events.list_recent_events(world, event_types: ["connection.updated"], limit: 1)
       assert event.payload["connection_id"] == connection.id
-      assert event.payload["connection_name"] == "After"
+      assert event.payload["connection_type"] == "mock"
     end
 
     test "rejects updates outside exact scope" do
@@ -84,7 +107,13 @@ defmodule LemmingsOs.ConnectionsTest do
       connection = insert(:world_connection, world: world)
 
       assert {:error, :scope_mismatch} =
-               Connections.update_connection(city, connection, %{name: "Nope"})
+               Connections.update_connection(city, connection, %{
+                 config: %{
+                   "mode" => "echo",
+                   "base_url" => "https://nope.example.test/mock",
+                   "api_key" => "$NOPE_MOCK_API_KEY"
+                 }
+               })
     end
   end
 
@@ -143,7 +172,7 @@ defmodule LemmingsOs.ConnectionsTest do
   end
 
   describe "hierarchy lookup and read model" do
-    test "nearest visible scope wins and shadowed parent slug is hidden in list" do
+    test "nearest visible scope wins by type and shadowed parent is hidden in list" do
       world = insert(:world)
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
@@ -151,8 +180,7 @@ defmodule LemmingsOs.ConnectionsTest do
       world_conn =
         insert(:world_connection,
           world: world,
-          slug: "shared",
-          name: "World Shared",
+          type: "mock",
           status: "disabled"
         )
 
@@ -160,9 +188,13 @@ defmodule LemmingsOs.ConnectionsTest do
         insert(:city_connection,
           world: world,
           city: city,
-          slug: "shared",
-          name: "City Shared",
-          status: "enabled"
+          type: "mock",
+          status: "enabled",
+          config: %{
+            "mode" => "echo",
+            "base_url" => "https://city.example.test/mock",
+            "api_key" => "$CITY_MOCK_API_KEY"
+          }
         )
 
       department_conn =
@@ -170,35 +202,37 @@ defmodule LemmingsOs.ConnectionsTest do
           world: world,
           city: city,
           department: department,
-          slug: "shared",
-          name: "Department Shared",
-          status: "invalid"
+          type: "mock",
+          status: "invalid",
+          config: %{
+            "mode" => "echo",
+            "base_url" => "https://department.example.test/mock",
+            "api_key" => "$DEPARTMENT_MOCK_API_KEY"
+          }
         )
 
-      insert(:world_connection, world: world, slug: "world-only", name: "World Only")
-
       visible = Connections.list_visible_connections(department)
-      slugs = Enum.map(visible, & &1.connection.slug)
+      types = Enum.map(visible, & &1.connection.type)
 
-      assert slugs == ["shared", "world-only"]
+      assert types == ["mock"]
 
-      shared = Enum.find(visible, fn row -> row.connection.slug == "shared" end)
+      shared = Enum.find(visible, fn row -> row.connection.type == "mock" end)
       assert shared.connection.id == department_conn.id
       assert shared.source_scope == "department"
       assert shared.local?
       refute shared.inherited?
       assert shared.scope_depth == 0
 
-      resolved = Connections.resolve_visible_connection(department, "shared")
+      resolved = Connections.resolve_visible_connection(department, "mock")
       assert resolved.connection.id == department_conn.id
       assert resolved.connection.status == "invalid"
 
-      city_resolved = Connections.resolve_visible_connection(city, "shared")
+      city_resolved = Connections.resolve_visible_connection(city, "mock")
       assert city_resolved.connection.id == city_conn.id
       assert city_resolved.source_scope == "city"
       assert city_resolved.local?
 
-      world_resolved = Connections.resolve_visible_connection(world, "shared")
+      world_resolved = Connections.resolve_visible_connection(world, "mock")
       assert world_resolved.connection.id == world_conn.id
       assert world_resolved.source_scope == "world"
       assert world_resolved.local?
@@ -214,15 +248,11 @@ defmodule LemmingsOs.ConnectionsTest do
         world: world,
         city: city,
         department: department_a,
-        slug: "dept-a-only"
+        type: "mock"
       )
 
-      assert nil == Connections.resolve_visible_connection(department_b, "dept-a-only")
-
-      refute Enum.any?(
-               Connections.list_visible_connections(department_b),
-               &(&1.connection.slug == "dept-a-only")
-             )
+      assert nil == Connections.resolve_visible_connection(department_b, "mock")
+      assert [] == Connections.list_visible_connections(department_b)
     end
 
     test "cross-world lookup fails safely" do
@@ -230,15 +260,15 @@ defmodule LemmingsOs.ConnectionsTest do
       world_b = insert(:world)
       city_b = insert(:city, world: world_b)
 
-      insert(:world_connection, world: world_a, slug: "world-a-secret")
+      insert(:world_connection, world: world_a, type: "mock")
 
-      assert nil == Connections.resolve_visible_connection(world_b, "world-a-secret")
-      assert nil == Connections.resolve_visible_connection(city_b, "world-a-secret")
+      assert nil == Connections.resolve_visible_connection(world_b, "mock")
+      assert nil == Connections.resolve_visible_connection(city_b, "mock")
     end
   end
 
   describe "test_connection/2" do
-    test "succeeds with valid mock config and resolvable secret refs" do
+    test "succeeds with valid mock config and resolvable secret refs in config" do
       world = insert(:world)
 
       assert {:ok, _metadata} =
@@ -246,39 +276,22 @@ defmodule LemmingsOs.ConnectionsTest do
 
       insert(:world_connection,
         world: world,
-        slug: "mock-success",
         type: "mock",
-        provider: "mock",
         status: "enabled",
-        config: %{"mode" => "echo", "base_url" => "https://example.test"},
-        secret_refs: %{"api_key" => "$MOCK_API_KEY"}
+        config: %{
+          "mode" => "echo",
+          "base_url" => "https://example.test/mock",
+          "api_key" => "$MOCK_API_KEY"
+        }
       )
 
       assert {:ok, %{connection: updated_connection, result: result}} =
-               Connections.test_connection(world, "mock-success")
+               Connections.test_connection(world, "mock")
 
-      assert updated_connection.last_test_status == "succeeded"
-      assert is_nil(updated_connection.last_test_error)
-      assert %DateTime{} = updated_connection.last_tested_at
+      assert updated_connection.last_test == "succeeded: mock_echo_ok"
       assert result.mode == "echo"
       assert result.outcome == "mock_echo_ok"
-      assert result.resolved_secret_count == 1
-      assert result.secret_ref_keys == ["api_key"]
-
-      event_types =
-        Events.list_recent_events(world,
-          event_types: [
-            "connection.test.started",
-            "connection.test.succeeded",
-            "connection.test.failed"
-          ],
-          limit: 10
-        )
-        |> Enum.map(& &1.event_type)
-
-      assert "connection.test.started" in event_types
-      assert "connection.test.succeeded" in event_types
-      refute "connection.test.failed" in event_types
+      assert result.resolved_secret_keys == ["api_key"]
 
       [event] =
         Events.list_recent_events(world,
@@ -287,13 +300,8 @@ defmodule LemmingsOs.ConnectionsTest do
         )
 
       assert event.payload["connection_id"] == updated_connection.id
-      assert event.payload["connection_slug"] == "mock-success"
       assert event.payload["connection_type"] == "mock"
-      assert event.payload["provider"] == "mock"
-      assert event.payload["status"] == "enabled"
-      assert event.payload["last_test_status"] == "succeeded"
-      assert event.payload["last_test_error"] == nil
-
+      assert event.payload["last_test"] == "succeeded: mock_echo_ok"
       refute String.contains?(inspect(event.payload), "dev_only_connection_secret_value")
     end
 
@@ -302,36 +310,16 @@ defmodule LemmingsOs.ConnectionsTest do
 
       insert(:world_connection,
         world: world,
-        slug: "mock-invalid-config",
         type: "mock",
-        provider: "mock",
         status: "enabled",
-        config: %{"mode" => "echo"},
-        secret_refs: %{"api_key" => "$MISSING_TOKEN"}
+        config: %{"mode" => "echo"}
       )
 
-      assert {:error, :invalid_config} = Connections.test_connection(world, "mock-invalid-config")
+      assert {:error, :invalid_config} = Connections.test_connection(world, "mock")
 
-      updated = Connections.get_connection_by_slug(world, "mock-invalid-config")
+      updated = Connections.get_connection_by_type(world, "mock")
 
-      assert updated.last_test_status == "failed"
-      assert updated.last_test_error == "invalid_config"
-      assert %DateTime{} = updated.last_tested_at
-
-      [failed_event] =
-        Events.list_recent_events(world,
-          event_types: ["connection.test.failed"],
-          limit: 1
-        )
-
-      assert failed_event.payload["connection_slug"] == "mock-invalid-config"
-      assert failed_event.payload["connection_type"] == "mock"
-      assert failed_event.payload["provider"] == "mock"
-      assert failed_event.payload["status"] == "enabled"
-      assert failed_event.payload["last_test_status"] == "failed"
-      assert failed_event.payload["last_test_error"] == "invalid_config"
-      assert failed_event.payload["reason"] == "invalid_config"
-      refute String.contains?(inspect(failed_event.payload), "$MISSING_TOKEN")
+      assert updated.last_test == "failed: invalid_config"
     end
 
     test "fails safely when required secret ref cannot be resolved" do
@@ -339,72 +327,30 @@ defmodule LemmingsOs.ConnectionsTest do
 
       insert(:world_connection,
         world: world,
-        slug: "mock-missing-secret",
         type: "mock",
-        provider: "mock",
         status: "enabled",
-        config: %{"mode" => "echo", "base_url" => "https://example.test"},
-        secret_refs: %{"api_key" => "$NOT_CONFIGURED_ANYWHERE"}
+        config: %{
+          "mode" => "echo",
+          "base_url" => "https://example.test/mock",
+          "api_key" => "$NOT_CONFIGURED_ANYWHERE"
+        }
       )
 
-      assert {:error, :missing_secret} = Connections.test_connection(world, "mock-missing-secret")
+      assert {:error, :missing_secret} = Connections.test_connection(world, "mock")
 
-      updated = Connections.get_connection_by_slug(world, "mock-missing-secret")
+      updated = Connections.get_connection_by_type(world, "mock")
 
-      assert updated.last_test_status == "failed"
-      assert updated.last_test_error == "missing_secret"
-      assert %DateTime{} = updated.last_tested_at
-      refute updated.last_test_error == "dev_only_connection_secret_value"
+      assert updated.last_test == "failed: missing_secret"
+      refute updated.last_test == "dev_only_connection_secret_value"
     end
 
     test "disabled and invalid connections fail test execution and persist failure" do
       world = insert(:world)
 
-      insert(:world_connection,
-        world: world,
-        slug: "disabled-conn",
-        status: "disabled",
-        config: %{"mode" => "echo", "base_url" => "https://example.test"},
-        secret_refs: %{"api_key" => "$NOT_USED"}
-      )
+      insert(:world_connection, world: world, type: "mock", status: "disabled")
 
-      insert(:world_connection,
-        world: world,
-        slug: "invalid-conn",
-        status: "invalid",
-        config: %{"mode" => "echo", "base_url" => "https://example.test"},
-        secret_refs: %{"api_key" => "$NOT_USED"}
-      )
-
-      assert {:error, :disabled} = Connections.test_connection(world, "disabled-conn")
-      assert {:error, :invalid} = Connections.test_connection(world, "invalid-conn")
-
-      assert "disabled" ==
-               Connections.get_connection_by_slug(world, "disabled-conn").last_test_error
-
-      assert "invalid" ==
-               Connections.get_connection_by_slug(world, "invalid-conn").last_test_error
-    end
-
-    test "unsupported provider combinations fail without provider-specific execution" do
-      world = insert(:world)
-
-      insert(:world_connection,
-        world: world,
-        slug: "non-mock-provider",
-        type: "generic",
-        provider: "generic",
-        status: "enabled",
-        config: %{},
-        secret_refs: %{}
-      )
-
-      assert {:error, :unsupported_provider} =
-               Connections.test_connection(world, "non-mock-provider")
-
-      updated = Connections.get_connection_by_slug(world, "non-mock-provider")
-      assert updated.last_test_status == "failed"
-      assert updated.last_test_error == "unsupported_provider"
+      assert {:error, :disabled} = Connections.test_connection(world, "mock")
+      assert "failed: disabled" == Connections.get_connection_by_type(world, "mock").last_test
     end
 
     test "testing inherited connection updates source row and does not create a child override" do
@@ -418,26 +364,57 @@ defmodule LemmingsOs.ConnectionsTest do
       world_connection =
         insert(:world_connection,
           world: world,
-          slug: "shared-inherited",
+          type: "mock",
           status: "enabled",
-          config: %{"mode" => "echo", "base_url" => "https://example.test"},
-          secret_refs: %{"api_key" => "$MOCK_API_KEY"}
+          config: %{
+            "mode" => "echo",
+            "base_url" => "https://example.test/mock",
+            "api_key" => "$MOCK_API_KEY"
+          }
         )
 
       assert [] == Connections.list_connections(department)
 
       assert {:ok, %{connection: tested_connection}} =
-               Connections.test_connection(department, "shared-inherited")
+               Connections.test_connection(department, "mock")
 
       assert tested_connection.id == world_connection.id
 
       updated_world_connection = Connections.get_connection(world, world_connection.id)
-      assert updated_world_connection.last_test_status == "succeeded"
-      assert is_nil(updated_world_connection.last_test_error)
-      assert %DateTime{} = updated_world_connection.last_tested_at
+      assert updated_world_connection.last_test == "succeeded: mock_echo_ok"
 
       assert nil == Connections.get_connection(department, world_connection.id)
       assert [] == Connections.list_connections(department)
+    end
+
+    test "last_test never includes raw secret values" do
+      world = insert(:world)
+
+      assert {:ok, _metadata} =
+               SecretBank.upsert_secret(world, "MOCK_API_KEY", "leak_me_if_broken")
+
+      insert(:world_connection,
+        world: world,
+        type: "mock",
+        status: "enabled",
+        config: %{
+          "mode" => "echo",
+          "base_url" => "https://example.test/mock",
+          "api_key" => "$MOCK_API_KEY"
+        }
+      )
+
+      assert {:ok, %{connection: connection}} = Connections.test_connection(world, "mock")
+
+      refute String.contains?(connection.last_test || "", "leak_me_if_broken")
+
+      [event] =
+        Events.list_recent_events(world,
+          event_types: ["connection.test.succeeded"],
+          limit: 1
+        )
+
+      refute String.contains?(inspect(event.payload), "leak_me_if_broken")
     end
   end
 end

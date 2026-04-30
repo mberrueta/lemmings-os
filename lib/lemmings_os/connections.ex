@@ -2,7 +2,8 @@ defmodule LemmingsOs.Connections do
   @moduledoc """
   Connection domain boundary.
 
-  This context owns exact-scope connection CRUD and explicit status transitions.
+  This context owns exact-scope connection CRUD, hierarchy visibility, and
+  type-based runtime test execution.
   """
 
   import Ecto.Query, warn: false
@@ -10,14 +11,25 @@ defmodule LemmingsOs.Connections do
   alias Ecto.Multi
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Connections.Connection
-  alias LemmingsOs.Connections.Providers.MockCaller
+  alias LemmingsOs.Connections.TypeRegistry
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Events
   alias LemmingsOs.Repo
   alias LemmingsOs.Worlds.World
 
   @test_succeeded "succeeded"
-  @test_failed "failed"
+
+  @doc """
+  Lists registered connection types for UI selection.
+
+  ## Examples
+
+      iex> [type] = LemmingsOs.Connections.list_connection_types()
+      iex> type.id
+      "mock"
+  """
+  @spec list_connection_types() :: [map()]
+  def list_connection_types, do: TypeRegistry.list_types()
 
   @doc """
   Lists persisted connections at the exact requested scope.
@@ -25,9 +37,11 @@ defmodule LemmingsOs.Connections do
   Supports `%World{}`, `%City{}`, `%Department{}`, or scope maps with
   `world_id`, `city_id`, and `department_id` keys.
 
+  Invalid scope shapes fail closed and return an empty list.
+
   ## Examples
 
-      iex> LemmingsOs.Connections.list_connections(%{})
+      iex> LemmingsOs.Connections.list_connections(%{city_id: "city-without-world"})
       []
   """
   @spec list_connections(World.t() | City.t() | Department.t() | map(), keyword()) ::
@@ -47,6 +61,13 @@ defmodule LemmingsOs.Connections do
 
   @doc """
   Returns one persisted local connection by id at the exact requested scope.
+
+  Invalid scope shapes fail closed and return `nil`.
+
+  ## Examples
+
+      iex> LemmingsOs.Connections.get_connection(%{}, "connection-id")
+      nil
   """
   @spec get_connection(World.t() | City.t() | Department.t() | map(), Ecto.UUID.t(), keyword()) ::
           Connection.t() | nil
@@ -63,19 +84,25 @@ defmodule LemmingsOs.Connections do
   end
 
   @doc """
-  Returns one persisted local connection by slug at the exact requested scope.
+  Returns one persisted local connection by type at the exact requested scope.
+
+  Invalid scope shapes fail closed and return `nil`.
+
+  ## Examples
+
+      iex> LemmingsOs.Connections.get_connection_by_type(%{}, "mock")
+      nil
   """
-  @spec get_connection_by_slug(
+  @spec get_connection_by_type(
           World.t() | City.t() | Department.t() | map(),
           String.t(),
           keyword()
-        ) ::
-          Connection.t() | nil
-  def get_connection_by_slug(scope, slug, opts \\ []) when is_binary(slug) and is_list(opts) do
+        ) :: Connection.t() | nil
+  def get_connection_by_type(scope, type, opts \\ []) when is_binary(type) and is_list(opts) do
     case scope_data(scope) do
       {:ok, scope_data} ->
         Connection
-        |> filter_query([{:slug, slug} | scope_filters(scope_data)] ++ opts)
+        |> filter_query([{:type, type} | scope_filters(scope_data)] ++ opts)
         |> Repo.one()
 
       {:error, _reason} ->
@@ -92,6 +119,13 @@ defmodule LemmingsOs.Connections do
   - `:local?` whether source matches caller exact scope
   - `:inherited?` inverse of `:local?`
   - `:scope_depth` lower is nearer (`0` local, then parents)
+
+  Invalid scope shapes fail closed and return an empty list.
+
+  ## Examples
+
+      iex> LemmingsOs.Connections.list_visible_connections(%{})
+      []
   """
   @spec list_visible_connections(World.t() | City.t() | Department.t() | map(), keyword()) :: [
           map()
@@ -102,10 +136,10 @@ defmodule LemmingsOs.Connections do
         scope_data
         |> visible_candidates(opts)
         |> Enum.reduce(%{}, fn candidate, acc ->
-          Map.put_new(acc, candidate.connection.slug, candidate)
+          Map.put_new(acc, candidate.connection.type, candidate)
         end)
         |> Map.values()
-        |> Enum.sort_by(fn candidate -> {candidate.connection.slug, candidate.scope_depth} end)
+        |> Enum.sort_by(fn candidate -> {candidate.connection.type, candidate.scope_depth} end)
 
       {:error, _reason} ->
         []
@@ -113,22 +147,36 @@ defmodule LemmingsOs.Connections do
   end
 
   @doc """
-  Resolves one visible connection read model by slug with nearest-wins semantics.
+  Resolves one visible connection read model by type with nearest-wins semantics.
+
+  Invalid scope shapes fail closed and return `nil`.
+
+  ## Examples
+
+      iex> LemmingsOs.Connections.resolve_visible_connection(%{}, "mock")
+      nil
   """
   @spec resolve_visible_connection(
           World.t() | City.t() | Department.t() | map(),
           String.t(),
           keyword()
         ) :: map() | nil
-  def resolve_visible_connection(scope, slug, opts \\ [])
-      when is_binary(slug) and is_list(opts) do
+  def resolve_visible_connection(scope, type, opts \\ [])
+      when is_binary(type) and is_list(opts) do
     scope
     |> list_visible_connections(opts)
-    |> Enum.find(fn candidate -> candidate.connection.slug == slug end)
+    |> Enum.find(fn candidate -> candidate.connection.type == type end)
   end
 
   @doc """
   Creates a connection at the exact requested scope.
+
+  Invalid scope shapes are rejected before persistence.
+
+  ## Examples
+
+      iex> LemmingsOs.Connections.create_connection(%{}, %{})
+      {:error, :invalid_scope}
   """
   @spec create_connection(World.t() | City.t() | Department.t() | map(), map()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope}
@@ -155,6 +203,14 @@ defmodule LemmingsOs.Connections do
 
   @doc """
   Updates a local connection at the exact requested scope.
+
+  Invalid scope shapes are rejected before persistence.
+
+  ## Examples
+
+      iex> connection = %LemmingsOs.Connections.Connection{}
+      iex> LemmingsOs.Connections.update_connection(%{}, connection, %{})
+      {:error, :invalid_scope}
   """
   @spec update_connection(World.t() | City.t() | Department.t() | map(), Connection.t(), map()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
@@ -169,6 +225,14 @@ defmodule LemmingsOs.Connections do
 
   @doc """
   Deletes a local connection at the exact requested scope.
+
+  Invalid scope shapes are rejected before persistence.
+
+  ## Examples
+
+      iex> connection = %LemmingsOs.Connections.Connection{}
+      iex> LemmingsOs.Connections.delete_connection(%{}, connection)
+      {:error, :invalid_scope}
   """
   @spec delete_connection(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
@@ -192,6 +256,14 @@ defmodule LemmingsOs.Connections do
 
   @doc """
   Marks a local connection as enabled.
+
+  Invalid scope shapes are rejected before persistence.
+
+  ## Examples
+
+      iex> connection = %LemmingsOs.Connections.Connection{}
+      iex> LemmingsOs.Connections.enable_connection(%{}, connection)
+      {:error, :invalid_scope}
   """
   @spec enable_connection(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
@@ -201,6 +273,14 @@ defmodule LemmingsOs.Connections do
 
   @doc """
   Marks a local connection as disabled.
+
+  Invalid scope shapes are rejected before persistence.
+
+  ## Examples
+
+      iex> connection = %LemmingsOs.Connections.Connection{}
+      iex> LemmingsOs.Connections.disable_connection(%{}, connection)
+      {:error, :invalid_scope}
   """
   @spec disable_connection(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
@@ -216,6 +296,14 @@ defmodule LemmingsOs.Connections do
 
   @doc """
   Marks a local connection as invalid.
+
+  Invalid scope shapes are rejected before persistence.
+
+  ## Examples
+
+      iex> connection = %LemmingsOs.Connections.Connection{}
+      iex> LemmingsOs.Connections.mark_connection_invalid(%{}, connection)
+      {:error, :invalid_scope}
   """
   @spec mark_connection_invalid(World.t() | City.t() | Department.t() | map(), Connection.t()) ::
           {:ok, Connection.t()} | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
@@ -230,43 +318,40 @@ defmodule LemmingsOs.Connections do
   end
 
   @doc """
-  Tests one visible connection by slug using deterministic provider behavior.
+  Tests one visible connection by type using the registered caller module.
 
-  The resolved source connection row is always updated with safe test fields.
-  When the caller scope inherits a parent connection, no child override row is
-  created.
+  The resolved source connection row is always updated with `last_test`.
 
   ## Examples
 
-      iex> LemmingsOs.Connections.test_connection(%{}, 123)
-      {:error, :invalid_slug}
+      iex> LemmingsOs.Connections.test_connection(%{}, "mock")
+      {:error, :invalid_scope}
 
-      iex> world = insert(:world)
-      iex> LemmingsOs.Connections.test_connection(world, "missing")
-      {:error, :missing}
+      iex> LemmingsOs.Connections.test_connection(%{}, nil)
+      {:error, :invalid_type}
   """
   @spec test_connection(World.t() | City.t() | Department.t() | map(), String.t()) ::
           {:ok, %{connection: Connection.t(), result: map()}}
           | {:error,
              :invalid_scope
-             | :invalid_slug
+             | :invalid_type
              | :missing
              | :disabled
              | :invalid
-             | :unsupported_provider
+             | :unsupported_type
              | :invalid_config
              | :missing_secret
              | :secret_resolution_failed
              | Ecto.Changeset.t()}
-  def test_connection(scope, slug) when is_binary(slug) do
+  def test_connection(scope, type) when is_binary(type) do
     with {:ok, scope_data} <- scope_data(scope),
-         {:ok, visible_row} <- visible_connection(scope, slug),
+         {:ok, visible_row} <- visible_connection(scope, type),
          :ok <- record_test_started(visible_row.connection) do
       run_connection_test(scope_struct(scope_data), visible_row.connection)
     end
   end
 
-  def test_connection(_scope, _slug), do: {:error, :invalid_slug}
+  def test_connection(_scope, _type), do: {:error, :invalid_type}
 
   defp set_connection_status(scope, %Connection{} = connection, status, event_type, message_fun) do
     with {:ok, scope_data} <- scope_data(scope),
@@ -296,8 +381,8 @@ defmodule LemmingsOs.Connections do
   defp transaction_result({:error, :connection, reason, _changes}), do: {:error, reason}
   defp transaction_result({:error, :event, reason, _changes}), do: {:error, reason}
 
-  defp visible_connection(scope, slug) do
-    case resolve_visible_connection(scope, slug) do
+  defp visible_connection(scope, type) do
+    case resolve_visible_connection(scope, type) do
       %{connection: %Connection{}} = visible_row -> {:ok, visible_row}
       nil -> {:error, :missing}
     end
@@ -316,14 +401,18 @@ defmodule LemmingsOs.Connections do
   defp provider_result(_scope, %Connection{status: "disabled"}), do: {:error, :disabled}
   defp provider_result(_scope, %Connection{status: "invalid"}), do: {:error, :invalid}
 
-  defp provider_result(scope, %Connection{type: "mock", provider: "mock"} = connection),
-    do: MockCaller.call(scope, connection)
-
-  defp provider_result(_scope, %Connection{}), do: {:error, :unsupported_provider}
+  defp provider_result(scope, %Connection{type: type} = connection) do
+    case TypeRegistry.module_for_type(type) do
+      nil -> {:error, :unsupported_type}
+      module -> module.call(scope, connection)
+    end
+  end
 
   defp persist_test_success(%Connection{} = connection, result) do
+    summary = "#{@test_succeeded}: #{Map.get(result, :outcome, "ok")}" |> sanitize_test_text()
+
     with {:ok, updated_connection} <-
-           persist_test_outcome(connection, @test_succeeded, nil, "connection.test.succeeded", %{
+           persist_test_outcome(connection, summary, "connection.test.succeeded", %{
              test_result: result
            }) do
       {:ok, %{connection: updated_connection, result: result}}
@@ -333,29 +422,19 @@ defmodule LemmingsOs.Connections do
   defp persist_test_failure(%Connection{} = connection, reason) do
     safe_error = safe_test_error(reason)
 
-    case persist_test_outcome(connection, @test_failed, safe_error, "connection.test.failed", %{
-           reason: safe_error
-         }) do
+    case persist_test_outcome(
+           connection,
+           "failed: #{safe_error}",
+           "connection.test.failed",
+           %{reason: safe_error}
+         ) do
       {:ok, _updated_connection} -> {:error, reason}
       {:error, persist_reason} -> {:error, persist_reason}
     end
   end
 
-  defp persist_test_outcome(
-         %Connection{} = connection,
-         test_status,
-         test_error,
-         event_type,
-         payload
-       ) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    changeset =
-      Connection.changeset(connection, %{
-        last_tested_at: now,
-        last_test_status: test_status,
-        last_test_error: test_error
-      })
+  defp persist_test_outcome(%Connection{} = connection, summary, event_type, payload) do
+    changeset = Ecto.Changeset.change(connection, %{last_test: sanitize_test_text(summary)})
 
     Multi.new()
     |> Multi.update(:connection, changeset)
@@ -363,8 +442,8 @@ defmodule LemmingsOs.Connections do
       Events.record_event(
         event_type,
         connection_scope_data(updated_connection),
-        test_message(updated_connection, test_status),
-        test_event_opts(updated_connection, test_status, payload)
+        test_message(updated_connection),
+        test_event_opts(updated_connection, payload)
       )
     end)
     |> Repo.transaction()
@@ -375,8 +454,8 @@ defmodule LemmingsOs.Connections do
     case Events.record_event(
            "connection.test.started",
            connection_scope_data(connection),
-           "Connection #{connection.slug} test started",
-           test_event_opts(connection, "started", %{})
+           "Connection #{connection.type} test started",
+           test_event_opts(connection, %{})
          ) do
       {:ok, _event} -> :ok
       {:error, reason} -> {:error, reason}
@@ -384,6 +463,9 @@ defmodule LemmingsOs.Connections do
   end
 
   defp safe_test_error(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp safe_test_error(reason), do: reason |> inspect() |> sanitize_test_text()
+
+  defp sanitize_test_text(text) when is_binary(text), do: String.slice(text, 0, 500)
 
   defp validate_exact_scope(%Connection{} = connection, scope_data) do
     if connection_in_scope?(connection, scope_data) do
@@ -463,62 +545,48 @@ defmodule LemmingsOs.Connections do
   defp safe_payload(%Connection{} = connection) do
     %{
       connection_id: connection.id,
-      connection_slug: connection.slug,
-      connection_name: connection.name,
       connection_type: connection.type,
-      provider: connection.provider,
       status: connection.status,
       world_id: connection.world_id,
       city_id: connection.city_id,
       department_id: connection.department_id,
-      config_keys: Map.keys(connection.config || %{}) |> Enum.sort(),
-      secret_ref_keys: Map.keys(connection.secret_refs || %{}) |> Enum.sort(),
-      metadata_keys: Map.keys(connection.metadata || %{}) |> Enum.sort()
+      config_keys: Map.keys(connection.config || %{}) |> Enum.map(&to_string/1) |> Enum.sort(),
+      last_test: connection.last_test
     }
   end
 
   defp created_message(%Connection{} = connection),
-    do: "Connection #{connection.slug} created"
+    do: "Connection #{connection.type} created"
 
   defp updated_message(%Connection{} = connection),
-    do: "Connection #{connection.slug} updated"
+    do: "Connection #{connection.type} updated"
 
   defp deleted_message(%Connection{} = connection),
-    do: "Connection #{connection.slug} deleted"
+    do: "Connection #{connection.type} deleted"
 
   defp enabled_message(%Connection{} = connection),
-    do: "Connection #{connection.slug} enabled"
+    do: "Connection #{connection.type} enabled"
 
   defp disabled_message(%Connection{} = connection),
-    do: "Connection #{connection.slug} disabled"
+    do: "Connection #{connection.type} disabled"
 
   defp marked_invalid_message(%Connection{} = connection),
-    do: "Connection #{connection.slug} marked invalid"
+    do: "Connection #{connection.type} marked invalid"
 
-  defp test_message(%Connection{} = connection, "started"),
-    do: "Connection #{connection.slug} test started"
+  defp test_message(%Connection{} = connection),
+    do: "Connection #{connection.type} test recorded"
 
-  defp test_message(%Connection{} = connection, @test_succeeded),
-    do: "Connection #{connection.slug} test succeeded"
-
-  defp test_message(%Connection{} = connection, @test_failed),
-    do: "Connection #{connection.slug} test failed"
-
-  defp test_event_opts(%Connection{} = connection, action, payload) do
+  defp test_event_opts(%Connection{} = connection, payload) do
     [
-      action: action,
-      status: action,
+      action: "test",
+      status: connection.status,
       resource_type: "connection",
       resource_id: connection.id,
       event_family: "telemetry",
       payload:
         Map.merge(
           safe_payload(connection),
-          Map.merge(payload, %{
-            last_test_status: connection.last_test_status,
-            last_tested_at: connection.last_tested_at,
-            last_test_error: connection.last_test_error
-          })
+          Map.merge(payload, %{last_test: connection.last_test})
         )
     ]
   end
@@ -619,8 +687,8 @@ defmodule LemmingsOs.Connections do
   defp filter_query(query, [{:department_id, nil} | rest]),
     do: filter_query(from(connection in query, where: is_nil(connection.department_id)), rest)
 
-  defp filter_query(query, [{:slug, slug} | rest]),
-    do: filter_query(from(connection in query, where: connection.slug == ^slug), rest)
+  defp filter_query(query, [{:type, type} | rest]),
+    do: filter_query(from(connection in query, where: connection.type == ^type), rest)
 
   defp filter_query(query, [{:status, status} | rest]),
     do: filter_query(from(connection in query, where: connection.status == ^status), rest)

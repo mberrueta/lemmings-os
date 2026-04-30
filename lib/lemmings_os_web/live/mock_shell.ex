@@ -47,6 +47,7 @@ defmodule LemmingsOsWeb.MockShell do
 
   def shell_label(:lemmings), do: translated_shell_label(dgettext("layout", ".nav_lemmings"))
   def shell_label(:tools), do: translated_shell_label(dgettext("layout", ".nav_tools"))
+
   def shell_label(:logs), do: translated_shell_label(dgettext("layout", ".nav_logs"))
   def shell_label(:runtime), do: translated_shell_label(dgettext("lemmings", ".nav_runtime"))
   def shell_label(:settings), do: translated_shell_label(dgettext("layout", ".nav_settings"))

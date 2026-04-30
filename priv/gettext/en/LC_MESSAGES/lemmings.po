@@ -1291,7 +1291,7 @@ msgstr "Unknown"
 msgid ".label_up"
 msgstr "up"
 
-#: lib/lemmings_os_web/live/mock_shell.ex:51
+#: lib/lemmings_os_web/live/mock_shell.ex:52
 #, elixir-autogen, elixir-format
 msgid ".nav_runtime"
 msgstr "Runtime"
@@ -1650,7 +1650,7 @@ msgstr ""
 msgid "Caller"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:812
+#: lib/lemmings_os_web/components/world_components.ex:879
 #, elixir-autogen, elixir-format
 msgid "Capability"
 msgstr ""
@@ -1698,7 +1698,7 @@ msgstr ""
 #: lib/lemmings_os_web/components/instance_components.ex:357
 #: lib/lemmings_os_web/components/instance_components.ex:395
 #: lib/lemmings_os_web/components/instance_components.ex:440
-#: lib/lemmings_os_web/components/world_components.ex:807
+#: lib/lemmings_os_web/components/world_components.ex:874
 #, elixir-autogen, elixir-format
 msgid "Manager"
 msgstr ""
@@ -1708,7 +1708,7 @@ msgstr ""
 msgid "Manager relationship"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:792
+#: lib/lemmings_os_web/components/world_components.ex:859
 #, elixir-autogen, elixir-format
 msgid "Manager-centered entry for this department"
 msgstr ""
@@ -1719,7 +1719,7 @@ msgid "Open child"
 msgstr ""
 
 #: lib/lemmings_os_web/components/instance_components.ex:541
-#: lib/lemmings_os_web/components/world_components.ex:800
+#: lib/lemmings_os_web/components/world_components.ex:867
 #, elixir-autogen, elixir-format
 msgid "Open manager"
 msgstr ""
@@ -1729,8 +1729,8 @@ msgstr ""
 msgid "Open parent"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:790
-#: lib/lemmings_os_web/components/world_components.ex:966
+#: lib/lemmings_os_web/components/world_components.ex:857
+#: lib/lemmings_os_web/components/world_components.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Primary manager"
 msgstr ""

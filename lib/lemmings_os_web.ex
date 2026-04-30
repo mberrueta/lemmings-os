@@ -92,6 +92,7 @@ defmodule LemmingsOsWeb do
 
       alias LemmingsOsWeb.{
         CityMapComponents,
+        ConnectionsComponents,
         HomeComponents,
         Layouts,
         InstanceComponents,

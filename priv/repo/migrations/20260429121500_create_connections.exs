@@ -9,17 +9,10 @@ defmodule LemmingsOs.Repo.Migrations.CreateConnections do
       add :city_id, references(:cities, type: :binary_id, on_delete: :delete_all)
       add :department_id, references(:departments, type: :binary_id, on_delete: :delete_all)
 
-      add :slug, :string, null: false
-      add :name, :string, null: false
       add :type, :string, null: false
-      add :provider, :string, null: false
-      add :status, :string, null: false
+      add :status, :string, null: false, default: "enabled"
       add :config, :map, null: false, default: %{}
-      add :secret_refs, :map, null: false, default: %{}
-      add :metadata, :map, null: false, default: %{}
-      add :last_tested_at, :utc_datetime
-      add :last_test_status, :string
-      add :last_test_error, :string
+      add :last_test, :text
 
       timestamps(type: :utc_datetime)
     end
@@ -28,29 +21,38 @@ defmodule LemmingsOs.Repo.Migrations.CreateConnections do
     create index(:connections, [:city_id])
     create index(:connections, [:department_id])
 
-    create index(:connections, [:world_id, :slug])
-    create index(:connections, [:world_id, :city_id, :slug])
-    create index(:connections, [:world_id, :city_id, :department_id, :slug])
+    create index(:connections, [:world_id, :type])
+    create index(:connections, [:world_id, :city_id, :type])
+    create index(:connections, [:world_id, :city_id, :department_id, :type])
 
     create unique_index(
              :connections,
-             [:world_id, :slug],
-             name: :connections_unique_world_scope_slug_index,
+             [:world_id, :type],
+             name: :connections_unique_world_scope_type_index,
              where: "city_id IS NULL AND department_id IS NULL"
            )
 
     create unique_index(
              :connections,
-             [:world_id, :city_id, :slug],
-             name: :connections_unique_city_scope_slug_index,
+             [:world_id, :city_id, :type],
+             name: :connections_unique_city_scope_type_index,
              where: "city_id IS NOT NULL AND department_id IS NULL"
            )
 
     create unique_index(
              :connections,
-             [:world_id, :city_id, :department_id, :slug],
-             name: :connections_unique_department_scope_slug_index,
+             [:world_id, :city_id, :department_id, :type],
+             name: :connections_unique_department_scope_type_index,
              where: "city_id IS NOT NULL AND department_id IS NOT NULL"
+           )
+
+    create constraint(
+             :connections,
+             :connections_scope_shape_check,
+             check:
+               "(city_id IS NULL AND department_id IS NULL) OR " <>
+                 "(city_id IS NOT NULL AND department_id IS NULL) OR " <>
+                 "(city_id IS NOT NULL AND department_id IS NOT NULL)"
            )
   end
 end

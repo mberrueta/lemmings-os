@@ -2,7 +2,7 @@ defmodule LemmingsOs.Connections.Runtime do
   @moduledoc """
   Runtime-facing connection resolver that returns safe descriptors only.
 
-  This module resolves visibility and usability policy for a connection slug.
+  This module resolves visibility and usability policy for a connection type.
   It does not resolve Secret Bank references and never returns raw credentials.
   """
 
@@ -18,108 +18,79 @@ defmodule LemmingsOs.Connections.Runtime do
   @derive {Inspect,
            only: [
              :connection_id,
-             :slug,
-             :name,
              :type,
-             :provider,
              :status,
              :source_scope,
              :local?,
              :inherited?,
-             :config,
-             :metadata,
-             :secret_ref_keys
+             :config
            ]}
   defstruct [
     :connection_id,
-    :slug,
-    :name,
     :type,
-    :provider,
     :status,
     :source_scope,
     :local?,
     :inherited?,
-    :config,
-    :metadata,
-    :secret_ref_keys
+    :config
   ]
 
   @type descriptor :: %__MODULE__{
           connection_id: Ecto.UUID.t(),
-          slug: String.t(),
-          name: String.t(),
           type: String.t(),
-          provider: String.t(),
           status: String.t(),
           source_scope: String.t(),
           local?: boolean(),
           inherited?: boolean(),
-          config: map(),
-          metadata: map(),
-          secret_ref_keys: [String.t()]
+          config: map()
         }
 
   @doc """
   Resolves one visible and usable connection descriptor for trusted execution.
 
-  Emits safe events:
-  - `connection.resolve.started`
-  - `connection.resolve.succeeded`
-  - `connection.resolve.failed`
-
   Returns:
   - `{:ok, descriptor}` for usable connections
   - `{:error, :missing | :inaccessible | :disabled | :invalid}` otherwise
-
-  ## Examples
-
-      iex> LemmingsOs.Connections.Runtime.resolve_connection(%{}, "github-main")
-      {:error, :inaccessible}
-
-      iex> world = LemmingsOs.Factory.insert(:world)
-      iex> LemmingsOs.Connections.Runtime.resolve_connection(world, "missing-slug")
-      {:error, :missing}
   """
   @spec resolve_connection(World.t() | City.t() | Department.t() | map(), String.t(), keyword()) ::
           {:ok, descriptor()} | {:error, resolve_error()}
-  def resolve_connection(scope, slug, opts \\ [])
+  def resolve_connection(scope, type, opts \\ [])
 
-  def resolve_connection(scope, slug, opts) when is_binary(slug) and is_list(opts) do
+  def resolve_connection(scope, type, opts) when is_binary(type) and is_list(opts) do
     scope_data = scope_data(scope)
 
     _ =
       record_event(
         "connection.resolve.started",
         scope_data,
-        "Connection #{slug} resolve started",
-        %{connection_slug: slug}
+        "Connection #{type} resolve started",
+        %{connection_type: type}
       )
 
     case scope_data do
       {:error, :invalid_scope} = error ->
-        record_resolve_failed(scope, slug, :inaccessible)
+        record_resolve_failed(scope, type, :inaccessible)
         error_reason(error)
 
       {:ok, _} ->
-        resolve_visible_connection(scope, slug)
+        resolve_visible_connection(scope, type)
     end
   end
 
-  def resolve_connection(_scope, _slug, _opts), do: {:error, :inaccessible}
+  def resolve_connection(_scope, _type, _opts), do: {:error, :inaccessible}
 
-  defp resolve_visible_connection(scope, slug) do
-    case Connections.resolve_visible_connection(scope, slug) do
+  defp resolve_visible_connection(scope, type) do
+    case Connections.resolve_visible_connection(scope, type) do
       nil ->
-        record_resolve_failed(scope, slug, :missing)
+        record_resolve_failed(scope, type, :missing)
         {:error, :missing}
 
       %{connection: %Connection{status: "disabled"} = connection} ->
-        record_resolve_failed(scope, slug, :disabled, connection)
+        record_resolve_failed(scope, type, :disabled, connection)
         {:error, :disabled}
 
       %{connection: %Connection{status: "invalid"} = connection} ->
-        record_resolve_failed(scope, slug, :invalid, connection)
+        record_resolve_failed(scope, type, :invalid, connection)
         {:error, :invalid}
 
       %{} = visible_row ->
@@ -133,17 +104,12 @@ defmodule LemmingsOs.Connections.Runtime do
   defp to_descriptor(%{connection: %Connection{} = connection} = visible_row) do
     %__MODULE__{
       connection_id: connection.id,
-      slug: connection.slug,
-      name: connection.name,
       type: connection.type,
-      provider: connection.provider,
       status: connection.status,
       source_scope: visible_row.source_scope,
       local?: visible_row.local?,
       inherited?: visible_row.inherited?,
-      config: connection.config || %{},
-      metadata: connection.metadata || %{},
-      secret_ref_keys: Map.keys(connection.secret_refs || %{}) |> Enum.sort()
+      config: connection.config || %{}
     }
   end
 
@@ -151,12 +117,10 @@ defmodule LemmingsOs.Connections.Runtime do
     record_event(
       "connection.resolve.succeeded",
       scope_data(scope),
-      "Connection #{descriptor.slug} resolve succeeded",
+      "Connection #{descriptor.type} resolve succeeded",
       %{
         connection_id: descriptor.connection_id,
-        connection_slug: descriptor.slug,
         connection_type: descriptor.type,
-        provider: descriptor.provider,
         status: descriptor.status,
         source_scope: descriptor.source_scope,
         local?: descriptor.local?
@@ -164,35 +128,31 @@ defmodule LemmingsOs.Connections.Runtime do
     )
   end
 
-  defp record_resolve_failed(scope, slug, reason),
-    do: record_resolve_failed(scope, slug, reason, nil)
+  defp record_resolve_failed(scope, type, reason),
+    do: record_resolve_failed(scope, type, reason, nil)
 
-  defp record_resolve_failed(scope, slug, reason, connection) do
+  defp record_resolve_failed(scope, type, reason, connection) do
     record_event(
       "connection.resolve.failed",
       scope_data(scope),
-      "Connection #{slug} resolve failed",
-      resolve_failed_payload(slug, reason, connection)
+      "Connection #{type} resolve failed",
+      resolve_failed_payload(type, reason, connection)
     )
   end
 
-  defp resolve_failed_payload(_slug, reason, %Connection{} = connection) do
+  defp resolve_failed_payload(_type, reason, %Connection{} = connection) do
     %{
       connection_id: connection.id,
-      connection_slug: connection.slug,
       connection_type: connection.type,
-      provider: connection.provider,
       status: connection.status,
       reason: Atom.to_string(reason)
     }
   end
 
-  defp resolve_failed_payload(slug, reason, nil) do
+  defp resolve_failed_payload(type, reason, nil) do
     %{
       connection_id: nil,
-      connection_slug: slug,
-      connection_type: nil,
-      provider: nil,
+      connection_type: type,
       status: nil,
       reason: Atom.to_string(reason)
     }

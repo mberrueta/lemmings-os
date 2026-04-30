@@ -8,6 +8,7 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.CostsConfig
   alias LemmingsOs.Config.CostsConfig.Budgets
+  alias LemmingsOs.Connections
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Config.RuntimeConfig
   alias LemmingsOs.Repo
@@ -464,6 +465,67 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       assert updated.runtime_config.cross_city_communication == true
       assert updated.costs_config.budgets.daily_tokens == 2500
       assert has_element?(view, "#department-settings-tab-panel")
+    end
+
+    test "S15: connections tab supports local overrides by type", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      insert(:city_connection,
+        world: world,
+        city: city,
+        department: nil,
+        type: "mock",
+        config: %{
+          "mode" => "echo",
+          "base_url" => "https://city.example.test/mock",
+          "api_key" => "$CITY_MOCK_API_KEY"
+        }
+      )
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      view |> element("#department-tab-connections") |> render_click()
+
+      assert_patch(
+        view,
+        ~p"/departments?#{%{city: city.id, dept: department.id, tab: "connections"}}"
+      )
+
+      inherited = Connections.resolve_visible_connection(department, "mock")
+
+      assert has_element?(
+               view,
+               "#department-connections-source-#{inherited.connection.id}",
+               "City"
+             )
+
+      assert has_element?(view, "#department-connections-panel")
+      assert has_element?(view, "#department-connections-open-create")
+      view |> element("#department-connections-open-create") |> render_click()
+      assert render(view) =~ "$MOCK_API_KEY"
+
+      view
+      |> element("#department-connections-create-form")
+      |> render_submit(%{
+        "connection_create" => %{
+          "type" => "mock",
+          "status" => "enabled",
+          "config" =>
+            ~s({"mode":"echo","base_url":"https://department.example.test/mock","api_key":"$DEPT_MOCK_API_KEY"})
+        }
+      })
+
+      created = Connections.get_connection_by_type(department, "mock")
+      assert created
+      assert has_element?(view, "#department-connections-source-#{created.id}", "Local")
+
+      view
+      |> element("#department-connections-delete-#{created.id}")
+      |> render_click()
+
+      refute Connections.get_connection(department, created.id)
     end
   end
 

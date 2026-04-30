@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Connections
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Repo
   alias LemmingsOs.Worlds.Cache
@@ -247,6 +248,62 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
 
       # City should be deleted from DB
       assert Repo.get(City, city.id) == nil
+    end
+  end
+
+  describe "connections tab" do
+    test "S12: city detail can manage local connections and show source", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Ops City", slug: "ops-city", status: "active")
+
+      insert(:world_connection,
+        world: world,
+        city: nil,
+        department: nil,
+        type: "mock",
+        config: %{
+          "mode" => "echo",
+          "base_url" => "https://world.example.test/mock",
+          "api_key" => "$WORLD_MOCK_API_KEY"
+        }
+      )
+
+      {:ok, view, _html} = live(conn, ~p"/cities?city=#{city.id}")
+
+      view |> element("#city-tab-connections") |> render_click()
+
+      assert has_element?(view, "#city-connections-panel")
+      assert has_element?(view, "#city-connections-open-create")
+      view |> element("#city-connections-open-create") |> render_click()
+      assert render(view) =~ "$MOCK_API_KEY"
+
+      world_row = Connections.resolve_visible_connection(city, "mock")
+      assert has_element?(view, "#city-connections-source-#{world_row.connection.id}", "World")
+
+      view
+      |> element("#city-connections-create-form")
+      |> render_submit(%{
+        "connection_create" => %{
+          "type" => "mock",
+          "status" => "enabled",
+          "config" =>
+            ~s({"mode":"echo","base_url":"https://city.example.test/mock","api_key":"$CITY_MOCK_API_KEY"})
+        }
+      })
+
+      created = Connections.get_connection_by_type(city, "mock")
+      assert created
+
+      view |> element("#city-tab-connections") |> render_click()
+
+      assert has_element?(view, "#city-connections-row-#{created.id}")
+      assert has_element?(view, "#city-connections-source-#{created.id}", "Local")
+
+      view
+      |> element("#city-connections-delete-#{created.id}")
+      |> render_click()
+
+      refute Connections.get_connection(city, created.id)
     end
   end
 end
