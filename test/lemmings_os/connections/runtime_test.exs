@@ -43,9 +43,11 @@ defmodule LemmingsOs.Connections.RuntimeTest do
       assert descriptor.source_scope == "department"
       assert descriptor.local?
       assert descriptor.inherited? == false
+      assert descriptor.config["api_key"] == "$DEPT_TOKEN"
 
       inspected = inspect(descriptor)
-      assert String.contains?(inspected, "$DEPT_TOKEN")
+      refute String.contains?(inspected, "$DEPT_TOKEN")
+      refute String.contains?(inspected, "api_key")
 
       event_types =
         Events.list_recent_events(department,
@@ -106,6 +108,22 @@ defmodule LemmingsOs.Connections.RuntimeTest do
     test "returns inaccessible for invalid scope shape" do
       assert {:error, :inaccessible} =
                Runtime.resolve_connection(%{city_id: Ecto.UUID.generate()}, "mock")
+    end
+
+    test "returns inaccessible for raw scopes with mismatched child ownership" do
+      world_a = insert(:world)
+      world_b = insert(:world)
+      city_b = insert(:city, world: world_b)
+      department_b = insert(:department, world: world_b, city: city_b)
+
+      assert {:error, :inaccessible} =
+               Runtime.resolve_connection(%{world_id: world_a.id, city_id: city_b.id}, "mock")
+
+      assert {:error, :inaccessible} =
+               Runtime.resolve_connection(
+                 %{world_id: world_a.id, city_id: city_b.id, department_id: department_b.id},
+                 "mock"
+               )
     end
 
     test "does not resolve secrets through runtime facade" do

@@ -185,7 +185,10 @@ defmodule LemmingsOsWeb.WorldLive do
   end
 
   def handle_event("start_world_connection_edit", %{"connection_id" => connection_id}, socket) do
-    case find_local_connection_row(socket.assigns.world_connection_rows, connection_id) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.world_connection_rows,
+           connection_id
+         ) do
       {:ok, row} ->
         {:noreply,
          socket
@@ -206,7 +209,10 @@ defmodule LemmingsOsWeb.WorldLive do
         %{"connection_edit" => %{"connection_id" => connection_id, "type" => type}},
         socket
       ) do
-    case find_local_connection_row(socket.assigns.world_connection_rows, connection_id) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.world_connection_rows,
+           connection_id
+         ) do
       {:ok, row} ->
         config_text =
           ConnectionsSurface.default_config_text(socket.assigns.world_connection_types, type)
@@ -231,7 +237,10 @@ defmodule LemmingsOsWeb.WorldLive do
 
     with {:ok, world} <- load_world_scope(socket),
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.world_connection_rows, connection_id),
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.world_connection_rows,
+             connection_id
+           ),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
          {:ok, _connection} <- Connections.update_connection(world, row.connection, attrs) do
       {:noreply,
@@ -253,7 +262,10 @@ defmodule LemmingsOsWeb.WorldLive do
   def handle_event("delete_world_connection", %{"connection_id" => connection_id}, socket) do
     with {:ok, world} <- load_world_scope(socket),
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.world_connection_rows, connection_id),
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.world_connection_rows,
+             connection_id
+           ),
          {:ok, _connection} <- Connections.delete_connection(world, row.connection) do
       {:noreply,
        socket
@@ -274,8 +286,12 @@ defmodule LemmingsOsWeb.WorldLive do
       ) do
     with {:ok, world} <- load_world_scope(socket),
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.world_connection_rows, connection_id),
-         {:ok, _connection} <- run_connection_lifecycle(world, row.connection, action) do
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.world_connection_rows,
+             connection_id
+           ),
+         {:ok, _connection} <-
+           ConnectionsSurface.run_connection_lifecycle(world, row.connection, action) do
       {:noreply,
        socket
        |> put_flash(:info, dgettext("layout", ".connections_flash_status_updated"))
@@ -449,19 +465,4 @@ defmodule LemmingsOsWeb.WorldLive do
   defp secret_form_with_key(bank_key) do
     to_form(%{"bank_key" => String.trim(bank_key || ""), "value" => ""}, as: :secret)
   end
-
-  defp find_local_connection_row(rows, connection_id) do
-    case Enum.find(rows, &(&1.local? and &1.connection.id == connection_id)) do
-      nil -> :error
-      row -> {:ok, row}
-    end
-  end
-
-  defp run_connection_lifecycle(scope, connection, "enable"),
-    do: Connections.enable_connection(scope, connection)
-
-  defp run_connection_lifecycle(scope, connection, "disable"),
-    do: Connections.disable_connection(scope, connection)
-
-  defp run_connection_lifecycle(_scope, _connection, _action), do: {:error, :invalid_action}
 end

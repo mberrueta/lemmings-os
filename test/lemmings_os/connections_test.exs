@@ -78,6 +78,35 @@ defmodule LemmingsOs.ConnectionsTest do
       assert {:error, :invalid_scope} =
                Connections.create_connection(%{city_id: Ecto.UUID.generate()}, %{})
     end
+
+    test "rejects raw map scopes with mismatched city or department ownership" do
+      world_a = insert(:world)
+      world_b = insert(:world)
+      city_b = insert(:city, world: world_b)
+      department_b = insert(:department, world: world_b, city: city_b)
+
+      attrs = %{
+        type: "mock",
+        status: "enabled",
+        config: %{
+          "mode" => "echo",
+          "base_url" => "https://example.test/mock",
+          "api_key" => "$MOCK_API_KEY"
+        }
+      }
+
+      assert {:error, :invalid_scope} =
+               Connections.create_connection(
+                 %{world_id: world_a.id, city_id: city_b.id},
+                 attrs
+               )
+
+      assert {:error, :invalid_scope} =
+               Connections.create_connection(
+                 %{world_id: world_a.id, city_id: city_b.id, department_id: department_b.id},
+                 attrs
+               )
+    end
   end
 
   describe "update_connection/3" do
@@ -264,6 +293,29 @@ defmodule LemmingsOs.ConnectionsTest do
 
       assert nil == Connections.resolve_visible_connection(world_b, "mock")
       assert nil == Connections.resolve_visible_connection(city_b, "mock")
+    end
+
+    test "raw map scopes with mismatched child ownership fail closed" do
+      world_a = insert(:world)
+      world_b = insert(:world)
+      city_b = insert(:city, world: world_b)
+      department_b = insert(:department, world: world_b, city: city_b)
+
+      insert(:city_connection, world: world_b, city: city_b, type: "mock")
+
+      mismatched_city_scope = %{world_id: world_a.id, city_id: city_b.id}
+
+      assert [] == Connections.list_visible_connections(mismatched_city_scope)
+      assert nil == Connections.resolve_visible_connection(mismatched_city_scope, "mock")
+
+      mismatched_department_scope = %{
+        world_id: world_a.id,
+        city_id: city_b.id,
+        department_id: department_b.id
+      }
+
+      assert [] == Connections.list_visible_connections(mismatched_department_scope)
+      assert nil == Connections.resolve_visible_connection(mismatched_department_scope, "mock")
     end
   end
 

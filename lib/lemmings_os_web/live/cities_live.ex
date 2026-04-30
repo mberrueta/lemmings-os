@@ -285,7 +285,10 @@ defmodule LemmingsOsWeb.CitiesLive do
   end
 
   def handle_event("start_city_connection_edit", %{"connection_id" => connection_id}, socket) do
-    case find_local_connection_row(socket.assigns.city_connection_rows, connection_id) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.city_connection_rows,
+           connection_id
+         ) do
       {:ok, row} ->
         {:noreply,
          socket
@@ -306,7 +309,10 @@ defmodule LemmingsOsWeb.CitiesLive do
         %{"connection_edit" => %{"connection_id" => connection_id, "type" => type}},
         socket
       ) do
-    case find_local_connection_row(socket.assigns.city_connection_rows, connection_id) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.city_connection_rows,
+           connection_id
+         ) do
       {:ok, row} ->
         config_text =
           ConnectionsSurface.default_config_text(socket.assigns.city_connection_types, type)
@@ -331,7 +337,10 @@ defmodule LemmingsOsWeb.CitiesLive do
 
     with {:ok, city} <- load_selected_city_scope(socket),
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.city_connection_rows, connection_id),
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.city_connection_rows,
+             connection_id
+           ),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
          {:ok, _connection} <- Connections.update_connection(city, row.connection, attrs) do
       snapshot_params = city_detail_params(socket, %{city: city.id})
@@ -356,7 +365,10 @@ defmodule LemmingsOsWeb.CitiesLive do
   def handle_event("delete_city_connection", %{"connection_id" => connection_id}, socket) do
     with {:ok, city} <- load_selected_city_scope(socket),
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.city_connection_rows, connection_id),
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.city_connection_rows,
+             connection_id
+           ),
          {:ok, _connection} <- Connections.delete_connection(city, row.connection) do
       snapshot_params = city_detail_params(socket, %{city: city.id})
 
@@ -380,8 +392,12 @@ defmodule LemmingsOsWeb.CitiesLive do
       ) do
     with {:ok, city} <- load_selected_city_scope(socket),
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.city_connection_rows, connection_id),
-         {:ok, _connection} <- run_connection_lifecycle(city, row.connection, action) do
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.city_connection_rows,
+             connection_id
+           ),
+         {:ok, _connection} <-
+           ConnectionsSurface.run_connection_lifecycle(city, row.connection, action) do
       snapshot_params = city_detail_params(socket, %{city: city.id})
 
       {:noreply,
@@ -626,19 +642,4 @@ defmodule LemmingsOsWeb.CitiesLive do
   defp maybe_put_param(params, _key, nil), do: params
   defp maybe_put_param(params, _key, ""), do: params
   defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
-
-  defp find_local_connection_row(rows, connection_id) do
-    case Enum.find(rows, &(&1.local? and &1.connection.id == connection_id)) do
-      nil -> :error
-      row -> {:ok, row}
-    end
-  end
-
-  defp run_connection_lifecycle(scope, connection, "enable"),
-    do: Connections.enable_connection(scope, connection)
-
-  defp run_connection_lifecycle(scope, connection, "disable"),
-    do: Connections.disable_connection(scope, connection)
-
-  defp run_connection_lifecycle(_scope, _connection, _action), do: {:error, :invalid_action}
 end

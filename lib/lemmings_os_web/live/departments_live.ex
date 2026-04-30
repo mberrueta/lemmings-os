@@ -279,7 +279,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         %{"connection_id" => connection_id},
         socket
       ) do
-    case find_local_connection_row(socket.assigns.department_connection_rows, connection_id) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.department_connection_rows,
+           connection_id
+         ) do
       {:ok, row} ->
         {:noreply,
          socket
@@ -301,7 +304,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         %{"connection_edit" => %{"connection_id" => connection_id, "type" => type}},
         socket
       ) do
-    case find_local_connection_row(socket.assigns.department_connection_rows, connection_id) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.department_connection_rows,
+           connection_id
+         ) do
       {:ok, row} ->
         config_text =
           ConnectionsSurface.default_config_text(socket.assigns.department_connection_types, type)
@@ -326,7 +332,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
     with %Department{} = department <- socket.assigns.selected_department,
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.department_connection_rows, connection_id),
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.department_connection_rows,
+             connection_id
+           ),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
          {:ok, _connection} <- Connections.update_connection(department, row.connection, attrs) do
       department = reload_department_detail(department)
@@ -351,7 +360,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   def handle_event("delete_department_connection", %{"connection_id" => connection_id}, socket) do
     with %Department{} = department <- socket.assigns.selected_department,
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.department_connection_rows, connection_id),
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.department_connection_rows,
+             connection_id
+           ),
          {:ok, _connection} <- Connections.delete_connection(department, row.connection) do
       department = reload_department_detail(department)
 
@@ -375,8 +387,12 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       ) do
     with %Department{} = department <- socket.assigns.selected_department,
          {:ok, row} <-
-           find_local_connection_row(socket.assigns.department_connection_rows, connection_id),
-         {:ok, _connection} <- run_connection_lifecycle(department, row.connection, action) do
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.department_connection_rows,
+             connection_id
+           ),
+         {:ok, _connection} <-
+           ConnectionsSurface.run_connection_lifecycle(department, row.connection, action) do
       department = reload_department_detail(department)
 
       {:noreply,
@@ -659,19 +675,4 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   defp secret_form_with_key(bank_key) do
     to_form(%{"bank_key" => String.trim(bank_key || ""), "value" => ""}, as: :secret)
   end
-
-  defp find_local_connection_row(rows, connection_id) do
-    case Enum.find(rows, &(&1.local? and &1.connection.id == connection_id)) do
-      nil -> :error
-      row -> {:ok, row}
-    end
-  end
-
-  defp run_connection_lifecycle(scope, connection, "enable"),
-    do: Connections.enable_connection(scope, connection)
-
-  defp run_connection_lifecycle(scope, connection, "disable"),
-    do: Connections.disable_connection(scope, connection)
-
-  defp run_connection_lifecycle(_scope, _connection, _action), do: {:error, :invalid_action}
 end

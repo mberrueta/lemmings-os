@@ -5,6 +5,8 @@ defmodule LemmingsOsWeb.ConnectionsSurface do
 
   use Gettext, backend: LemmingsOs.Gettext
 
+  alias LemmingsOs.Connections
+
   def create_form(types, params \\ %{}) do
     default_type =
       case Map.get(params, "type") do
@@ -86,6 +88,21 @@ defmodule LemmingsOsWeb.ConnectionsSurface do
   def source_scope_label("city"), do: dgettext("layout", ".connections_source_city")
   def source_scope_label("department"), do: dgettext("layout", ".connections_source_department")
   def source_scope_label(_source_scope), do: dgettext("layout", ".connections_source_unknown")
+
+  def find_local_connection_row(rows, connection_id) do
+    case Enum.find(rows, &(&1.local? and &1.connection.id == connection_id)) do
+      nil -> :error
+      row -> {:ok, row}
+    end
+  end
+
+  def run_connection_lifecycle(scope, connection, "enable"),
+    do: Connections.enable_connection(scope, connection)
+
+  def run_connection_lifecycle(scope, connection, "disable"),
+    do: Connections.disable_connection(scope, connection)
+
+  def run_connection_lifecycle(_scope, _connection, _action), do: {:error, :invalid_action}
 
   defp connection_form_changeset(params) do
     types = %{type: :string, status: :string, config: :string, connection_id: :string}
