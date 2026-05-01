@@ -20,7 +20,7 @@ artifact_storage = Application.get_env(:lemmings_os, :artifact_storage, [])
 
 artifact_storage_root_path =
   System.get_env("LEMMINGS_ARTIFACT_STORAGE_PATH") ||
-    Keyword.get(artifact_storage, :root_path, Path.expand("../storage/artifacts", __DIR__))
+    Keyword.get(artifact_storage, :root_path, Path.expand("../priv/runtime/storage", __DIR__))
 
 runtime_city_node_name = System.get_env("LEMMINGS_CITY_NODE_NAME") || Atom.to_string(node())
 runtime_city_heartbeat = Application.get_env(:lemmings_os, :runtime_city_heartbeat, [])

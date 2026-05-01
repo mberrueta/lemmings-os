@@ -1,8 +1,8 @@
 # Task 08: Instance Timeline Promotion UI
 
 ## Status
-- **Status**: ⏳ PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: ⏳ COMPLETED
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 `dev-frontend-ui-engineer` - Phoenix LiveView frontend engineer for accessible, responsive UI using existing design patterns.

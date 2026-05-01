@@ -363,6 +363,10 @@
                 id={"card-tool-execution-#{entry.tool_execution.id}"}
                 tool_execution={entry.tool_execution}
                 world_id={@world && @world.id}
+                promotion_candidate={Map.get(entry, :promotion_candidate)}
+                promoted_artifact={Map.get(entry, :promoted_artifact)}
+                promotion_action={Map.get(entry, :promotion_action)}
+                promotion_message={Map.get(entry, :promotion_message)}
                 display_now={@status_now}
               />
 

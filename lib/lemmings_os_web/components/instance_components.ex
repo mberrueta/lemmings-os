@@ -201,6 +201,10 @@ defmodule LemmingsOsWeb.InstanceComponents do
   attr :id, :string, required: true
   attr :tool_execution, :map, required: true
   attr :world_id, :string, default: nil
+  attr :promotion_candidate, :map, default: nil
+  attr :promoted_artifact, :map, default: nil
+  attr :promotion_action, :atom, default: :none
+  attr :promotion_message, :map, default: nil
   attr :display_now, :any, default: nil
   attr :class, :string, default: nil
 
@@ -215,6 +219,14 @@ defmodule LemmingsOsWeb.InstanceComponents do
       |> assign(:result_payload, tool_payload_json(assigns.tool_execution.result))
       |> assign(:error_payload, tool_payload_json(assigns.tool_execution.error))
       |> assign(:artifact_link, tool_artifact_link(assigns.tool_execution, assigns.world_id))
+      |> assign(:promotion_form_id, "artifact-promotion-form-#{assigns.tool_execution.id}")
+      |> assign(:promotion_status_id, "artifact-promotion-status-#{assigns.tool_execution.id}")
+      |> assign(:artifact_reference_id, "artifact-reference-#{assigns.tool_execution.id}")
+      |> assign(
+        :artifact_notes_toggle_id,
+        "artifact-reference-notes-toggle-#{assigns.tool_execution.id}"
+      )
+      |> assign(:artifact_notes_id, "artifact-reference-notes-#{assigns.tool_execution.id}")
 
     ~H"""
     <article
@@ -283,6 +295,155 @@ defmodule LemmingsOsWeb.InstanceComponents do
           >
             {tool_preview(@tool_execution)}
           </p>
+
+          <div
+            :if={@promotion_candidate}
+            class="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-3"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="space-y-1">
+                <div class="flex items-center gap-4">
+                  <p class="text-xs uppercase tracking-widest text-zinc-500">
+                    {dgettext("lemmings", "Artifact promotion")}
+                  </p>
+                  <button
+                    id={"artifact-promotion-help-#{@tool_execution.id}"}
+                    type="button"
+                    title={
+                      dgettext(
+                        "lemmings",
+                        "An Artifact is a promoted, durable file reference with tracked metadata and lifecycle state."
+                      )
+                    }
+                    aria-label={
+                      dgettext(
+                        "lemmings",
+                        "Artifact help: promoted durable file reference with metadata and lifecycle"
+                      )
+                    }
+                    class="inline-flex size-6 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/70 text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+                  >
+                    i
+                  </button>
+                </div>
+                <p
+                  id={"artifact-promotion-source-#{@tool_execution.id}"}
+                  class="break-words font-mono text-xs leading-6 text-zinc-400"
+                >
+                  {@promotion_candidate.relative_path}
+                </p>
+              </div>
+              <.badge :if={@promoted_artifact} tone="success">
+                {dgettext("lemmings", "Promoted")}
+              </.badge>
+            </div>
+
+            <form
+              :if={@promotion_action in [:promote, :update_existing]}
+              id={@promotion_form_id}
+              class="mt-3 flex flex-wrap gap-2"
+              phx-submit="promote_workspace_artifact"
+            >
+              <input
+                id={"artifact-promotion-tool-execution-id-#{@tool_execution.id}"}
+                type="hidden"
+                name="artifact_promotion[tool_execution_id]"
+                value={@tool_execution.id}
+              />
+              <input
+                id={"artifact-promotion-relative-path-#{@tool_execution.id}"}
+                type="hidden"
+                name="artifact_promotion[relative_path]"
+                value={@promotion_candidate.relative_path}
+              />
+
+              <button
+                :if={@promotion_action == :promote}
+                id={"artifact-promote-button-#{@tool_execution.id}"}
+                type="submit"
+                aria-label={dgettext("lemmings", "Promote workspace file to Artifact")}
+                class="inline-flex min-h-10 items-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-xs font-medium uppercase tracking-widest text-emerald-300 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-300 hover:text-emerald-200"
+              >
+                <.icon name="hero-arrow-up-tray" class="size-4" />
+                {dgettext("lemmings", "Promote to Artifact")}
+              </button>
+
+              <button
+                :if={@promotion_action == :update_existing}
+                id={"artifact-update-button-#{@tool_execution.id}"}
+                type="submit"
+                name="artifact_promotion[mode]"
+                value="update_existing"
+                aria-label={dgettext("lemmings", "Update existing Artifact from workspace file")}
+                class="inline-flex min-h-10 items-center gap-2 border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-medium uppercase tracking-widest text-amber-200 transition duration-150 ease-out hover:-translate-y-px hover:border-amber-300 hover:text-amber-100"
+              >
+                <.icon name="hero-arrow-path" class="size-4" />
+                {dgettext("lemmings", "Update Artifact")}
+              </button>
+            </form>
+
+            <p
+              :if={@promotion_message}
+              id={@promotion_status_id}
+              class={[
+                "mt-3 text-sm",
+                if(@promotion_message.kind == :error, do: "text-red-300", else: "text-emerald-300")
+              ]}
+              role={if(@promotion_message.kind == :error, do: "alert", else: "status")}
+            >
+              {@promotion_message.text}
+            </p>
+            <section
+              :if={@promoted_artifact}
+              id={@artifact_reference_id}
+              class="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-3"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+                <p
+                  id={"artifact-reference-summary-#{@tool_execution.id}"}
+                  class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-zinc-200"
+                >
+                  <span class="font-mono text-emerald-200">{@promoted_artifact.filename}</span>
+                  <span class="text-zinc-500">({@promoted_artifact.status})</span>
+                  <span class="text-zinc-300">{@promoted_artifact.type}</span>
+                  <span class="text-zinc-500">-</span>
+                  <span class="text-zinc-300">
+                    {artifact_size_label(@promoted_artifact.size_bytes)}
+                  </span>
+                  <span class="text-zinc-500">.</span>
+                  <span class="text-zinc-400">
+                    {dgettext("lemmings", "Created")} {artifact_created_at_label(
+                      @promoted_artifact.inserted_at
+                    )}
+                  </span>
+                </p>
+                <.link
+                  :if={artifact_download_link(@tool_execution, @promoted_artifact, @world_id)}
+                  id={"artifact-reference-download-#{@tool_execution.id}"}
+                  href={artifact_download_link(@tool_execution, @promoted_artifact, @world_id)}
+                  class="text-xs uppercase tracking-widest text-sky-300 underline decoration-sky-400/40 underline-offset-4 hover:text-sky-200"
+                >
+                  {dgettext("lemmings", "Download")}
+                </.link>
+              </div>
+
+              <details
+                :if={present_text?(@promoted_artifact.notes)}
+                id={@artifact_notes_toggle_id}
+                class="mt-3 border-t border-emerald-400/20 pt-3"
+              >
+                <summary class="cursor-pointer text-xs uppercase tracking-widest text-zinc-400">
+                  {dgettext("lemmings", "Notes")}
+                </summary>
+                <p
+                  id={@artifact_notes_id}
+                  class="mt-2 whitespace-pre-wrap break-words text-sm text-zinc-200"
+                >
+                  {@promoted_artifact.notes}
+                </p>
+              </details>
+            </section>
+          </div>
 
           <details id={@tool_details_id} class="mt-3 border-t border-zinc-800 pt-3">
             <summary class="cursor-pointer text-xs uppercase tracking-widest text-zinc-500">
@@ -878,6 +1039,31 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   defp tool_artifact_label(%{result: %{path: path}}) when is_binary(path) and path != "", do: path
   defp tool_artifact_label(_tool_execution), do: nil
+
+  defp artifact_download_link(
+         %{lemming_instance_id: instance_id},
+         %{id: artifact_id, status: "ready"},
+         world_id
+       )
+       when is_binary(instance_id) and is_binary(artifact_id) and is_binary(world_id) and
+              world_id != "" do
+    ~p"/lemmings/instances/#{instance_id}/artifacts/#{artifact_id}/download?#{%{world: world_id}}"
+  end
+
+  defp artifact_download_link(_tool_execution, _artifact, _world_id), do: nil
+
+  defp artifact_size_label(size_bytes) when is_integer(size_bytes) and size_bytes >= 0,
+    do: dgettext("lemmings", "%{count} bytes", count: size_bytes)
+
+  defp artifact_size_label(_size_bytes), do: dgettext("lemmings", "Unknown size")
+
+  defp artifact_created_at_label(%DateTime{} = inserted_at),
+    do: Calendar.strftime(inserted_at, "%Y-%m-%d %H:%M UTC")
+
+  defp artifact_created_at_label(_inserted_at), do: dgettext("lemmings", "Unknown time")
+
+  defp present_text?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_text?(_value), do: false
 
   defp ensure_trailing_space(value) when is_binary(value) and value != "" do
     if String.ends_with?(value, " "), do: value, else: value <> " "

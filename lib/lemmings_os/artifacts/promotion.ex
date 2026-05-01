@@ -12,6 +12,7 @@ defmodule LemmingsOs.Artifacts.Promotion do
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
+  alias LemmingsOs.Tools.WorkArea
 
   @ready_status "ready"
   @promote_modes ~w(update_existing promote_as_new)a
@@ -59,7 +60,7 @@ defmodule LemmingsOs.Artifacts.Promotion do
              LemmingInstances.get_instance(instance_id, world_id: scope_data.world_id),
            {:ok, promotion_scope} <- enrich_scope_with_instance(scope_data, instance),
            {:ok, resolved_source} <-
-             LemmingInstances.artifact_absolute_path(instance, relative_path),
+             resolve_workspace_source_path(promotion_scope, instance, relative_path),
            filename <- resolve_filename(attrs, resolved_source.relative_path),
            :ok <- ensure_filename_safe(filename),
            promotion_attrs <- build_promotion_attrs(attrs, promotion_scope, instance, filename) do
@@ -251,6 +252,44 @@ defmodule LemmingsOs.Artifacts.Promotion do
 
   defp resolve_filename(attrs, resolved_relative_path) do
     map_field(attrs, :filename) || Path.basename(resolved_relative_path)
+  end
+
+  defp resolve_workspace_source_path(scope_data, %LemmingInstance{} = instance, relative_path) do
+    work_area_ref = runtime_work_area_ref(scope_data, instance)
+
+    case WorkArea.resolve(work_area_ref, relative_path) do
+      {:ok, %{absolute_path: absolute_path} = resolved} ->
+        if File.regular?(absolute_path) do
+          {:ok, resolved}
+        else
+          resolve_workspace_source_path_legacy(instance, relative_path)
+        end
+
+      {:error, :work_area_unavailable} ->
+        resolve_workspace_source_path_legacy(instance, relative_path)
+
+      {:error, :invalid_path} ->
+        {:error, :path_outside_workspace}
+    end
+  end
+
+  defp resolve_workspace_source_path_legacy(%LemmingInstance{} = instance, relative_path) do
+    case LemmingInstances.artifact_absolute_path(instance, relative_path) do
+      {:ok, resolved_source} -> {:ok, resolved_source}
+      {:error, :invalid_path} -> {:error, :path_outside_workspace}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp runtime_work_area_ref(scope_data, %LemmingInstance{} = instance) do
+    case LemmingInstances.get_runtime_state(instance.id, world_id: scope_data.world_id) do
+      {:ok, %{work_area_ref: work_area_ref}}
+      when is_binary(work_area_ref) and work_area_ref != "" ->
+        work_area_ref
+
+      _other ->
+        instance.id
+    end
   end
 
   defp resolve_instance_id(scope_data, attrs) do

@@ -157,7 +157,7 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
   def root_path do
     :lemmings_os
     |> Application.get_env(:artifact_storage, [])
-    |> Keyword.get(:root_path, Path.expand("storage/artifacts", File.cwd!()))
+    |> Keyword.get(:root_path, Path.expand("priv/runtime/storage", File.cwd!()))
     |> Path.expand()
   end
 

@@ -31,6 +31,10 @@ config :lemmings_os, :runtime_dets, directory: Path.expand("../tmp/runtime/dets"
 config :lemmings_os, :runtime_workspace_root, Path.expand("../tmp/runtime/workspace", __DIR__)
 config :lemmings_os, :work_areas_path, Path.expand("../tmp/runtime/work_areas", __DIR__)
 
+config :lemmings_os, :artifact_storage,
+  backend: :local,
+  root_path: Path.expand("../tmp/runtime/storage", __DIR__)
+
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,
   default_model: "llama3.2",

@@ -17,7 +17,7 @@ config :lemmings_os, :runtime_city_heartbeat,
 
 config :lemmings_os, :artifact_storage,
   backend: :local,
-  root_path: Path.expand("../storage/artifacts", __DIR__)
+  root_path: Path.expand("../priv/runtime/storage", __DIR__)
 
 config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
 config :lemmings_os, :runtime_engine_on_startup, true
