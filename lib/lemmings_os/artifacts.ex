@@ -329,6 +329,37 @@ defmodule LemmingsOs.Artifacts do
     Map.take(artifact, @descriptor_fields)
   end
 
+  @doc """
+  Decorates artifact descriptors with scope slugs for UI display.
+
+  Adds `:city_slug`, `:department_slug`, and `:lemming_slug` keys when the
+  corresponding scope ids are present and resolvable.
+
+  ## Examples
+
+      iex> LemmingsOs.Artifacts.decorate_scope_slugs([])
+      []
+  """
+  @spec decorate_scope_slugs([artifact_descriptor()]) :: [map()]
+  def decorate_scope_slugs(rows) when is_list(rows) do
+    city_slug_by_id = slug_map_for(City, rows, :city_id)
+    department_slug_by_id = slug_map_for(Department, rows, :department_id)
+    lemming_slug_by_id = slug_map_for(Lemming, rows, :lemming_id)
+
+    Enum.map(rows, fn row ->
+      city_id = map_field(row, :city_id)
+      department_id = map_field(row, :department_id)
+      lemming_id = map_field(row, :lemming_id)
+
+      row
+      |> Map.put(:city_slug, Map.get(city_slug_by_id, city_id))
+      |> Map.put(:department_slug, Map.get(department_slug_by_id, department_id))
+      |> Map.put(:lemming_slug, Map.get(lemming_slug_by_id, lemming_id))
+    end)
+  end
+
+  def decorate_scope_slugs(_rows), do: []
+
   defp get_artifact_record(scope_data, artifact_id) do
     Artifact
     |> filter_query(scope_filters(scope_data))
@@ -411,6 +442,29 @@ defmodule LemmingsOs.Artifacts do
         value -> [{field, value} | acc]
       end
     end)
+  end
+
+  defp slug_map_for(schema, rows, field) do
+    ids = collect_scope_ids(rows, field)
+
+    case ids do
+      [] ->
+        %{}
+
+      _ids ->
+        schema
+        |> where([entity], entity.id in ^ids)
+        |> select([entity], {entity.id, entity.slug})
+        |> Repo.all()
+        |> Map.new()
+    end
+  end
+
+  defp collect_scope_ids(rows, field) do
+    rows
+    |> Enum.map(&map_field(&1, field))
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
   end
 
   defp scope_data(%World{id: world_id}) when is_binary(world_id) do

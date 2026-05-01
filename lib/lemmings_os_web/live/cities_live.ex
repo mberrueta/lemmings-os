@@ -28,6 +28,7 @@ defmodule LemmingsOsWeb.CitiesLive do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Artifacts
   alias LemmingsOs.Connections
   alias LemmingsOs.Helpers
   alias LemmingsOs.SecretBank
@@ -36,7 +37,7 @@ defmodule LemmingsOsWeb.CitiesLive do
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
   require Logger
 
-  @detail_tabs ~w(overview secrets connections)
+  @detail_tabs ~w(overview secrets connections artifacts)
 
   def mount(params, _session, socket) do
     connection_types = Connections.list_connection_types()
@@ -60,6 +61,7 @@ defmodule LemmingsOsWeb.CitiesLive do
      |> assign(:city_connection_rows, [])
      |> assign(:city_connection_editing_id, nil)
      |> assign(:city_connection_edit_form, nil)
+     |> assign(:city_artifact_rows, [])
      |> load_snapshot(params)}
   end
 
@@ -454,6 +456,7 @@ defmodule LemmingsOsWeb.CitiesLive do
         |> stream(:cities, snapshot.cities, reset: true)
         |> assign_city_secret_surface(snapshot)
         |> assign_city_connection_surface(snapshot)
+        |> assign_city_artifact_surface(snapshot)
         |> put_shell_breadcrumb(shell_breadcrumb(snapshot))
 
       {:error, :not_found} ->
@@ -466,6 +469,7 @@ defmodule LemmingsOsWeb.CitiesLive do
         |> assign(:city_secret_env_policy, [])
         |> assign(:city_secret_activity, [])
         |> reset_city_connection_surface()
+        |> reset_city_artifact_surface()
         |> put_shell_breadcrumb([shell_item(:cities, "/cities")])
     end
   end
@@ -601,6 +605,37 @@ defmodule LemmingsOsWeb.CitiesLive do
     |> assign(:city_connection_editing_id, nil)
     |> assign(:city_connection_edit_form, nil)
   end
+
+  defp assign_city_artifact_surface(socket, %{selected_city: nil}),
+    do: reset_city_artifact_surface(socket)
+
+  defp assign_city_artifact_surface(socket, %{selected_city: %{id: city_id}} = snapshot)
+       when is_binary(city_id) do
+    with {:ok, world} <- fetch_snapshot_world(snapshot),
+         %City{} = city <- Cities.get_city(world, city_id),
+         {:ok, artifacts} <- Artifacts.list_artifacts_for_scope(city) do
+      artifacts =
+        artifacts
+        |> exact_city_artifacts(city)
+        |> Artifacts.decorate_scope_slugs()
+
+      assign(socket, :city_artifact_rows, artifacts)
+    else
+      _ -> reset_city_artifact_surface(socket)
+    end
+  end
+
+  defp assign_city_artifact_surface(socket, _snapshot), do: reset_city_artifact_surface(socket)
+
+  defp reset_city_artifact_surface(socket) do
+    assign(socket, :city_artifact_rows, [])
+  end
+
+  defp exact_city_artifacts(artifacts, %City{id: city_id}) when is_binary(city_id) do
+    Enum.filter(artifacts, &(&1.city_id == city_id))
+  end
+
+  defp exact_city_artifacts(_artifacts, _city), do: []
 
   defp load_selected_city_scope(%{
          assigns: %{snapshot: %{selected_city: %{id: city_id}} = snapshot}

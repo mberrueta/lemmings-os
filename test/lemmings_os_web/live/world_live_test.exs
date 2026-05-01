@@ -370,6 +370,52 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     refute Connections.get_connection(world, created.id)
   end
 
+  test "artifacts tab lists artifacts filtered by world", %{conn: conn} do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    world =
+      insert(:world,
+        slug: "local",
+        name: "Local World",
+        bootstrap_path: path,
+        bootstrap_source: "direct",
+        last_import_status: "ok"
+      )
+
+    city = insert(:city, world: world, status: "active", slug: "ops-city")
+
+    world_artifact =
+      insert(:artifact,
+        world: world,
+        city: nil,
+        department: nil,
+        lemming: nil,
+        lemming_instance: nil,
+        filename: "world-level.md"
+      )
+
+    city_artifact =
+      insert(:artifact,
+        world: world,
+        city: city,
+        department: nil,
+        lemming: nil,
+        lemming_instance: nil,
+        filename: "city-level.md"
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/world")
+
+    view |> element("#world-tab-artifacts") |> render_click()
+
+    assert has_element?(view, "#world-artifacts-panel")
+    assert has_element?(view, "#world-artifacts-row-#{world_artifact.id}")
+    assert has_element?(view, "#world-artifacts-context-world-#{world_artifact.id}", "world")
+    assert has_element?(view, "#world-artifacts-row-#{city_artifact.id}")
+    assert has_element?(view, "#world-artifacts-context-city-#{city_artifact.id}", "ops-city")
+  end
+
   defp put_secret_bank_config(config) do
     previous = Application.get_env(:lemmings_os, LemmingsOs.SecretBank, [])
 

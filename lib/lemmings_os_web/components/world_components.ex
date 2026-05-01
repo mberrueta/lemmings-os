@@ -22,6 +22,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :connection_rows, :list, default: []
   attr :connection_editing_id, :string, default: nil
   attr :connection_edit_form, :any, default: nil
+  attr :artifact_rows, :list, default: []
 
   def world_page(assigns) do
     assigns =
@@ -61,6 +62,7 @@ defmodule LemmingsOsWeb.WorldComponents do
         connection_rows={@connection_rows}
         connection_editing_id={@connection_editing_id}
         connection_edit_form={@connection_edit_form}
+        artifact_rows={@artifact_rows}
       />
     </.content_container>
     """
@@ -87,6 +89,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :connection_rows, :list, required: true
   attr :connection_editing_id, :string, default: nil
   attr :connection_edit_form, :any, default: nil
+  attr :artifact_rows, :list, default: []
 
   defp world_snapshot(assigns) do
     ~H"""
@@ -232,6 +235,15 @@ defmodule LemmingsOsWeb.WorldComponents do
         variant={tab_button_variant(@active_tab, "connections")}
       >
         {dgettext("layout", ".nav_connections")}
+      </.button>
+      <.button
+        id="world-tab-artifacts"
+        phx-click="select_tab"
+        phx-value-tab="artifacts"
+        aria_pressed={pressed_attr(@active_tab == "artifacts")}
+        variant={tab_button_variant(@active_tab, "artifacts")}
+      >
+        {dgettext("layout", "Artifacts")}
       </.button>
     </div>
 
@@ -517,6 +529,12 @@ defmodule LemmingsOsWeb.WorldComponents do
       lifecycle_event="world_connection_lifecycle"
       test_event="test_world_connection"
     />
+
+    <ArtifactsComponents.artifact_surface
+      :if={@active_tab == "artifacts"}
+      id_prefix="world"
+      rows={@artifact_rows}
+    />
     """
   end
 
@@ -755,6 +773,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :connection_rows, :list, default: []
   attr :connection_editing_id, :string, default: nil
   attr :connection_edit_form, :any, default: nil
+  attr :artifact_rows, :list, default: []
 
   def department_detail_page(assigns) do
     ~H"""
@@ -820,6 +839,16 @@ defmodule LemmingsOsWeb.WorldComponents do
           class={department_tab_class(@active_tab == "connections")}
         >
           {dgettext("layout", ".nav_connections")}
+        </.link>
+        <.link
+          id="department-tab-artifacts"
+          patch={
+            ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "artifacts")}"
+          }
+          aria-current={if @active_tab == "artifacts", do: "page"}
+          class={department_tab_class(@active_tab == "artifacts")}
+        >
+          {dgettext("layout", "Artifacts")}
         </.link>
       </div>
 
@@ -1216,6 +1245,12 @@ defmodule LemmingsOsWeb.WorldComponents do
         delete_event="delete_department_connection"
         lifecycle_event="department_connection_lifecycle"
         test_event="test_department_connection"
+      />
+
+      <ArtifactsComponents.artifact_surface
+        :if={@active_tab == "artifacts"}
+        id_prefix="department"
+        rows={@artifact_rows}
       />
     </.panel>
     """

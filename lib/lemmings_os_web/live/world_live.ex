@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.WorldLive do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Artifacts
   alias LemmingsOs.Connections
   alias LemmingsOs.Helpers
   alias LemmingsOs.SecretBank
@@ -35,6 +36,7 @@ defmodule LemmingsOsWeb.WorldLive do
      |> assign(:world_connection_rows, [])
      |> assign(:world_connection_editing_id, nil)
      |> assign(:world_connection_edit_form, nil)
+     |> assign(:world_artifact_rows, [])
      |> load_snapshot()}
   end
 
@@ -334,6 +336,7 @@ defmodule LemmingsOsWeb.WorldLive do
         |> assign(:last_import_result, normalize_import_result(import_result))
         |> assign_world_secret_surface(snapshot.world.id)
         |> assign_world_connection_surface(snapshot.world.id)
+        |> assign_world_artifact_surface(snapshot.world.id)
 
       {:error, :not_found} ->
         socket
@@ -352,6 +355,7 @@ defmodule LemmingsOsWeb.WorldLive do
         |> assign(:world_connection_create_open, false)
         |> assign(:world_connection_editing_id, nil)
         |> assign(:world_connection_edit_form, nil)
+        |> assign(:world_artifact_rows, [])
     end
   end
 
@@ -404,6 +408,7 @@ defmodule LemmingsOsWeb.WorldLive do
   defp normalize_tab("runtime"), do: "runtime"
   defp normalize_tab("secrets"), do: "secrets"
   defp normalize_tab("connections"), do: "connections"
+  defp normalize_tab("artifacts"), do: "artifacts"
   defp normalize_tab(_tab), do: "overview"
 
   defp load_world_scope(%{assigns: %{snapshot: %{world: %{id: world_id}}}})
@@ -465,6 +470,27 @@ defmodule LemmingsOsWeb.WorldLive do
     |> assign(:world_connection_create_open, false)
     |> assign(:world_connection_editing_id, nil)
     |> assign(:world_connection_edit_form, nil)
+  end
+
+  defp assign_world_artifact_surface(socket, world_id) when is_binary(world_id) do
+    case Worlds.get_world(world_id) do
+      %World{} = world -> assign_world_artifact_surface(socket, world)
+      nil -> assign_world_artifact_surface(socket, nil)
+    end
+  end
+
+  defp assign_world_artifact_surface(socket, %World{} = world) do
+    rows =
+      case Artifacts.list_artifacts_for_scope(world) do
+        {:ok, artifacts} -> Artifacts.decorate_scope_slugs(artifacts)
+        {:error, :invalid_scope} -> []
+      end
+
+    assign(socket, :world_artifact_rows, rows)
+  end
+
+  defp assign_world_artifact_surface(socket, nil) do
+    assign(socket, :world_artifact_rows, [])
   end
 
   defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)

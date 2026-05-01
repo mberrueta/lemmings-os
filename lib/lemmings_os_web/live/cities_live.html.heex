@@ -246,6 +246,15 @@
               >
                 {dgettext("layout", ".nav_connections")}
               </.button>
+              <.button
+                id="city-tab-artifacts"
+                type="button"
+                phx-click="select_city_tab"
+                phx-value-tab="artifacts"
+                variant={if(@selected_city_tab == "artifacts", do: "secondary", else: "neutral")}
+              >
+                {dgettext("layout", "Artifacts")}
+              </.button>
             </div>
 
             <div
@@ -318,6 +327,11 @@
             delete_event="delete_city_connection"
             lifecycle_event="city_connection_lifecycle"
             test_event="test_city_connection"
+          />
+          <ArtifactsComponents.artifact_surface
+            :if={@snapshot.selected_city && @selected_city_tab == "artifacts"}
+            id_prefix="city"
+            rows={@city_artifact_rows}
           />
           <.city_effective_config_panel
             :if={@snapshot.selected_city && @selected_city_tab == "overview"}

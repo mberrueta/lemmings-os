@@ -195,6 +195,78 @@ defmodule LemmingsOsWeb.LemmingsLiveTest do
     assert has_element?(view, "#lemming-edit-runtime")
   end
 
+  test "artifacts tab lists artifacts filtered by lemming", %{conn: conn} do
+    world = insert(:world)
+    city = insert(:city, world: world, status: "active")
+    department = insert(:department, world: world, city: city, status: "active")
+    lemming = insert(:lemming, world: world, city: city, department: department, status: "active")
+
+    instance =
+      insert(:lemming_instance,
+        world: world,
+        city: city,
+        department: department,
+        lemming: lemming
+      )
+
+    lemming_artifact =
+      insert(:artifact,
+        world: world,
+        city: city,
+        department: department,
+        lemming: lemming,
+        lemming_instance: nil,
+        filename: "lemming.md"
+      )
+
+    department_artifact =
+      insert(:artifact,
+        world: world,
+        city: city,
+        department: department,
+        lemming: nil,
+        lemming_instance: nil,
+        filename: "department.md"
+      )
+
+    instance_artifact =
+      insert(:artifact,
+        world: world,
+        city: city,
+        department: department,
+        lemming: lemming,
+        lemming_instance: instance,
+        filename: "instance.md"
+      )
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/lemmings/#{lemming.id}?#{%{city: city.id, dept: department.id, tab: "artifacts"}}"
+      )
+
+    assert has_element?(view, "#lemming-artifacts-panel")
+    assert has_element?(view, "#lemming-tab-artifacts[aria-current='page']")
+    assert has_element?(view, "#lemming-artifacts-row-#{lemming_artifact.id}")
+    refute has_element?(view, "#lemming-artifacts-row-#{department_artifact.id}")
+    assert has_element?(view, "#lemming-artifacts-row-#{instance_artifact.id}")
+    assert has_element?(view, "#lemming-artifacts-download-#{instance_artifact.id}")
+    refute has_element?(view, "#lemming-artifacts-download-#{lemming_artifact.id}")
+    assert has_element?(view, "#lemming-artifacts-context-city-#{lemming_artifact.id}", city.slug)
+
+    assert has_element?(
+             view,
+             "#lemming-artifacts-context-department-#{lemming_artifact.id}",
+             department.slug
+           )
+
+    assert has_element?(
+             view,
+             "#lemming-artifacts-context-lemming-#{lemming_artifact.id}",
+             lemming.slug
+           )
+  end
+
   test "settings save persists mutable fields and local overrides", %{conn: conn} do
     world = insert(:world)
     city = insert(:city, world: world, status: "active")
