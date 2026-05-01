@@ -51,27 +51,30 @@ defmodule LemmingsOs.Artifacts.Promotion do
           {:ok, Artifacts.artifact_descriptor()}
           | {:error, atom() | Ecto.Changeset.t() | {atom(), term()}}
   def promote_workspace_file(scope_data, attrs) when is_map(scope_data) and is_map(attrs) do
-    with {:ok, relative_path} <- fetch_non_empty_string(attrs, :relative_path),
-         {:ok, mode} <- normalize_mode(map_field(attrs, :mode)),
-         {:ok, instance_id} <- resolve_instance_id(scope_data, attrs),
-         {:ok, instance} <-
-           LemmingInstances.get_instance(instance_id, world_id: scope_data.world_id),
-         {:ok, promotion_scope} <- enrich_scope_with_instance(scope_data, instance),
-         {:ok, resolved_source} <-
-           LemmingInstances.artifact_absolute_path(instance, relative_path),
-         filename <- resolve_filename(attrs, resolved_source.relative_path),
-         :ok <- ensure_filename_safe(filename),
-         promotion_attrs <- build_promotion_attrs(attrs, promotion_scope, instance, filename) do
-      promote_with_mode(
-        promotion_scope,
-        promotion_attrs,
-        resolved_source.absolute_path,
-        mode
-      )
-    else
-      {:error, :not_found} -> {:error, :instance_not_found}
-      {:error, reason} -> {:error, reason}
-    end
+    result =
+      with {:ok, relative_path} <- fetch_non_empty_string(attrs, :relative_path),
+           {:ok, mode} <- normalize_mode(map_field(attrs, :mode)),
+           {:ok, instance_id} <- resolve_instance_id(scope_data, attrs),
+           {:ok, instance} <-
+             LemmingInstances.get_instance(instance_id, world_id: scope_data.world_id),
+           {:ok, promotion_scope} <- enrich_scope_with_instance(scope_data, instance),
+           {:ok, resolved_source} <-
+             LemmingInstances.artifact_absolute_path(instance, relative_path),
+           filename <- resolve_filename(attrs, resolved_source.relative_path),
+           :ok <- ensure_filename_safe(filename),
+           promotion_attrs <- build_promotion_attrs(attrs, promotion_scope, instance, filename) do
+        promote_with_mode(
+          promotion_scope,
+          promotion_attrs,
+          resolved_source.absolute_path,
+          mode
+        )
+      else
+        {:error, :not_found} -> {:error, :instance_not_found}
+        {:error, reason} -> {:error, reason}
+      end
+
+    result
   end
 
   defp promote_with_mode(scope_data, promotion_attrs, source_absolute_path, mode) do
@@ -133,6 +136,7 @@ defmodule LemmingsOs.Artifacts.Promotion do
       %Artifact{id: artifact_id}
       |> Artifact.changeset(Map.merge(promotion_attrs, stored))
       |> repo.insert()
+      |> lifecycle_result(:promoted)
     end
   end
 
@@ -159,6 +163,7 @@ defmodule LemmingsOs.Artifacts.Promotion do
       existing_artifact
       |> Artifact.changeset(attrs)
       |> repo.update()
+      |> lifecycle_result(:updated)
     end
   end
 
@@ -182,6 +187,7 @@ defmodule LemmingsOs.Artifacts.Promotion do
       %Artifact{id: artifact_id}
       |> Artifact.changeset(Map.merge(promotion_attrs, stored))
       |> repo.insert()
+      |> lifecycle_result(:promoted)
     end
   end
 
@@ -205,14 +211,20 @@ defmodule LemmingsOs.Artifacts.Promotion do
        ),
        do: {:error, :invalid_mode}
 
-  defp normalize_promotion_result({:ok, %{artifact: %Artifact{} = artifact}}),
-    do: {:ok, Artifacts.artifact_descriptor(artifact)}
+  defp normalize_promotion_result(
+         {:ok, %{artifact: %{artifact: %Artifact{} = artifact, lifecycle: _lifecycle}}}
+       ) do
+    {:ok, Artifacts.artifact_descriptor(artifact)}
+  end
 
   defp normalize_promotion_result({:error, :artifact, %Ecto.Changeset{} = changeset, _changes}),
     do: {:error, changeset}
 
-  defp normalize_promotion_result({:error, :artifact, reason, _changes}), do: {:error, reason}
-  defp normalize_promotion_result({:error, _step, reason, _changes}), do: {:error, reason}
+  defp normalize_promotion_result({:error, :artifact, reason, _changes}),
+    do: {:error, reason}
+
+  defp normalize_promotion_result({:error, _step, reason, _changes}),
+    do: {:error, reason}
 
   defp build_promotion_attrs(attrs, scope_data, instance, filename) do
     type = map_field(attrs, :type) || infer_type(filename)
@@ -324,6 +336,11 @@ defmodule LemmingsOs.Artifacts.Promotion do
     |> String.downcase()
     |> then(&Map.get(@extension_types, &1, "other"))
   end
+
+  defp lifecycle_result({:ok, %Artifact{} = artifact}, lifecycle),
+    do: {:ok, %{artifact: artifact, lifecycle: lifecycle}}
+
+  defp lifecycle_result({:error, reason}, _lifecycle), do: {:error, reason}
 
   defp map_field(map, key) do
     Map.get(map, key) || Map.get(map, Atom.to_string(key))

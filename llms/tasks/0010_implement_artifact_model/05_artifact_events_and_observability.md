@@ -1,69 +1,93 @@
-# Task 05: Artifact Events and Observability
+# Task 05: Artifact Instrumentation and Safe Logging
 
 ## Status
-- **Status**: ⏳ PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: ✅ COMPLETED
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
-`dev-logging-daily-guardian` - Logging quality guardian for safe structured events and metadata hygiene.
+`dev-logging-daily-guardian` - Logging quality guardian for safe structured metadata hygiene.
 
 ## Agent Invocation
-Act as `dev-logging-daily-guardian`. Add safe Artifact lifecycle observability without changing product behavior.
+Act as `dev-logging-daily-guardian`. Add lightweight, safe Artifact observability without introducing durable audit/event persistence.
 
 ## Objective
-Emit durable/safe Artifact events for lifecycle operations and add tests proving event/log payloads do not leak content, filesystem paths, storage refs, notes, full metadata, or secret values.
+Add lightweight, safe Artifact observability without introducing durable audit/event persistence.
 
 ## Inputs Required
 - [ ] `llms/constitution.md`
 - [ ] `llms/coding_styles/elixir.md`
 - [ ] `llms/tasks/0010_implement_artifact_model/plan.md`
 - [ ] Tasks 01-04 outputs
-- [ ] `lib/lemmings_os/events.ex`
-- [ ] `test/lemmings_os/events_test.exs`
+- [ ] Existing Artifact context/promotion code and tests
 
 ## Expected Outputs
-- [ ] `LemmingsOs.Artifacts.Events` or equivalent event helper.
-- [ ] Emission for `artifact.created`, `artifact.promoted`, `artifact.updated`, `artifact.status_changed`, `artifact.deleted`, `artifact.read`, `artifact.promotion_failed`, and `artifact.error` as implemented paths allow.
-- [ ] Allowlisted event payload fields from the source plan only.
-- [ ] Tests proving forbidden fields are absent.
+- [ ] Durable Artifact audit wrappers are removed or unused.
+- [ ] Artifact lifecycle code does not write to the `events` table.
+- [ ] Durable Artifact event tests are removed.
+- [ ] Minimal instrumentation tests are added only if actual non-durable instrumentation behavior exists.
+- [ ] Task and docs references are updated to the reduced scope.
 
 ## Acceptance Criteria
-- [ ] Event payloads include safe hierarchy/provenance IDs and artifact metadata only.
-- [ ] Event payloads exclude file contents, `storage_ref`, resolved filesystem path, raw workspace path, full metadata blindly, notes by default, and secret values.
-- [ ] Reason values are safe reason tokens, not exception dumps containing paths/content.
-- [ ] Telemetry/logging metadata includes hierarchy fields where relevant.
-- [ ] Existing generic `LemmingsOs.Events` is reused; no duplicate event table is introduced.
+- [ ] No durable Artifact audit/event rows are required.
+- [ ] No Artifact lifecycle writes to `events`.
+- [ ] Logs/telemetry, if present, use allowlisted safe fields only.
+- [ ] Payloads/log metadata exclude file contents, `storage_ref`, resolved paths, raw workspace paths, notes, full metadata, and secrets.
+- [ ] Reason values are normalized to safe reason tokens if logged.
 
 ## Technical Notes
-### Relevant Code Locations
-```
-lib/lemmings_os/events.ex              # Durable event API
-lib/lemmings_os/events/event.ex        # Event schema
-lib/lemmings_os/lemming_instances/executor/tool_lifecycle.ex # Logging metadata examples
-test/lemmings_os/events_test.exs       # Durable event test patterns
-```
-
 ### Constraints
-- Do not log storage roots, storage refs, raw workspace paths, or file contents.
-- Do not add UI.
-- Do not call Secret Bank.
+- Do not add a replacement durable Artifact event wrapper.
+- Do not emit durable `artifact.read`.
+- Do not call Secret Bank from Artifact code.
+- Keep existing Artifact schema/storage/promotion/download/UI behavior unchanged.
 
 ## Execution Instructions
 
 ### For the Agent
-1. Read all inputs listed above.
-2. Add event helper and wire it into completed Artifact context operations.
-3. Add leakage-focused tests with sentinel path/content values.
-4. Run narrow events/context tests.
-5. Document assumptions, files changed, and test commands in Execution Summary.
+1. Remove durable Artifact event/audit helper usage.
+2. Remove Artifact lifecycle writes to durable `events`.
+3. Remove durable event tests for Artifact operations.
+4. Update task/docs references to match reduced scope.
+5. Run required validation commands and record exact outcomes.
 
 ### For the Human Reviewer
 After agent completes:
-1. Inspect event payload allowlist manually.
-2. Verify no sensitive values appear in event/log tests.
-3. Approve before Task 06 begins.
+1. Verify no Artifact lifecycle path writes to `events`.
+2. Verify durable event assertions were removed from Artifact tests.
+3. Verify docs/task scope reflects instrumentation-only behavior.
 
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
+Implemented scope reduction by removing Artifact durable audit/event persistence from this PR slice.
+
+### Code Changes
+- Removed durable event helper alias and durable-emission hooks from:
+  - `lib/lemmings_os/artifacts.ex`
+  - `lib/lemmings_os/artifacts/promotion.ex`
+- Deleted durable Artifact event wrapper module:
+  - `lib/lemmings_os/artifacts/audit_events.ex`
+
+### Test Changes
+- Removed durable event test file asserting `events` table lifecycle rows:
+  - `test/lemmings_os/artifacts/audit_events_test.exs`
+- No replacement instrumentation tests were added because this patch does not add new non-durable instrumentation behavior.
+
+### Docs/Plan Changes
+- Renamed Task 05 to **Artifact Instrumentation and Safe Logging** and rewrote objective/acceptance criteria for non-durable scope.
+- Updated plan/task docs to remove durable Artifact lifecycle event requirements and `artifact.read` durable emission expectations.
+- Added future-work note that platform audit/event design must be handled separately.
+
+### Validation Commands
+- `mix format lib/lemmings_os/artifacts.ex lib/lemmings_os/artifacts/promotion.ex`
+- `mix test test/lemmings_os/artifacts_test.exs test/lemmings_os/artifacts/promotion_test.exs`
+- `mix test`
+- `mix precommit`
+- `rg -n "SecretBank|SecretsBank|secret_bank|resolve_runtime_secret" lib/lemmings_os/artifacts* test/lemmings_os/artifacts*`
+
+### Validation Results
+- `mix format ...`: success
+- `mix test test/lemmings_os/artifacts_test.exs test/lemmings_os/artifacts/promotion_test.exs`: success (`10 doctests, 17 tests, 0 failures`)
+- `mix test`: success (`159 doctests, 743 tests, 0 failures`)
+- `mix precommit`: success (dialyzer, credo, and checks passed)
+- `rg ...`: no matches in Artifact code/tests (Artifact code has no Secret Bank calls)

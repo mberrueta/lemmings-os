@@ -25,7 +25,6 @@ Add an ID-based Artifact download route/controller that checks visible scope and
 ## Expected Outputs
 - [ ] Route `GET /lemmings/instances/:instance_id/artifacts/:artifact_id/download` before existing workspace catch-all route.
 - [ ] Controller action that resolves world/scope, instance, Artifact, status, and storage path in safe order.
-- [ ] `artifact.read` event on successful read.
 - [ ] Safe handling for missing DB rows, wrong scope, bad status, missing physical file, and invalid storage ref.
 - [ ] Controller tests for authorized download, wrong scope, rejected status, missing file, and response header safety.
 

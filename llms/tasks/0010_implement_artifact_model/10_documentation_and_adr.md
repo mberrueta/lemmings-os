@@ -27,7 +27,7 @@ Add operator/developer documentation for Artifacts and update architecture refer
 - [ ] Any relevant operator/developer docs updated where they mention generated outputs/workspace files.
 
 ## Acceptance Criteria
-- [ ] Docs explain File vs Artifact, manual promotion, scope/provenance, storage, type/status model, timeline behavior, download/open behavior, security/privacy rules, observability events, out of scope, and future work.
+- [ ] Docs explain File vs Artifact, manual promotion, scope/provenance, storage, type/status model, timeline behavior, download/open behavior, security/privacy rules, observability scope, out of scope, and future work.
 - [ ] ADR 0008 states Artifact metadata is in Postgres and bytes are outside Postgres in managed file storage.
 - [ ] Docs state Artifact contents are not stored in Postgres, ETS, DETS, logs, or LLM context.
 - [ ] Docs mention config/env var for local artifact storage root.

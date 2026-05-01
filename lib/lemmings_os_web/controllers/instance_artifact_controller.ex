@@ -1,4 +1,15 @@
 defmodule LemmingsOsWeb.InstanceArtifactController do
+  @moduledoc """
+  Serves workspace file downloads for a lemming instance.
+
+  This controller handles path-based workspace artifacts from
+  `/lemmings/instances/:id/artifacts/*path`, resolving the path through
+  `LemmingInstances.artifact_absolute_path/2` to enforce world scoping and
+  workspace path safety.
+
+  It is intentionally separate from durable Artifact-record downloads; it
+  streams files that exist in the runtime workspace.
+  """
   use LemmingsOsWeb, :controller
 
   alias LemmingsOs.LemmingInstances

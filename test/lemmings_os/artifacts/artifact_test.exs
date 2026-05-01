@@ -1,6 +1,8 @@
 defmodule LemmingsOs.Artifacts.ArtifactTest do
   use LemmingsOs.DataCase, async: true
 
+  import LemmingsOs.Factory
+
   alias LemmingsOs.Artifacts.Artifact
   alias LemmingsOs.Repo
 
@@ -210,6 +212,44 @@ defmodule LemmingsOs.Artifacts.ArtifactTest do
 
       assert {:error, changeset} = Repo.insert(changeset)
       assert "does not exist" in errors_on(changeset).world
+    end
+
+    test "SCH-05: nilifies provenance references when instance is deleted" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+
+      instance =
+        insert(:lemming_instance,
+          world: world,
+          city: city,
+          department: department,
+          lemming: lemming
+        )
+
+      tool_execution =
+        insert(:tool_execution,
+          world: world,
+          lemming_instance: instance
+        )
+
+      artifact =
+        insert(:artifact,
+          world: world,
+          city: city,
+          department: department,
+          lemming: lemming,
+          lemming_instance: instance,
+          created_by_tool_execution: tool_execution
+        )
+
+      Repo.delete!(instance)
+
+      persisted = Repo.get!(Artifact, artifact.id)
+      assert persisted.id == artifact.id
+      assert persisted.lemming_instance_id == nil
+      assert persisted.created_by_tool_execution_id == nil
     end
   end
 end

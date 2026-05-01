@@ -260,7 +260,7 @@ Promotion must:
 3. compute `size_bytes`
 4. compute SHA-256 `checksum`
 5. create/update Artifact row
-6. emit safe lifecycle events
+6. emit optional safe telemetry/log metadata (non-durable only)
 7. return safe Artifact descriptor
 
 ### Update behavior
@@ -279,60 +279,26 @@ Update means:
 - recompute checksum
 - recompute size
 - keep same Artifact row
-- emit `artifact.updated`
 
 No versioning.
 
 ---
 
-## Phase 4 — Observability and events
+## Phase 4 — Instrumentation and safe logging
 
 ### Goal
 
-Artifact operations must produce safe audit/telemetry events without leaking content or paths.
+Add lightweight, safe Artifact observability without introducing durable audit/event persistence.
 
 ### Tasks
 
-- Add `LemmingsOs.Artifacts.Events` or equivalent event helper.
-- Emit events from create/promote/update/status/delete/read/error paths.
-- Ensure reason tokens are safe.
-- Add tests that event payloads do not include raw file contents, workspace paths, storage refs, or resolved paths.
+- Remove/stop using Artifact durable event wrappers.
+- Do not write Artifact lifecycle rows to `events`.
+- Keep instrumentation optional and non-durable only (logs/telemetry).
+- Ensure reason values are normalized safe tokens if logged.
+- Add or keep tests focused on safety guarantees when applicable.
 
-### Required event vocabulary
-
-```text
-artifact.created
-artifact.promoted
-artifact.updated
-artifact.status_changed
-artifact.deleted
-artifact.read
-artifact.promotion_failed
-artifact.error
-```
-
-### Safe event fields
-
-```elixir
-%{
-  artifact_id: artifact.id,
-  world_id: artifact.world_id,
-  city_id: artifact.city_id,
-  department_id: artifact.department_id,
-  lemming_id: artifact.lemming_id,
-  lemming_instance_id: artifact.lemming_instance_id,
-  created_by_tool_execution_id: artifact.created_by_tool_execution_id,
-  filename: artifact.filename,
-  type: artifact.type,
-  content_type: artifact.content_type,
-  status: artifact.status,
-  size_bytes: artifact.size_bytes,
-  checksum: artifact.checksum,
-  reason_token: reason_token
-}
-```
-
-### Forbidden event fields
+### Forbidden observability fields
 
 - file contents
 - `storage_ref`
@@ -412,7 +378,6 @@ Provide minimal controlled open/download behavior from the instance UI.
 - Reject `archived`, `deleted`, and `error` by default.
 - Resolve `storage_ref` internally to local file path.
 - Stream/send file response.
-- Emit `artifact.read` event/telemetry.
 - Add tests for authorized download, missing file, wrong scope, and rejected status.
 
 ### Suggested route options
@@ -466,7 +431,7 @@ Document the Artifact behavior and update architecture references.
 - Timeline behavior
 - Download/open behavior
 - Security/privacy rules
-- Observability events
+- Observability scope (non-durable in this PR slice)
 - Out of scope and future work
 
 ### ADR update
@@ -488,7 +453,7 @@ Artifact contents are not stored in Postgres, ETS, DETS, logs, or LLM context.
 2. Local storage module
 3. Context API
 4. Promotion/update logic
-5. Events
+5. Instrumentation/safe logging
 6. Download route
 7. Timeline UI integration
 8. Docs
@@ -510,7 +475,7 @@ Reason: UI should come after the context/storage contract is stable.
 - Promotion computes size.
 - Promotion does not store original workspace path.
 - Promotion returns safe descriptor.
-- Promotion failure emits safe failure event.
+- Promotion failure remains safe and does not leak sensitive file/path data.
 - Existing Artifact update recomputes checksum and size.
 - `get_artifact/2` enforces scope.
 - `list_artifacts_for_scope/1` excludes deleted/error/archived unless explicitly requested by context function.
@@ -536,11 +501,10 @@ Reason: UI should come after the context/storage contract is stable.
 
 ### Observability tests
 
-- Lifecycle events are emitted.
-- Event payload includes safe metadata.
-- Event payload excludes file contents.
-- Event payload excludes storage ref/resolved paths.
-- Event payload excludes notes/full metadata by default.
+- No Artifact lifecycle writes to durable `events`.
+- Logs/telemetry metadata (if present) excludes file contents.
+- Logs/telemetry metadata (if present) excludes storage_ref/resolved paths/raw workspace paths.
+- Logs/telemetry metadata (if present) excludes notes/full metadata by default.
 
 ---
 
@@ -550,9 +514,9 @@ Reason: UI should come after the context/storage contract is stable.
 - [ ] Artifact promotion does not inspect file contents for secrets.
 - [ ] Artifact file contents are never logged.
 - [ ] Artifact file contents are never injected into LLM context automatically.
-- [ ] Artifact events do not include `storage_ref` or resolved filesystem path.
+- [ ] Artifact observability metadata does not include `storage_ref` or resolved filesystem path.
 - [ ] Artifact metadata is minimal and schema-validated.
-- [ ] Artifact notes are not emitted in events by default.
+- [ ] Artifact notes are not emitted in observability metadata by default.
 - [ ] Download/open route checks visible scope before resolving file path.
 
 ---
@@ -572,12 +536,12 @@ Reason: UI should come after the context/storage contract is stable.
 - [ ] Artifact can be opened/downloaded through controlled route.
 - [ ] Archived/deleted/error Artifacts are not normally selectable or downloadable.
 - [ ] Context APIs require explicit scope.
-- [ ] Events are emitted with safe payloads.
+- [ ] No Artifact lifecycle writes to the durable `events` table.
 - [ ] Artifact module does not access Secret Bank.
 - [ ] Artifact contents are not automatically added to LLM context.
 - [ ] `docs/features/artifacts.md` is added.
 - [ ] ADR 0008 is updated.
-- [ ] Tests cover schema, storage, promotion, update, download, UI, and safe events.
+- [ ] Tests cover schema, storage, promotion, update, download, UI, and observability safety constraints.
 - [ ] `mix format`, `mix test`, and `mix precommit` pass.
 
 ---
@@ -619,13 +583,13 @@ A physical file may be missing or unreadable after DB row exists.
 Mitigation:
 
 - mark Artifact `error` when detected
-- emit `artifact.error`
 - reject from normal tool-safe resolution
 
 ---
 
 ## Future work enabled
 
+- Platform audit/event model should be designed separately. That future design should define durable vs transient events, actor attribution, retention, immutability, event taxonomy, read/download audit, filtering/export, and whether the current `events` table is the audit log or a domain activity log.
 - `pdf.generate -> artifact_id`
 - `email.create_draft -> accepts artifact_id attachments`
 - `approval.request -> displays referenced artifacts`
@@ -635,4 +599,3 @@ Mitigation:
 - external storage backends
 - cross-Department sharing
 - user-uploaded documents/templates
-
