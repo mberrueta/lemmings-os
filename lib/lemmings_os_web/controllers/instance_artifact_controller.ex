@@ -82,7 +82,12 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
   defp fetch_instance_id(_params), do: {:error, :missing_instance_id}
 
   defp content_disposition(filename) when is_binary(filename) do
-    basename = filename |> Path.basename() |> String.replace("\"", "")
+    basename =
+      filename
+      |> Path.basename()
+      |> String.replace("\"", "")
+      |> String.replace(~r/[\x00-\x1F\x7F]/, "")
+
     ~s(attachment; filename="#{basename}")
   end
 

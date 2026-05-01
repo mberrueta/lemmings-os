@@ -221,10 +221,24 @@ defmodule LemmingsOsWeb.InstanceComponents do
       |> assign(:artifact_link, tool_artifact_link(assigns.tool_execution, assigns.world_id))
       |> assign(:promotion_form_id, "artifact-promotion-form-#{assigns.tool_execution.id}")
       |> assign(:promotion_status_id, "artifact-promotion-status-#{assigns.tool_execution.id}")
+      |> assign(:promotion_heading_id, "artifact-promotion-heading-#{assigns.tool_execution.id}")
+      |> assign(:promotion_help_id, "artifact-promotion-help-#{assigns.tool_execution.id}")
+      |> assign(
+        :promotion_help_summary_id,
+        "artifact-promotion-help-summary-#{assigns.tool_execution.id}"
+      )
+      |> assign(
+        :promotion_help_text_id,
+        "artifact-promotion-help-text-#{assigns.tool_execution.id}"
+      )
       |> assign(:artifact_reference_id, "artifact-reference-#{assigns.tool_execution.id}")
       |> assign(
         :artifact_notes_toggle_id,
         "artifact-reference-notes-toggle-#{assigns.tool_execution.id}"
+      )
+      |> assign(
+        :artifact_notes_summary_id,
+        "artifact-reference-notes-summary-#{assigns.tool_execution.id}"
       )
       |> assign(:artifact_notes_id, "artifact-reference-notes-#{assigns.tool_execution.id}")
 
@@ -262,7 +276,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 id={"tool-execution-summary-#{@tool_execution.id}"}
                 class="text-sm leading-6 text-zinc-200"
               >
-                <%= if @artifact_link do %>
+                <span :if={@artifact_link}>
                   {tool_summary_prefix(@tool_execution)}
                   <.link
                     href={@artifact_link.href}
@@ -272,9 +286,10 @@ defmodule LemmingsOsWeb.InstanceComponents do
                   >
                     {@artifact_link.label}
                   </.link>
-                <% else %>
+                </span>
+                <span :if={!@artifact_link}>
                   {tool_summary(@tool_execution)}
-                <% end %>
+                </span>
               </p>
             </div>
 
@@ -299,32 +314,39 @@ defmodule LemmingsOsWeb.InstanceComponents do
           <div
             :if={@promotion_candidate}
             class="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-3"
+            role="region"
+            aria-labelledby={@promotion_heading_id}
           >
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="space-y-1">
                 <div class="flex items-center gap-4">
-                  <p class="text-xs uppercase tracking-widest text-zinc-500">
+                  <p
+                    id={@promotion_heading_id}
+                    class="text-xs uppercase tracking-widest text-zinc-500"
+                  >
                     {dgettext("lemmings", "Artifact promotion")}
                   </p>
-                  <button
-                    id={"artifact-promotion-help-#{@tool_execution.id}"}
-                    type="button"
-                    title={
-                      dgettext(
+                  <details id={@promotion_help_id} class="relative">
+                    <summary
+                      id={@promotion_help_summary_id}
+                      aria-controls={@promotion_help_text_id}
+                      class="inline-flex size-6 cursor-pointer list-none items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/70 text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+                    >
+                      <span aria-hidden="true">i</span>
+                      <span class="sr-only">
+                        {dgettext("lemmings", "Show Artifact help")}
+                      </span>
+                    </summary>
+                    <p
+                      id={@promotion_help_text_id}
+                      class="mt-2 max-w-sm rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs leading-6 text-zinc-300"
+                    >
+                      {dgettext(
                         "lemmings",
                         "An Artifact is a promoted, durable file reference with tracked metadata and lifecycle state."
-                      )
-                    }
-                    aria-label={
-                      dgettext(
-                        "lemmings",
-                        "Artifact help: promoted durable file reference with metadata and lifecycle"
-                      )
-                    }
-                    class="inline-flex size-6 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900/70 text-xs font-semibold text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
-                  >
-                    i
-                  </button>
+                      )}
+                    </p>
+                  </details>
                 </div>
                 <p
                   id={"artifact-promotion-source-#{@tool_execution.id}"}
@@ -343,6 +365,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
               id={@promotion_form_id}
               class="mt-3 flex flex-wrap gap-2"
               phx-submit="promote_workspace_artifact"
+              aria-describedby={"artifact-promotion-source-#{@tool_execution.id} #{@promotion_help_text_id} #{@promotion_status_id}"}
             >
               <input
                 id={"artifact-promotion-tool-execution-id-#{@tool_execution.id}"}
@@ -361,7 +384,9 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 :if={@promotion_action == :promote}
                 id={"artifact-promote-button-#{@tool_execution.id}"}
                 type="submit"
+                phx-disable-with={dgettext("lemmings", "Promoting...")}
                 aria-label={dgettext("lemmings", "Promote workspace file to Artifact")}
+                aria-describedby={@promotion_status_id}
                 class="inline-flex min-h-10 items-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-xs font-medium uppercase tracking-widest text-emerald-300 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-300 hover:text-emerald-200"
               >
                 <.icon name="hero-arrow-up-tray" class="size-4" />
@@ -374,7 +399,9 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 type="submit"
                 name="artifact_promotion[mode]"
                 value="update_existing"
+                phx-disable-with={dgettext("lemmings", "Updating...")}
                 aria-label={dgettext("lemmings", "Update existing Artifact from workspace file")}
+                aria-describedby={@promotion_status_id}
                 class="inline-flex min-h-10 items-center gap-2 border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-medium uppercase tracking-widest text-amber-200 transition duration-150 ease-out hover:-translate-y-px hover:border-amber-300 hover:text-amber-100"
               >
                 <.icon name="hero-arrow-path" class="size-4" />
@@ -387,7 +414,9 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 type="submit"
                 name="artifact_promotion[mode]"
                 value="promote_as_new"
+                phx-disable-with={dgettext("lemmings", "Promoting...")}
                 aria-label={dgettext("lemmings", "Promote as new Artifact from workspace file")}
+                aria-describedby={@promotion_status_id}
                 class="inline-flex min-h-10 items-center gap-2 border border-sky-400/40 bg-sky-400/10 px-3 py-2 text-xs font-medium uppercase tracking-widest text-sky-200 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-100"
               >
                 <.icon name="hero-document-duplicate" class="size-4" />
@@ -403,6 +432,10 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 if(@promotion_message.kind == :error, do: "text-red-300", else: "text-emerald-300")
               ]}
               role={if(@promotion_message.kind == :error, do: "alert", else: "status")}
+              aria-live={if(@promotion_message.kind == :error, do: "assertive", else: "polite")}
+              aria-atomic="true"
+              tabindex="-1"
+              phx-mounted={Phoenix.LiveView.JS.focus(to: "##{@promotion_status_id}")}
             >
               {@promotion_message.text}
             </p>
@@ -434,6 +467,11 @@ defmodule LemmingsOsWeb.InstanceComponents do
                   :if={artifact_download_link(@tool_execution, @promoted_artifact, @world_id)}
                   id={"artifact-reference-download-#{@tool_execution.id}"}
                   href={artifact_download_link(@tool_execution, @promoted_artifact, @world_id)}
+                  aria-label={
+                    dgettext("lemmings", "Download Artifact %{filename}",
+                      filename: @promoted_artifact.filename
+                    )
+                  }
                   class="text-xs uppercase tracking-widest text-sky-300 underline decoration-sky-400/40 underline-offset-4 hover:text-sky-200"
                 >
                   {dgettext("lemmings", "Download")}
@@ -445,7 +483,11 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 id={@artifact_notes_toggle_id}
                 class="mt-3 border-t border-emerald-400/20 pt-3"
               >
-                <summary class="cursor-pointer text-xs uppercase tracking-widest text-zinc-400">
+                <summary
+                  id={@artifact_notes_summary_id}
+                  aria-controls={@artifact_notes_id}
+                  class="cursor-pointer text-xs uppercase tracking-widest text-zinc-400"
+                >
                   {dgettext("lemmings", "Notes")}
                 </summary>
                 <p
@@ -471,8 +513,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 <pre
                   id={"tool-execution-args-#{@tool_execution.id}"}
                   class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs leading-6 text-zinc-300"
-                  phx-no-curly-interpolation
-                ><%= @args_payload %></pre>
+                >{@args_payload}</pre>
               </div>
 
               <div :if={@tool_execution.result}>
@@ -482,8 +523,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 <pre
                   id={"tool-execution-result-#{@tool_execution.id}"}
                   class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs leading-6 text-zinc-300"
-                  phx-no-curly-interpolation
-                ><%= @result_payload %></pre>
+                >{@result_payload}</pre>
               </div>
 
               <div :if={@tool_execution.error}>
@@ -493,8 +533,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 <pre
                   id={"tool-execution-error-#{@tool_execution.id}"}
                   class="mt-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs leading-6 text-zinc-300"
-                  phx-no-curly-interpolation
-                ><%= @error_payload %></pre>
+                >{@error_payload}</pre>
               </div>
             </div>
           </details>

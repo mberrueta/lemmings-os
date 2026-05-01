@@ -267,7 +267,7 @@ defmodule LemmingsOsWeb.InstanceLive do
         message = artifact_promotion_error(reason)
 
         Logger.warning(
-          "artifact promotion failed tool_execution_id=#{tool_execution_id} relative_path=#{inspect(relative_path)} reason=#{inspect(reason)}",
+          "artifact promotion failed tool_execution_id=#{tool_execution_id} reason_token=#{promotion_reason_token(reason)}",
           world_id: socket.assigns.instance.world_id,
           city_id: socket.assigns.instance.city_id,
           department_id: socket.assigns.instance.department_id,
@@ -1290,5 +1290,15 @@ defmodule LemmingsOsWeb.InstanceLive do
     do: dgettext("lemmings", "Artifact promotion failed validation.")
 
   defp artifact_promotion_error(reason),
-    do: dgettext("lemmings", "Artifact promotion failed (%{reason}).", reason: inspect(reason))
+    do:
+      dgettext("lemmings", "Artifact promotion failed (%{reason}).",
+        reason: promotion_reason_token(reason)
+      )
+
+  defp promotion_reason_token(%Ecto.Changeset{}), do: "validation_failed"
+
+  defp promotion_reason_token({reason, _details}) when is_atom(reason),
+    do: Atom.to_string(reason)
+
+  defp promotion_reason_token(reason) when is_atom(reason), do: Atom.to_string(reason)
 end

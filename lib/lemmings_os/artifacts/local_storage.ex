@@ -220,6 +220,7 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
   defp validate_filename_bytes(filename) do
     cond do
       String.contains?(filename, <<0>>) -> {:error, :invalid_filename}
+      filename =~ ~r/[\x00-\x1F\x7F]/ -> {:error, :invalid_filename}
       String.starts_with?(filename, "~") -> {:error, :invalid_filename}
       String.contains?(filename, "\\") -> {:error, :invalid_filename}
       true -> :ok

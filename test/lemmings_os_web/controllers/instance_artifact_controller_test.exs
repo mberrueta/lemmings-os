@@ -77,6 +77,33 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
              ]
     end
 
+    test "DL01b: strips control characters from content-disposition filename", %{
+      conn: conn,
+      world: world,
+      instance: instance,
+      test_root: test_root
+    } do
+      %{artifact: artifact} =
+        insert_managed_artifact(instance, test_root, %{filename: "header.md"})
+
+      artifact =
+        artifact
+        |> Artifact.changeset(%{filename: "safe\r\nname.md"})
+        |> Repo.update!()
+
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{instance.id}/artifacts/#{artifact.id}/download?#{%{world: world.id}}"
+        )
+
+      [disposition] = get_resp_header(response, "content-disposition")
+      assert response.status == 200
+      assert disposition == ~s(attachment; filename="safename.md")
+      refute String.contains?(disposition, "\r")
+      refute String.contains?(disposition, "\n")
+    end
+
     test "DL02: rejects wrong scope before storage resolution", %{
       conn: conn,
       instance: instance,

@@ -3,6 +3,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
   import LemmingsOs.Factory
   import Phoenix.LiveViewTest
+  import ExUnit.CaptureLog
 
   @moduletag capture_log: true
 
@@ -801,6 +802,15 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
       live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
 
     assert has_element?(view, "#artifact-promotion-form-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-help-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-help-summary-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-help-text-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-source-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#artifact-promotion-form-#{tool_execution.id}[aria-describedby~=\"artifact-promotion-source-#{tool_execution.id}\"]"
+           )
 
     assert has_element?(
              view,
@@ -821,6 +831,11 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
              view,
              "#artifact-promotion-status-#{tool_execution.id}",
              "Artifact promoted: promo.md"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-promotion-status-#{tool_execution.id}[role='status'][aria-live='polite'][aria-atomic='true'][tabindex='-1']"
            )
 
     assert eventually_has_element?(view, "#artifact-reference-#{tool_execution.id}")
@@ -856,6 +871,12 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
            )
 
     assert eventually_has_element?(view, "#artifact-reference-download-#{tool_execution.id}")
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-reference-download-#{tool_execution.id}[aria-label='Download Artifact promo.md']"
+           )
+
     assert eventually_lacks_element?(view, "#artifact-promote-button-#{tool_execution.id}")
     assert eventually_lacks_element?(view, "#artifact-update-button-#{tool_execution.id}")
     refute has_element?(view, "#artifact-reference-#{tool_execution.id}", "local://")
@@ -923,7 +944,49 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     assert has_element?(view, "#artifact-reference-#{tool_execution.id}")
     assert has_element?(view, "#artifact-reference-summary-#{tool_execution.id}", "existing.md")
     assert has_element?(view, "#artifact-reference-notes-toggle-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#artifact-reference-notes-summary-#{tool_execution.id}[aria-controls='artifact-reference-notes-#{tool_execution.id}']"
+           )
+
     assert has_element?(view, "#artifact-reference-notes-#{tool_execution.id}", "Operator note")
+  end
+
+  test "S08m2: promotion failure logging omits raw relative paths and only records a reason token",
+       %{
+         conn: conn
+       } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{"path" => "reports/safe.md"},
+        summary: "Wrote file reports/safe.md",
+        result: %{"path" => "reports/safe.md", "bytes" => 10}
+      })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    log =
+      capture_log(fn ->
+        view
+        |> element("#artifact-promotion-form-#{tool_execution.id}")
+        |> render_submit(%{
+          "artifact_promotion" => %{
+            "tool_execution_id" => tool_execution.id,
+            "relative_path" => "../outside.md"
+          }
+        })
+      end)
+
+    assert log =~ "artifact promotion failed"
+    assert log =~ "reason_token=path_outside_workspace"
+    refute log =~ "../outside.md"
+    refute log =~ "relative_path="
   end
 
   test "S08n: promote as new action creates a second Artifact row for the same filename", %{

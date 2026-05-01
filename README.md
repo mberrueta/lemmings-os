@@ -178,6 +178,8 @@ See [docs/architecture.md](docs/architecture.md) for details.
 
 Feature documentation:
 
+- [Artifacts](docs/features/artifacts.md) — promoted durable file references,
+  managed local storage, lifecycle/state model, and safe download/promotion flows.
 - [Secret Bank](docs/features/secret_bank.md) — encrypted local runtime secrets,
   hierarchy resolution, env fallback, write-only operator flows, and safe audit
   events.

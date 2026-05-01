@@ -153,6 +153,23 @@ Durable state includes:
 - case status
 - metadata required to resume the conversation
 
+## 5.1 Artifact persistence boundary (implemented)
+
+The Artifact domain model uses a split persistence contract:
+
+- Postgres stores Artifact metadata rows (scope, provenance, lifecycle fields,
+  `storage_ref`, checksum, size, and related metadata).
+- Artifact file bytes are stored outside Postgres in managed local file storage
+  addressed by opaque `local://artifacts/...` references.
+
+Artifact bytes must never be embedded into:
+
+- Postgres transcript/context rows
+- ETS runtime state
+- DETS idle snapshots
+- logs or telemetry payloads
+- automatic LLM context assembly
+
 Durable state **must respect the effective token budget** derived from:
 
 - model context window
@@ -171,7 +188,7 @@ Postgres **must never store**:
 - raw runtime secret values in transcripts, snapshots, tool results, prompts, or
   context
 
-## 5.1 Secret Bank Encrypted Storage Note
+## 5.2 Secret Bank Encrypted Storage Note
 
 The "Postgres must never store secrets" rule above applies to conversational
 state, runtime snapshots, prompts, tool results, and Lemming context.

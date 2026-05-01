@@ -50,6 +50,8 @@ defmodule LemmingsOs.Artifacts.LocalStorageTest do
             "nested/file.txt",
             "C:\\temp\\secret.txt",
             "nested\\file.txt",
+            "line\nbreak.txt",
+            "line\rbreak.txt",
             "bad\0name.txt"
           ] do
         assert {:error, :invalid_filename} =
