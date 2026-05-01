@@ -522,6 +522,22 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       assert has_element?(view, "#department-connections-source-#{created.id}", "Local")
 
       view
+      |> element("#department-connections-edit-#{created.id}")
+      |> render_click()
+
+      view
+      |> element("#department-connections-edit-form-#{created.id}")
+      |> render_change(%{
+        "connection_edit" => %{
+          "connection_id" => created.id,
+          "type" => "mock",
+          "status" => "enabled"
+        }
+      })
+
+      assert has_element?(view, "#department-connections-edit-form-#{created.id}")
+
+      view
       |> element("#department-connections-delete-#{created.id}")
       |> render_click()
 

@@ -270,6 +270,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
               }
               for={@edit_form}
               id={"#{@id_prefix}-connections-edit-form-#{row.connection.id}"}
+              phx-change={@edit_type_change_event}
               phx-submit={@save_edit_event}
               class="mt-3 grid gap-2 rounded-md border border-zinc-700 bg-zinc-900/40 p-3"
             >
@@ -285,7 +286,6 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
               <select
                 id={"#{@id_prefix}-connections-edit-type-#{row.connection.id}"}
                 name="connection_edit[type]"
-                phx-change={@edit_type_change_event}
                 class="rounded border border-zinc-600 bg-zinc-950 px-3 py-2 text-zinc-100"
               >
                 <option

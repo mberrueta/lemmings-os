@@ -332,6 +332,11 @@ defmodule LemmingsOsWeb.CitiesLive do
     end
   end
 
+  def handle_event("change_city_connection_edit_type", _params, socket) do
+    {:noreply,
+     put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+  end
+
   def handle_event("save_city_connection_edit", %{"connection_edit" => params}, socket) do
     connection_id = Map.get(params, "connection_id", "")
 

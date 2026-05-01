@@ -325,6 +325,18 @@ defmodule LemmingsOsWeb.WorldLiveTest do
 
     view
     |> element("#world-connections-edit-form-#{created.id}")
+    |> render_change(%{
+      "connection_edit" => %{
+        "connection_id" => created.id,
+        "type" => "mock",
+        "status" => "enabled"
+      }
+    })
+
+    assert has_element?(view, "#world-connections-edit-form-#{created.id}")
+
+    view
+    |> element("#world-connections-edit-form-#{created.id}")
     |> render_submit(%{
       "connection_edit" => %{
         "connection_id" => created.id,

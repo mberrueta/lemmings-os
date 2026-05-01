@@ -300,6 +300,22 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       assert has_element?(view, "#city-connections-source-#{created.id}", "Local")
 
       view
+      |> element("#city-connections-edit-#{created.id}")
+      |> render_click()
+
+      view
+      |> element("#city-connections-edit-form-#{created.id}")
+      |> render_change(%{
+        "connection_edit" => %{
+          "connection_id" => created.id,
+          "type" => "mock",
+          "status" => "enabled"
+        }
+      })
+
+      assert has_element?(view, "#city-connections-edit-form-#{created.id}")
+
+      view
       |> element("#city-connections-delete-#{created.id}")
       |> render_click()
 
