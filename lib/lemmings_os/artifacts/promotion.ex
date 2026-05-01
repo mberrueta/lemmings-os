@@ -111,7 +111,9 @@ defmodule LemmingsOs.Artifacts.Promotion do
     repo.one(query)
   end
 
-  defp maybe_scope_match(query, _field, nil), do: query
+  defp maybe_scope_match(query, field, nil) do
+    from(artifact in query, where: is_nil(field(artifact, ^field)))
+  end
 
   defp maybe_scope_match(query, field, value) do
     from(artifact in query, where: field(artifact, ^field) == ^value)
