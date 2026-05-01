@@ -1,7 +1,7 @@
 # Task 07: Download Route and Controller
 
 ## Status
-- **Status**: ⏳ PENDING
+- **Status**: ⏳ COMPLETED
 - **Approved**: [ ] Human sign-off
 
 ## Assigned Agent
@@ -66,4 +66,31 @@ After agent completes:
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
+- Implemented durable Artifact download route and controller flow with strict ordering:
+  1) resolve world scope, 2) resolve instance in world scope, 3) resolve ready Artifact in instance scope, 4) resolve internal storage ref, 5) stream file with safe headers.
+- Added route ordering in router so durable download route is matched before workspace catch-all:
+  - `GET /lemmings/instances/:instance_id/artifacts/:artifact_id/download`
+  - `GET /lemmings/instances/:instance_id/artifacts/*path`
+- Added scoped internal context API `Artifacts.get_artifact_download/2` that returns minimal trusted download metadata (`id`, `filename`, `content_type`, `storage_ref`) and enforces ready-only status.
+- Updated `InstanceArtifactController`:
+  - Added `download/2` for durable Artifact IDs.
+  - Kept `show/2` workspace catch-all behavior intact.
+  - Added param normalization for `instance_id` vs legacy `id`.
+  - Normalized missing rows, invalid storage refs, missing files, and out-of-scope access to safe 404 responses without path leakage.
+- Added controller tests covering:
+  - authorized durable download + safe headers
+  - wrong-scope rejection
+  - archived/deleted/error status rejection
+  - missing physical file behavior without leakage
+  - invalid storage ref behavior
+  - regression coverage for existing workspace catch-all route
+- Files changed:
+  - `lib/lemmings_os_web/router.ex`
+  - `lib/lemmings_os/artifacts.ex`
+  - `lib/lemmings_os_web/controllers/instance_artifact_controller.ex`
+  - `test/lemmings_os_web/controllers/instance_artifact_controller_test.exs`
+- Validation commands run:
+  - `mix format lib/lemmings_os_web/router.ex lib/lemmings_os_web/controllers/instance_artifact_controller.ex lib/lemmings_os/artifacts.ex test/lemmings_os_web/controllers/instance_artifact_controller_test.exs`
+  - `mix test test/lemmings_os_web/controllers/instance_artifact_controller_test.exs`
+  - `mix test test/lemmings_os/artifacts_test.exs test/lemmings_os_web/controllers/instance_artifact_controller_test.exs`
+  - `mix precommit`

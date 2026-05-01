@@ -73,6 +73,13 @@ defmodule LemmingsOs.Artifacts do
           updated_at: DateTime.t()
         }
 
+  @type download_artifact :: %{
+          id: Ecto.UUID.t(),
+          filename: String.t(),
+          content_type: String.t(),
+          storage_ref: String.t()
+        }
+
   @doc """
   Creates an Artifact row from trusted metadata inside an explicit scope.
 
@@ -169,6 +176,32 @@ defmodule LemmingsOs.Artifacts do
   end
 
   def get_artifact(_scope, _artifact_id, _opts), do: {:error, :invalid_scope}
+
+  @doc """
+  Retrieves one download-ready Artifact with internal storage metadata.
+
+  This API is for trusted runtime/controller boundaries that must resolve and
+  stream Artifact files. It only returns `ready` artifacts and is scoped
+  explicitly to the given world hierarchy.
+
+  ## Examples
+
+      iex> LemmingsOs.Artifacts.get_artifact_download(%{city_id: Ecto.UUID.generate()}, Ecto.UUID.generate())
+      {:error, :invalid_scope}
+  """
+  @spec get_artifact_download(scope(), Ecto.UUID.t()) ::
+          {:ok, download_artifact()} | {:error, :invalid_scope | :not_found}
+  def get_artifact_download(scope, artifact_id) when is_binary(artifact_id) do
+    with {:ok, scope_data} <- scope_data(scope) do
+      Artifact
+      |> filter_query(scope_filters(scope_data))
+      |> filter_query(id: artifact_id, status: @ready_status)
+      |> Repo.one()
+      |> normalize_download_result()
+    end
+  end
+
+  def get_artifact_download(_scope, _artifact_id), do: {:error, :invalid_scope}
 
   @doc """
   Lists `ready` artifacts in an explicit scope.
@@ -306,6 +339,18 @@ defmodule LemmingsOs.Artifacts do
 
   defp normalize_read_result(nil), do: {:error, :not_found}
   defp normalize_read_result(%Artifact{} = artifact), do: {:ok, artifact_descriptor(artifact)}
+
+  defp normalize_download_result(nil), do: {:error, :not_found}
+
+  defp normalize_download_result(%Artifact{} = artifact) do
+    {:ok,
+     %{
+       id: artifact.id,
+       filename: artifact.filename,
+       content_type: artifact.content_type,
+       storage_ref: artifact.storage_ref
+     }}
+  end
 
   defp normalize_write_result({:ok, %Artifact{} = artifact}),
     do: {:ok, artifact_descriptor(artifact)}
