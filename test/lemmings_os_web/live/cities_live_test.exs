@@ -322,4 +322,64 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       refute Connections.get_connection(city, created.id)
     end
   end
+
+  describe "artifacts tab" do
+    test "S13: city detail lists artifacts filtered by city", %{conn: conn} do
+      world = insert(:world)
+
+      city_a =
+        insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+
+      city_b = insert(:city, world: world, name: "Beta City", slug: "beta-city", status: "active")
+
+      department_a =
+        insert(:department, world: world, city: city_a, name: "Support", slug: "support")
+
+      city_artifact =
+        insert(:artifact,
+          world: world,
+          city: city_a,
+          department: nil,
+          lemming: nil,
+          lemming_instance: nil,
+          filename: "city-a.md"
+        )
+
+      other_city_artifact =
+        insert(:artifact,
+          world: world,
+          city: city_b,
+          department: nil,
+          lemming: nil,
+          lemming_instance: nil,
+          filename: "city-b.md"
+        )
+
+      department_artifact =
+        insert(:artifact,
+          world: world,
+          city: city_a,
+          department: department_a,
+          lemming: nil,
+          lemming_instance: nil,
+          filename: "department-a.md"
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/cities?city=#{city_a.id}")
+
+      view |> element("#city-tab-artifacts") |> render_click()
+
+      assert has_element?(view, "#city-artifacts-panel")
+      assert has_element?(view, "#city-artifacts-row-#{city_artifact.id}")
+      refute has_element?(view, "#city-artifacts-row-#{other_city_artifact.id}")
+      assert has_element?(view, "#city-artifacts-row-#{department_artifact.id}")
+      assert has_element?(view, "#city-artifacts-context-city-#{city_artifact.id}", "alpha-city")
+
+      assert has_element?(
+               view,
+               "#city-artifacts-context-department-#{department_artifact.id}",
+               "support"
+             )
+    end
+  end
 end

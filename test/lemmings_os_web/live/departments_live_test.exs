@@ -543,6 +543,77 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
 
       refute Connections.get_connection(department, created.id)
     end
+
+    test "S16: artifacts tab lists artifacts filtered by department", %{conn: conn} do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      lemming =
+        insert(:lemming, world: world, city: city, department: department, status: "active")
+
+      department_artifact =
+        insert(:artifact,
+          world: world,
+          city: city,
+          department: department,
+          lemming: nil,
+          lemming_instance: nil,
+          filename: "department.md"
+        )
+
+      city_artifact =
+        insert(:artifact,
+          world: world,
+          city: city,
+          department: nil,
+          lemming: nil,
+          lemming_instance: nil,
+          filename: "city.md"
+        )
+
+      lemming_artifact =
+        insert(:artifact,
+          world: world,
+          city: city,
+          department: department,
+          lemming: lemming,
+          lemming_instance: nil,
+          filename: "lemming.md"
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/departments?#{%{city: city.id, dept: department.id}}")
+
+      view |> element("#department-tab-artifacts") |> render_click()
+
+      assert_patch(
+        view,
+        ~p"/departments?#{%{city: city.id, dept: department.id, tab: "artifacts"}}"
+      )
+
+      assert has_element?(view, "#department-artifacts-panel")
+      assert has_element?(view, "#department-artifacts-row-#{department_artifact.id}")
+      refute has_element?(view, "#department-artifacts-row-#{city_artifact.id}")
+      assert has_element?(view, "#department-artifacts-row-#{lemming_artifact.id}")
+
+      assert has_element?(
+               view,
+               "#department-artifacts-context-city-#{department_artifact.id}",
+               city.slug
+             )
+
+      assert has_element?(
+               view,
+               "#department-artifacts-context-department-#{department_artifact.id}",
+               department.slug
+             )
+
+      assert has_element?(
+               view,
+               "#department-artifacts-context-lemming-#{lemming_artifact.id}",
+               lemming.slug
+             )
+    end
   end
 
   describe "import lemmings" do

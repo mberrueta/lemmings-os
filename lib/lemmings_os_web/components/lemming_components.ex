@@ -159,6 +159,8 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
   attr :secrets_path, :string, default: nil
+  attr :artifacts_path, :string, default: nil
+  attr :artifact_rows, :list, default: []
   attr :secret_form, :any, default: nil
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
@@ -292,6 +294,8 @@ defmodule LemmingsOsWeb.LemmingComponents do
           overview_path={@overview_path}
           edit_path={@edit_path}
           secrets_path={@secrets_path}
+          artifacts_path={@artifacts_path}
+          artifact_rows={@artifact_rows}
           secret_form={@secret_form}
           secret_metadata={@secret_metadata}
           secret_activity={@secret_activity}
@@ -320,6 +324,8 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
   attr :secrets_path, :string, default: nil
+  attr :artifacts_path, :string, default: nil
+  attr :artifact_rows, :list, default: []
   attr :secret_form, :any, default: nil
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
@@ -369,6 +375,14 @@ defmodule LemmingsOsWeb.LemmingComponents do
           class={detail_tab_class(@active_tab == "secrets")}
         >
           {dgettext("world", ".tab_secrets")}
+        </.link>
+        <.link
+          id="lemming-tab-artifacts"
+          patch={@artifacts_path}
+          aria-current={if @active_tab == "artifacts", do: "page"}
+          class={detail_tab_class(@active_tab == "artifacts")}
+        >
+          {dgettext("layout", "Artifacts")}
         </.link>
       </div>
 
@@ -563,6 +577,12 @@ defmodule LemmingsOsWeb.LemmingComponents do
         edit_event="edit_lemming_secret"
         delete_event="delete_lemming_secret"
         subtitle={dgettext("world", ".secret_lemming_subtitle")}
+      />
+
+      <ArtifactsComponents.artifact_surface
+        :if={@active_tab == "artifacts"}
+        id_prefix="lemming"
+        rows={@artifact_rows}
       />
     </.panel>
     """
@@ -1049,6 +1069,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
 
   defp detail_mode_label("edit"), do: dgettext("lemmings", ".tab_edit")
   defp detail_mode_label("secrets"), do: dgettext("world", ".tab_secrets")
+  defp detail_mode_label("artifacts"), do: dgettext("layout", "Artifacts")
   defp detail_mode_label(_tab), do: dgettext("lemmings", ".tab_overview")
 
   defp detail_tab_class(true),

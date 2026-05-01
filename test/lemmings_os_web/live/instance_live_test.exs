@@ -3,11 +3,14 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
   import LemmingsOs.Factory
   import Phoenix.LiveViewTest
+  import ExUnit.CaptureLog
 
   @moduletag capture_log: true
 
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Artifacts
+  alias LemmingsOs.Artifacts.Artifact
   alias LemmingsOs.LemmingCalls
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.Lemmings.Lemming
@@ -82,6 +85,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
   end
 
   setup do
+    Repo.delete_all(Artifact)
     Repo.delete_all(ToolExecution)
     Repo.delete_all(Message)
     Repo.delete_all(LemmingInstance)
@@ -773,6 +777,379 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
       |> render_click()
 
     assert html =~ "Workspace path copied."
+  end
+
+  test "S08l: tool execution promotion renders a safe Artifact reference", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(instance, "reports/promo.md")
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, "# Operator report\nsensitive-content-sentinel")
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{"path" => "reports/promo.md", "content" => "sensitive-content-sentinel"},
+        summary: "Wrote file reports/promo.md",
+        preview: "reports/promo.md",
+        result: %{"path" => "reports/promo.md", "bytes" => 41}
+      })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#artifact-promotion-form-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-help-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-help-summary-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-help-text-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-promotion-source-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#artifact-promotion-form-#{tool_execution.id}[aria-describedby~=\"artifact-promotion-source-#{tool_execution.id}\"]"
+           )
+
+    assert has_element?(
+             view,
+             "#artifact-promote-button-#{tool_execution.id}",
+             "Promote to Artifact"
+           )
+
+    view
+    |> element("#artifact-promotion-form-#{tool_execution.id}")
+    |> render_submit(%{
+      "artifact_promotion" => %{
+        "tool_execution_id" => tool_execution.id,
+        "relative_path" => "reports/promo.md"
+      }
+    })
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-promotion-status-#{tool_execution.id}",
+             "Artifact promoted: promo.md"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-promotion-status-#{tool_execution.id}[role='status'][aria-live='polite'][aria-atomic='true'][tabindex='-1']"
+           )
+
+    assert eventually_has_element?(view, "#artifact-reference-#{tool_execution.id}")
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             "promo.md"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             "(ready)"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             "markdown"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             "bytes"
+           )
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             "Created"
+           )
+
+    assert eventually_has_element?(view, "#artifact-reference-download-#{tool_execution.id}")
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-reference-download-#{tool_execution.id}[aria-label='Download Artifact promo.md']"
+           )
+
+    assert eventually_lacks_element?(view, "#artifact-promote-button-#{tool_execution.id}")
+    assert eventually_lacks_element?(view, "#artifact-update-button-#{tool_execution.id}")
+    refute has_element?(view, "#artifact-reference-#{tool_execution.id}", "local://")
+    refute has_element?(view, "#artifact-reference-#{tool_execution.id}", absolute_path)
+
+    refute has_element?(
+             view,
+             "#artifact-reference-#{tool_execution.id}",
+             "sensitive-content-sentinel"
+           )
+  end
+
+  test "S08m: existing same-filename Artifact shows update action only when file changed", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(instance, "reports/existing.md")
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, "# Existing artifact content\n")
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{"path" => "reports/existing.md", "content" => "# Existing artifact content\n"},
+        summary: "Wrote file reports/existing.md",
+        result: %{"path" => "reports/existing.md", "bytes" => 28}
+      })
+
+    assert {:ok, _artifact} =
+             Artifacts.promote_workspace_file(
+               %{
+                 world_id: world.id,
+                 city_id: instance.city_id,
+                 department_id: instance.department_id,
+                 lemming_id: instance.lemming_id,
+                 lemming_instance_id: instance.id
+               },
+               %{
+                 relative_path: "reports/existing.md",
+                 lemming_instance_id: instance.id,
+                 created_by_tool_execution_id: tool_execution.id,
+                 notes: "Operator note for rollout"
+               }
+             )
+
+    File.write!(absolute_path, "# Existing artifact content updated\n")
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#artifact-promotion-form-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-update-button-#{tool_execution.id}", "Update Artifact")
+
+    assert has_element?(
+             view,
+             "#artifact-promote-as-new-button-#{tool_execution.id}",
+             "Promote as New Artifact"
+           )
+
+    refute has_element?(view, "#artifact-promote-button-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-reference-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-reference-summary-#{tool_execution.id}", "existing.md")
+    assert has_element?(view, "#artifact-reference-notes-toggle-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#artifact-reference-notes-summary-#{tool_execution.id}[aria-controls='artifact-reference-notes-#{tool_execution.id}']"
+           )
+
+    assert has_element?(view, "#artifact-reference-notes-#{tool_execution.id}", "Operator note")
+  end
+
+  test "S08m2: promotion failure logging omits raw relative paths and only records a reason token",
+       %{
+         conn: conn
+       } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{"path" => "reports/safe.md"},
+        summary: "Wrote file reports/safe.md",
+        result: %{"path" => "reports/safe.md", "bytes" => 10}
+      })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    log =
+      capture_log(fn ->
+        view
+        |> element("#artifact-promotion-form-#{tool_execution.id}")
+        |> render_submit(%{
+          "artifact_promotion" => %{
+            "tool_execution_id" => tool_execution.id,
+            "relative_path" => "../outside.md"
+          }
+        })
+      end)
+
+    assert log =~ "artifact promotion failed"
+    assert log =~ "reason_token=path_outside_workspace"
+    refute log =~ "../outside.md"
+    refute log =~ "relative_path="
+  end
+
+  test "S08n: promote as new action creates a second Artifact row for the same filename", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(instance, "reports/collision.md")
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, "# Collision v1\n")
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{"path" => "reports/collision.md", "content" => "# Collision v1\n"},
+        summary: "Wrote file reports/collision.md",
+        result: %{"path" => "reports/collision.md", "bytes" => 15}
+      })
+
+    assert {:ok, first_artifact} =
+             Artifacts.promote_workspace_file(
+               %{
+                 world_id: world.id,
+                 city_id: instance.city_id,
+                 department_id: instance.department_id,
+                 lemming_id: instance.lemming_id,
+                 lemming_instance_id: instance.id
+               },
+               %{
+                 relative_path: "reports/collision.md",
+                 lemming_instance_id: instance.id,
+                 created_by_tool_execution_id: tool_execution.id
+               }
+             )
+
+    File.write!(absolute_path, "# Collision v2\n")
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#artifact-update-button-#{tool_execution.id}", "Update Artifact")
+
+    assert has_element?(
+             view,
+             "#artifact-promote-as-new-button-#{tool_execution.id}",
+             "Promote as New Artifact"
+           )
+
+    view
+    |> element("#artifact-promotion-form-#{tool_execution.id}")
+    |> render_submit(%{
+      "artifact_promotion" => %{
+        "tool_execution_id" => tool_execution.id,
+        "relative_path" => "reports/collision.md",
+        "mode" => "promote_as_new"
+      }
+    })
+
+    assert eventually_has_element?(
+             view,
+             "#artifact-promotion-status-#{tool_execution.id}",
+             "Artifact promoted: collision.md"
+           )
+
+    assert {:ok, descriptors} =
+             Artifacts.list_artifacts_for_instance(
+               %{
+                 world_id: world.id,
+                 city_id: instance.city_id,
+                 department_id: instance.department_id,
+                 lemming_id: instance.lemming_id,
+                 lemming_instance_id: instance.id
+               },
+               instance.id,
+               include_non_ready: true
+             )
+
+    collision_artifacts = Enum.filter(descriptors, &(&1.filename == "collision.md"))
+    ids = MapSet.new(Enum.map(collision_artifacts, & &1.id))
+    assert MapSet.member?(ids, first_artifact.id)
+    assert MapSet.size(ids) == 2
+  end
+
+  test "S08o: Artifact reference rendering omits storage refs, paths, metadata, and note text in summary",
+       %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    workspace_path_sentinel = "/tmp/workspaces/w1/i1/private/secret.txt"
+    notes_sentinel = "NOTE_LEAK_SENTINEL_DO_NOT_LOG"
+
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(instance, "reports/safe-ref.md")
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, "# Safe ref\nvisible summary only\n")
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "fs.write_text_file",
+        status: "ok",
+        args: %{
+          "path" => "reports/safe-ref.md",
+          "content" => "TOP_SECRET_ARTIFACT_CONTENT",
+          "workspace_path" => workspace_path_sentinel
+        },
+        summary: "Wrote file reports/safe-ref.md",
+        result: %{"path" => "reports/safe-ref.md", "bytes" => 30}
+      })
+
+    assert {:ok, _artifact} =
+             Artifacts.promote_workspace_file(
+               %{
+                 world_id: world.id,
+                 city_id: instance.city_id,
+                 department_id: instance.department_id,
+                 lemming_id: instance.lemming_id,
+                 lemming_instance_id: instance.id
+               },
+               %{
+                 relative_path: "reports/safe-ref.md",
+                 lemming_instance_id: instance.id,
+                 created_by_tool_execution_id: tool_execution.id,
+                 notes: notes_sentinel,
+                 metadata: %{"source" => "manual_promotion"}
+               }
+             )
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#artifact-reference-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-reference-summary-#{tool_execution.id}", "safe-ref.md")
+    assert has_element?(view, "#artifact-reference-notes-toggle-#{tool_execution.id}")
+    assert has_element?(view, "#artifact-reference-notes-#{tool_execution.id}", notes_sentinel)
+
+    refute has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             "TOP_SECRET_ARTIFACT_CONTENT"
+           )
+
+    refute has_element?(view, "#artifact-reference-summary-#{tool_execution.id}", "local://")
+
+    refute has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             workspace_path_sentinel
+           )
+
+    refute has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             "manual_promotion"
+           )
+
+    refute has_element?(
+             view,
+             "#artifact-reference-summary-#{tool_execution.id}",
+             notes_sentinel
+           )
   end
 
   test "S08g: artifact download rejects symlink targets outside workspace", %{conn: conn} do

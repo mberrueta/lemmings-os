@@ -3,6 +3,7 @@ defmodule LemmingsOs.Factory do
 
   use ExMachina.Ecto, repo: LemmingsOs.Repo
 
+  alias LemmingsOs.Artifacts.Artifact
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.CostsConfig
   alias LemmingsOs.Config.CostsConfig.Budgets
@@ -248,5 +249,28 @@ defmodule LemmingsOs.Factory do
       city: department.city,
       department: department
     )
+  end
+
+  def artifact_factory do
+    lemming = build(:lemming)
+
+    %Artifact{
+      world: lemming.world,
+      city: lemming.city,
+      department: lemming.department,
+      lemming: lemming,
+      lemming_instance: nil,
+      created_by_tool_execution: nil,
+      type: "markdown",
+      filename: "artifact-#{sequence(:artifact_unique, & &1)}.md",
+      content_type: "text/markdown",
+      storage_ref:
+        "local://artifacts/#{Ecto.UUID.generate()}/#{Ecto.UUID.generate()}/artifact.md",
+      size_bytes: 128,
+      checksum: String.duplicate("a", 64),
+      status: "ready",
+      notes: nil,
+      metadata: %{"source" => "manual_promotion"}
+    }
   end
 end

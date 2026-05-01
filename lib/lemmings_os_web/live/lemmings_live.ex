@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Artifacts
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
@@ -47,6 +48,8 @@ defmodule LemmingsOsWeb.LemmingsLive do
        overview_path: nil,
        edit_path: nil,
        secrets_path: nil,
+       artifacts_path: nil,
+       lemming_artifact_rows: [],
        lemming_secret_form: blank_secret_form(),
        lemming_secret_metadata: [],
        lemming_secret_env_policy: [],
@@ -317,6 +320,8 @@ defmodule LemmingsOsWeb.LemmingsLive do
           overview_path: nil,
           edit_path: nil,
           secrets_path: nil,
+          artifacts_path: nil,
+          lemming_artifact_rows: [],
           lemming_secret_form: blank_secret_form(),
           lemming_secret_metadata: [],
           lemming_secret_env_policy: [],
@@ -352,6 +357,8 @@ defmodule LemmingsOsWeb.LemmingsLive do
       overview_path: nil,
       edit_path: nil,
       secrets_path: nil,
+      artifacts_path: nil,
+      lemming_artifact_rows: [],
       lemming_secret_form: blank_secret_form(),
       lemming_secret_metadata: [],
       lemming_secret_env_policy: [],
@@ -384,6 +391,8 @@ defmodule LemmingsOsWeb.LemmingsLive do
       overview_path: detail_path(lemming, socket, "overview"),
       edit_path: detail_path(lemming, socket, "edit"),
       secrets_path: detail_path(lemming, socket, "secrets"),
+      artifacts_path: detail_path(lemming, socket, "artifacts"),
+      lemming_artifact_rows: list_scope_artifacts(lemming),
       lemming_secret_metadata: SecretBank.list_effective_metadata(lemming),
       lemming_secret_env_policy: SecretBank.list_env_fallback_policy(),
       lemming_secret_activity: SecretBank.list_recent_activity(lemming, limit: 10)
@@ -606,6 +615,10 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "edit"}), do: "edit"
   defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "secrets"}), do: "secrets"
+
+  defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "artifacts"}),
+    do: "artifacts"
+
   defp active_detail_tab(%{assigns: %{live_action: :show}}, _params), do: "overview"
   defp active_detail_tab(_socket, _params), do: "overview"
 
@@ -672,6 +685,24 @@ defmodule LemmingsOsWeb.LemmingsLive do
   end
 
   defp refresh_lemming_instances(socket), do: socket
+
+  defp list_scope_artifacts(scope) do
+    case Artifacts.list_artifacts_for_scope(scope) do
+      {:ok, artifacts} ->
+        artifacts
+        |> exact_scope_artifacts(scope)
+        |> Artifacts.decorate_scope_slugs()
+
+      {:error, :invalid_scope} ->
+        []
+    end
+  end
+
+  defp exact_scope_artifacts(artifacts, %Lemming{id: lemming_id}) when is_binary(lemming_id) do
+    Enum.filter(artifacts, &(&1.lemming_id == lemming_id))
+  end
+
+  defp exact_scope_artifacts(_artifacts, _scope), do: []
 
   defp load_lemming_instances(%World{} = world, %Lemming{} = lemming) do
     world

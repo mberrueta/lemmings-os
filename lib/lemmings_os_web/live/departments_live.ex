@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Artifacts
   alias LemmingsOs.Config.Resolver
   alias LemmingsOs.Connections
   alias LemmingsOs.Departments
@@ -17,7 +18,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOsWeb.PageData.DepartmentCollaborationSnapshot
   require Logger
 
-  @detail_tabs ~w(overview lemmings settings secrets connections)
+  @detail_tabs ~w(overview lemmings settings secrets connections artifacts)
 
   def mount(_params, _session, socket) do
     connection_types = Connections.list_connection_types()
@@ -49,7 +50,8 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> assign(:department_connection_create_open, false)
      |> assign(:department_connection_rows, [])
      |> assign(:department_connection_editing_id, nil)
-     |> assign(:department_connection_edit_form, nil)}
+     |> assign(:department_connection_edit_form, nil)
+     |> assign(:department_artifact_rows, [])}
   end
 
   def handle_params(params, _uri, socket) do
@@ -494,6 +496,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         |> assign(:department_secret_env_policy, [])
         |> assign(:department_secret_activity, [])
         |> assign(:department_connection_rows, [])
+        |> assign(:department_artifact_rows, [])
         |> assign(
           :department_connection_create_form,
           ConnectionsSurface.create_form(socket.assigns.department_connection_types)
@@ -547,6 +550,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_secret_env_policy, [])
     |> assign(:department_secret_activity, [])
     |> assign(:department_connection_rows, [])
+    |> assign(:department_artifact_rows, [])
     |> assign(
       :department_connection_create_form,
       ConnectionsSurface.create_form(socket.assigns.department_connection_types)
@@ -572,6 +576,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_secret_env_policy, SecretBank.list_env_fallback_policy())
     |> assign(:department_secret_activity, SecretBank.list_recent_activity(department, limit: 10))
     |> assign(:department_connection_rows, Connections.list_visible_connections(department))
+    |> assign(:department_artifact_rows, list_scope_artifacts(department))
     |> assign(
       :department_connection_create_form,
       ConnectionsSurface.create_form(socket.assigns.department_connection_types)
@@ -682,4 +687,23 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   defp secret_form_with_key(bank_key) do
     to_form(%{"bank_key" => String.trim(bank_key || ""), "value" => ""}, as: :secret)
   end
+
+  defp list_scope_artifacts(scope) do
+    case Artifacts.list_artifacts_for_scope(scope) do
+      {:ok, artifacts} ->
+        artifacts
+        |> exact_scope_artifacts(scope)
+        |> Artifacts.decorate_scope_slugs()
+
+      {:error, :invalid_scope} ->
+        []
+    end
+  end
+
+  defp exact_scope_artifacts(artifacts, %Department{id: department_id})
+       when is_binary(department_id) do
+    Enum.filter(artifacts, &(&1.department_id == department_id))
+  end
+
+  defp exact_scope_artifacts(_artifacts, _scope), do: []
 end

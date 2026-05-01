@@ -16,10 +16,17 @@ work_areas_path =
       Path.expand("../priv/runtime/workspace", __DIR__)
     )
 
+artifact_storage = Application.get_env(:lemmings_os, :artifact_storage, [])
+
+artifact_storage_root_path =
+  System.get_env("LEMMINGS_ARTIFACT_STORAGE_PATH") ||
+    Keyword.get(artifact_storage, :root_path, Path.expand("../priv/runtime/storage", __DIR__))
+
 runtime_city_node_name = System.get_env("LEMMINGS_CITY_NODE_NAME") || Atom.to_string(node())
 runtime_city_heartbeat = Application.get_env(:lemmings_os, :runtime_city_heartbeat, [])
 
 config :lemmings_os, :work_areas_path, work_areas_path
+config :lemmings_os, :artifact_storage, backend: :local, root_path: artifact_storage_root_path
 
 config :lemmings_os, :runtime_city,
   node_name: runtime_city_node_name,

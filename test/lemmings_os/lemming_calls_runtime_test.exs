@@ -255,6 +255,30 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
              "Do not call fs.read_text_file for these paths unless runtime later provides them inside your own workspace."
   end
 
+  test "S02d: request_call does not inject artifact content when path is not referenced", %{
+    manager_instance: manager_instance
+  } do
+    {:ok, %{absolute_path: absolute_path}} =
+      LemmingInstances.artifact_absolute_path(manager_instance, "private.md")
+
+    File.mkdir_p!(Path.dirname(absolute_path))
+    File.write!(absolute_path, "TOP_SECRET_ARTIFACT_CONTENT")
+
+    assert {:ok, _call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "Draft incident notes for today"},
+               runtime_mod: CapturingRuntime,
+               runtime_opts: [test_pid: self()]
+             )
+
+    assert_receive {:spawned_child_request, child_request, _opts}
+    assert child_request == "Draft incident notes for today"
+    refute child_request =~ "Delegation Artifact Context:"
+    refute child_request =~ "private.md"
+    refute child_request =~ "TOP_SECRET_ARTIFACT_CONTENT"
+  end
+
   test "S02c: request_call passes runtime opts to spawned child", %{
     manager_instance: manager_instance
   } do

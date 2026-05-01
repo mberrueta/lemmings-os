@@ -91,6 +91,7 @@ defmodule LemmingsOsWeb do
       alias Phoenix.LiveView.JS
 
       alias LemmingsOsWeb.{
+        ArtifactsComponents,
         CityMapComponents,
         ConnectionsComponents,
         HomeComponents,

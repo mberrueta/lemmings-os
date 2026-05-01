@@ -2,7 +2,9 @@ defmodule LemmingsOsWeb.InstanceLive do
   use LemmingsOsWeb, :live_view
 
   import LemmingsOsWeb.MockShell
+  require Logger
 
+  alias LemmingsOs.Artifacts
   alias LemmingsOs.LemmingCalls.PubSub, as: LemmingCallPubSub
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.PubSub, as: InstancePubSub
@@ -42,7 +44,8 @@ defmodule LemmingsOsWeb.InstanceLive do
         delegated_work_available_targets: [],
         delegated_work_active_count: 0,
         delegated_work_historical_count: 0,
-        delegated_parent_instance_path: nil
+        delegated_parent_instance_path: nil,
+        artifact_promotion_messages: %{}
       )
       |> stream(:messages, [], reset: true)
 
@@ -226,6 +229,60 @@ defmodule LemmingsOsWeb.InstanceLive do
     {:noreply, put_flash(socket, :info, dgettext("lemmings", "Workspace path copied."))}
   end
 
+  def handle_event(
+        "promote_workspace_artifact",
+        _params,
+        %{assigns: %{instance: nil}} = socket
+      ) do
+    {:noreply,
+     put_flash(socket, :error, dgettext("lemmings", "Unable to promote this file right now."))}
+  end
+
+  def handle_event("promote_workspace_artifact", %{"artifact_promotion" => params}, socket) do
+    tool_execution_id = normalize_id_param(Map.get(params, "tool_execution_id"))
+    relative_path = Map.get(params, "relative_path")
+    mode = normalize_promotion_mode(Map.get(params, "mode"))
+
+    attrs =
+      %{
+        relative_path: relative_path,
+        lemming_instance_id: socket.assigns.instance.id
+      }
+      |> maybe_put_value(:mode, mode)
+      |> maybe_put_value(:created_by_tool_execution_id, tool_execution_id)
+
+    case Artifacts.promote_workspace_file(instance_artifact_scope(socket.assigns.instance), attrs) do
+      {:ok, artifact} ->
+        message =
+          dgettext("lemmings", "Artifact promoted: %{filename}", filename: artifact.filename)
+
+        socket =
+          socket
+          |> put_artifact_promotion_message(tool_execution_id, :success, message)
+          |> load_instance(socket.assigns.instance.id, %{"world" => current_world_id(socket)})
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        message = artifact_promotion_error(reason)
+
+        Logger.warning(
+          "artifact promotion failed tool_execution_id=#{tool_execution_id} reason_token=#{promotion_reason_token(reason)}",
+          world_id: socket.assigns.instance.world_id,
+          city_id: socket.assigns.instance.city_id,
+          department_id: socket.assigns.instance.department_id,
+          lemming_id: socket.assigns.instance.lemming_id
+        )
+
+        socket =
+          socket
+          |> put_artifact_promotion_message(tool_execution_id, :error, message)
+          |> put_flash(:error, message)
+
+        {:noreply, socket}
+    end
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   defp load_instance(socket, id, params) do
@@ -235,6 +292,7 @@ defmodule LemmingsOsWeb.InstanceLive do
           {:ok, instance} ->
             messages = LemmingInstances.list_messages(instance)
             tool_executions = LemmingTools.list_tool_executions(world, instance)
+            artifacts_by_filename = list_instance_artifacts_by_filename(instance)
             delegated_work = InstanceDelegationSnapshot.build(instance)
             runtime_state = runtime_state(instance)
             status_now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -264,6 +322,9 @@ defmodule LemmingsOsWeb.InstanceLive do
               transcript_entries(
                 messages,
                 tool_executions,
+                artifacts_by_filename,
+                socket.assigns.artifact_promotion_messages,
+                runtime_state,
                 delegated_work.calls,
                 delegated_work.mode,
                 instance
@@ -310,7 +371,8 @@ defmodule LemmingsOsWeb.InstanceLive do
       delegated_work_available_targets: [],
       delegated_work_active_count: 0,
       delegated_work_historical_count: 0,
-      delegated_parent_instance_path: nil
+      delegated_parent_instance_path: nil,
+      artifact_promotion_messages: %{}
     )
     |> stream(:messages, [], reset: true)
     |> cancel_status_tick()
@@ -728,11 +790,28 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp follow_up_helper_copy(status), do: follow_up_status_copy(status)
 
-  defp transcript_entries(messages, tool_executions, delegated_calls, mode, instance)
+  defp transcript_entries(
+         messages,
+         tool_executions,
+         artifacts_by_filename,
+         promotion_messages,
+         runtime_state,
+         delegated_calls,
+         mode,
+         instance
+       )
        when is_list(messages) and is_list(tool_executions) and is_list(delegated_calls) do
     messages
     |> transcript_message_entries(delegated_calls, mode, instance)
-    |> Kernel.++(transcript_tool_execution_entries(tool_executions))
+    |> Kernel.++(
+      transcript_tool_execution_entries(
+        tool_executions,
+        artifacts_by_filename,
+        promotion_messages,
+        runtime_state,
+        instance
+      )
+    )
     |> Kernel.++(transcript_delegated_call_entries(delegated_calls, mode))
     |> Enum.sort_by(&transcript_sort_key/1)
     |> inject_transcript_day_dividers()
@@ -792,13 +871,32 @@ defmodule LemmingsOsWeb.InstanceLive do
     end)
   end
 
-  defp transcript_tool_execution_entries(tool_executions) do
+  defp transcript_tool_execution_entries(
+         tool_executions,
+         artifacts_by_filename,
+         promotion_messages,
+         runtime_state,
+         instance
+       ) do
     Enum.map(tool_executions, fn tool_execution ->
+      promotion_candidate = tool_execution_promotion_candidate(tool_execution)
+      promoted_artifact = artifact_for_candidate(promotion_candidate, artifacts_by_filename)
+
       %{
         id: "tool-execution-#{tool_execution.id}",
         type: :tool_execution,
         inserted_at: Map.get(tool_execution, :inserted_at),
-        tool_execution: tool_execution
+        tool_execution: tool_execution,
+        promotion_candidate: promotion_candidate,
+        promoted_artifact: promoted_artifact,
+        promotion_action:
+          promotion_action_for_candidate(
+            promotion_candidate,
+            promoted_artifact,
+            runtime_state,
+            instance
+          ),
+        promotion_message: Map.get(promotion_messages, tool_execution.id)
       }
     end)
   end
@@ -931,4 +1029,276 @@ defmodule LemmingsOsWeb.InstanceLive do
        do: Map.get(call, :caller_instance_path)
 
   defp delegated_parent_instance_path(_delegated_work), do: nil
+
+  defp list_instance_artifacts_by_filename(instance) do
+    case Artifacts.list_artifacts_for_instance(
+           instance_artifact_scope(instance),
+           instance.id,
+           include_non_ready: true
+         ) do
+      {:ok, artifacts} ->
+        Enum.reduce(artifacts, %{}, fn artifact, acc ->
+          Map.put_new(acc, artifact.filename, artifact)
+        end)
+
+      {:error, _reason} ->
+        %{}
+    end
+  end
+
+  defp instance_artifact_scope(instance) do
+    %{
+      world_id: instance.world_id,
+      city_id: instance.city_id,
+      department_id: instance.department_id,
+      lemming_id: instance.lemming_id,
+      lemming_instance_id: instance.id
+    }
+  end
+
+  defp tool_execution_promotion_candidate(%{tool_name: "fs.write_text_file"} = tool_execution) do
+    case tool_execution_artifact_relative_path(tool_execution) do
+      path when is_binary(path) and path != "" ->
+        if safe_relative_path?(path) do
+          %{relative_path: path, filename: Path.basename(path)}
+        else
+          nil
+        end
+
+      _path ->
+        nil
+    end
+  end
+
+  defp tool_execution_promotion_candidate(_tool_execution), do: nil
+
+  defp artifact_for_candidate(%{filename: filename}, artifacts_by_filename)
+       when is_binary(filename) and is_map(artifacts_by_filename) do
+    Map.get(artifacts_by_filename, filename)
+  end
+
+  defp artifact_for_candidate(_candidate, _artifacts_by_filename), do: nil
+
+  defp promotion_action_for_candidate(nil, _promoted_artifact, _runtime_state, _instance),
+    do: :none
+
+  defp promotion_action_for_candidate(
+         %{relative_path: _relative_path},
+         nil,
+         _runtime_state,
+         _instance
+       ),
+       do: :promote
+
+  defp promotion_action_for_candidate(
+         %{relative_path: relative_path},
+         promoted_artifact,
+         runtime_state,
+         instance
+       ) do
+    case workspace_file_fingerprint(instance, runtime_state, relative_path) do
+      {:ok, fingerprint} ->
+        if fingerprint_matches_artifact?(fingerprint, promoted_artifact) do
+          :none
+        else
+          :update_existing
+        end
+
+      {:error, _reason} ->
+        :none
+    end
+  end
+
+  defp tool_execution_artifact_relative_path(%{args: %{"path" => path}})
+       when is_binary(path) and path != "",
+       do: path
+
+  defp tool_execution_artifact_relative_path(%{args: %{path: path}})
+       when is_binary(path) and path != "",
+       do: path
+
+  defp tool_execution_artifact_relative_path(%{result: %{"path" => path}})
+       when is_binary(path) and path != "",
+       do: path
+
+  defp tool_execution_artifact_relative_path(%{result: %{path: path}})
+       when is_binary(path) and path != "",
+       do: path
+
+  defp tool_execution_artifact_relative_path(_tool_execution), do: nil
+
+  defp safe_relative_path?(path) when is_binary(path) do
+    path_segments = String.split(path, "/", trim: true)
+
+    Path.type(path) == :relative and path_segments != [] and
+      Enum.all?(path_segments, &(&1 not in [".", ".."]))
+  end
+
+  defp workspace_file_fingerprint(instance, runtime_state, relative_path) do
+    with {:ok, absolute_path} <-
+           resolve_workspace_source_path(instance, runtime_state, relative_path),
+         {:ok, %File.Stat{size: size}} <- File.stat(absolute_path),
+         {:ok, checksum} <- file_checksum(absolute_path) do
+      {:ok, %{size_bytes: size, checksum: checksum}}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp resolve_workspace_source_path(instance, runtime_state, relative_path) do
+    work_area_ref =
+      case Map.get(runtime_state, :work_area_ref) do
+        ref when is_binary(ref) and ref != "" -> ref
+        _other -> instance.id
+      end
+
+    case WorkArea.resolve(work_area_ref, relative_path) do
+      {:ok, %{absolute_path: absolute_path}} ->
+        if File.regular?(absolute_path) do
+          {:ok, absolute_path}
+        else
+          resolve_workspace_source_path_legacy(instance, relative_path)
+        end
+
+      {:error, :work_area_unavailable} ->
+        resolve_workspace_source_path_legacy(instance, relative_path)
+
+      {:error, :invalid_path} ->
+        {:error, :path_outside_workspace}
+    end
+  end
+
+  defp resolve_workspace_source_path_legacy(instance, relative_path) do
+    case LemmingInstances.artifact_absolute_path(instance, relative_path) do
+      {:ok, %{absolute_path: absolute_path}} ->
+        if File.regular?(absolute_path) do
+          {:ok, absolute_path}
+        else
+          {:error, :source_not_found}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp file_checksum(path) do
+    case File.open(path, [:read, :binary]) do
+      {:ok, device} ->
+        digest =
+          Enum.reduce(IO.binstream(device, 65_536), :crypto.hash_init(:sha256), fn chunk, acc ->
+            :crypto.hash_update(acc, chunk)
+          end)
+          |> :crypto.hash_final()
+          |> Base.encode16(case: :lower)
+
+        :ok = File.close(device)
+        {:ok, digest}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp fingerprint_matches_artifact?(
+         %{size_bytes: size_bytes, checksum: checksum},
+         %{size_bytes: artifact_size_bytes, checksum: artifact_checksum}
+       )
+       when is_integer(size_bytes) and is_integer(artifact_size_bytes) and is_binary(checksum) and
+              is_binary(artifact_checksum) do
+    size_bytes == artifact_size_bytes and checksum == artifact_checksum
+  end
+
+  defp fingerprint_matches_artifact?(_fingerprint, _artifact), do: false
+
+  defp normalize_promotion_mode(""), do: nil
+  defp normalize_promotion_mode(nil), do: nil
+  defp normalize_promotion_mode(mode), do: mode
+
+  defp normalize_id_param(value) when is_binary(value) and value != "", do: value
+  defp normalize_id_param(_value), do: nil
+
+  defp maybe_put_value(map, _key, nil), do: map
+  defp maybe_put_value(map, key, value), do: Map.put(map, key, value)
+
+  defp put_artifact_promotion_message(socket, nil, _kind, _message), do: socket
+
+  defp put_artifact_promotion_message(socket, tool_execution_id, kind, message) do
+    message_data = %{kind: kind, text: message}
+    current = Map.get(socket.assigns, :artifact_promotion_messages, %{})
+
+    assign(
+      socket,
+      :artifact_promotion_messages,
+      Map.put(current, tool_execution_id, message_data)
+    )
+  end
+
+  defp artifact_promotion_error(:mode_required) do
+    dgettext(
+      "lemmings",
+      "An Artifact with this filename already exists. Update it after changing the workspace file."
+    )
+  end
+
+  defp artifact_promotion_error(:invalid_mode),
+    do: dgettext("lemmings", "Choose a valid promotion action for this Artifact.")
+
+  defp artifact_promotion_error(:invalid_scope),
+    do: dgettext("lemmings", "Artifact promotion scope is invalid for this session.")
+
+  defp artifact_promotion_error(:instance_not_found),
+    do: dgettext("lemmings", "Runtime instance not found for Artifact promotion.")
+
+  defp artifact_promotion_error(:missing_instance_id),
+    do: dgettext("lemmings", "Artifact promotion is missing the runtime instance.")
+
+  defp artifact_promotion_error(:invalid_filename),
+    do: dgettext("lemmings", "This filename cannot be promoted as an Artifact.")
+
+  defp artifact_promotion_error(:path_outside_workspace),
+    do: dgettext("lemmings", "Only files inside this workspace can be promoted.")
+
+  defp artifact_promotion_error(:file_not_found),
+    do: dgettext("lemmings", "Workspace file not found for Artifact promotion.")
+
+  defp artifact_promotion_error(:source_not_found),
+    do: dgettext("lemmings", "Workspace file not found for Artifact promotion.")
+
+  defp artifact_promotion_error(:invalid_source_path),
+    do: dgettext("lemmings", "Workspace file path is invalid for Artifact promotion.")
+
+  defp artifact_promotion_error(:source_not_regular_file),
+    do: dgettext("lemmings", "Only regular files can be promoted as Artifacts.")
+
+  defp artifact_promotion_error(:storage_unavailable),
+    do: dgettext("lemmings", "Artifact storage is unavailable right now.")
+
+  defp artifact_promotion_error({:copy_failed, _reason}),
+    do: dgettext("lemmings", "Artifact file copy failed.")
+
+  defp artifact_promotion_error({:size_failed, _reason}),
+    do: dgettext("lemmings", "Artifact size calculation failed.")
+
+  defp artifact_promotion_error({:checksum_failed, _reason}),
+    do: dgettext("lemmings", "Artifact checksum calculation failed.")
+
+  defp artifact_promotion_error(:invalid_attrs),
+    do: dgettext("lemmings", "Artifact promotion request is invalid.")
+
+  defp artifact_promotion_error(%Ecto.Changeset{}),
+    do: dgettext("lemmings", "Artifact promotion failed validation.")
+
+  defp artifact_promotion_error(reason),
+    do:
+      dgettext("lemmings", "Artifact promotion failed (%{reason}).",
+        reason: promotion_reason_token(reason)
+      )
+
+  defp promotion_reason_token(%Ecto.Changeset{}), do: "validation_failed"
+
+  defp promotion_reason_token({reason, _details}) when is_atom(reason),
+    do: Atom.to_string(reason)
+
+  defp promotion_reason_token(reason) when is_atom(reason), do: Atom.to_string(reason)
 end
