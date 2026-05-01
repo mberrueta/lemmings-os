@@ -5,14 +5,19 @@ defmodule LemmingsOsWeb.WorldLive do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Connections
   alias LemmingsOs.Helpers
   alias LemmingsOs.SecretBank
   alias LemmingsOs.WorldBootstrap.Importer
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
+  alias LemmingsOsWeb.ConnectionsSurface
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
+  require Logger
 
   def mount(_params, _session, socket) do
+    connection_types = Connections.list_connection_types()
+
     {:ok,
      socket
      |> assign_shell(:world, dgettext("layout", ".page_title_world"))
@@ -24,6 +29,12 @@ defmodule LemmingsOsWeb.WorldLive do
      |> assign(:world_secret_metadata, [])
      |> assign(:world_secret_env_policy, [])
      |> assign(:world_secret_activity, [])
+     |> assign(:world_connection_types, connection_types)
+     |> assign(:world_connection_create_form, ConnectionsSurface.create_form(connection_types))
+     |> assign(:world_connection_create_open, false)
+     |> assign(:world_connection_rows, [])
+     |> assign(:world_connection_editing_id, nil)
+     |> assign(:world_connection_edit_form, nil)
      |> load_snapshot()}
   end
 
@@ -117,6 +128,201 @@ defmodule LemmingsOsWeb.WorldLive do
      |> push_event("secret_form:focus", %{form_id: "world-secret-form", field: "value"})}
   end
 
+  def handle_event(
+        "change_world_connection_create_type",
+        %{"connection_create" => %{"type" => type}},
+        socket
+      ) do
+    {:noreply,
+     assign(
+       socket,
+       :world_connection_create_form,
+       ConnectionsSurface.create_form(socket.assigns.world_connection_types, %{"type" => type})
+     )}
+  end
+
+  def handle_event("open_world_connection_create", _params, socket) do
+    {:noreply, assign(socket, :world_connection_create_open, true)}
+  end
+
+  def handle_event("close_world_connection_create", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:world_connection_create_open, false)
+     |> assign(
+       :world_connection_create_form,
+       ConnectionsSurface.create_form(socket.assigns.world_connection_types)
+     )}
+  end
+
+  def handle_event("create_world_connection", %{"connection_create" => params}, socket) do
+    with {:ok, world} <- load_world_scope(socket),
+         {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
+         {:ok, _connection} <- Connections.create_connection(world, attrs) do
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
+       |> assign_world_connection_surface(world)
+       |> assign(:world_connection_create_open, false)
+       |> assign(
+         :world_connection_create_form,
+         ConnectionsSurface.create_form(socket.assigns.world_connection_types)
+       )}
+    else
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> assign(:world_connection_create_open, true)
+         |> assign(:world_connection_create_form, to_form(changeset, as: :connection_create))}
+
+      {:error, :invalid_payload} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+
+      {:error, :invalid_scope} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_scope_unavailable"))}
+    end
+  end
+
+  def handle_event("start_world_connection_edit", %{"connection_id" => connection_id}, socket) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.world_connection_rows,
+           connection_id
+         ) do
+      {:ok, row} ->
+        {:noreply,
+         socket
+         |> assign(:world_connection_editing_id, connection_id)
+         |> assign(:world_connection_edit_form, ConnectionsSurface.edit_form(row.connection))}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("cancel_world_connection_edit", _params, socket) do
+    {:noreply, assign(socket, world_connection_editing_id: nil, world_connection_edit_form: nil)}
+  end
+
+  def handle_event(
+        "change_world_connection_edit_type",
+        %{"connection_edit" => %{"connection_id" => connection_id, "type" => type}},
+        socket
+      ) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.world_connection_rows,
+           connection_id
+         ) do
+      {:ok, row} ->
+        config_text =
+          ConnectionsSurface.default_config_text(socket.assigns.world_connection_types, type)
+
+        params = %{
+          "connection_id" => row.connection.id,
+          "type" => type,
+          "status" => row.connection.status,
+          "config" => config_text
+        }
+
+        {:noreply,
+         assign(socket, :world_connection_edit_form, ConnectionsSurface.edit_form(params))}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("change_world_connection_edit_type", _params, socket) do
+    {:noreply,
+     put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+  end
+
+  def handle_event("save_world_connection_edit", %{"connection_edit" => params}, socket) do
+    connection_id = Map.get(params, "connection_id", "")
+
+    with {:ok, world} <- load_world_scope(socket),
+         {:ok, row} <-
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.world_connection_rows,
+             connection_id
+           ),
+         {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
+         {:ok, _connection} <- Connections.update_connection(world, row.connection, attrs) do
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
+       |> assign_world_connection_surface(world)
+       |> assign(:world_connection_editing_id, nil)
+       |> assign(:world_connection_edit_form, nil)}
+    else
+      {:error, :invalid_payload} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("delete_world_connection", %{"connection_id" => connection_id}, socket) do
+    with {:ok, world} <- load_world_scope(socket),
+         {:ok, row} <-
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.world_connection_rows,
+             connection_id
+           ),
+         {:ok, _connection} <- Connections.delete_connection(world, row.connection) do
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_deleted"))
+       |> assign_world_connection_surface(world)
+       |> assign(:world_connection_editing_id, nil)
+       |> assign(:world_connection_edit_form, nil)}
+    else
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event(
+        "world_connection_lifecycle",
+        %{"connection_id" => connection_id, "action" => action},
+        socket
+      ) do
+    with {:ok, world} <- load_world_scope(socket),
+         {:ok, row} <-
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.world_connection_rows,
+             connection_id
+           ),
+         {:ok, _connection} <-
+           ConnectionsSurface.run_connection_lifecycle(world, row.connection, action) do
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_status_updated"))
+       |> assign_world_connection_surface(world)}
+    else
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("test_world_connection", %{"type" => type}, socket) do
+    with {:ok, world} <- load_world_scope(socket),
+         {:ok, _result} <- Connections.test_connection(world, type) do
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_tested"))
+       |> assign_world_connection_surface(world)}
+    else
+      {:error, reason} ->
+        Logger.warning("world connection test failed type=#{type} reason=#{inspect(reason)}")
+
+        {:noreply, put_flash(socket, :error, ConnectionsSurface.test_failure_message(reason))}
+    end
+  end
+
   defp load_snapshot(socket, import_result \\ nil) do
     case WorldPageSnapshot.build(snapshot_opts(import_result)) do
       {:ok, snapshot} ->
@@ -127,6 +333,7 @@ defmodule LemmingsOsWeb.WorldLive do
         |> assign(:cities, cities)
         |> assign(:last_import_result, normalize_import_result(import_result))
         |> assign_world_secret_surface(snapshot.world.id)
+        |> assign_world_connection_surface(snapshot.world.id)
 
       {:error, :not_found} ->
         socket
@@ -137,6 +344,14 @@ defmodule LemmingsOsWeb.WorldLive do
         |> assign(:world_secret_metadata, [])
         |> assign(:world_secret_env_policy, [])
         |> assign(:world_secret_activity, [])
+        |> assign(:world_connection_rows, [])
+        |> assign(
+          :world_connection_create_form,
+          ConnectionsSurface.create_form(socket.assigns.world_connection_types)
+        )
+        |> assign(:world_connection_create_open, false)
+        |> assign(:world_connection_editing_id, nil)
+        |> assign(:world_connection_edit_form, nil)
     end
   end
 
@@ -188,6 +403,7 @@ defmodule LemmingsOsWeb.WorldLive do
   defp normalize_tab("bootstrap"), do: "bootstrap"
   defp normalize_tab("runtime"), do: "runtime"
   defp normalize_tab("secrets"), do: "secrets"
+  defp normalize_tab("connections"), do: "connections"
   defp normalize_tab(_tab), do: "overview"
 
   defp load_world_scope(%{assigns: %{snapshot: %{world: %{id: world_id}}}})
@@ -220,6 +436,35 @@ defmodule LemmingsOsWeb.WorldLive do
     |> assign(:world_secret_metadata, [])
     |> assign(:world_secret_env_policy, [])
     |> assign(:world_secret_activity, [])
+  end
+
+  defp assign_world_connection_surface(socket, world_id) when is_binary(world_id) do
+    case Worlds.get_world(world_id) do
+      %World{} = world -> assign_world_connection_surface(socket, world)
+      nil -> assign_world_connection_surface(socket, nil)
+    end
+  end
+
+  defp assign_world_connection_surface(socket, %World{} = world) do
+    socket
+    |> assign(:world_connection_rows, Connections.list_visible_connections(world))
+    |> assign(
+      :world_connection_create_form,
+      ConnectionsSurface.create_form(socket.assigns.world_connection_types)
+    )
+    |> assign(:world_connection_create_open, false)
+  end
+
+  defp assign_world_connection_surface(socket, nil) do
+    socket
+    |> assign(:world_connection_rows, [])
+    |> assign(
+      :world_connection_create_form,
+      ConnectionsSurface.create_form(socket.assigns.world_connection_types)
+    )
+    |> assign(:world_connection_create_open, false)
+    |> assign(:world_connection_editing_id, nil)
+    |> assign(:world_connection_edit_form, nil)
   end
 
   defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)

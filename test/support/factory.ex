@@ -10,6 +10,7 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Config.ModelsConfig
   alias LemmingsOs.Config.RuntimeConfig
   alias LemmingsOs.Config.ToolsConfig
+  alias LemmingsOs.Connections.Connection
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingCalls.LemmingCall
@@ -209,5 +210,43 @@ defmodule LemmingsOs.Factory do
       started_at: nil,
       completed_at: nil
     }
+  end
+
+  def connection_factory do
+    world = build(:world)
+
+    %Connection{
+      world: world,
+      city: nil,
+      department: nil,
+      type: "mock",
+      status: "enabled",
+      config: %{
+        "mode" => "echo",
+        "base_url" => "https://example.test/mock",
+        "api_key" => "$MOCK_API_KEY"
+      },
+      last_test: nil
+    }
+  end
+
+  def world_connection_factory do
+    build(:connection)
+  end
+
+  def city_connection_factory do
+    city = build(:city)
+
+    build(:connection, world: city.world, city: city, department: nil)
+  end
+
+  def department_connection_factory do
+    department = build(:department)
+
+    build(:connection,
+      world: department.world,
+      city: department.city,
+      department: department
+    )
   end
 end

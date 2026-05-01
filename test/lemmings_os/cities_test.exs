@@ -220,7 +220,10 @@ defmodule LemmingsOs.CitiesTest do
 
       assert updated_city.id == city.id
       assert updated_city.name == "After"
-      assert Repo.aggregate(City, :count) == 1
+
+      assert City
+             |> where([city], city.world_id == ^world.id)
+             |> Repo.aggregate(:count) == 1
     end
   end
 

@@ -16,6 +16,12 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
   attr :secret_env_policy, :list, default: []
+  attr :connection_types, :list, default: []
+  attr :connection_create_form, :any, default: nil
+  attr :connection_create_open, :boolean, default: false
+  attr :connection_rows, :list, default: []
+  attr :connection_editing_id, :string, default: nil
+  attr :connection_edit_form, :any, default: nil
 
   def world_page(assigns) do
     assigns =
@@ -49,6 +55,12 @@ defmodule LemmingsOsWeb.WorldComponents do
         secret_metadata={@secret_metadata}
         secret_activity={@secret_activity}
         secret_env_policy={@secret_env_policy}
+        connection_types={@connection_types}
+        connection_create_form={@connection_create_form}
+        connection_create_open={@connection_create_open}
+        connection_rows={@connection_rows}
+        connection_editing_id={@connection_editing_id}
+        connection_edit_form={@connection_edit_form}
       />
     </.content_container>
     """
@@ -69,6 +81,12 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :secret_metadata, :list, required: true
   attr :secret_activity, :list, required: true
   attr :secret_env_policy, :list, required: true
+  attr :connection_types, :list, required: true
+  attr :connection_create_form, :any, required: true
+  attr :connection_create_open, :boolean, default: false
+  attr :connection_rows, :list, required: true
+  attr :connection_editing_id, :string, default: nil
+  attr :connection_edit_form, :any, default: nil
 
   defp world_snapshot(assigns) do
     ~H"""
@@ -205,6 +223,15 @@ defmodule LemmingsOsWeb.WorldComponents do
         variant={tab_button_variant(@active_tab, "secrets")}
       >
         {dgettext("world", ".tab_secrets")}
+      </.button>
+      <.button
+        id="world-tab-connections"
+        phx-click="select_tab"
+        phx-value-tab="connections"
+        aria_pressed={pressed_attr(@active_tab == "connections")}
+        variant={tab_button_variant(@active_tab, "connections")}
+      >
+        {dgettext("layout", ".nav_connections")}
       </.button>
     </div>
 
@@ -466,6 +493,30 @@ defmodule LemmingsOsWeb.WorldComponents do
       edit_event="edit_world_secret"
       delete_event="delete_world_secret"
     />
+
+    <ConnectionsComponents.connection_surface
+      :if={@active_tab == "connections"}
+      id_prefix="world"
+      scope_kind="world"
+      scope_available?={not is_nil(@snapshot && @snapshot.world)}
+      types={@connection_types}
+      create_form={@connection_create_form}
+      create_open?={@connection_create_open}
+      rows={@connection_rows}
+      editing_connection_id={@connection_editing_id}
+      edit_form={@connection_edit_form}
+      create_submit_event="create_world_connection"
+      create_type_change_event="change_world_connection_create_type"
+      open_create_event="open_world_connection_create"
+      close_create_event="close_world_connection_create"
+      start_edit_event="start_world_connection_edit"
+      cancel_edit_event="cancel_world_connection_edit"
+      save_edit_event="save_world_connection_edit"
+      edit_type_change_event="change_world_connection_edit_type"
+      delete_event="delete_world_connection"
+      lifecycle_event="world_connection_lifecycle"
+      test_event="test_world_connection"
+    />
     """
   end
 
@@ -698,6 +749,12 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :secret_metadata, :list, default: []
   attr :secret_activity, :list, default: []
   attr :secret_env_policy, :list, default: []
+  attr :connection_types, :list, default: []
+  attr :connection_create_form, :any, default: nil
+  attr :connection_create_open, :boolean, default: false
+  attr :connection_rows, :list, default: []
+  attr :connection_editing_id, :string, default: nil
+  attr :connection_edit_form, :any, default: nil
 
   def department_detail_page(assigns) do
     ~H"""
@@ -753,6 +810,16 @@ defmodule LemmingsOsWeb.WorldComponents do
           class={department_tab_class(@active_tab == "secrets")}
         >
           {dgettext("world", ".tab_secrets")}
+        </.link>
+        <.link
+          id="department-tab-connections"
+          patch={
+            ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "connections")}"
+          }
+          aria-current={if @active_tab == "connections", do: "page"}
+          class={department_tab_class(@active_tab == "connections")}
+        >
+          {dgettext("layout", ".nav_connections")}
         </.link>
       </div>
 
@@ -1125,6 +1192,30 @@ defmodule LemmingsOsWeb.WorldComponents do
         edit_event="edit_department_secret"
         delete_event="delete_department_secret"
         subtitle={dgettext("world", ".secret_department_subtitle")}
+      />
+
+      <ConnectionsComponents.connection_surface
+        :if={@active_tab == "connections"}
+        id_prefix="department"
+        scope_kind="department"
+        scope_available?={not is_nil(@department)}
+        types={@connection_types}
+        create_form={@connection_create_form}
+        create_open?={@connection_create_open}
+        rows={@connection_rows}
+        editing_connection_id={@connection_editing_id}
+        edit_form={@connection_edit_form}
+        create_submit_event="create_department_connection"
+        create_type_change_event="change_department_connection_create_type"
+        open_create_event="open_department_connection_create"
+        close_create_event="close_department_connection_create"
+        start_edit_event="start_department_connection_edit"
+        cancel_edit_event="cancel_department_connection_edit"
+        save_edit_event="save_department_connection_edit"
+        edit_type_change_event="change_department_connection_edit_type"
+        delete_event="delete_department_connection"
+        lifecycle_event="department_connection_lifecycle"
+        test_event="test_department_connection"
       />
     </.panel>
     """

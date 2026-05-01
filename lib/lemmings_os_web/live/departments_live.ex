@@ -6,17 +6,22 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Config.Resolver
+  alias LemmingsOs.Connections
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.SecretBank
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
+  alias LemmingsOsWeb.ConnectionsSurface
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
   alias LemmingsOsWeb.PageData.DepartmentCollaborationSnapshot
+  require Logger
 
-  @detail_tabs ~w(overview lemmings settings secrets)
+  @detail_tabs ~w(overview lemmings settings secrets connections)
 
   def mount(_params, _session, socket) do
+    connection_types = Connections.list_connection_types()
+
     {:ok,
      socket
      |> assign_shell(:departments, dgettext("layout", ".page_title_departments"))
@@ -35,7 +40,16 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> assign(:department_secret_form, blank_secret_form())
      |> assign(:department_secret_metadata, [])
      |> assign(:department_secret_env_policy, [])
-     |> assign(:department_secret_activity, [])}
+     |> assign(:department_secret_activity, [])
+     |> assign(:department_connection_types, connection_types)
+     |> assign(
+       :department_connection_create_form,
+       ConnectionsSurface.create_form(connection_types)
+     )
+     |> assign(:department_connection_create_open, false)
+     |> assign(:department_connection_rows, [])
+     |> assign(:department_connection_editing_id, nil)
+     |> assign(:department_connection_edit_form, nil)}
   end
 
   def handle_params(params, _uri, socket) do
@@ -202,6 +216,224 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> push_event("secret_form:focus", %{form_id: "department-secret-form", field: "value"})}
   end
 
+  def handle_event(
+        "change_department_connection_create_type",
+        %{"connection_create" => %{"type" => type}},
+        socket
+      ) do
+    {:noreply,
+     assign(
+       socket,
+       :department_connection_create_form,
+       ConnectionsSurface.create_form(socket.assigns.department_connection_types, %{
+         "type" => type
+       })
+     )}
+  end
+
+  def handle_event("open_department_connection_create", _params, socket) do
+    {:noreply, assign(socket, :department_connection_create_open, true)}
+  end
+
+  def handle_event("close_department_connection_create", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:department_connection_create_open, false)
+     |> assign(
+       :department_connection_create_form,
+       ConnectionsSurface.create_form(socket.assigns.department_connection_types)
+     )}
+  end
+
+  def handle_event("create_department_connection", %{"connection_create" => params}, socket) do
+    with %Department{} = department <- socket.assigns.selected_department,
+         {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
+         {:ok, _connection} <- Connections.create_connection(department, attrs) do
+      department = reload_department_detail(department)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
+       |> assign(:department_connection_create_open, false)
+       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> assign(:department_connection_create_open, true)
+         |> assign(
+           :department_connection_create_form,
+           to_form(changeset, as: :connection_create)
+         )}
+
+      {:error, :invalid_payload} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+    end
+  end
+
+  def handle_event(
+        "start_department_connection_edit",
+        %{"connection_id" => connection_id},
+        socket
+      ) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.department_connection_rows,
+           connection_id
+         ) do
+      {:ok, row} ->
+        {:noreply,
+         socket
+         |> assign(:department_connection_editing_id, connection_id)
+         |> assign(:department_connection_edit_form, ConnectionsSurface.edit_form(row.connection))}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("cancel_department_connection_edit", _params, socket) do
+    {:noreply,
+     assign(socket, department_connection_editing_id: nil, department_connection_edit_form: nil)}
+  end
+
+  def handle_event(
+        "change_department_connection_edit_type",
+        %{"connection_edit" => %{"connection_id" => connection_id, "type" => type}},
+        socket
+      ) do
+    case ConnectionsSurface.find_local_connection_row(
+           socket.assigns.department_connection_rows,
+           connection_id
+         ) do
+      {:ok, row} ->
+        config_text =
+          ConnectionsSurface.default_config_text(socket.assigns.department_connection_types, type)
+
+        params = %{
+          "connection_id" => row.connection.id,
+          "type" => type,
+          "status" => row.connection.status,
+          "config" => config_text
+        }
+
+        {:noreply,
+         assign(socket, :department_connection_edit_form, ConnectionsSurface.edit_form(params))}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("change_department_connection_edit_type", _params, socket) do
+    {:noreply,
+     put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+  end
+
+  def handle_event("save_department_connection_edit", %{"connection_edit" => params}, socket) do
+    connection_id = Map.get(params, "connection_id", "")
+
+    with %Department{} = department <- socket.assigns.selected_department,
+         {:ok, row} <-
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.department_connection_rows,
+             connection_id
+           ),
+         {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
+         {:ok, _connection} <- Connections.update_connection(department, row.connection, attrs) do
+      department = reload_department_detail(department)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
+       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
+
+      {:error, :invalid_payload} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("delete_department_connection", %{"connection_id" => connection_id}, socket) do
+    with %Department{} = department <- socket.assigns.selected_department,
+         {:ok, row} <-
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.department_connection_rows,
+             connection_id
+           ),
+         {:ok, _connection} <- Connections.delete_connection(department, row.connection) do
+      department = reload_department_detail(department)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_deleted"))
+       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event(
+        "department_connection_lifecycle",
+        %{"connection_id" => connection_id, "action" => action},
+        socket
+      ) do
+    with %Department{} = department <- socket.assigns.selected_department,
+         {:ok, row} <-
+           ConnectionsSurface.find_local_connection_row(
+             socket.assigns.department_connection_rows,
+             connection_id
+           ),
+         {:ok, _connection} <-
+           ConnectionsSurface.run_connection_lifecycle(department, row.connection, action) do
+      department = reload_department_detail(department)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_status_updated"))
+       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, dgettext("layout", ".connections_flash_local_only"))}
+    end
+  end
+
+  def handle_event("test_department_connection", %{"type" => type}, socket) do
+    with %Department{} = department <- socket.assigns.selected_department,
+         {:ok, _result} <- Connections.test_connection(department, type) do
+      department = reload_department_detail(department)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, dgettext("layout", ".connections_flash_tested"))
+       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+    else
+      nil ->
+        {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
+
+      {:error, reason} ->
+        Logger.warning("department connection test failed type=#{type} reason=#{inspect(reason)}")
+
+        {:noreply, put_flash(socket, :error, ConnectionsSurface.test_failure_message(reason))}
+    end
+  end
+
   defp build_shell_breadcrumb(nil, nil), do: default_shell_breadcrumb(:departments)
 
   defp build_shell_breadcrumb(city, nil) do
@@ -261,6 +493,13 @@ defmodule LemmingsOsWeb.DepartmentsLive do
         |> assign(:department_secret_metadata, [])
         |> assign(:department_secret_env_policy, [])
         |> assign(:department_secret_activity, [])
+        |> assign(:department_connection_rows, [])
+        |> assign(
+          :department_connection_create_form,
+          ConnectionsSurface.create_form(socket.assigns.department_connection_types)
+        )
+        |> assign(:department_connection_editing_id, nil)
+        |> assign(:department_connection_edit_form, nil)
         |> put_shell_breadcrumb(default_shell_breadcrumb(:departments))
     end
   end
@@ -307,6 +546,14 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_secret_metadata, [])
     |> assign(:department_secret_env_policy, [])
     |> assign(:department_secret_activity, [])
+    |> assign(:department_connection_rows, [])
+    |> assign(
+      :department_connection_create_form,
+      ConnectionsSurface.create_form(socket.assigns.department_connection_types)
+    )
+    |> assign(:department_connection_create_open, false)
+    |> assign(:department_connection_editing_id, nil)
+    |> assign(:department_connection_edit_form, nil)
   end
 
   defp assign_department_detail(socket, %Department{} = department, requested_tab) do
@@ -324,6 +571,14 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_secret_metadata, SecretBank.list_effective_metadata(department))
     |> assign(:department_secret_env_policy, SecretBank.list_env_fallback_policy())
     |> assign(:department_secret_activity, SecretBank.list_recent_activity(department, limit: 10))
+    |> assign(:department_connection_rows, Connections.list_visible_connections(department))
+    |> assign(
+      :department_connection_create_form,
+      ConnectionsSurface.create_form(socket.assigns.department_connection_types)
+    )
+    |> assign(:department_connection_create_open, false)
+    |> assign(:department_connection_editing_id, nil)
+    |> assign(:department_connection_edit_form, nil)
   end
 
   defp build_department_settings_form(%Department{} = department) do

@@ -38,12 +38,12 @@ msgstr "Desconocido"
 
 #: lib/lemmings_os/helpers.ex:100
 #: lib/lemmings_os/helpers.ex:114
-#: lib/lemmings_os_web/components/world_components.ex:1196
-#: lib/lemmings_os_web/components/world_components.ex:1226
-#: lib/lemmings_os_web/components/world_components.ex:1243
-#: lib/lemmings_os_web/components/world_components.ex:1260
-#: lib/lemmings_os_web/components/world_components.ex:1264
-#: lib/lemmings_os_web/components/world_components.ex:1285
+#: lib/lemmings_os_web/components/world_components.ex:1287
+#: lib/lemmings_os_web/components/world_components.ex:1317
+#: lib/lemmings_os_web/components/world_components.ex:1334
+#: lib/lemmings_os_web/components/world_components.ex:1351
+#: lib/lemmings_os_web/components/world_components.ex:1355
+#: lib/lemmings_os_web/components/world_components.ex:1376
 #: lib/lemmings_os_web/live/instance_live.ex:407
 #: lib/lemmings_os_web/live/instance_raw_live.ex:204
 #, elixir-autogen, elixir-format
@@ -75,40 +75,40 @@ msgstr "Nodo de departamento"
 msgid ".aria_world_map"
 msgstr "Mapa del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:712
+#: lib/lemmings_os_web/components/world_components.ex:769
 #: lib/lemmings_os_web/live/import_lemming_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid ".button_all_departments"
 msgstr "Todos los departamentos"
 
-#: lib/lemmings_os_web/components/world_components.ex:227
-#: lib/lemmings_os_web/components/world_components.ex:488
+#: lib/lemmings_os_web/components/world_components.ex:254
+#: lib/lemmings_os_web/components/world_components.ex:539
 #, elixir-autogen, elixir-format
 msgid ".button_import_bootstrap"
 msgstr "Importar bootstrap"
 
-#: lib/lemmings_os_web/components/world_components.ex:667
+#: lib/lemmings_os_web/components/world_components.ex:718
 #, elixir-autogen, elixir-format
 msgid ".button_open_dept"
 msgstr "Abrir departamento"
 
-#: lib/lemmings_os_web/components/world_components.ex:84
-#: lib/lemmings_os_web/components/world_components.ex:485
+#: lib/lemmings_os_web/components/world_components.ex:102
+#: lib/lemmings_os_web/components/world_components.ex:536
 #, elixir-autogen, elixir-format
 msgid ".button_refresh_world"
 msgstr "Actualizar mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:409
+#: lib/lemmings_os_web/components/world_components.ex:436
 #, elixir-autogen, elixir-format
 msgid ".copy_world_cities_placeholder"
 msgstr "Aquí aparecerá el resumen de ciudades cuando exista una fuente real."
 
-#: lib/lemmings_os_web/components/world_components.ex:422
+#: lib/lemmings_os_web/components/world_components.ex:449
 #, elixir-autogen, elixir-format
 msgid ".copy_world_tools_placeholder"
 msgstr "Aquí aparecerá el resumen de herramientas cuando exista una fuente real."
 
-#: lib/lemmings_os_web/live/departments_live.html.heex:120
+#: lib/lemmings_os_web/live/departments_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid ".count_departments"
 msgstr "%{count} departamentos"
@@ -118,178 +118,178 @@ msgstr "%{count} departamentos"
 msgid ".count_running_of_total"
 msgstr "%{running} de %{total} en ejecución"
 
-#: lib/lemmings_os_web/components/world_components.ex:608
-#: lib/lemmings_os_web/live/departments_live.html.heex:48
-#: lib/lemmings_os_web/live/departments_live.html.heex:127
+#: lib/lemmings_os_web/components/world_components.ex:659
+#: lib/lemmings_os_web/live/departments_live.html.heex:54
+#: lib/lemmings_os_web/live/departments_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid ".empty_no_departments"
 msgstr "Aún no hay departamentos"
 
-#: lib/lemmings_os_web/components/world_components.ex:609
-#: lib/lemmings_os_web/live/departments_live.html.heex:49
-#: lib/lemmings_os_web/live/departments_live.html.heex:128
+#: lib/lemmings_os_web/components/world_components.ex:660
+#: lib/lemmings_os_web/live/departments_live.html.heex:55
+#: lib/lemmings_os_web/live/departments_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid ".empty_no_departments_copy"
 msgstr "Crea o importa un departamento para verlo aquí."
 
-#: lib/lemmings_os_web/components/world_components.ex:493
+#: lib/lemmings_os_web/components/world_components.ex:544
 #, elixir-autogen, elixir-format
 msgid ".empty_world_snapshot"
 msgstr "No hay snapshot del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:494
+#: lib/lemmings_os_web/components/world_components.ex:545
 #, elixir-autogen, elixir-format
 msgid ".empty_world_snapshot_copy"
 msgstr "Importa el bootstrap o actualiza el estado para ver el snapshot actual."
 
-#: lib/lemmings_os_web/components/world_components.ex:311
+#: lib/lemmings_os_web/components/world_components.ex:338
 #: lib/lemmings_os_web/live/settings_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid ".label_bootstrap_path"
 msgstr "Ruta del bootstrap"
 
-#: lib/lemmings_os_web/components/world_components.ex:306
+#: lib/lemmings_os_web/components/world_components.ex:333
 #, elixir-autogen, elixir-format
 msgid ".label_bootstrap_source"
 msgstr "Fuente del bootstrap"
 
-#: lib/lemmings_os_web/components/world_components.ex:383
-#: lib/lemmings_os_web/components/world_components.ex:582
+#: lib/lemmings_os_web/components/world_components.ex:410
+#: lib/lemmings_os_web/components/world_components.ex:633
 #, elixir-autogen, elixir-format
 msgid ".label_budgets"
 msgstr "Presupuestos"
 
-#: lib/lemmings_os_web/components/world_components.ex:1219
+#: lib/lemmings_os_web/components/world_components.ex:1310
 #, elixir-autogen, elixir-format
 msgid ".label_cross_city_communication"
 msgstr "Comunicación entre ciudades"
 
-#: lib/lemmings_os_web/components/world_components.ex:1215
+#: lib/lemmings_os_web/components/world_components.ex:1306
 #, elixir-autogen, elixir-format
 msgid ".label_daily_tokens"
 msgstr "Tokens diarios"
 
-#: lib/lemmings_os_web/components/world_components.ex:1224
+#: lib/lemmings_os_web/components/world_components.ex:1315
 #, elixir-autogen, elixir-format
 msgid ".label_declared"
 msgstr "Declarado"
 
-#: lib/lemmings_os_web/components/world_components.ex:1208
+#: lib/lemmings_os_web/components/world_components.ex:1299
 #, elixir-autogen, elixir-format
 msgid ".label_departments_short"
 msgstr "Deps."
 
-#: lib/lemmings_os_web/components/world_components.ex:682
+#: lib/lemmings_os_web/components/world_components.ex:733
 #, elixir-autogen, elixir-format
 msgid ".label_empty"
 msgstr "Vacío"
 
-#: lib/lemmings_os_web/components/world_components.ex:105
-#: lib/lemmings_os_web/components/world_components.ex:237
+#: lib/lemmings_os_web/components/world_components.ex:123
+#: lib/lemmings_os_web/components/world_components.ex:264
 #, elixir-autogen, elixir-format
 msgid ".label_immediate_import"
 msgstr "Importación inmediata"
 
-#: lib/lemmings_os_web/components/world_components.ex:261
+#: lib/lemmings_os_web/components/world_components.ex:288
 #, elixir-autogen, elixir-format
 msgid ".label_last_bootstrap_hash"
 msgstr "Hash del último bootstrap"
 
-#: lib/lemmings_os_web/components/world_components.ex:257
+#: lib/lemmings_os_web/components/world_components.ex:284
 #: lib/lemmings_os_web/live/settings_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid ".label_last_imported_at"
 msgstr "Última importación"
 
-#: lib/lemmings_os_web/components/world_components.ex:123
-#: lib/lemmings_os_web/components/world_components.ex:249
+#: lib/lemmings_os_web/components/world_components.ex:141
+#: lib/lemmings_os_web/components/world_components.ex:276
 #: lib/lemmings_os_web/live/settings_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid ".label_last_sync"
 msgstr "Última sincronización"
 
-#: lib/lemmings_os_web/components/world_components.ex:1209
+#: lib/lemmings_os_web/components/world_components.ex:1300
 #, elixir-autogen, elixir-format
 msgid ".label_lemmings_short"
 msgstr "Lemms."
 
-#: lib/lemmings_os_web/components/world_components.ex:378
-#: lib/lemmings_os_web/components/world_components.ex:566
+#: lib/lemmings_os_web/components/world_components.ex:405
+#: lib/lemmings_os_web/components/world_components.ex:617
 #, elixir-autogen, elixir-format
 msgid ".label_limits"
 msgstr "Límites"
 
-#: lib/lemmings_os_web/components/world_components.ex:1198
+#: lib/lemmings_os_web/components/world_components.ex:1289
 #, elixir-autogen, elixir-format
 msgid ".label_no_fallbacks"
 msgstr "Sin fallback"
 
-#: lib/lemmings_os_web/components/world_components.ex:275
+#: lib/lemmings_os_web/components/world_components.ex:302
 #, elixir-autogen, elixir-format
 msgid ".label_no_world_issues"
 msgstr "No hay incidencias del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:406
-#: lib/lemmings_os_web/components/world_components.ex:419
+#: lib/lemmings_os_web/components/world_components.ex:433
+#: lib/lemmings_os_web/components/world_components.ex:446
 #, elixir-autogen, elixir-format
 msgid ".label_placeholder_only"
 msgstr "Solo marcador"
 
-#: lib/lemmings_os_web/components/world_components.ex:393
+#: lib/lemmings_os_web/components/world_components.ex:420
 #, elixir-autogen, elixir-format
 msgid ".label_placeholder_sections"
 msgstr "Secciones de marcador"
 
-#: lib/lemmings_os_web/components/world_components.ex:355
-#: lib/lemmings_os_web/components/world_components.ex:588
+#: lib/lemmings_os_web/components/world_components.ex:382
+#: lib/lemmings_os_web/components/world_components.ex:639
 #, elixir-autogen, elixir-format
 msgid ".label_profiles"
 msgstr "Perfiles"
 
-#: lib/lemmings_os_web/components/world_components.ex:1271
+#: lib/lemmings_os_web/components/world_components.ex:1362
 #, elixir-autogen, elixir-format
 msgid ".label_provider_credentials_ready"
 msgstr "Credenciales listas"
 
-#: lib/lemmings_os_web/components/world_components.ex:1195
+#: lib/lemmings_os_web/components/world_components.ex:1286
 #, elixir-autogen, elixir-format
 msgid ".label_provider_disabled"
 msgstr "Proveedor deshabilitado"
 
-#: lib/lemmings_os_web/components/world_components.ex:1194
+#: lib/lemmings_os_web/components/world_components.ex:1285
 #, elixir-autogen, elixir-format
 msgid ".label_provider_enabled"
 msgstr "Proveedor habilitado"
 
-#: lib/lemmings_os_web/components/world_components.ex:330
+#: lib/lemmings_os_web/components/world_components.ex:357
 #, elixir-autogen, elixir-format
 msgid ".label_providers"
 msgstr "Proveedores"
 
-#: lib/lemmings_os_web/components/world_components.ex:681
+#: lib/lemmings_os_web/components/world_components.ex:732
 #, elixir-autogen, elixir-format
 msgid ".label_queue"
 msgstr "Cola"
 
-#: lib/lemmings_os_web/components/world_components.ex:388
-#: lib/lemmings_os_web/components/world_components.ex:574
+#: lib/lemmings_os_web/components/world_components.ex:415
+#: lib/lemmings_os_web/components/world_components.ex:625
 #, elixir-autogen, elixir-format
 msgid ".label_runtime_defaults"
 msgstr "Valores por defecto del entorno"
 
-#: lib/lemmings_os_web/components/world_components.ex:1280
-#: lib/lemmings_os_web/components/world_components.ex:1281
+#: lib/lemmings_os_web/components/world_components.ex:1371
+#: lib/lemmings_os_web/components/world_components.ex:1372
 #, elixir-autogen, elixir-format
 msgid ".label_runtime_deferred"
 msgstr "Diferido por el entorno"
 
-#: lib/lemmings_os_web/components/world_components.ex:1237
+#: lib/lemmings_os_web/components/world_components.ex:1328
 #, elixir-autogen, elixir-format
 msgid ".label_world_id"
 msgstr "ID del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:778
-#: lib/lemmings_os_web/components/world_components.ex:1238
+#: lib/lemmings_os_web/components/world_components.ex:845
+#: lib/lemmings_os_web/components/world_components.ex:1329
 #: lib/lemmings_os_web/live/settings_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid ".label_world_slug"
@@ -329,22 +329,22 @@ msgstr "En línea"
 msgid ".metric_status"
 msgstr "Estado"
 
-#: lib/lemmings_os_web/components/world_components.ex:1246
+#: lib/lemmings_os_web/components/world_components.ex:1337
 #, elixir-autogen, elixir-format
 msgid ".runtime_check_bootstrap_file"
 msgstr "Archivo bootstrap"
 
-#: lib/lemmings_os_web/components/world_components.ex:1249
+#: lib/lemmings_os_web/components/world_components.ex:1340
 #, elixir-autogen, elixir-format
 msgid ".runtime_check_postgres_connection"
 msgstr "Conexión a Postgres"
 
-#: lib/lemmings_os_web/components/world_components.ex:1252
+#: lib/lemmings_os_web/components/world_components.ex:1343
 #, elixir-autogen, elixir-format
 msgid ".runtime_check_provider_credentials"
 msgstr "Credenciales del proveedor"
 
-#: lib/lemmings_os_web/components/world_components.ex:1255
+#: lib/lemmings_os_web/components/world_components.ex:1346
 #, elixir-autogen, elixir-format
 msgid ".runtime_check_provider_reachability"
 msgstr "Alcance del proveedor"
@@ -370,75 +370,76 @@ msgstr "Desconectado"
 msgid ".status_online"
 msgstr "En línea"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:135
+#: lib/lemmings_os_web/live/cities_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid ".subtitle_all_cities"
 msgstr "Ciudades registradas en este mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:189
+#: lib/lemmings_os_web/components/world_components.ex:207
 #, elixir-autogen, elixir-format
 msgid ".tab_bootstrap"
 msgstr "Bootstrap"
 
-#: lib/lemmings_os_web/components/world_components.ex:180
+#: lib/lemmings_os_web/components/world_components.ex:198
 #, elixir-autogen, elixir-format
 msgid ".tab_import"
 msgstr "Importación"
 
-#: lib/lemmings_os_web/components/world_components.ex:171
+#: lib/lemmings_os_web/components/world_components.ex:189
+#: lib/lemmings_os_web/live/cities_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid ".tab_overview"
 msgstr "Resumen"
 
-#: lib/lemmings_os_web/components/world_components.ex:198
+#: lib/lemmings_os_web/components/world_components.ex:216
 #, elixir-autogen, elixir-format
 msgid ".tab_runtime"
 msgstr "Entorno"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:129
+#: lib/lemmings_os_web/live/cities_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid ".title_all_cities"
 msgstr "Todas las ciudades"
 
-#: lib/lemmings_os_web/components/world_components.ex:137
-#: lib/lemmings_os_web/components/world_components.ex:300
+#: lib/lemmings_os_web/components/world_components.ex:155
+#: lib/lemmings_os_web/components/world_components.ex:327
 #: lib/lemmings_os_web/live/settings_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid ".title_bootstrap_config"
 msgstr "Configuración bootstrap"
 
-#: lib/lemmings_os_web/components/world_components.ex:602
-#: lib/lemmings_os_web/live/departments_live.html.heex:116
+#: lib/lemmings_os_web/components/world_components.ex:653
+#: lib/lemmings_os_web/live/departments_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid ".title_departments"
 msgstr "Departamentos"
 
-#: lib/lemmings_os_web/components/world_components.ex:108
-#: lib/lemmings_os_web/components/world_components.ex:219
+#: lib/lemmings_os_web/components/world_components.ex:126
+#: lib/lemmings_os_web/components/world_components.ex:246
 #, elixir-autogen, elixir-format
 msgid ".title_import_state"
 msgstr "Estado de importación"
 
-#: lib/lemmings_os_web/components/world_components.ex:151
-#: lib/lemmings_os_web/components/world_components.ex:430
+#: lib/lemmings_os_web/components/world_components.ex:169
+#: lib/lemmings_os_web/components/world_components.ex:457
 #, elixir-autogen, elixir-format
 msgid ".title_runtime_checks"
 msgstr "Verificaciones del entorno"
 
-#: lib/lemmings_os_web/components/world_components.ex:402
+#: lib/lemmings_os_web/components/world_components.ex:429
 #, elixir-autogen, elixir-format
 msgid ".title_world_cities_placeholder"
 msgstr "Ciudades del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:93
-#: lib/lemmings_os_web/components/world_components.ex:322
-#: lib/lemmings_os_web/components/world_components.ex:477
-#: lib/lemmings_os_web/components/world_components.ex:773
+#: lib/lemmings_os_web/components/world_components.ex:111
+#: lib/lemmings_os_web/components/world_components.ex:349
+#: lib/lemmings_os_web/components/world_components.ex:528
+#: lib/lemmings_os_web/components/world_components.ex:840
 #, elixir-autogen, elixir-format
 msgid ".title_world_identity"
 msgstr "Identidad del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:270
+#: lib/lemmings_os_web/components/world_components.ex:297
 #, elixir-autogen, elixir-format
 msgid ".title_world_issues"
 msgstr "Incidencias del mundo"
@@ -448,12 +449,12 @@ msgstr "Incidencias del mundo"
 msgid ".title_world_map"
 msgstr "Mapa del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:76
+#: lib/lemmings_os_web/components/world_components.ex:94
 #, elixir-autogen, elixir-format
 msgid ".title_world_status"
 msgstr "Estado del mundo"
 
-#: lib/lemmings_os_web/components/world_components.ex:415
+#: lib/lemmings_os_web/components/world_components.ex:442
 #, elixir-autogen, elixir-format
 msgid ".title_world_tools_placeholder"
 msgstr "Herramientas del mundo"
@@ -468,474 +469,474 @@ msgstr "Departamento"
 msgid ".tooltip_running"
 msgstr "En ejecución"
 
-#: lib/lemmings_os_web/components/world_components.ex:561
+#: lib/lemmings_os_web/components/world_components.ex:612
 #, elixir-autogen
 msgid ".copy_city_effective_config"
 msgstr "Se resuelve a partir de las capas persistidas World y City."
 
-#: lib/lemmings_os_web/components/world_components.ex:768
-#: lib/lemmings_os_web/live/departments_live.html.heex:43
+#: lib/lemmings_os_web/components/world_components.ex:835
+#: lib/lemmings_os_web/live/departments_live.html.heex:49
 #, elixir-autogen
 msgid ".title_world_cities"
 msgstr "Ciudades"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:131
+#: lib/lemmings_os_web/live/cities_live.html.heex:130
 #, elixir-autogen
 msgid ".count_cities"
 msgstr "%{count} ciudades"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:116
-#: lib/lemmings_os_web/live/cities_live.html.heex:152
-#: lib/lemmings_os_web/live/cities_live.html.heex:173
+#: lib/lemmings_os_web/live/cities_live.html.heex:115
+#: lib/lemmings_os_web/live/cities_live.html.heex:151
+#: lib/lemmings_os_web/live/cities_live.html.heex:172
 #: lib/lemmings_os_web/live/departments_live.html.heex:15
 #, elixir-autogen
 msgid ".empty_no_cities"
 msgstr "Aún no hay ciudades"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:117
-#: lib/lemmings_os_web/live/cities_live.html.heex:153
-#: lib/lemmings_os_web/live/cities_live.html.heex:174
+#: lib/lemmings_os_web/live/cities_live.html.heex:116
+#: lib/lemmings_os_web/live/cities_live.html.heex:152
+#: lib/lemmings_os_web/live/cities_live.html.heex:173
 #: lib/lemmings_os_web/live/departments_live.html.heex:16
 #, elixir-autogen
 msgid ".empty_no_cities_copy"
 msgstr "Esta página ahora lee la tabla real de ciudades. Creá o bootstrappeá una ciudad para verla acá."
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:238
+#: lib/lemmings_os_web/live/cities_live.html.heex:272
 #, elixir-autogen
 msgid ".label_city_distribution_port"
 msgstr "Puerto de distribución"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:243
+#: lib/lemmings_os_web/live/cities_live.html.heex:277
 #, elixir-autogen
 msgid ".label_city_epmd_port"
 msgstr "Puerto EPMD"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:233
+#: lib/lemmings_os_web/live/cities_live.html.heex:267
 #, elixir-autogen
 msgid ".label_city_host"
 msgstr "Host"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:248
+#: lib/lemmings_os_web/live/cities_live.html.heex:282
 #: lib/lemmings_os_web/live/settings_live.html.heex:111
 #, elixir-autogen
 msgid ".label_city_last_seen_at"
 msgstr "Último heartbeat"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:228
+#: lib/lemmings_os_web/live/cities_live.html.heex:262
 #: lib/lemmings_os_web/live/settings_live.html.heex:106
 #, elixir-autogen
 msgid ".label_city_node_name"
 msgstr "Nodo BEAM"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:223
+#: lib/lemmings_os_web/live/cities_live.html.heex:257
 #: lib/lemmings_os_web/live/settings_live.html.heex:101
 #, elixir-autogen
 msgid ".label_city_slug"
 msgstr "Slug"
 
-#: lib/lemmings_os_web/components/world_components.ex:560
+#: lib/lemmings_os_web/components/world_components.ex:611
 #, elixir-autogen
 msgid ".title_city_effective_config"
 msgstr "Configuración efectiva de la ciudad"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:144
+#: lib/lemmings_os_web/live/cities_live.html.heex:143
 #, elixir-autogen
 msgid ".button_new_city"
 msgstr "Nueva ciudad"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:205
+#: lib/lemmings_os_web/live/cities_live.html.heex:204
 #, elixir-autogen
 msgid ".button_edit_city"
 msgstr "Editar"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:215
+#: lib/lemmings_os_web/live/cities_live.html.heex:214
 #, elixir-autogen
 msgid ".button_delete_city"
 msgstr "Eliminar"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:213
+#: lib/lemmings_os_web/live/cities_live.html.heex:212
 #, elixir-autogen
 msgid ".confirm_delete_city"
 msgstr "¿Estás seguro de que querés eliminar esta ciudad? Esta acción no se puede deshacer."
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:18
+#: lib/lemmings_os_web/live/cities_live.html.heex:17
 #, elixir-autogen
 msgid ".title_city_form_new"
 msgstr "Nueva ciudad"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:19
+#: lib/lemmings_os_web/live/cities_live.html.heex:18
 #, elixir-autogen
 msgid ".title_city_form_edit"
 msgstr "Editar ciudad"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:29
+#: lib/lemmings_os_web/live/cities_live.html.heex:28
 #, elixir-autogen
 msgid ".button_city_form_cancel"
 msgstr "Cancelar"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:55
+#: lib/lemmings_os_web/live/cities_live.html.heex:54
 #, elixir-autogen
 msgid ".city_form_name_label"
 msgstr "Nombre"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:56
+#: lib/lemmings_os_web/live/cities_live.html.heex:55
 #, elixir-autogen
 msgid ".city_form_name_placeholder"
 msgstr "ej. Nodo Producción"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:63
+#: lib/lemmings_os_web/live/cities_live.html.heex:62
 #, elixir-autogen
 msgid ".city_form_slug_label"
 msgstr "Slug"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:64
+#: lib/lemmings_os_web/live/cities_live.html.heex:63
 #, elixir-autogen
 msgid ".city_form_slug_placeholder"
 msgstr "ej. nodo-prod"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:71
+#: lib/lemmings_os_web/live/cities_live.html.heex:70
 #, elixir-autogen
 msgid ".city_form_node_name_label"
 msgstr "Nombre del nodo BEAM"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:72
+#: lib/lemmings_os_web/live/cities_live.html.heex:71
 #, elixir-autogen
 msgid ".city_form_node_name_placeholder"
 msgstr "ej. app@hostname"
 
-#: lib/lemmings_os_web/components/world_components.ex:763
-#: lib/lemmings_os_web/live/cities_live.html.heex:79
+#: lib/lemmings_os_web/components/world_components.ex:830
+#: lib/lemmings_os_web/live/cities_live.html.heex:78
 #, elixir-autogen
 msgid ".city_form_status_label"
 msgstr "Estado"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:83
+#: lib/lemmings_os_web/live/cities_live.html.heex:82
 #, elixir-autogen
 msgid ".city_form_status_prompt"
 msgstr "Seleccioná un estado"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:89
+#: lib/lemmings_os_web/live/cities_live.html.heex:88
 #, elixir-autogen
 msgid ".city_form_host_label"
 msgstr "Host"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:90
+#: lib/lemmings_os_web/live/cities_live.html.heex:89
 #, elixir-autogen
 msgid ".city_form_host_placeholder"
 msgstr "ej. 10.0.0.1"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:97
+#: lib/lemmings_os_web/live/cities_live.html.heex:96
 #, elixir-autogen
 msgid ".city_form_distribution_port_label"
 msgstr "Puerto de distribución"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:104
+#: lib/lemmings_os_web/live/cities_live.html.heex:103
 #, elixir-autogen
 msgid ".city_form_epmd_port_label"
 msgstr "Puerto EPMD"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:38
+#: lib/lemmings_os_web/live/cities_live.html.heex:37
 #, elixir-autogen
 msgid ".city_form_submit_create"
 msgstr "Crear ciudad"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:39
+#: lib/lemmings_os_web/live/cities_live.html.heex:38
 #, elixir-autogen
 msgid ".city_form_submit_update"
 msgstr "Guardar cambios"
 
-#: lib/lemmings_os_web/live/cities_live.ex:267
+#: lib/lemmings_os_web/live/cities_live.ex:504
 #, elixir-autogen
 msgid ".flash_city_created"
 msgstr "Ciudad creada."
 
-#: lib/lemmings_os_web/live/cities_live.ex:292
+#: lib/lemmings_os_web/live/cities_live.ex:529
 #, elixir-autogen
 msgid ".flash_city_updated"
 msgstr "Ciudad actualizada."
 
-#: lib/lemmings_os_web/live/cities_live.ex:125
+#: lib/lemmings_os_web/live/cities_live.ex:144
 #, elixir-autogen
 msgid ".flash_city_deleted"
 msgstr "Ciudad eliminada."
 
-#: lib/lemmings_os_web/live/cities_live.ex:86
-#: lib/lemmings_os_web/live/cities_live.ex:134
+#: lib/lemmings_os_web/live/cities_live.ex:100
+#: lib/lemmings_os_web/live/cities_live.ex:153
 #, elixir-autogen
 msgid ".flash_city_not_found"
 msgstr "Ciudad no encontrada."
 
-#: lib/lemmings_os_web/live/cities_live.ex:277
-#: lib/lemmings_os_web/live/cities_live.ex:302
+#: lib/lemmings_os_web/live/cities_live.ex:514
+#: lib/lemmings_os_web/live/cities_live.ex:539
 #, elixir-autogen
 msgid ".flash_city_save_error"
 msgstr "No se pudo guardar la ciudad. Revisá el formulario."
 
-#: lib/lemmings_os_web/live/cities_live.ex:131
+#: lib/lemmings_os_web/live/cities_live.ex:150
 #, elixir-autogen
 msgid ".flash_city_delete_error"
 msgstr "No se pudo eliminar la ciudad."
 
-#: lib/lemmings_os_web/components/world_components.ex:648
+#: lib/lemmings_os_web/components/world_components.ex:699
 #, elixir-autogen, elixir-format
 msgid ".button_open_city_departments"
 msgstr "Abrir departamentos"
 
-#: lib/lemmings_os_web/components/world_components.ex:615
+#: lib/lemmings_os_web/components/world_components.ex:666
 #, elixir-autogen, elixir-format
 msgid ".city_departments_summary"
 msgstr "%{city} tiene %{count} departamentos."
 
-#: lib/lemmings_os_web/components/world_components.ex:603
+#: lib/lemmings_os_web/components/world_components.ex:654
 #, elixir-autogen, elixir-format
 msgid ".copy_city_departments_summary"
 msgstr "Resumen compacto de los departamentos persistidos para esta city."
 
-#: lib/lemmings_os_web/live/departments_live.html.heex:91
+#: lib/lemmings_os_web/live/departments_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid ".copy_selected_city"
 msgstr "Cambiá la city activa para el mapa y la lista de departamentos."
 
-#: lib/lemmings_os_web/live/departments_live.html.heex:90
-#: lib/lemmings_os_web/live/departments_live.html.heex:109
+#: lib/lemmings_os_web/live/departments_live.html.heex:96
+#: lib/lemmings_os_web/live/departments_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid ".title_selected_city"
 msgstr "City seleccionada"
 
-#: lib/lemmings_os_web/components/world_components.ex:858
+#: lib/lemmings_os_web/components/world_components.ex:925
 #, elixir-autogen, elixir-format
 msgid ".button_department_activate"
 msgstr "Activar"
 
-#: lib/lemmings_os_web/components/world_components.ex:886
+#: lib/lemmings_os_web/components/world_components.ex:953
 #, elixir-autogen, elixir-format
 msgid ".button_department_delete"
 msgstr "Borrar"
 
-#: lib/lemmings_os_web/components/world_components.ex:876
+#: lib/lemmings_os_web/components/world_components.ex:943
 #, elixir-autogen, elixir-format
 msgid ".button_department_disable"
 msgstr "Deshabilitar"
 
-#: lib/lemmings_os_web/components/world_components.ex:867
+#: lib/lemmings_os_web/components/world_components.ex:934
 #, elixir-autogen, elixir-format
 msgid ".button_department_drain"
 msgstr "Drenar"
 
-#: lib/lemmings_os_web/components/world_components.ex:1110
+#: lib/lemmings_os_web/components/world_components.ex:1177
 #, elixir-autogen, elixir-format
 msgid ".button_department_save_settings"
 msgstr "Guardar ajustes"
 
-#: lib/lemmings_os_web/components/world_components.ex:883
+#: lib/lemmings_os_web/components/world_components.ex:950
 #, elixir-autogen, elixir-format
 msgid ".confirm_department_delete"
 msgstr "¿Seguro que quieres borrar este departamento?"
 
-#: lib/lemmings_os_web/components/world_components.ex:830
+#: lib/lemmings_os_web/components/world_components.ex:897
 #, elixir-autogen, elixir-format
 msgid ".department_field_name"
 msgstr "Nombre"
 
-#: lib/lemmings_os_web/components/world_components.ex:840
+#: lib/lemmings_os_web/components/world_components.ex:907
 #, elixir-autogen, elixir-format
 msgid ".department_field_notes"
 msgstr "Notas"
 
-#: lib/lemmings_os_web/components/world_components.ex:835
+#: lib/lemmings_os_web/components/world_components.ex:902
 #, elixir-autogen, elixir-format
 msgid ".department_field_tags"
 msgstr "Tags"
 
-#: lib/lemmings_os_web/components/world_components.ex:920
+#: lib/lemmings_os_web/components/world_components.ex:987
 #, elixir-autogen, elixir-format
 msgid ".department_lemmings_empty"
 msgstr "No hay lemmings disponibles"
 
-#: lib/lemmings_os_web/components/world_components.ex:921
+#: lib/lemmings_os_web/components/world_components.ex:988
 #, elixir-autogen, elixir-format
 msgid ".department_lemmings_empty_copy"
 msgstr "Todavía no hay lemmings con respaldo de runtime ni vista mock para este departamento."
 
-#: lib/lemmings_os_web/components/world_components.ex:896
+#: lib/lemmings_os_web/components/world_components.ex:963
 #, elixir-autogen, elixir-format
 msgid ".department_lemmings_title"
 msgstr "Lemmings"
 
-#: lib/lemmings_os_web/components/world_components.ex:847
+#: lib/lemmings_os_web/components/world_components.ex:914
 #, elixir-autogen, elixir-format
 msgid ".department_section_lifecycle"
 msgstr "Acciones de ciclo de vida"
 
-#: lib/lemmings_os_web/components/world_components.ex:848
+#: lib/lemmings_os_web/components/world_components.ex:915
 #, elixir-autogen, elixir-format
 msgid ".department_section_lifecycle_copy"
 msgstr "Usa los controles persistidos del ciclo de vida del departamento. El borrado sigue protegido por checks de seguridad."
 
-#: lib/lemmings_os_web/components/world_components.ex:826
+#: lib/lemmings_os_web/components/world_components.ex:893
 #, elixir-autogen, elixir-format
 msgid ".department_section_metadata"
 msgstr "Metadatos"
 
-#: lib/lemmings_os_web/components/world_components.ex:1005
-#: lib/lemmings_os_web/components/world_components.ex:1038
-#: lib/lemmings_os_web/components/world_components.ex:1087
+#: lib/lemmings_os_web/components/world_components.ex:1072
+#: lib/lemmings_os_web/components/world_components.ex:1105
+#: lib/lemmings_os_web/components/world_components.ex:1154
 #, elixir-autogen, elixir-format
 msgid ".department_setting_cross_city"
 msgstr "Comunicación entre ciudades"
 
-#: lib/lemmings_os_web/components/world_components.ex:1010
-#: lib/lemmings_os_web/components/world_components.ex:1047
-#: lib/lemmings_os_web/components/world_components.ex:1102
+#: lib/lemmings_os_web/components/world_components.ex:1077
+#: lib/lemmings_os_web/components/world_components.ex:1114
+#: lib/lemmings_os_web/components/world_components.ex:1169
 #, elixir-autogen, elixir-format
 msgid ".department_setting_daily_tokens"
 msgstr "Tokens diarios"
 
-#: lib/lemmings_os_web/components/world_components.ex:1091
+#: lib/lemmings_os_web/components/world_components.ex:1158
 #, elixir-autogen, elixir-format
 msgid ".department_setting_disabled"
 msgstr "Deshabilitado"
 
-#: lib/lemmings_os_web/components/world_components.ex:1090
+#: lib/lemmings_os_web/components/world_components.ex:1157
 #, elixir-autogen, elixir-format
 msgid ".department_setting_enabled"
 msgstr "Habilitado"
 
-#: lib/lemmings_os_web/components/world_components.ex:1000
-#: lib/lemmings_os_web/components/world_components.ex:1031
-#: lib/lemmings_os_web/components/world_components.ex:1081
+#: lib/lemmings_os_web/components/world_components.ex:1067
+#: lib/lemmings_os_web/components/world_components.ex:1098
+#: lib/lemmings_os_web/components/world_components.ex:1148
 #, elixir-autogen, elixir-format
 msgid ".department_setting_idle_ttl"
 msgstr "Segundos TTL inactivo"
 
-#: lib/lemmings_os_web/components/world_components.ex:1089
+#: lib/lemmings_os_web/components/world_components.ex:1156
 #, elixir-autogen, elixir-format
 msgid ".department_setting_inherit"
 msgstr "Heredar"
 
-#: lib/lemmings_os_web/components/world_components.ex:995
-#: lib/lemmings_os_web/components/world_components.ex:1022
-#: lib/lemmings_os_web/components/world_components.ex:1072
+#: lib/lemmings_os_web/components/world_components.ex:1062
+#: lib/lemmings_os_web/components/world_components.ex:1089
+#: lib/lemmings_os_web/components/world_components.ex:1139
 #, elixir-autogen, elixir-format
 msgid ".department_setting_max_lemmings"
 msgstr "Máximo de lemmings por departamento"
 
-#: lib/lemmings_os_web/components/world_components.ex:991
+#: lib/lemmings_os_web/components/world_components.ex:1058
 #, elixir-autogen, elixir-format
 msgid ".department_settings_effective_copy"
 msgstr "Valores efectivos después de resolver las capas de Mundo, Ciudad y Departamento."
 
-#: lib/lemmings_os_web/components/world_components.ex:990
+#: lib/lemmings_os_web/components/world_components.ex:1057
 #, elixir-autogen, elixir-format
 msgid ".department_settings_effective_title"
 msgstr "Configuración efectiva"
 
-#: lib/lemmings_os_web/components/world_components.ex:1018
+#: lib/lemmings_os_web/components/world_components.ex:1085
 #, elixir-autogen, elixir-format
 msgid ".department_settings_local_copy"
 msgstr "Solo los overrides locales del Departamento persistidos en esta fila. Los valores vacíos heredan desde Ciudad o Mundo."
 
-#: lib/lemmings_os_web/components/world_components.ex:1017
+#: lib/lemmings_os_web/components/world_components.ex:1084
 #, elixir-autogen, elixir-format
 msgid ".department_settings_local_title"
 msgstr "Overrides locales"
 
-#: lib/lemmings_os_web/components/world_components.ex:1058
+#: lib/lemmings_os_web/components/world_components.ex:1125
 #, elixir-autogen, elixir-format
 msgid ".department_settings_v1_copy"
 msgstr "Editor V1. Actualiza de forma segura un subconjunto pequeño de overrides locales del Departamento."
 
-#: lib/lemmings_os_web/components/world_components.ex:1057
+#: lib/lemmings_os_web/components/world_components.ex:1124
 #, elixir-autogen, elixir-format
 msgid ".department_settings_v1_title"
 msgstr "Editor de ajustes"
 
-#: lib/lemmings_os_web/components/world_components.ex:735
+#: lib/lemmings_os_web/components/world_components.ex:792
 #, elixir-autogen, elixir-format
 msgid ".department_tab_lemmings"
 msgstr "Lemmings"
 
-#: lib/lemmings_os_web/components/world_components.ex:725
+#: lib/lemmings_os_web/components/world_components.ex:782
 #, elixir-autogen, elixir-format
 msgid ".department_tab_overview"
 msgstr "Resumen"
 
-#: lib/lemmings_os_web/components/world_components.ex:745
+#: lib/lemmings_os_web/components/world_components.ex:802
 #, elixir-autogen, elixir-format
 msgid ".department_tab_settings"
 msgstr "Ajustes"
 
-#: lib/lemmings_os_web/live/departments_live.ex:410
+#: lib/lemmings_os_web/live/departments_live.ex:665
 #, elixir-autogen, elixir-format
 msgid ".flash_department_activated"
 msgstr "Departamento activado."
 
-#: lib/lemmings_os_web/live/departments_live.ex:102
+#: lib/lemmings_os_web/live/departments_live.ex:116
 #, elixir-autogen, elixir-format
 msgid ".flash_department_deleted"
 msgstr "Departamento borrado."
 
-#: lib/lemmings_os_web/live/departments_live.ex:412
+#: lib/lemmings_os_web/live/departments_live.ex:667
 #, elixir-autogen, elixir-format
 msgid ".flash_department_disabled"
 msgstr "Departamento deshabilitado."
 
-#: lib/lemmings_os_web/live/departments_live.ex:411
+#: lib/lemmings_os_web/live/departments_live.ex:666
 #, elixir-autogen, elixir-format
 msgid ".flash_department_draining"
 msgstr "Departamento puesto en drenaje."
 
-#: lib/lemmings_os_web/live/departments_live.ex:116
+#: lib/lemmings_os_web/live/departments_live.ex:130
 #, elixir-autogen, elixir-format
 msgid ".flash_department_lifecycle_failed"
 msgstr "No se pudo actualizar el ciclo de vida del departamento."
 
-#: lib/lemmings_os_web/live/departments_live.ex:86
+#: lib/lemmings_os_web/live/departments_live.ex:100
 #, elixir-autogen, elixir-format
 msgid ".flash_department_settings_saved"
 msgstr "Ajustes del departamento guardados."
 
-#: lib/lemmings_os_web/live/departments_live.ex:413
+#: lib/lemmings_os_web/live/departments_live.ex:668
 #, elixir-autogen, elixir-format
 msgid ".flash_department_updated"
 msgstr "Departamento actualizado."
 
-#: lib/lemmings_os_web/components/world_components.ex:905
+#: lib/lemmings_os_web/components/world_components.ex:972
 #, elixir-autogen, elixir-format
 msgid ".button_import_lemmings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:897
+#: lib/lemmings_os_web/components/world_components.ex:964
 #, elixir-autogen, elixir-format
 msgid ".department_lemmings_copy"
 msgstr ""
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:310
+#: lib/lemmings_os_web/components/secret_bank_components.ex:306
 #, elixir-autogen, elixir-format
 msgid ".label_unknown"
 msgstr "desconocido"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:168
+#: lib/lemmings_os_web/components/secret_bank_components.ex:166
 #, elixir-autogen, elixir-format
 msgid ".label_updated"
 msgstr "actualizado"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:330
+#: lib/lemmings_os_web/components/secret_bank_components.ex:326
 #, elixir-autogen, elixir-format
 msgid ".secret_action_inherited_read_only"
 msgstr "El valor heredado es de solo lectura en este alcance."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:324
+#: lib/lemmings_os_web/components/secret_bank_components.ex:320
 #, elixir-autogen, elixir-format
 msgid ".secret_action_inherited_replace"
 msgstr "El valor heredado puede reemplazarse creando un valor local aquí."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:327
+#: lib/lemmings_os_web/components/secret_bank_components.ex:323
 #, elixir-autogen, elixir-format
 msgid ".secret_action_local_delete"
 msgstr "El valor local puede eliminarse en este alcance."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:321
+#: lib/lemmings_os_web/components/secret_bank_components.ex:317
 #, elixir-autogen, elixir-format
 msgid ".secret_action_local_replace_delete"
 msgstr "El valor local puede reemplazarse y eliminarse en este alcance."
@@ -961,17 +962,17 @@ msgstr "Actividad de auditoría segura y durable para este alcance."
 msgid ".secret_activity_title"
 msgstr "Actividad reciente de secretos"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:315
+#: lib/lemmings_os_web/components/secret_bank_components.ex:311
 #, elixir-autogen, elixir-format
 msgid ".secret_allowlisted"
 msgstr "permitido"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:316
+#: lib/lemmings_os_web/components/secret_bank_components.ex:312
 #, elixir-autogen, elixir-format
 msgid ".secret_blocked_by_allowlist"
 msgstr "bloqueado por la lista de permitidos"
 
-#: lib/lemmings_os_web/live/cities_live.html.heex:263
+#: lib/lemmings_os_web/live/cities_live.html.heex:297
 #, elixir-autogen, elixir-format
 msgid ".secret_city_subtitle"
 msgstr "Valores write-only del Secret Bank con alcance a esta ciudad."
@@ -981,30 +982,30 @@ msgstr "Valores write-only del Secret Bank con alcance a esta ciudad."
 msgid ".secret_default_subtitle"
 msgstr "Valores write-only del Secret Bank para este alcance."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:201
+#: lib/lemmings_os_web/components/secret_bank_components.ex:199
 #, elixir-autogen, elixir-format
 msgid ".secret_delete_confirm"
 msgstr "¿Eliminar este valor secreto local?"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:337
+#: lib/lemmings_os_web/components/secret_bank_components.ex:333
 #, elixir-autogen, elixir-format
 msgid ".secret_delete_label"
 msgstr "Eliminar secreto local %{key}"
 
-#: lib/lemmings_os_web/live/cities_live.ex:181
-#: lib/lemmings_os_web/live/departments_live.ex:175
+#: lib/lemmings_os_web/live/cities_live.ex:204
+#: lib/lemmings_os_web/live/departments_live.ex:189
 #: lib/lemmings_os_web/live/lemmings_live.ex:184
-#: lib/lemmings_os_web/live/world_live.ex:90
+#: lib/lemmings_os_web/live/world_live.ex:101
 #, elixir-autogen, elixir-format
 msgid ".secret_deleted"
 msgstr "Secreto local eliminado"
 
-#: lib/lemmings_os_web/components/world_components.ex:1127
+#: lib/lemmings_os_web/components/world_components.ex:1194
 #, elixir-autogen, elixir-format
 msgid ".secret_department_subtitle"
 msgstr "Valores write-only del Secret Bank con alcance a este departamento."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:334
+#: lib/lemmings_os_web/components/secret_bank_components.ex:330
 #, elixir-autogen, elixir-format
 msgid ".secret_edit_label"
 msgstr "Editar secreto local %{key}"
@@ -1019,7 +1020,7 @@ msgstr "Las fuentes heredadas son visibles, pero solo los valores locales pueden
 msgid ".secret_effective_title"
 msgstr "Claves secretas efectivas"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:149
+#: lib/lemmings_os_web/components/secret_bank_components.ex:148
 #, elixir-autogen, elixir-format
 msgid ".secret_empty_copy"
 msgstr "Crea un secreto local o usa metadatos configurados heredados."
@@ -1029,32 +1030,32 @@ msgstr "Crea un secreto local o usa metadatos configurados heredados."
 msgid ".secret_empty_title"
 msgstr "No hay claves secretas disponibles"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:262
+#: lib/lemmings_os_web/components/secret_bank_components.ex:258
 #, elixir-autogen, elixir-format
 msgid ".secret_env_policy_blocked_warning"
 msgstr "Bloqueado por la lista de permitidos. Agrega esta variable de entorno a allowed_env_vars para habilitar el fallback."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:232
+#: lib/lemmings_os_web/components/secret_bank_components.ex:229
 #, elixir-autogen, elixir-format
 msgid ".secret_env_policy_empty_copy"
 msgstr "Configura fallbacks de entorno en la configuración de la aplicación. Esta UI no edita los mapeos."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:230
+#: lib/lemmings_os_web/components/secret_bank_components.ex:228
 #, elixir-autogen, elixir-format
 msgid ".secret_env_policy_empty_title"
 msgstr "No hay mapeos de fallback de entorno configurados"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:224
+#: lib/lemmings_os_web/components/secret_bank_components.ex:222
 #, elixir-autogen, elixir-format
 msgid ".secret_env_policy_explainer"
 msgstr "Ejemplo de referencia: $GITHUB_TOKEN. Ejemplo de override explícito: $OPENROUTER_API_KEY -> $OPENROUTER_API_KEY."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:217
+#: lib/lemmings_os_web/components/secret_bank_components.ex:215
 #, elixir-autogen, elixir-format
 msgid ".secret_env_policy_subtitle"
 msgstr "Mapeos de solo lectura configurados en la configuración de la aplicación."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:215
+#: lib/lemmings_os_web/components/secret_bank_components.ex:213
 #, elixir-autogen, elixir-format
 msgid ".secret_env_policy_title"
 msgstr "Política de fallback de entorno"
@@ -1089,12 +1090,12 @@ msgstr "Clave secreta"
 msgid ".secret_lemming_subtitle"
 msgstr "Valores write-only del Secret Bank con alcance a este lemming."
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:305
+#: lib/lemmings_os_web/components/secret_bank_components.ex:301
 #, elixir-autogen, elixir-format
 msgid ".secret_mapping_convention"
 msgstr "convención"
 
-#: lib/lemmings_os_web/components/secret_bank_components.ex:308
+#: lib/lemmings_os_web/components/secret_bank_components.ex:304
 #, elixir-autogen, elixir-format
 msgid ".secret_mapping_explicit_override"
 msgstr "override explícito"
@@ -1109,10 +1110,10 @@ msgstr "Guardar secreto"
 msgid ".secret_save_pending"
 msgstr "Guardando secreto..."
 
-#: lib/lemmings_os_web/live/cities_live.ex:143
-#: lib/lemmings_os_web/live/departments_live.ex:132
+#: lib/lemmings_os_web/live/cities_live.ex:164
+#: lib/lemmings_os_web/live/departments_live.ex:146
 #: lib/lemmings_os_web/live/lemmings_live.ex:144
-#: lib/lemmings_os_web/live/world_live.ex:52
+#: lib/lemmings_os_web/live/world_live.ex:63
 #, elixir-autogen, elixir-format
 msgid ".secret_saved"
 msgstr "Secreto guardado"
@@ -1130,8 +1131,9 @@ msgstr "Valor secreto"
 #: lib/lemmings_os_web/components/lemming_components.ex:371
 #: lib/lemmings_os_web/components/lemming_components.ex:1051
 #: lib/lemmings_os_web/components/secret_bank_components.ex:24
-#: lib/lemmings_os_web/components/world_components.ex:207
-#: lib/lemmings_os_web/components/world_components.ex:755
+#: lib/lemmings_os_web/components/world_components.ex:225
+#: lib/lemmings_os_web/components/world_components.ex:812
+#: lib/lemmings_os_web/live/cities_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid ".tab_secrets"
 msgstr "Secretos"
