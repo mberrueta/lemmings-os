@@ -15,6 +15,10 @@ config :lemmings_os, :runtime_city_heartbeat,
   interval_ms: 30_000,
   freshness_threshold_seconds: 90
 
+config :lemmings_os, :artifact_storage,
+  backend: :local,
+  root_path: Path.expand("../storage/artifacts", __DIR__)
+
 config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
 config :lemmings_os, :runtime_engine_on_startup, true
 
