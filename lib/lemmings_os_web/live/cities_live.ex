@@ -34,6 +34,7 @@ defmodule LemmingsOsWeb.CitiesLive do
   alias LemmingsOs.Worlds
   alias LemmingsOsWeb.ConnectionsSurface
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
+  require Logger
 
   @detail_tabs ~w(overview secrets connections)
 
@@ -431,9 +432,10 @@ defmodule LemmingsOsWeb.CitiesLive do
       {:error, :invalid_scope} ->
         {:noreply, put_flash(socket, :error, dgettext("errors", ".error_city_unavailable"))}
 
-      {:error, _reason} ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("layout", ".connections_flash_test_failed"))}
+      {:error, reason} ->
+        Logger.warning("city connection test failed type=#{type} reason=#{inspect(reason)}")
+
+        {:noreply, put_flash(socket, :error, ConnectionsSurface.test_failure_message(reason))}
     end
   end
 

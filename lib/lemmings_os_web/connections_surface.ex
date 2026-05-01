@@ -104,6 +104,10 @@ defmodule LemmingsOsWeb.ConnectionsSurface do
 
   def run_connection_lifecycle(_scope, _connection, _action), do: {:error, :invalid_action}
 
+  def test_failure_message(reason) do
+    "#{dgettext("layout", ".connections_flash_test_failed")} (#{test_failure_reason_label(reason)})"
+  end
+
   defp connection_form_changeset(params) do
     types = %{type: :string, status: :string, config: :string, connection_id: :string}
 
@@ -142,4 +146,18 @@ defmodule LemmingsOsWeb.ConnectionsSurface do
 
   defp default_type([%{id: id} | _rest]), do: id
   defp default_type(_types), do: ""
+
+  defp test_failure_reason_label(%Ecto.Changeset{}), do: "invalid changeset"
+  defp test_failure_reason_label(:missing_secret), do: "missing_secret"
+  defp test_failure_reason_label(:secret_resolution_failed), do: "secret_resolution_failed"
+  defp test_failure_reason_label(:invalid_config), do: "invalid_config"
+  defp test_failure_reason_label(:disabled), do: "disabled"
+  defp test_failure_reason_label(:invalid), do: "invalid"
+  defp test_failure_reason_label(:missing), do: "missing"
+  defp test_failure_reason_label(:unsupported_type), do: "unsupported_type"
+  defp test_failure_reason_label(:invalid_scope), do: "invalid_scope"
+  defp test_failure_reason_label(:invalid_type), do: "invalid_type"
+  defp test_failure_reason_label(:provider_test_failed), do: "provider_test_failed"
+  defp test_failure_reason_label(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp test_failure_reason_label(_reason), do: "unknown"
 end

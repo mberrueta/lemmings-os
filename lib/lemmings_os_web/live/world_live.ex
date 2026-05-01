@@ -13,6 +13,7 @@ defmodule LemmingsOsWeb.WorldLive do
   alias LemmingsOs.Worlds.World
   alias LemmingsOsWeb.ConnectionsSurface
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
+  require Logger
 
   def mount(_params, _session, socket) do
     connection_types = Connections.list_connection_types()
@@ -315,9 +316,10 @@ defmodule LemmingsOsWeb.WorldLive do
        |> put_flash(:info, dgettext("layout", ".connections_flash_tested"))
        |> assign_world_connection_surface(world)}
     else
-      {:error, _reason} ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("layout", ".connections_flash_test_failed"))}
+      {:error, reason} ->
+        Logger.warning("world connection test failed type=#{type} reason=#{inspect(reason)}")
+
+        {:noreply, put_flash(socket, :error, ConnectionsSurface.test_failure_message(reason))}
     end
   end
 

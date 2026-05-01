@@ -15,6 +15,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOsWeb.ConnectionsSurface
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
   alias LemmingsOsWeb.PageData.DepartmentCollaborationSnapshot
+  require Logger
 
   @detail_tabs ~w(overview lemmings settings secrets connections)
 
@@ -426,9 +427,10 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       nil ->
         {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
 
-      {:error, _reason} ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("layout", ".connections_flash_test_failed"))}
+      {:error, reason} ->
+        Logger.warning("department connection test failed type=#{type} reason=#{inspect(reason)}")
+
+        {:noreply, put_flash(socket, :error, ConnectionsSurface.test_failure_message(reason))}
     end
   end
 
