@@ -97,6 +97,38 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       assert response.resp_body == "Artifact not found"
     end
 
+    test "DL02b: rejects artifact ids that belong to a different instance", %{
+      conn: conn,
+      world: world,
+      instance: instance,
+      test_root: test_root
+    } do
+      %{artifact: artifact} = insert_managed_artifact(instance, test_root)
+
+      other_city = insert(:city, world: world, status: "active")
+      other_department = insert(:department, world: world, city: other_city)
+
+      other_lemming =
+        insert(:lemming,
+          world: world,
+          city: other_city,
+          department: other_department,
+          status: "active"
+        )
+
+      {:ok, other_instance} =
+        LemmingInstances.spawn_instance(other_lemming, "Other instance request")
+
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{other_instance.id}/artifacts/#{artifact.id}/download?#{%{world: world.id}}"
+        )
+
+      assert response.status == 404
+      assert response.resp_body == "Artifact not found"
+    end
+
     test "DL03: blocks archived/deleted/error artifacts by default", %{
       conn: conn,
       world: world,
@@ -134,11 +166,18 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
           ~p"/lemmings/instances/#{instance.id}/artifacts/#{artifact.id}/download?#{%{world: world.id}}"
         )
 
+      headers_blob =
+        response.resp_headers
+        |> Enum.map_join("\n", fn {key, value} -> "#{key}: #{value}" end)
+
       assert response.status == 404
       assert response.resp_body == "Artifact not found"
       refute response.resp_body =~ stored_path
       refute response.resp_body =~ artifact.storage_ref
       refute response.resp_body =~ "artifact_storage"
+      refute headers_blob =~ stored_path
+      refute headers_blob =~ artifact.storage_ref
+      refute headers_blob =~ "artifact_storage"
     end
 
     test "DL05: invalid storage ref returns safe not found", %{

@@ -380,6 +380,19 @@ defmodule LemmingsOsWeb.InstanceComponents do
                 <.icon name="hero-arrow-path" class="size-4" />
                 {dgettext("lemmings", "Update Artifact")}
               </button>
+
+              <button
+                :if={@promotion_action == :update_existing}
+                id={"artifact-promote-as-new-button-#{@tool_execution.id}"}
+                type="submit"
+                name="artifact_promotion[mode]"
+                value="promote_as_new"
+                aria-label={dgettext("lemmings", "Promote as new Artifact from workspace file")}
+                class="inline-flex min-h-10 items-center gap-2 border border-sky-400/40 bg-sky-400/10 px-3 py-2 text-xs font-medium uppercase tracking-widest text-sky-200 transition duration-150 ease-out hover:-translate-y-px hover:border-sky-300 hover:text-sky-100"
+              >
+                <.icon name="hero-document-duplicate" class="size-4" />
+                {dgettext("lemmings", "Promote as New Artifact")}
+              </button>
             </form>
 
             <p
