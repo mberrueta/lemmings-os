@@ -1,5 +1,6 @@
 defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
   use ExUnit.Case, async: false
+  import ExUnit.CaptureLog
 
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.Adapters.Documents
@@ -410,5 +411,337 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
                %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
                runtime_meta
              )
+  end
+
+  test "explicit header/footer/style assets override conventional and fallback assets", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    {fallback_header_rel, fallback_header_abs} =
+      write_priv_documents_file("documents_test_explicit_fallback_header.html", "FALLBACK_HEADER")
+
+    {fallback_footer_rel, fallback_footer_abs} =
+      write_priv_documents_file("documents_test_explicit_fallback_footer.html", "FALLBACK_FOOTER")
+
+    {fallback_css_rel, fallback_css_abs} =
+      write_priv_documents_file("documents_test_explicit_fallback.css", "FALLBACK_CSS")
+
+    on_exit(fn ->
+      File.rm(fallback_header_abs)
+      File.rm(fallback_footer_abs)
+      File.rm(fallback_css_abs)
+    end)
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024,
+      max_fallback_bytes: 1024 * 1024,
+      default_header_path: fallback_header_rel,
+      default_footer_path: fallback_footer_rel,
+      default_css_path: fallback_css_rel
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "<html><head></head><body>Hello</body></html>")
+    File.write!(Path.join(work_area, "doc_pdf_header.html"), "CONVENTIONAL_HEADER")
+    File.write!(Path.join(work_area, "doc_pdf_footer.html"), "CONVENTIONAL_FOOTER")
+    File.write!(Path.join(work_area, "doc_pdf.css"), "CONVENTIONAL_CSS")
+    File.write!(Path.join(work_area, "explicit_header.html"), "EXPLICIT_HEADER")
+    File.write!(Path.join(work_area, "explicit_footer.html"), "EXPLICIT_FOOTER")
+    File.write!(Path.join(work_area, "explicit_style.css"), "EXPLICIT_STYLE")
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert body =~ "filename=\"header.html\""
+      assert body =~ "filename=\"footer.html\""
+      assert body =~ "filename=\"style-1.css\""
+      assert body =~ "EXPLICIT_HEADER"
+      assert body =~ "EXPLICIT_FOOTER"
+      assert body =~ "EXPLICIT_STYLE"
+      refute body =~ "CONVENTIONAL_HEADER"
+      refute body =~ "FALLBACK_HEADER"
+      Plug.Conn.resp(conn, 200, "%PDF explicit")
+    end)
+
+    assert {:ok, _result} =
+             Documents.print_to_pdf(
+               instance,
+               %{
+                 "source_path" => "doc.html",
+                 "output_path" => "doc.pdf",
+                 "header_path" => "explicit_header.html",
+                 "footer_path" => "explicit_footer.html",
+                 "style_paths" => ["explicit_style.css"]
+               },
+               runtime_meta
+             )
+  end
+
+  test "conventional sibling assets are used when explicit assets are absent", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "<html><head></head><body>Hello</body></html>")
+    File.write!(Path.join(work_area, "doc_pdf_header.html"), "CONVENTIONAL_HEADER")
+    File.write!(Path.join(work_area, "doc_pdf_footer.html"), "CONVENTIONAL_FOOTER")
+    File.write!(Path.join(work_area, "doc_pdf.css"), "CONVENTIONAL_CSS")
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert body =~ "CONVENTIONAL_HEADER"
+      assert body =~ "CONVENTIONAL_FOOTER"
+      assert body =~ "CONVENTIONAL_CSS"
+      Plug.Conn.resp(conn, 200, "%PDF conventional")
+    end)
+
+    assert {:ok, _result} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
+  end
+
+  test "fallback assets are used when explicit and conventional assets are absent", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    {fallback_header_rel, fallback_header_abs} =
+      write_priv_documents_file("documents_test_fallback_header.html", "FALLBACK_HEADER")
+
+    {fallback_footer_rel, fallback_footer_abs} =
+      write_priv_documents_file("documents_test_fallback_footer.html", "FALLBACK_FOOTER")
+
+    {fallback_css_rel, fallback_css_abs} =
+      write_priv_documents_file("documents_test_fallback.css", "FALLBACK_CSS")
+
+    on_exit(fn ->
+      File.rm(fallback_header_abs)
+      File.rm(fallback_footer_abs)
+      File.rm(fallback_css_abs)
+    end)
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024,
+      max_fallback_bytes: 1024 * 1024,
+      default_header_path: fallback_header_rel,
+      default_footer_path: fallback_footer_rel,
+      default_css_path: fallback_css_rel
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "<html><head></head><body>Hello</body></html>")
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert body =~ "FALLBACK_HEADER"
+      assert body =~ "FALLBACK_FOOTER"
+      assert body =~ "FALLBACK_CSS"
+      Plug.Conn.resp(conn, 200, "%PDF fallback")
+    end)
+
+    assert {:ok, _result} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
+  end
+
+  test "missing explicit assets fail with asset_not_found", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    File.write!(Path.join(work_area, "doc.html"), "<html><body>Hello</body></html>")
+
+    assert {:error,
+            %{
+              code: "tool.documents.asset_not_found",
+              details: %{"header_path" => "missing-header.html"}
+            }} =
+             Documents.print_to_pdf(
+               instance,
+               %{
+                 "source_path" => "doc.html",
+                 "output_path" => "doc.pdf",
+                 "header_path" => "missing-header.html"
+               },
+               runtime_meta
+             )
+  end
+
+  test "invalid or unsafe fallback assets are ignored safely", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    {_symlink_target_rel, symlink_target_abs} =
+      write_priv_documents_file("documents_test_symlink_target.html", "TARGET")
+
+    symlink_rel = "priv/documents/documents_test_symlink_header.html"
+    symlink_abs = Path.expand(symlink_rel)
+    File.rm(symlink_abs)
+    assert :ok = File.ln_s(symlink_target_abs, symlink_abs)
+
+    {oversized_css_rel, oversized_css_abs} =
+      write_priv_documents_file("documents_test_oversized.css", String.duplicate("a", 50))
+
+    on_exit(fn ->
+      File.rm(symlink_abs)
+      File.rm(symlink_target_abs)
+      File.rm(oversized_css_abs)
+    end)
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024,
+      max_fallback_bytes: 10,
+      default_header_path: symlink_rel,
+      default_footer_path: "priv/documents/not_html.txt",
+      default_css_path: oversized_css_rel
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "<html><head></head><body>Hello</body></html>")
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      refute body =~ "filename=\"header.html\""
+      refute body =~ "filename=\"footer.html\""
+      refute body =~ "filename=\"style-1.css\""
+      Plug.Conn.resp(conn, 200, "%PDF no-fallback")
+    end)
+
+    _log =
+      capture_log(fn ->
+        assert {:ok, _result} =
+                 Documents.print_to_pdf(
+                   instance,
+                   %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+                   runtime_meta
+                 )
+      end)
+  end
+
+  test "blocks remote asset references in source html before backend call", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+    parent = self()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(
+      Path.join(work_area, "doc.html"),
+      "<html><body><img src=\"https://example.com/logo.png\" /></body></html>"
+    )
+
+    Bypass.stub(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      send(parent, :backend_called)
+      Plug.Conn.resp(conn, 200, "%PDF should not happen")
+    end)
+
+    assert {:error, %{code: "tool.documents.blocked_asset_reference"}} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
+
+    refute_received :backend_called
+  end
+
+  test "blocks css @import references before backend call", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+    parent = self()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "<html><head></head><body>Hello</body></html>")
+    File.write!(Path.join(work_area, "doc_pdf.css"), "@import url('https://example.com/a.css');")
+
+    Bypass.stub(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      send(parent, :backend_called)
+      Plug.Conn.resp(conn, 200, "%PDF should not happen")
+    end)
+
+    assert {:error, %{code: "tool.documents.blocked_asset_reference"}} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
+
+    refute_received :backend_called
+  end
+
+  defp write_priv_documents_file(filename, content) do
+    path = Path.expand(Path.join("priv/documents", filename))
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, content)
+    {Path.join("priv/documents", filename), path}
   end
 end

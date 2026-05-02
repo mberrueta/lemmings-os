@@ -3,11 +3,14 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   Documents adapters for Tool Runtime.
   """
 
+  require Logger
+
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.WorkArea
 
   @default_max_source_bytes 10 * 1024 * 1024
   @default_max_pdf_bytes 50 * 1024 * 1024
+  @default_max_fallback_bytes 1 * 1024 * 1024
   @default_pdf_timeout_ms 30_000
   @default_pdf_connect_timeout_ms 5_000
   @default_pdf_retries 1
@@ -73,6 +76,28 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
   @doc """
   Prints a supported WorkArea source file into a PDF via Gotenberg.
+
+  ## Examples
+
+      iex> instance = %LemmingsOs.LemmingInstances.LemmingInstance{id: "instance-1"}
+      iex> {:error, error} =
+      ...>   LemmingsOs.Tools.Adapters.Documents.print_to_pdf(
+      ...>     instance,
+      ...>     %{"source_path" => "", "output_path" => "notes/a.pdf"},
+      ...>     %{}
+      ...>   )
+      iex> error.code
+      "tool.validation.invalid_args"
+
+      iex> instance = %LemmingsOs.LemmingInstances.LemmingInstance{id: "instance-1"}
+      iex> {:error, error} =
+      ...>   LemmingsOs.Tools.Adapters.Documents.print_to_pdf(
+      ...>     instance,
+      ...>     %{"source_path" => "notes/a.md"},
+      ...>     %{}
+      ...>   )
+      iex> error.details
+      %{field: "output_path"}
   """
   @spec print_to_pdf(LemmingInstance.t(), map(), runtime_meta()) ::
           adapter_success() | adapter_error()
@@ -94,7 +119,10 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
          :ok <- validate_source_size(source.relative_path, source_content),
          {:ok, html_body} <-
            source_to_html(source.relative_path, source_content, print_args.print_raw_file),
-         {:ok, pdf_binary} <- convert_html_to_pdf(html_body, print_args),
+         {:ok, resolved_assets} <-
+           resolve_print_assets(instance, source, print_args, runtime_meta),
+         :ok <- enforce_asset_policy(source.relative_path, html_body, resolved_assets),
+         {:ok, pdf_binary} <- convert_html_to_pdf(html_body, print_args, resolved_assets),
          {:ok, bytes} <- write_pdf_atomic(output.relative_path, output.absolute_path, pdf_binary) do
       {:ok,
        %{
@@ -198,30 +226,40 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
      }}
   end
 
-  defp validate_source_extension(path) do
-    if String.downcase(Path.extname(path)) == ".md" do
-      :ok
-    else
-      {:error,
-       %{
-         code: "tool.documents.unsupported_format",
-         message: "Unsupported source format",
-         details: %{"source_path" => path}
-       }}
-    end
+  defp validate_source_extension(path) when is_binary(path) do
+    path
+    |> Path.extname()
+    |> String.downcase()
+    |> validate_source_extension_from_ext(path)
   end
 
-  defp validate_output_extension(path) do
-    if String.downcase(Path.extname(path)) in [".html", ".htm"] do
-      :ok
-    else
-      {:error,
-       %{
-         code: "tool.documents.unsupported_format",
-         message: "Unsupported output format",
-         details: %{"output_path" => path}
-       }}
-    end
+  defp validate_source_extension_from_ext(".md", _path), do: :ok
+
+  defp validate_source_extension_from_ext(_ext, path) do
+    {:error,
+     %{
+       code: "tool.documents.unsupported_format",
+       message: "Unsupported source format",
+       details: %{"source_path" => path}
+     }}
+  end
+
+  defp validate_output_extension(path) when is_binary(path) do
+    path
+    |> Path.extname()
+    |> String.downcase()
+    |> validate_output_extension_from_ext(path)
+  end
+
+  defp validate_output_extension_from_ext(ext, _path) when ext in [".html", ".htm"], do: :ok
+
+  defp validate_output_extension_from_ext(_ext, path) do
+    {:error,
+     %{
+       code: "tool.documents.unsupported_format",
+       message: "Unsupported output format",
+       details: %{"output_path" => path}
+     }}
   end
 
   defp ensure_source_exists(relative_path, absolute_path) do
@@ -314,17 +352,20 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
   defp validate_source_size(relative_path, markdown) do
     max_source_bytes = max_source_bytes()
+    validate_source_size(relative_path, markdown, max_source_bytes)
+  end
 
-    if byte_size(markdown) <= max_source_bytes do
-      :ok
-    else
-      {:error,
-       %{
-         code: "tool.documents.file_too_large",
-         message: "Source file exceeds configured size limit",
-         details: %{"source_path" => relative_path, "max_source_bytes" => max_source_bytes}
-       }}
-    end
+  defp validate_source_size(_relative_path, markdown, max_source_bytes)
+       when byte_size(markdown) <= max_source_bytes,
+       do: :ok
+
+  defp validate_source_size(relative_path, _markdown, max_source_bytes) do
+    {:error,
+     %{
+       code: "tool.documents.file_too_large",
+       message: "Source file exceeds configured size limit",
+       details: %{"source_path" => relative_path, "max_source_bytes" => max_source_bytes}
+     }}
   end
 
   defp max_source_bytes do
@@ -469,7 +510,10 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
          {:ok, margin_top} <- fetch_optional_string_arg(args, "margin_top"),
          {:ok, margin_bottom} <- fetch_optional_string_arg(args, "margin_bottom"),
          {:ok, margin_left} <- fetch_optional_string_arg(args, "margin_left"),
-         {:ok, margin_right} <- fetch_optional_string_arg(args, "margin_right") do
+         {:ok, margin_right} <- fetch_optional_string_arg(args, "margin_right"),
+         {:ok, header_path} <- fetch_optional_string_arg(args, "header_path"),
+         {:ok, footer_path} <- fetch_optional_string_arg(args, "footer_path"),
+         {:ok, style_paths} <- fetch_optional_style_paths(args) do
       {:ok,
        %{
          source_path: source_path,
@@ -481,7 +525,10 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
          margin_top: margin_top,
          margin_bottom: margin_bottom,
          margin_left: margin_left,
-         margin_right: margin_right
+         margin_right: margin_right,
+         header_path: header_path,
+         footer_path: footer_path,
+         style_paths: style_paths
        }}
     end
   end
@@ -519,6 +566,33 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     end
   end
 
+  defp fetch_optional_style_paths(args) do
+    args
+    |> Map.get("style_paths", Map.get(args, :style_paths))
+    |> normalize_style_paths_arg()
+  end
+
+  defp normalize_style_paths_arg(nil), do: {:ok, nil}
+
+  defp normalize_style_paths_arg(paths) when is_list(paths) do
+    with true <- Enum.all?(paths, &(is_binary(&1) and &1 != "")) do
+      {:ok, paths}
+    else
+      false -> invalid_style_paths_error()
+    end
+  end
+
+  defp normalize_style_paths_arg(_value), do: invalid_style_paths_error()
+
+  defp invalid_style_paths_error do
+    {:error,
+     %{
+       code: "tool.validation.invalid_args",
+       message: "Invalid tool arguments",
+       details: %{field: "style_paths"}
+     }}
+  end
+
   defp validate_source_pdf_extension(path) do
     case String.downcase(Path.extname(path)) do
       ".html" -> :ok
@@ -533,17 +607,22 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     end
   end
 
-  defp validate_pdf_output_extension(path) do
-    if String.downcase(Path.extname(path)) == ".pdf" do
-      :ok
-    else
-      {:error,
-       %{
-         code: "tool.documents.unsupported_format",
-         message: "Unsupported output format",
-         details: %{"output_path" => path}
-       }}
-    end
+  defp validate_pdf_output_extension(path) when is_binary(path) do
+    path
+    |> Path.extname()
+    |> String.downcase()
+    |> validate_pdf_output_extension_from_ext(path)
+  end
+
+  defp validate_pdf_output_extension_from_ext(".pdf", _path), do: :ok
+
+  defp validate_pdf_output_extension_from_ext(_ext, path) do
+    {:error,
+     %{
+       code: "tool.documents.unsupported_format",
+       message: "Unsupported output format",
+       details: %{"output_path" => path}
+     }}
   end
 
   defp unsupported_source_format(path) do
@@ -658,9 +737,17 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     """
   end
 
-  defp convert_html_to_pdf(html_body, print_args) do
+  defp convert_html_to_pdf(html_body, print_args, resolved_assets) do
+    html_with_styles =
+      inject_css_into_html(html_body, Enum.map(resolved_assets.styles, & &1.content))
+
     form_fields =
-      [{"files", {html_body, filename: "index.html", content_type: "text/html"}}] ++
+      [
+        {"files", {html_with_styles, filename: "index.html", content_type: "text/html"}}
+      ] ++
+        maybe_header_field(resolved_assets.header) ++
+        maybe_footer_field(resolved_assets.footer) ++
+        style_file_fields(resolved_assets.styles) ++
         print_options_fields(print_args)
 
     request_fun = fn ->
@@ -678,6 +765,423 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     end
 
     request_pdf_with_retry(request_fun, pdf_retries())
+  end
+
+  defp maybe_header_field(nil), do: []
+
+  defp maybe_header_field(%{content: content}) do
+    [{"files", {content, filename: "header.html", content_type: "text/html"}}]
+  end
+
+  defp maybe_footer_field(nil), do: []
+
+  defp maybe_footer_field(%{content: content}) do
+    [{"files", {content, filename: "footer.html", content_type: "text/html"}}]
+  end
+
+  defp style_file_fields(styles) when is_list(styles) do
+    styles
+    |> Enum.with_index(1)
+    |> Enum.map(fn {%{content: content}, index} ->
+      {"files", {content, filename: "style-#{index}.css", content_type: "text/css"}}
+    end)
+  end
+
+  defp inject_css_into_html(html_body, []), do: html_body
+
+  defp inject_css_into_html(html_body, css_contents) do
+    style_block =
+      css_contents
+      |> Enum.map_join("\n", & &1)
+      |> then(fn css -> "<style>\n#{css}\n</style>" end)
+
+    inject_css_into_html_body(html_body, style_block)
+  end
+
+  defp inject_css_into_html_body(html_body, style_block) when is_binary(html_body) do
+    case String.contains?(html_body, "</head>") do
+      true ->
+        String.replace(html_body, "</head>", "#{style_block}\n</head>")
+
+      false ->
+        """
+        <!doctype html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            #{style_block}
+          </head>
+          <body>
+        #{html_body}
+          </body>
+        </html>
+        """
+    end
+  end
+
+  defp resolve_print_assets(instance, source, print_args, runtime_meta) do
+    with {:ok, header} <- resolve_header_asset(instance, source, print_args, runtime_meta),
+         {:ok, footer} <- resolve_footer_asset(instance, source, print_args, runtime_meta),
+         {:ok, styles} <- resolve_style_assets(instance, source, print_args, runtime_meta) do
+      {:ok, %{header: header, footer: footer, styles: styles}}
+    end
+  end
+
+  defp resolve_header_asset(instance, source, print_args, runtime_meta) do
+    resolve_optional_html_asset(
+      instance,
+      source,
+      runtime_meta,
+      print_args.header_path,
+      conventional_header_path(source.relative_path),
+      :default_header_path,
+      "header_path"
+    )
+  end
+
+  defp resolve_footer_asset(instance, source, print_args, runtime_meta) do
+    resolve_optional_html_asset(
+      instance,
+      source,
+      runtime_meta,
+      print_args.footer_path,
+      conventional_footer_path(source.relative_path),
+      :default_footer_path,
+      "footer_path"
+    )
+  end
+
+  defp resolve_optional_html_asset(
+         instance,
+         source,
+         runtime_meta,
+         explicit_path,
+         conventional_path,
+         fallback_key,
+         field_name
+       ) do
+    with {:ok, explicit} <-
+           resolve_explicit_asset(
+             instance,
+             runtime_meta,
+             explicit_path,
+             field_name,
+             &html_extension?/1
+           ),
+         {:ok, conventional} <-
+           resolve_conventional_asset(
+             instance,
+             runtime_meta,
+             conventional_path,
+             &html_extension?/1
+           ),
+         {:ok, fallback} <- resolve_fallback_asset(fallback_key, &html_extension?/1) do
+      asset = explicit || conventional || fallback
+      {:ok, maybe_require_full_html_document(asset, source.relative_path)}
+    end
+  end
+
+  defp maybe_require_full_html_document(nil, _source_path), do: nil
+
+  defp maybe_require_full_html_document(%{content: content} = asset, _source_path)
+       when is_binary(content) do
+    case String.contains?(String.downcase(content), "<html") do
+      true -> asset
+      false -> %{asset | content: wrap_html_document(content)}
+    end
+  end
+
+  defp resolve_style_assets(instance, source, print_args, runtime_meta) do
+    with {:ok, explicit_styles} <-
+           resolve_explicit_style_assets(instance, runtime_meta, print_args.style_paths),
+         {:ok, conventional_style} <-
+           resolve_conventional_style_asset(instance, runtime_meta, source.relative_path),
+         {:ok, fallback_style} <- resolve_fallback_asset(:default_css_path, &css_extension?/1) do
+      styles =
+        cond do
+          explicit_styles != [] -> explicit_styles
+          conventional_style != nil -> [conventional_style]
+          fallback_style != nil -> [fallback_style]
+          true -> []
+        end
+
+      {:ok, styles}
+    end
+  end
+
+  defp resolve_explicit_style_assets(_instance, _runtime_meta, nil), do: {:ok, []}
+
+  defp resolve_explicit_style_assets(instance, runtime_meta, style_paths)
+       when is_list(style_paths) do
+    style_paths
+    |> Enum.reduce_while({:ok, []}, fn style_path, {:ok, acc} ->
+      case resolve_explicit_asset(
+             instance,
+             runtime_meta,
+             style_path,
+             "style_paths",
+             &css_extension?/1
+           ) do
+        {:ok, nil} ->
+          {:halt,
+           {:error,
+            %{
+              code: "tool.documents.asset_not_found",
+              message: "Style asset not found",
+              details: %{"style_path" => style_path}
+            }}}
+
+        {:ok, asset} ->
+          {:cont, {:ok, [asset | acc]}}
+
+        {:error, error} ->
+          {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      {:ok, styles} -> {:ok, Enum.reverse(styles)}
+      error -> error
+    end
+  end
+
+  defp resolve_conventional_style_asset(instance, runtime_meta, source_path) do
+    resolve_conventional_asset(
+      instance,
+      runtime_meta,
+      conventional_css_path(source_path),
+      &css_extension?/1
+    )
+  end
+
+  defp resolve_explicit_asset(_instance, _runtime_meta, nil, _field_name, _ext_check),
+    do: {:ok, nil}
+
+  defp resolve_explicit_asset(instance, runtime_meta, explicit_path, field_name, extension_check) do
+    with true <-
+           extension_check.(explicit_path) || invalid_asset_extension(field_name, explicit_path),
+         {:ok, resolved} <- resolve_work_area_path(instance, explicit_path, runtime_meta),
+         :ok <- ensure_asset_exists(resolved.relative_path, resolved.absolute_path, field_name),
+         {:ok, content} <-
+           read_asset_content(resolved.relative_path, resolved.absolute_path, field_name) do
+      {:ok, %{source: :explicit, content: content, path: resolved.relative_path}}
+    end
+  end
+
+  defp resolve_conventional_asset(instance, runtime_meta, conventional_path, extension_check) do
+    with true <- extension_check.(conventional_path),
+         {:ok, resolved} <- resolve_work_area_path(instance, conventional_path, runtime_meta) do
+      case File.stat(resolved.absolute_path) do
+        {:ok, %File.Stat{type: :regular}} ->
+          case File.read(resolved.absolute_path) do
+            {:ok, content} ->
+              {:ok, %{source: :conventional, content: content, path: resolved.relative_path}}
+
+            {:error, _} ->
+              {:ok, nil}
+          end
+
+        _ ->
+          {:ok, nil}
+      end
+    else
+      {:error, %{code: "tool.validation.invalid_path"}} -> {:ok, nil}
+      {:error, %{code: "tool.fs.work_area_unavailable"}} -> {:ok, nil}
+      _ -> {:ok, nil}
+    end
+  end
+
+  defp resolve_fallback_asset(key, extension_check) do
+    key
+    |> config_value(nil)
+    |> resolve_fallback_asset_path(extension_check)
+  end
+
+  defp resolve_fallback_asset_path(fallback_path, extension_check)
+       when is_binary(fallback_path) and fallback_path != "",
+       do: resolve_valid_fallback_asset(fallback_path, extension_check)
+
+  defp resolve_fallback_asset_path(_fallback_path, _extension_check), do: {:ok, nil}
+
+  defp resolve_valid_fallback_asset(fallback_path, extension_check) do
+    fallback_absolute = Path.expand(fallback_path, File.cwd!())
+    allowed_root = Path.expand("priv/documents", File.cwd!())
+
+    with true <-
+           String.starts_with?(fallback_absolute, allowed_root <> "/") ||
+             fallback_reject("outside_root"),
+         true <- extension_check.(fallback_absolute) || fallback_reject("invalid_extension"),
+         {:ok, %File.Stat{type: :regular}} <- File.lstat(fallback_absolute),
+         {:ok, content} <- File.read(fallback_absolute),
+         true <- byte_size(content) <= max_fallback_bytes() || fallback_reject("too_large") do
+      {:ok, %{source: :fallback, content: content, path: nil}}
+    else
+      {:error, :rejected_fallback} ->
+        {:ok, nil}
+
+      {:ok, %File.Stat{type: :symlink}} ->
+        _ = fallback_reject("symlink")
+        {:ok, nil}
+
+      {:ok, _stat} ->
+        _ = fallback_reject("not_regular")
+        {:ok, nil}
+
+      {:error, :enoent} ->
+        {:ok, nil}
+
+      {:error, _reason} ->
+        _ = fallback_reject("unreadable")
+        {:ok, nil}
+    end
+  end
+
+  defp fallback_reject(reason) do
+    Logger.warning("documents fallback asset rejected",
+      event: "documents.fallback_asset.rejected",
+      reason: reason
+    )
+
+    {:error, :rejected_fallback}
+  end
+
+  defp ensure_asset_exists(relative_path, absolute_path, field_name) do
+    case File.stat(absolute_path) do
+      {:ok, %File.Stat{type: :regular}} ->
+        :ok
+
+      _ ->
+        {:error,
+         %{
+           code: "tool.documents.asset_not_found",
+           message: "Asset file not found",
+           details: %{field_name => relative_path}
+         }}
+    end
+  end
+
+  defp read_asset_content(relative_path, absolute_path, field_name) do
+    case File.read(absolute_path) do
+      {:ok, content} ->
+        {:ok, content}
+
+      {:error, _reason} ->
+        {:error,
+         %{
+           code: "tool.documents.asset_not_found",
+           message: "Asset file not found",
+           details: %{field_name => relative_path}
+         }}
+    end
+  end
+
+  defp invalid_asset_extension(field_name, path) do
+    {:error,
+     %{
+       code: "tool.documents.unsupported_format",
+       message: "Unsupported asset format",
+       details: %{field_name => path}
+     }}
+  end
+
+  defp html_extension?(path), do: String.downcase(Path.extname(path)) in [".html", ".htm"]
+  defp css_extension?(path), do: String.downcase(Path.extname(path)) == ".css"
+
+  defp conventional_header_path(source_path) do
+    with_ext(source_path, "_pdf_header.html")
+  end
+
+  defp conventional_footer_path(source_path) do
+    with_ext(source_path, "_pdf_footer.html")
+  end
+
+  defp conventional_css_path(source_path) do
+    with_ext(source_path, "_pdf.css")
+  end
+
+  defp with_ext(path, suffix) do
+    directory = Path.dirname(path)
+    basename = Path.rootname(Path.basename(path))
+    Path.join(directory, basename <> suffix)
+  end
+
+  defp enforce_asset_policy(source_path, html_body, resolved_assets) do
+    with :ok <- check_asset_content("source_path", source_path, html_body),
+         :ok <- check_optional_asset_content("header_path", resolved_assets.header),
+         :ok <- check_optional_asset_content("footer_path", resolved_assets.footer),
+         :ok <- check_style_asset_contents(resolved_assets.styles) do
+      :ok
+    end
+  end
+
+  defp check_optional_asset_content(_field, nil), do: :ok
+
+  defp check_optional_asset_content(field, %{content: content, path: path}) do
+    check_asset_content(field, path, content)
+  end
+
+  defp check_style_asset_contents(styles) when is_list(styles) do
+    styles
+    |> Enum.reduce_while(:ok, fn style, :ok ->
+      case check_asset_content("style_paths", style.path, style.content) do
+        :ok -> {:cont, :ok}
+        {:error, error} -> {:halt, {:error, error}}
+      end
+    end)
+  end
+
+  defp check_asset_content(field, path, content) when is_binary(content) do
+    with :ok <- reject_http_https_references(field, path, content),
+         :ok <- reject_file_references(field, path, content),
+         :ok <- reject_protocol_relative_references(field, path, content),
+         :ok <- reject_css_import_references(field, path, content) do
+      :ok
+    end
+  end
+
+  defp reject_http_https_references(field, path, content) do
+    if Regex.match?(~r/https?:\/\//i, content) do
+      {:error, blocked_asset_error(field, path, "remote_url")}
+    else
+      :ok
+    end
+  end
+
+  defp reject_file_references(field, path, content) do
+    if Regex.match?(~r/file:\/\//i, content) do
+      {:error, blocked_asset_error(field, path, "file_url")}
+    else
+      :ok
+    end
+  end
+
+  defp reject_protocol_relative_references(field, path, content) do
+    if Regex.match?(~r/(^|[\s"'(=])\/\/[a-z0-9]/i, content) do
+      {:error, blocked_asset_error(field, path, "protocol_relative_url")}
+    else
+      :ok
+    end
+  end
+
+  defp reject_css_import_references(field, path, content) do
+    if Regex.match?(~r/@import\b/i, content) do
+      {:error, blocked_asset_error(field, path, "css_import")}
+    else
+      :ok
+    end
+  end
+
+  defp blocked_asset_error(field, path, reason) do
+    details =
+      %{field => path || "fallback_asset", "reason" => reason}
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    %{
+      code: "tool.documents.blocked_asset_reference",
+      message: "Blocked asset reference in HTML/CSS input",
+      details: details
+    }
   end
 
   defp request_pdf_with_retry(request_fun, retries_left) when is_function(request_fun, 0) do
@@ -722,17 +1226,19 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
   defp validate_pdf_size(pdf_binary) do
     max_pdf_bytes = max_pdf_bytes()
+    validate_pdf_size(pdf_binary, max_pdf_bytes)
+  end
 
-    if byte_size(pdf_binary) <= max_pdf_bytes do
-      {:ok, pdf_binary}
-    else
-      {:error,
-       %{
-         code: "tool.documents.pdf_too_large",
-         message: "Generated PDF exceeds configured size limit",
-         details: %{"max_pdf_bytes" => max_pdf_bytes}
-       }}
-    end
+  defp validate_pdf_size(pdf_binary, max_pdf_bytes) when byte_size(pdf_binary) <= max_pdf_bytes,
+    do: {:ok, pdf_binary}
+
+  defp validate_pdf_size(_pdf_binary, max_pdf_bytes) do
+    {:error,
+     %{
+       code: "tool.documents.pdf_too_large",
+       message: "Generated PDF exceeds configured size limit",
+       details: %{"max_pdf_bytes" => max_pdf_bytes}
+     }}
   end
 
   defp write_pdf_atomic(relative_path, destination_path, pdf_binary) do
@@ -811,6 +1317,10 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
   defp max_pdf_bytes do
     integer_config_value(:max_pdf_bytes, @default_max_pdf_bytes)
+  end
+
+  defp max_fallback_bytes do
+    integer_config_value(:max_fallback_bytes, @default_max_fallback_bytes)
   end
 
   defp config_value(key, default) do
