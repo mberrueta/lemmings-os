@@ -1,13 +1,5 @@
 import Config
 
-parse_optional_integer = fn env_var ->
-  case System.get_env(env_var) do
-    nil -> nil
-    "" -> nil
-    value -> String.to_integer(value)
-  end
-end
-
 work_areas_path =
   System.get_env("LEMMINGS_WORK_AREAS_PATH") ||
     Application.get_env(
@@ -35,20 +27,53 @@ config :lemmings_os, :artifact_storage,
   root_path: artifact_storage_root_path,
   max_file_size_bytes: artifact_storage_max_file_size_bytes
 
+documents = Application.get_env(:lemmings_os, :documents, [])
+
+config :lemmings_os, :documents,
+  gotenberg_url:
+    System.get_env("LEMMINGS_GOTENBERG_URL") ||
+      Keyword.get(documents, :gotenberg_url, "http://gotenberg:3000"),
+  pdf_timeout_ms:
+    System.get_env("LEMMINGS_DOCUMENTS_PDF_TIMEOUT_MS") ||
+      Keyword.get(documents, :pdf_timeout_ms, 30_000),
+  pdf_connect_timeout_ms:
+    System.get_env("LEMMINGS_DOCUMENTS_PDF_CONNECT_TIMEOUT_MS") ||
+      Keyword.get(documents, :pdf_connect_timeout_ms, 5_000),
+  pdf_retries:
+    System.get_env("LEMMINGS_DOCUMENTS_PDF_RETRIES") || Keyword.get(documents, :pdf_retries, 1),
+  max_source_bytes:
+    System.get_env("LEMMINGS_DOCUMENTS_MAX_SOURCE_BYTES") ||
+      Keyword.get(documents, :max_source_bytes, 10 * 1024 * 1024),
+  max_pdf_bytes:
+    System.get_env("LEMMINGS_DOCUMENTS_MAX_PDF_BYTES") ||
+      Keyword.get(documents, :max_pdf_bytes, 50 * 1024 * 1024),
+  max_fallback_bytes:
+    System.get_env("LEMMINGS_DOCUMENTS_MAX_FALLBACK_BYTES") ||
+      Keyword.get(documents, :max_fallback_bytes, 1 * 1024 * 1024),
+  default_header_path:
+    System.get_env("LEMMINGS_DOCUMENTS_DEFAULT_HEADER_PATH") ||
+      Keyword.get(documents, :default_header_path),
+  default_footer_path:
+    System.get_env("LEMMINGS_DOCUMENTS_DEFAULT_FOOTER_PATH") ||
+      Keyword.get(documents, :default_footer_path),
+  default_css_path:
+    System.get_env("LEMMINGS_DOCUMENTS_DEFAULT_CSS_PATH") ||
+      Keyword.get(documents, :default_css_path)
+
 config :lemmings_os, :runtime_city,
   node_name: runtime_city_node_name,
   slug: System.get_env("LEMMINGS_CITY_SLUG"),
   name: System.get_env("LEMMINGS_CITY_NAME"),
   host: System.get_env("LEMMINGS_CITY_HOST"),
-  distribution_port: parse_optional_integer.("LEMMINGS_CITY_DISTRIBUTION_PORT"),
-  epmd_port: parse_optional_integer.("LEMMINGS_CITY_EPMD_PORT")
+  distribution_port: System.get_env("LEMMINGS_CITY_DISTRIBUTION_PORT"),
+  epmd_port: System.get_env("LEMMINGS_CITY_EPMD_PORT")
 
 config :lemmings_os, :runtime_city_heartbeat,
   interval_ms:
-    parse_optional_integer.("LEMMINGS_CITY_HEARTBEAT_INTERVAL_MS") ||
+    System.get_env("LEMMINGS_CITY_HEARTBEAT_INTERVAL_MS") ||
       Keyword.get(runtime_city_heartbeat, :interval_ms),
   freshness_threshold_seconds:
-    parse_optional_integer.("LEMMINGS_CITY_STALE_AFTER_SECONDS") ||
+    System.get_env("LEMMINGS_CITY_STALE_AFTER_SECONDS") ||
       Keyword.get(runtime_city_heartbeat, :freshness_threshold_seconds)
 
 # config/runtime.exs is executed for all environments, including

@@ -2,7 +2,7 @@ defmodule LemmingsOs.Tools.Catalog do
   @moduledoc """
   Fixed Tool Runtime catalog for the MVP.
 
-  This catalog is intentionally limited to the four approved tools.
+  This catalog is intentionally limited to the approved first-party tools.
   """
 
   @tools [
@@ -37,6 +37,22 @@ defmodule LemmingsOs.Tools.Catalog do
       icon: "hero-globe-alt",
       category: "web",
       risk: "medium"
+    },
+    %{
+      id: "documents.markdown_to_html",
+      name: "Markdown To HTML",
+      description: "Convert a Markdown file in the instance work area to HTML.",
+      icon: "hero-document",
+      category: "documents",
+      risk: "medium"
+    },
+    %{
+      id: "documents.print_to_pdf",
+      name: "Print To PDF",
+      description: "Print a supported work area file into a PDF document.",
+      icon: "hero-printer",
+      category: "documents",
+      risk: "high"
     }
   ]
 
@@ -58,7 +74,7 @@ defmodule LemmingsOs.Tools.Catalog do
 
       iex> tools = LemmingsOs.Tools.Catalog.list_tools()
       iex> Enum.map(tools, & &1.id)
-      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch"]
+      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch", "documents.markdown_to_html", "documents.print_to_pdf"]
   """
   @spec list_tools() :: [tool()]
   def list_tools, do: @tools

@@ -3,6 +3,7 @@ defmodule LemmingsOs.Tools.Runtime do
   Tool Runtime execution boundary for the MVP catalog.
   """
 
+  alias LemmingsOs.Tools.Adapters.Documents
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.Adapters.Filesystem
   alias LemmingsOs.Tools.Adapters.Web
@@ -132,6 +133,36 @@ defmodule LemmingsOs.Tools.Runtime do
 
   defp dispatch_tool_call(world, instance, "web.fetch", args, _runtime_meta, trusted_config) do
     normalize_tool_result("web.fetch", args, Web.fetch(world, instance, args, trusted_config))
+  end
+
+  defp dispatch_tool_call(
+         _world,
+         instance,
+         "documents.markdown_to_html",
+         args,
+         runtime_meta,
+         _trusted_config
+       ) do
+    normalize_tool_result(
+      "documents.markdown_to_html",
+      args,
+      Documents.markdown_to_html(instance, args, runtime_meta)
+    )
+  end
+
+  defp dispatch_tool_call(
+         _world,
+         instance,
+         "documents.print_to_pdf",
+         args,
+         runtime_meta,
+         _trusted_config
+       ) do
+    normalize_tool_result(
+      "documents.print_to_pdf",
+      args,
+      Documents.print_to_pdf(instance, args, runtime_meta)
+    )
   end
 
   defp normalize_tool_result(

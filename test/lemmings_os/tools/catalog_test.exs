@@ -5,12 +5,14 @@ defmodule LemmingsOs.Tools.CatalogTest do
   alias LemmingsOs.Tools.DefaultRuntimeFetcher
 
   describe "list_tools/0" do
-    test "returns only the four approved tools" do
+    test "returns only the approved first-party tools" do
       assert [
                %{id: "fs.read_text_file"},
                %{id: "fs.write_text_file"},
                %{id: "web.search"},
-               %{id: "web.fetch"}
+               %{id: "web.fetch"},
+               %{id: "documents.markdown_to_html"},
+               %{id: "documents.print_to_pdf"}
              ] = Catalog.list_tools()
     end
   end
@@ -21,6 +23,8 @@ defmodule LemmingsOs.Tools.CatalogTest do
       assert Catalog.supported_tool?("fs.write_text_file")
       assert Catalog.supported_tool?("web.search")
       assert Catalog.supported_tool?("web.fetch")
+      assert Catalog.supported_tool?("documents.markdown_to_html")
+      assert Catalog.supported_tool?("documents.print_to_pdf")
       refute Catalog.supported_tool?("exec.run")
     end
   end

@@ -457,6 +457,53 @@ defmodule LemmingsOs.Tools.RuntimeTest do
     end
   end
 
+  describe "execute/5 with documents tools" do
+    test "dispatches documents.markdown_to_html with normalized success envelope", %{
+      world: world,
+      instance: instance
+    } do
+      work_area = Path.join(Application.fetch_env!(:lemmings_os, :work_areas_path), instance.id)
+      File.mkdir_p!(Path.join(work_area, "notes"))
+      File.write!(Path.join(work_area, "notes/a.md"), "# Runtime Title")
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.markdown_to_html",
+                 %{"source_path" => "notes/a.md", "output_path" => "notes/a.html"}
+               )
+
+      assert result.tool_name == "documents.markdown_to_html"
+      assert result.args == %{"source_path" => "notes/a.md", "output_path" => "notes/a.html"}
+      assert result.summary == "Converted notes/a.md to notes/a.html"
+      assert is_binary(result.preview)
+      assert result.result["source_path"] == "notes/a.md"
+      assert result.result["output_path"] == "notes/a.html"
+      assert result.result["content_type"] == "text/html"
+      assert is_integer(result.result["bytes"])
+    end
+
+    test "dispatches documents.print_to_pdf with normalized validation error", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.print_to_pdf",
+                 %{"source_path" => "notes/a.md", "output_path" => ""},
+                 %{work_area_ref: "work-area-v1"}
+               )
+
+      assert error.tool_name == "documents.print_to_pdf"
+      assert error.code == "tool.validation.invalid_args"
+      assert error.message == "Invalid tool arguments"
+      assert error.details == %{field: "output_path"}
+    end
+  end
+
   defp restore_env(key, {:ok, value}), do: Application.put_env(:lemmings_os, key, value)
   defp restore_env(key, :error), do: Application.delete_env(:lemmings_os, key)
 
