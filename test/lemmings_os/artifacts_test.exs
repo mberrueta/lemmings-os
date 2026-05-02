@@ -76,6 +76,11 @@ defmodule LemmingsOs.ArtifactsTest do
 
       assert {:error, :scope_mismatch} = Artifacts.create_artifact(world, attrs)
     end
+
+    test "rejects invalid input shapes" do
+      assert {:error, :invalid_scope} = Artifacts.create_artifact(%{}, %{})
+      assert {:error, :invalid_scope} = Artifacts.create_artifact(insert(:world), [])
+    end
   end
 
   describe "get_artifact/2 and get_artifact/3" do
@@ -101,6 +106,40 @@ defmodule LemmingsOs.ArtifactsTest do
 
       other_world = insert(:world)
       assert {:error, :not_found} = Artifacts.get_artifact(other_world, ready_artifact.id)
+    end
+
+    test "supports explicit single status filter" do
+      lemming = insert_scoped_lemming()
+      archived_artifact = insert_artifact_for_lemming(lemming, status: "archived")
+
+      assert {:ok, found} =
+               Artifacts.get_artifact(lemming, archived_artifact.id, status: "archived")
+
+      assert found.id == archived_artifact.id
+    end
+
+    test "rejects invalid get input" do
+      assert {:error, :invalid_scope} = Artifacts.get_artifact(%{}, Ecto.UUID.generate())
+      assert {:error, :invalid_scope} = Artifacts.get_artifact(insert(:world), 123)
+    end
+  end
+
+  describe "get_artifact_download/2" do
+    test "returns internal download metadata only for ready artifacts" do
+      artifact = insert_artifact_for_lemming(insert_scoped_lemming(), status: "ready")
+
+      assert {:ok, download} = Artifacts.get_artifact_download(artifact.lemming, artifact.id)
+      assert download.id == artifact.id
+      assert download.filename == artifact.filename
+      assert download.content_type == artifact.content_type
+      assert download.storage_ref == artifact.storage_ref
+    end
+
+    test "rejects invalid download input" do
+      assert {:error, :invalid_scope} =
+               Artifacts.get_artifact_download(%{}, Ecto.UUID.generate())
+
+      assert {:error, :invalid_scope} = Artifacts.get_artifact_download(insert(:world), 123)
     end
   end
 
@@ -141,6 +180,13 @@ defmodule LemmingsOs.ArtifactsTest do
       refute inspect(repaired.metadata) =~ root_path
       refute inspect(repaired.metadata) =~ managed_path
     end
+
+    test "rejects invalid open input" do
+      assert {:error, :invalid_scope} =
+               Artifacts.open_artifact_download(%{}, Ecto.UUID.generate())
+
+      assert {:error, :invalid_scope} = Artifacts.open_artifact_download(insert(:world), 123)
+    end
   end
 
   describe "list_artifacts_for_scope/2" do
@@ -163,6 +209,14 @@ defmodule LemmingsOs.ArtifactsTest do
     test "returns invalid_scope for malformed map scope" do
       assert {:error, :invalid_scope} =
                Artifacts.list_artifacts_for_scope(%{city_id: Ecto.UUID.generate()})
+    end
+
+    test "returns empty list for unsupported options rather than broadening query" do
+      lemming = insert_scoped_lemming()
+      _artifact = insert_artifact_for_lemming(lemming, status: "ready")
+
+      assert {:ok, listed} = Artifacts.list_artifacts_for_scope(lemming, unknown: "ignored")
+      assert length(listed) == 1
     end
   end
 
@@ -193,6 +247,17 @@ defmodule LemmingsOs.ArtifactsTest do
 
       assert MapSet.new(Enum.map(listed_with_archived, & &1.id)) ==
                MapSet.new([archived_artifact.id, ready_artifact.id])
+    end
+
+    test "rejects mismatched instance scope and invalid input" do
+      lemming = insert_scoped_lemming()
+      instance = insert_scoped_instance(lemming)
+      other_instance = insert_scoped_instance(lemming)
+
+      assert {:error, :invalid_scope} =
+               Artifacts.list_artifacts_for_instance(instance, other_instance.id)
+
+      assert {:error, :invalid_scope} = Artifacts.list_artifacts_for_instance(lemming, 123)
     end
   end
 
@@ -227,6 +292,14 @@ defmodule LemmingsOs.ArtifactsTest do
                Artifacts.update_artifact_status(artifact.world, artifact.id, "pending")
     end
 
+    test "rejects invalid update input" do
+      assert {:error, :invalid_scope} =
+               Artifacts.update_artifact_status(%{}, Ecto.UUID.generate(), "ready")
+
+      assert {:error, :invalid_scope} =
+               Artifacts.update_artifact_status(insert(:world), 123, "ready")
+    end
+
     test "soft delete does not physically delete managed storage", %{root_path: root_path} do
       instance = insert_scoped_instance(insert_scoped_lemming())
       artifact = insert_managed_artifact(instance, root_path, "artifact.txt", "hello")
@@ -248,6 +321,23 @@ defmodule LemmingsOs.ArtifactsTest do
       refute Map.has_key?(descriptor, :storage_ref)
       assert descriptor.id == artifact.id
       assert descriptor.filename == artifact.filename
+    end
+  end
+
+  describe "decorate_scope_slugs/1" do
+    test "adds scope slugs for known city, department, and lemming ids" do
+      lemming = insert_scoped_lemming()
+      artifact = insert_artifact_for_lemming(lemming)
+      descriptor = Artifacts.artifact_descriptor(artifact)
+
+      assert [decorated] = Artifacts.decorate_scope_slugs([descriptor])
+      assert decorated.city_slug == lemming.city.slug
+      assert decorated.department_slug == lemming.department.slug
+      assert decorated.lemming_slug == lemming.slug
+    end
+
+    test "returns empty list for invalid rows input" do
+      assert [] = Artifacts.decorate_scope_slugs(:invalid)
     end
   end
 
