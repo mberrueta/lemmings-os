@@ -9,6 +9,8 @@ defmodule LemmingsOs.Artifacts.PromotionTest do
   alias LemmingsOs.Artifacts.Promotion
   alias LemmingsOs.Repo
 
+  @moduletag capture_log: true
+
   doctest Promotion
 
   setup do
@@ -104,6 +106,35 @@ defmodule LemmingsOs.Artifacts.PromotionTest do
                )
     end
 
+    test "oversized first write returns error without creating ready artifact", %{
+      workspace_root: workspace_root
+    } do
+      old_artifact_storage = Application.get_env(:lemmings_os, :artifact_storage)
+      root_path = Keyword.fetch!(old_artifact_storage, :root_path)
+
+      Application.put_env(:lemmings_os, :artifact_storage,
+        backend: :local,
+        root_path: root_path,
+        max_file_size_bytes: 3
+      )
+
+      on_exit(fn ->
+        Application.put_env(:lemmings_os, :artifact_storage, old_artifact_storage)
+      end)
+
+      instance = insert_scoped_instance()
+      relative_path = "reports/too-large.txt"
+      _source_path = write_workspace_file(workspace_root, instance, relative_path, "large")
+
+      assert {:error, :file_too_large} =
+               Promotion.promote_workspace_file(
+                 promotion_scope(instance),
+                 %{relative_path: relative_path, lemming_instance_id: instance.id}
+               )
+
+      assert [] = Repo.all(Artifact)
+    end
+
     test "requires explicit mode when same-scope filename already exists", %{
       workspace_root: workspace_root
     } do
@@ -162,6 +193,52 @@ defmodule LemmingsOs.Artifacts.PromotionTest do
       assert {:ok, managed_path} = LocalStorage.resolve_storage_ref(persisted.storage_ref)
       assert {:ok, managed_content} = File.read(managed_path)
       assert managed_content == "new content"
+    end
+
+    test "failed update_existing before replacement preserves row and managed file", %{
+      workspace_root: workspace_root
+    } do
+      instance = insert_scoped_instance()
+      relative_path = "reports/keep.txt"
+      _source_path = write_workspace_file(workspace_root, instance, relative_path, "old")
+
+      assert {:ok, first} =
+               Promotion.promote_workspace_file(
+                 promotion_scope(instance),
+                 %{relative_path: relative_path, lemming_instance_id: instance.id}
+               )
+
+      persisted_before = Repo.get!(Artifact, first.id)
+      {:ok, managed_path} = LocalStorage.resolve_storage_ref(persisted_before.storage_ref)
+      assert {:ok, "old"} = File.read(managed_path)
+
+      old_artifact_storage = Application.get_env(:lemmings_os, :artifact_storage)
+      root_path = Keyword.fetch!(old_artifact_storage, :root_path)
+
+      Application.put_env(:lemmings_os, :artifact_storage,
+        backend: :local,
+        root_path: root_path,
+        max_file_size_bytes: 3
+      )
+
+      on_exit(fn ->
+        Application.put_env(:lemmings_os, :artifact_storage, old_artifact_storage)
+      end)
+
+      _source_path = write_workspace_file(workspace_root, instance, relative_path, "new content")
+
+      assert {:error, :file_too_large} =
+               Promotion.promote_workspace_file(promotion_scope(instance), %{
+                 relative_path: relative_path,
+                 lemming_instance_id: instance.id,
+                 mode: :update_existing
+               })
+
+      persisted_after = Repo.get!(Artifact, first.id)
+      assert persisted_after.status == persisted_before.status
+      assert persisted_after.checksum == persisted_before.checksum
+      assert persisted_after.size_bytes == persisted_before.size_bytes
+      assert {:ok, "old"} = File.read(managed_path)
     end
 
     test "mode promote_as_new keeps existing row and creates new artifact", %{

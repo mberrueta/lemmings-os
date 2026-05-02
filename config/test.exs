@@ -33,7 +33,8 @@ config :lemmings_os, :work_areas_path, Path.expand("../tmp/runtime/work_areas", 
 
 config :lemmings_os, :artifact_storage,
   backend: :local,
-  root_path: Path.expand("../tmp/runtime/storage", __DIR__)
+  root_path: Path.expand("../tmp/runtime/storage", __DIR__),
+  max_file_size_bytes: 100 * 1024 * 1024
 
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,

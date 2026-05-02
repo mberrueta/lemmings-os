@@ -275,9 +275,9 @@ msgstr ""
 msgid ".lemming_delete_denied_safety_indeterminate"
 msgstr ""
 
-#: lib/lemmings_os/artifacts/artifact.ex:105
-#: lib/lemmings_os/artifacts/artifact.ex:106
-#: lib/lemmings_os/artifacts/artifact.ex:211
+#: lib/lemmings_os/artifacts/artifact.ex:107
+#: lib/lemmings_os/artifacts/artifact.ex:108
+#: lib/lemmings_os/artifacts/artifact.ex:204
 #: lib/lemmings_os/connections/connection.ex:68
 #: lib/lemmings_os/connections/connection.ex:104
 #: lib/lemmings_os/events/event.ex:115
@@ -293,7 +293,7 @@ msgstr ""
 msgid ".invalid_choice"
 msgstr ""
 
-#: lib/lemmings_os/artifacts/artifact.ex:179
+#: lib/lemmings_os/artifacts/artifact.ex:181
 #: lib/lemmings_os/connections/connection.ex:134
 #: lib/lemmings_os/events/event.ex:128
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:102
@@ -302,7 +302,7 @@ msgstr ""
 msgid ".invalid_value_type"
 msgstr ""
 
-#: lib/lemmings_os/artifacts/artifact.ex:104
+#: lib/lemmings_os/artifacts/artifact.ex:106
 #: lib/lemmings_os/connections/connection.ex:67
 #: lib/lemmings_os/events/event.ex:113
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:107
@@ -319,9 +319,10 @@ msgstr ""
 msgid ".required"
 msgstr ""
 
-#: lib/lemmings_os/artifacts/artifact.ex:109
-#: lib/lemmings_os/artifacts/artifact.ex:151
-#: lib/lemmings_os/artifacts/artifact.ex:203
+#: lib/lemmings_os/artifacts/artifact.ex:111
+#: lib/lemmings_os/artifacts/artifact.ex:153
+#: lib/lemmings_os/artifacts/artifact.ex:196
+#: lib/lemmings_os/artifacts/artifact.ex:225
 #: lib/lemmings_os/connections/connection.ex:95
 #: lib/lemmings_os/connections/connection.ex:118
 #: lib/lemmings_os/events/event.ex:139

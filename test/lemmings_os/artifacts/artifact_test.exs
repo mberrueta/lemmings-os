@@ -154,6 +154,52 @@ defmodule LemmingsOs.Artifacts.ArtifactTest do
       assert ".invalid_choice" in errors_on(changeset).metadata
     end
 
+    test "accepts safe storage error metadata with optional source" do
+      changeset =
+        Artifact.changeset(%Artifact{}, %{
+          world_id: Ecto.UUID.generate(),
+          filename: "artifact.md",
+          type: "markdown",
+          content_type: "text/markdown",
+          storage_ref: "local://artifacts/world/artifact.md",
+          size_bytes: 128,
+          checksum: String.duplicate("a", 64),
+          status: "error",
+          metadata: %{
+            "source" => "manual_promotion",
+            "storage_error_reason" => "not_found",
+            "storage_error_operation" => "open",
+            "storage_error_at" => "2026-05-01T12:00:00Z"
+          }
+        })
+
+      assert changeset.valid?
+    end
+
+    test "rejects unsafe storage error metadata values" do
+      for value <- ["/tmp/artifact.md", "C:\\tmp\\artifact.md", "line\nbreak", :not_found] do
+        changeset =
+          Artifact.changeset(%Artifact{}, %{
+            world_id: Ecto.UUID.generate(),
+            filename: "artifact.md",
+            type: "markdown",
+            content_type: "text/markdown",
+            storage_ref: "local://artifacts/world/artifact.md",
+            size_bytes: 128,
+            checksum: String.duplicate("a", 64),
+            status: "error",
+            metadata: %{
+              "storage_error_reason" => value,
+              "storage_error_operation" => "open",
+              "storage_error_at" => "2026-05-01T12:00:00Z"
+            }
+          })
+
+        refute changeset.valid?
+        assert ".invalid_value" in errors_on(changeset).metadata
+      end
+    end
+
     test "rejects invalid scope shape when lemming_id is set without department_id" do
       changeset =
         Artifact.changeset(%Artifact{}, %{

@@ -11,8 +11,14 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
   checksum/size calculation.
   """
 
+  @behaviour LemmingsOs.Artifacts.Storage.Adapter
+
+  require Logger
+
   @storage_scheme "local"
   @storage_host "artifacts"
+  @default_max_file_size_bytes 100 * 1024 * 1024
+  @copy_chunk_size 65_536
 
   @typedoc """
   Metadata returned after storing a file in managed artifact storage.
@@ -57,6 +63,16 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
   def store_copy(world_id, artifact_id, source_path, filename)
       when is_binary(world_id) and is_binary(artifact_id) and is_binary(source_path) and
              is_binary(filename) do
+    metadata = storage_metadata(world_id, artifact_id, filename, %{operation: :write})
+
+    instrument_write(metadata, fn ->
+      do_store_copy(world_id, artifact_id, source_path, filename)
+    end)
+  end
+
+  def store_copy(_world_id, _artifact_id, _source_path, _filename), do: {:error, :invalid_input}
+
+  defp do_store_copy(world_id, artifact_id, source_path, filename) do
     with :ok <- validate_world_id(world_id),
          :ok <- validate_artifact_id(artifact_id),
          :ok <- validate_filename(filename),
@@ -64,8 +80,8 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
          {:ok, storage_ref} <- build_storage_ref(world_id, artifact_id, filename),
          :ok <- ensure_storage_root(root_path()),
          {:ok, destination_path} <- resolve_storage_ref(storage_ref),
-         :ok <- File.mkdir_p(Path.dirname(destination_path)),
-         :ok <- copy_file(source_absolute_path, destination_path),
+         :ok <- ensure_storage_directory(Path.dirname(destination_path)),
+         :ok <- copy_file_atomic(source_absolute_path, destination_path, max_file_size_bytes()),
          {:ok, size_bytes} <- size_bytes(destination_path),
          {:ok, checksum} <- checksum(destination_path) do
       {:ok,
@@ -77,7 +93,14 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
     end
   end
 
-  def store_copy(_world_id, _artifact_id, _source_path, _filename), do: {:error, :invalid_input}
+  @impl true
+  @doc """
+  Behaviour callback wrapper for storing a trusted source file.
+  """
+  @spec put(Ecto.UUID.t(), Ecto.UUID.t(), String.t(), String.t()) ::
+          {:ok, stored_file()} | {:error, atom() | {atom(), term()}}
+  def put(world_id, artifact_id, source_path, filename),
+    do: store_copy(world_id, artifact_id, source_path, filename)
 
   @doc """
   Builds an opaque local artifact storage reference.
@@ -140,6 +163,52 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
 
   def resolve_storage_ref(_storage_ref), do: {:error, :invalid_storage_ref}
 
+  @impl true
+  @doc """
+  Behaviour callback for resolving a trusted storage reference into an internal path.
+  """
+  @spec path_for(String.t(), keyword()) :: {:ok, String.t()} | {:error, atom()}
+  def path_for(storage_ref, _opts \\ []), do: resolve_storage_ref(storage_ref)
+
+  @impl true
+  @doc """
+  Behaviour callback for checking whether the managed file exists for a trusted ref.
+  """
+  @spec exists?(String.t(), keyword()) :: {:ok, boolean()} | {:error, atom()}
+  def exists?(storage_ref, _opts \\ []) do
+    with {:ok, path} <- resolve_storage_ref(storage_ref) do
+      {:ok, File.regular?(path)}
+    end
+  end
+
+  @impl true
+  @doc """
+  Behaviour callback for opening a managed file after scope/status checks.
+  """
+  @spec open(String.t(), keyword()) ::
+          {:ok,
+           %{
+             path: String.t(),
+             filename: String.t(),
+             content_type: String.t(),
+             size_bytes: non_neg_integer()
+           }}
+          | {:error, atom() | {atom(), term()}}
+  def open(storage_ref, opts \\ []) do
+    filename = Keyword.get(opts, :filename, "artifact.bin")
+    content_type = Keyword.get(opts, :content_type, "application/octet-stream")
+    metadata = storage_ref_metadata(storage_ref, %{operation: :open, filename: filename})
+
+    instrument_open(metadata, fn ->
+      with {:ok, path} <- resolve_storage_ref(storage_ref),
+           true <- File.regular?(path) or {:error, :not_found},
+           {:ok, size_bytes} <- size_bytes(path) do
+        {:ok,
+         %{path: path, filename: filename, content_type: content_type, size_bytes: size_bytes}}
+      end
+    end)
+  end
+
   @doc """
   Returns the configured artifact storage root path.
 
@@ -160,6 +229,239 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
     |> Keyword.get(:root_path, Path.expand("priv/runtime/storage", File.cwd!()))
     |> Path.expand()
   end
+
+  @doc """
+  Returns the configured max artifact file size in bytes.
+  """
+  @spec max_file_size_bytes() :: pos_integer()
+  def max_file_size_bytes do
+    :lemmings_os
+    |> Application.get_env(:artifact_storage, [])
+    |> Keyword.get(:max_file_size_bytes, @default_max_file_size_bytes)
+  end
+
+  @impl true
+  @doc """
+  Behaviour callback that verifies the storage root is available.
+  """
+  @spec health_check(keyword()) :: :ok | {:error, atom()}
+  def health_check(_opts \\ []) do
+    root = root_path()
+
+    instrument_health_check(%{operation: :health_check}, fn ->
+      with :ok <- ensure_storage_root(root),
+           {:ok, temp_file_path} <- create_health_check_file(root) do
+        delete_health_check_file(temp_file_path)
+      end
+    end)
+  end
+
+  defp instrument_write(metadata, fun) do
+    start_time = System.monotonic_time()
+    emit_telemetry([:lemmings_os, :artifact_storage, :write, :start], %{count: 1}, metadata)
+
+    case fun.() do
+      {:ok, stored} ->
+        duration_ms = duration_ms(start_time)
+
+        success_metadata =
+          Map.merge(metadata, %{
+            checksum: stored.checksum,
+            size_bytes: stored.size_bytes,
+            status: :ok
+          })
+
+        emit_telemetry(
+          [:lemmings_os, :artifact_storage, :write, :stop],
+          %{count: 1, duration_ms: duration_ms, size_bytes: stored.size_bytes},
+          success_metadata
+        )
+
+        Logger.info("artifact storage write succeeded",
+          event: "artifact.storage.write.succeeded",
+          operation: Map.get(metadata, :operation),
+          world_id: Map.get(metadata, :world_id),
+          artifact_id: Map.get(metadata, :artifact_id),
+          filename: Map.get(metadata, :filename),
+          size_bytes: stored.size_bytes,
+          checksum: stored.checksum
+        )
+
+        {:ok, stored}
+
+      {:error, reason} ->
+        duration_ms = duration_ms(start_time)
+        failure_metadata = Map.merge(metadata, %{reason: reason_token(reason), status: :error})
+
+        emit_telemetry(
+          [:lemmings_os, :artifact_storage, :write, :exception],
+          %{count: 1, duration_ms: duration_ms},
+          failure_metadata
+        )
+
+        Logger.warning("artifact storage write failed",
+          event: "artifact.storage.write.failed",
+          operation: Map.get(metadata, :operation),
+          world_id: Map.get(metadata, :world_id),
+          artifact_id: Map.get(metadata, :artifact_id),
+          filename: Map.get(metadata, :filename),
+          reason: reason_token(reason)
+        )
+
+        {:error, reason}
+    end
+  end
+
+  defp instrument_open(metadata, fun) do
+    start_time = System.monotonic_time()
+
+    case fun.() do
+      {:ok, opened} ->
+        duration_ms = duration_ms(start_time)
+        success_metadata = Map.merge(metadata, %{size_bytes: opened.size_bytes, status: :ok})
+
+        emit_telemetry(
+          [:lemmings_os, :artifact_storage, :open, :stop],
+          %{count: 1, duration_ms: duration_ms, size_bytes: opened.size_bytes},
+          success_metadata
+        )
+
+        Logger.info("artifact storage open succeeded",
+          event: "artifact.storage.open.succeeded",
+          operation: Map.get(metadata, :operation),
+          world_id: Map.get(metadata, :world_id),
+          artifact_id: Map.get(metadata, :artifact_id),
+          filename: Map.get(metadata, :filename),
+          size_bytes: opened.size_bytes
+        )
+
+        {:ok, opened}
+
+      {:error, reason} ->
+        duration_ms = duration_ms(start_time)
+        failure_metadata = Map.merge(metadata, %{reason: reason_token(reason), status: :error})
+
+        emit_telemetry(
+          [:lemmings_os, :artifact_storage, :open, :exception],
+          %{count: 1, duration_ms: duration_ms},
+          failure_metadata
+        )
+
+        Logger.warning("artifact storage open failed",
+          event: "artifact.storage.open.failed",
+          operation: Map.get(metadata, :operation),
+          world_id: Map.get(metadata, :world_id),
+          artifact_id: Map.get(metadata, :artifact_id),
+          filename: Map.get(metadata, :filename),
+          reason: reason_token(reason)
+        )
+
+        {:error, reason}
+    end
+  end
+
+  defp instrument_health_check(metadata, fun) do
+    start_time = System.monotonic_time()
+
+    case fun.() do
+      :ok ->
+        duration_ms = duration_ms(start_time)
+        success_metadata = Map.put(metadata, :status, :ok)
+
+        emit_telemetry(
+          [:lemmings_os, :artifact_storage, :health_check, :stop],
+          %{count: 1, duration_ms: duration_ms},
+          success_metadata
+        )
+
+        Logger.info("artifact storage health check succeeded",
+          event: "artifact.storage.health_check.succeeded",
+          operation: :health_check
+        )
+
+        :ok
+
+      {:error, reason} ->
+        duration_ms = duration_ms(start_time)
+        failure_metadata = Map.merge(metadata, %{reason: reason_token(reason), status: :error})
+
+        emit_telemetry(
+          [:lemmings_os, :artifact_storage, :health_check, :exception],
+          %{count: 1, duration_ms: duration_ms},
+          failure_metadata
+        )
+
+        Logger.warning("artifact storage health check failed",
+          event: "artifact.storage.health_check.failed",
+          operation: :health_check,
+          reason: reason_token(reason)
+        )
+
+        {:error, reason}
+    end
+  end
+
+  defp emit_telemetry(event, measurements, metadata) do
+    :telemetry.execute(event, measurements, metadata)
+    :ok
+  rescue
+    _exception -> :ok
+  catch
+    _kind, _reason -> :ok
+  end
+
+  defp duration_ms(start_time) do
+    (System.monotonic_time() - start_time)
+    |> System.convert_time_unit(:native, :millisecond)
+  end
+
+  defp storage_metadata(world_id, artifact_id, filename, extra) do
+    %{
+      world_id: world_id,
+      artifact_id: artifact_id,
+      filename: filename
+    }
+    |> Map.merge(extra)
+    |> Map.update(:filename, nil, &safe_metadata_string/1)
+  end
+
+  defp storage_ref_metadata(storage_ref, extra) when is_binary(storage_ref) do
+    case parse_storage_ref(storage_ref) do
+      {:ok, world_id, artifact_id, filename} ->
+        storage_metadata(world_id, artifact_id, filename, extra)
+
+      {:error, _reason} ->
+        %{
+          world_id: nil,
+          artifact_id: nil,
+          filename: safe_metadata_string(Map.get(extra, :filename)),
+          operation: Map.get(extra, :operation)
+        }
+    end
+  end
+
+  defp storage_ref_metadata(_storage_ref, extra) do
+    %{
+      world_id: nil,
+      artifact_id: nil,
+      filename: safe_metadata_string(Map.get(extra, :filename)),
+      operation: Map.get(extra, :operation)
+    }
+  end
+
+  defp reason_token(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp reason_token({reason, _detail}) when is_atom(reason), do: Atom.to_string(reason)
+  defp reason_token(_reason), do: "storage_error"
+
+  defp safe_metadata_string(value) when is_binary(value) do
+    value
+    |> String.replace(~r/[\x00-\x1F\x7F]/, "")
+    |> String.replace("/", "")
+    |> String.replace("\\", "")
+    |> String.slice(0, 255)
+  end
+
+  defp safe_metadata_string(_value), do: nil
 
   defp parse_storage_ref(storage_ref) do
     uri = URI.parse(storage_ref)
@@ -273,9 +575,9 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
 
   defp ensure_storage_root(root_path) do
     case File.stat(root_path) do
-      {:ok, %File.Stat{type: :directory}} -> :ok
+      {:ok, %File.Stat{type: :directory}} -> set_directory_permissions(root_path)
       {:ok, _stat} -> {:error, :storage_unavailable}
-      {:error, :enoent} -> File.mkdir_p(root_path)
+      {:error, :enoent} -> ensure_storage_directory(root_path)
       {:error, _reason} -> {:error, :storage_unavailable}
     end
   end
@@ -327,10 +629,141 @@ defmodule LemmingsOs.Artifacts.LocalStorage do
     end
   end
 
-  defp copy_file(source, destination) do
-    case File.cp(source, destination) do
+  defp ensure_storage_directory(path) do
+    case File.mkdir_p(path) do
+      :ok -> set_directory_permissions(path)
+      {:error, _reason} -> {:error, :storage_unavailable}
+    end
+  end
+
+  defp copy_file_atomic(source, destination, max_file_size_bytes) do
+    temp_path = temp_path_for(destination)
+
+    result =
+      case File.open(source, [:read, :binary]) do
+        {:ok, source_device} ->
+          try do
+            copy_to_temp_and_rename(source_device, temp_path, destination, max_file_size_bytes)
+          after
+            _ = File.close(source_device)
+          end
+
+        {:error, _reason} ->
+          {:error, :copy_failed}
+      end
+
+    case result do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        _ = File.rm(temp_path)
+        {:error, reason}
+    end
+  end
+
+  defp copy_to_temp_and_rename(source_device, temp_path, destination, max_file_size_bytes) do
+    case File.open(temp_path, [:write, :binary, :exclusive]) do
+      {:ok, temp_device} ->
+        try do
+          with {:ok, _size_bytes} <-
+                 stream_copy_limited(source_device, temp_device, max_file_size_bytes),
+               :ok <- set_file_permissions(temp_path),
+               :ok <- rename_temp_file(temp_path, destination) do
+            set_file_permissions(destination)
+          end
+        after
+          _ = File.close(temp_device)
+        end
+
+      {:error, _reason} ->
+        {:error, :copy_failed}
+    end
+  end
+
+  defp stream_copy_limited(source_device, temp_device, max_file_size_bytes) do
+    do_stream_copy_limited(source_device, temp_device, max_file_size_bytes, 0)
+  end
+
+  defp do_stream_copy_limited(source_device, temp_device, max_file_size_bytes, bytes_written) do
+    case IO.binread(source_device, @copy_chunk_size) do
+      :eof ->
+        {:ok, bytes_written}
+
+      {:error, _reason} ->
+        {:error, :copy_failed}
+
+      chunk when is_binary(chunk) ->
+        next_bytes_written = bytes_written + byte_size(chunk)
+
+        if next_bytes_written > max_file_size_bytes do
+          {:error, :file_too_large}
+        else
+          :ok = IO.binwrite(temp_device, chunk)
+
+          do_stream_copy_limited(
+            source_device,
+            temp_device,
+            max_file_size_bytes,
+            next_bytes_written
+          )
+        end
+    end
+  end
+
+  defp rename_temp_file(temp_path, destination) do
+    case File.rename(temp_path, destination) do
       :ok -> :ok
-      {:error, reason} -> {:error, {:copy_failed, reason}}
+      {:error, _reason} -> {:error, :copy_failed}
+    end
+  end
+
+  defp temp_path_for(destination) do
+    directory = Path.dirname(destination)
+    base_name = Path.basename(destination)
+    suffix = System.unique_integer([:positive, :monotonic])
+    Path.join(directory, ".#{base_name}.tmp-#{suffix}")
+  end
+
+  defp set_directory_permissions(path) do
+    case File.chmod(path, 0o700) do
+      :ok -> :ok
+      {:error, :enotsup} -> :ok
+      {:error, :eperm} -> :ok
+      {:error, :einval} -> :ok
+      {:error, _reason} -> :ok
+    end
+  end
+
+  defp set_file_permissions(path) do
+    case File.chmod(path, 0o600) do
+      :ok -> :ok
+      {:error, :enotsup} -> :ok
+      {:error, :eperm} -> :ok
+      {:error, :einval} -> :ok
+      {:error, _reason} -> :ok
+    end
+  end
+
+  defp create_health_check_file(root_path) do
+    temp_file_path =
+      Path.join(
+        root_path,
+        ".storage-healthcheck-#{System.unique_integer([:positive, :monotonic])}"
+      )
+
+    with :ok <- File.write(temp_file_path, "ok", [:write, :exclusive]),
+         :ok <- set_file_permissions(temp_file_path) do
+      {:ok, temp_file_path}
+    else
+      {:error, _reason} -> {:error, :storage_unavailable}
+    end
+  end
+
+  defp delete_health_check_file(temp_file_path) do
+    case File.rm(temp_file_path) do
+      :ok -> :ok
+      {:error, _reason} -> {:error, :storage_unavailable}
     end
   end
 

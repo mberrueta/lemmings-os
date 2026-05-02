@@ -17,7 +17,8 @@ config :lemmings_os, :runtime_city_heartbeat,
 
 config :lemmings_os, :artifact_storage,
   backend: :local,
-  root_path: Path.expand("../priv/runtime/storage", __DIR__)
+  root_path: Path.expand("../priv/runtime/storage", __DIR__),
+  max_file_size_bytes: 100 * 1024 * 1024
 
 config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
 config :lemmings_os, :runtime_engine_on_startup, true
@@ -120,6 +121,10 @@ config :logger, :default_formatter,
     :skipped_count,
     :table,
     :path,
+    :artifact_id,
+    :filename,
+    :size_bytes,
+    :checksum,
     :bootstrap_path,
     :issue_count,
     :world_id,

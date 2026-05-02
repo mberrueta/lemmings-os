@@ -8,6 +8,8 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.Repo
 
+  @moduletag capture_log: true
+
   setup do
     old_artifact_storage = Application.get_env(:lemmings_os, :artifact_storage)
 
@@ -205,6 +207,13 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       refute headers_blob =~ stored_path
       refute headers_blob =~ artifact.storage_ref
       refute headers_blob =~ "artifact_storage"
+
+      repaired = Repo.get!(Artifact, artifact.id)
+      assert repaired.status == "error"
+      assert repaired.metadata["source"] == "manual_promotion"
+      assert repaired.metadata["storage_error_reason"] == "not_found"
+      assert repaired.metadata["storage_error_operation"] == "open"
+      assert is_binary(repaired.metadata["storage_error_at"])
     end
 
     test "DL05: invalid storage ref returns safe not found", %{
@@ -221,6 +230,53 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
         |> get(
           ~p"/lemmings/instances/#{instance.id}/artifacts/#{artifact.id}/download?#{%{world: world.id}}"
         )
+
+      assert response.status == 404
+      assert response.resp_body == "Artifact not found"
+
+      repaired = Repo.get!(Artifact, artifact.id)
+      assert repaired.status == "error"
+      assert repaired.metadata["storage_error_reason"] == "invalid_storage_ref"
+      assert repaired.metadata["storage_error_operation"] == "open"
+    end
+
+    test "returns world not found for unknown world", %{
+      conn: conn,
+      instance: instance,
+      test_root: test_root
+    } do
+      %{artifact: artifact} = insert_managed_artifact(instance, test_root)
+
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{instance.id}/artifacts/#{artifact.id}/download?#{%{world: Ecto.UUID.generate()}}"
+        )
+
+      assert response.status == 404
+      assert response.resp_body == "World not found"
+    end
+
+    test "returns artifact not found for unknown instance", %{
+      conn: conn,
+      world: world,
+      instance: instance,
+      test_root: test_root
+    } do
+      %{artifact: artifact} = insert_managed_artifact(instance, test_root)
+
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{Ecto.UUID.generate()}/artifacts/#{artifact.id}/download?#{%{world: world.id}}"
+        )
+
+      assert response.status == 404
+      assert response.resp_body == "Artifact not found"
+    end
+
+    test "falls back to artifact not found for non-download params", %{conn: conn} do
+      response = LemmingsOsWeb.InstanceArtifactController.download(conn, %{})
 
       assert response.status == 404
       assert response.resp_body == "Artifact not found"
@@ -246,6 +302,71 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       assert response.resp_body == "# Runtime workspace artifact\n"
       assert get_resp_header(response, "content-type") == ["application/octet-stream"]
       assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
+    end
+
+    test "returns world not found for unknown world", %{
+      conn: conn,
+      instance: instance
+    } do
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{instance.id}/artifacts/#{["reports", "runtime.md"]}?#{%{world: Ecto.UUID.generate()}}"
+        )
+
+      assert response.status == 404
+      assert response.resp_body == "World not found"
+    end
+
+    test "returns instance not found for unknown instance", %{
+      conn: conn,
+      world: world
+    } do
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{Ecto.UUID.generate()}/artifacts/#{["reports", "runtime.md"]}?#{%{world: world.id}}"
+        )
+
+      assert response.status == 404
+      assert response.resp_body == "Instance not found"
+    end
+
+    test "returns artifact not found for missing workspace file", %{
+      conn: conn,
+      world: world,
+      instance: instance
+    } do
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{instance.id}/artifacts/#{["reports", "missing.md"]}?#{%{world: world.id}}"
+        )
+
+      assert response.status == 404
+      assert response.resp_body == "Artifact not found"
+    end
+
+    test "returns artifact not found for unsafe workspace traversal", %{
+      conn: conn,
+      world: world,
+      instance: instance
+    } do
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{instance.id}/artifacts/#{["..", "secret.md"]}?#{%{world: world.id}}"
+        )
+
+      assert response.status == 404
+      assert response.resp_body == "Artifact not found"
+    end
+
+    test "falls back to artifact not found for non-show params", %{conn: conn} do
+      response = LemmingsOsWeb.InstanceArtifactController.show(conn, %{})
+
+      assert response.status == 404
+      assert response.resp_body == "Artifact not found"
     end
   end
 
