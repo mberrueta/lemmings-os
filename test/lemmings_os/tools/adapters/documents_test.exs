@@ -1,6 +1,7 @@
 defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
   use ExUnit.Case, async: false
   import ExUnit.CaptureLog
+  @moduletag capture_log: true
 
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.Adapters.Documents
@@ -221,6 +222,10 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
     runtime_meta: runtime_meta,
     work_area: work_area
   } do
+    previous_level = Logger.level()
+    Logger.configure(level: :info)
+    on_exit(fn -> Logger.configure(level: previous_level) end)
+
     bypass = Bypass.open()
 
     Application.put_env(
@@ -242,19 +247,29 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
       Plug.Conn.resp(conn, 200, "%PDF-1.7 mock pdf")
     end)
 
-    assert {:ok, result} =
-             Documents.print_to_pdf(
-               instance,
-               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
-               runtime_meta
-             )
+    log =
+      capture_log([level: :info], fn ->
+        assert {:ok, result} =
+                 Documents.print_to_pdf(
+                   instance,
+                   %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+                   runtime_meta
+                 )
 
-    assert result.summary == "Printed doc.html to doc.pdf"
-    assert result.result["content_type"] == "application/pdf"
-    assert result.result["source_path"] == "doc.html"
-    assert result.result["output_path"] == "doc.pdf"
-    assert is_integer(result.result["bytes"])
-    assert File.read!(Path.join(work_area, "doc.pdf")) == "%PDF-1.7 mock pdf"
+        assert result.summary == "Printed doc.html to doc.pdf"
+        assert result.result["content_type"] == "application/pdf"
+        assert result.result["source_path"] == "doc.html"
+        assert result.result["output_path"] == "doc.pdf"
+        assert is_integer(result.result["bytes"])
+        assert File.read!(Path.join(work_area, "doc.pdf")) == "%PDF-1.7 mock pdf"
+      end)
+
+    assert log =~ "documents print to pdf started"
+    assert log =~ "event=documents.print_to_pdf.started"
+    assert log =~ "documents print to pdf completed"
+    assert log =~ "event=documents.print_to_pdf.completed"
+    refute log =~ "<h1>Hello</h1>"
+    refute log =~ work_area
   end
 
   test "returns pdf_conversion_failed on non-2xx response", %{
@@ -284,12 +299,21 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
       &Plug.Conn.resp(&1, 500, "boom")
     )
 
-    assert {:error, %{code: "tool.documents.pdf_conversion_failed", details: %{"status" => 500}}} =
-             Documents.print_to_pdf(
-               instance,
-               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
-               runtime_meta
-             )
+    log =
+      capture_log(fn ->
+        assert {:error,
+                %{code: "tool.documents.pdf_conversion_failed", details: %{"status" => 500}}} =
+                 Documents.print_to_pdf(
+                   instance,
+                   %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+                   runtime_meta
+                 )
+      end)
+
+    assert log =~ "event=documents.print_to_pdf.backend_failed"
+    assert log =~ "status=500"
+    refute log =~ "boom"
+    refute log =~ work_area
   end
 
   test "returns pdf_backend_unavailable on transport failure", %{

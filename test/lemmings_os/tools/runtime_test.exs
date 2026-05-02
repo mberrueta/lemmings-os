@@ -1,5 +1,6 @@
 defmodule LemmingsOs.Tools.RuntimeTest do
   use LemmingsOs.DataCase, async: false
+  @moduletag capture_log: true
 
   import Ecto.Query, only: [from: 2]
 

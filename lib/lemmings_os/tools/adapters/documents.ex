@@ -103,39 +103,74 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
           adapter_success() | adapter_error()
   def print_to_pdf(%LemmingInstance{} = instance, args, runtime_meta \\ %{})
       when is_map(args) and is_map(runtime_meta) do
-    with {:ok, print_args} <- validate_print_to_pdf_args(args),
-         {:ok, source} <- resolve_work_area_path(instance, print_args.source_path, runtime_meta),
-         {:ok, output} <- resolve_work_area_path(instance, print_args.output_path, runtime_meta),
-         :ok <- validate_source_pdf_extension(source.relative_path),
-         :ok <- validate_pdf_output_extension(output.relative_path),
-         :ok <- ensure_source_exists(source.relative_path, source.absolute_path),
-         :ok <-
-           ensure_output_writable(
-             output.relative_path,
-             output.absolute_path,
-             print_args.overwrite
-           ),
-         {:ok, source_content} <- read_source_binary(source.relative_path, source.absolute_path),
-         :ok <- validate_source_size(source.relative_path, source_content),
-         {:ok, html_body} <-
-           source_to_html(source.relative_path, source_content, print_args.print_raw_file),
-         {:ok, resolved_assets} <-
-           resolve_print_assets(instance, source, print_args, runtime_meta),
-         :ok <- enforce_asset_policy(source.relative_path, html_body, resolved_assets),
-         {:ok, pdf_binary} <- convert_html_to_pdf(html_body, print_args, resolved_assets),
-         {:ok, bytes} <- write_pdf_atomic(output.relative_path, output.absolute_path, pdf_binary) do
-      {:ok,
-       %{
-         summary: "Printed #{source.relative_path} to #{output.relative_path}",
-         preview: nil,
-         result: %{
-           "source_path" => source.relative_path,
-           "output_path" => output.relative_path,
-           "content_type" => "application/pdf",
-           "bytes" => bytes
-         }
-       }}
+    started_at = System.monotonic_time()
+
+    result =
+      with {:ok, print_args} <- validate_print_to_pdf_args(args),
+           {:ok, source} <-
+             resolve_work_area_path(instance, print_args.source_path, runtime_meta),
+           {:ok, output} <-
+             resolve_work_area_path(instance, print_args.output_path, runtime_meta),
+           :ok <- validate_source_pdf_extension(source.relative_path),
+           :ok <- validate_pdf_output_extension(output.relative_path),
+           :ok <- ensure_source_exists(source.relative_path, source.absolute_path),
+           :ok <-
+             ensure_output_writable(
+               output.relative_path,
+               output.absolute_path,
+               print_args.overwrite
+             ),
+           {:ok, source_content} <-
+             read_source_binary(source.relative_path, source.absolute_path),
+           :ok <- validate_source_size(source.relative_path, source_content),
+           :ok <-
+             log_print_started(instance, runtime_meta, source.relative_path, output.relative_path),
+           {:ok, html_body} <-
+             source_to_html(source.relative_path, source_content, print_args.print_raw_file),
+           {:ok, resolved_assets} <-
+             resolve_print_assets(instance, source, print_args, runtime_meta),
+           :ok <- enforce_asset_policy(source.relative_path, html_body, resolved_assets),
+           {:ok, pdf_binary} <- convert_html_to_pdf(html_body, print_args, resolved_assets),
+           {:ok, bytes} <-
+             write_pdf_atomic(output.relative_path, output.absolute_path, pdf_binary) do
+        {:ok,
+         %{
+           summary: "Printed #{source.relative_path} to #{output.relative_path}",
+           preview: nil,
+           result: %{
+             "source_path" => source.relative_path,
+             "output_path" => output.relative_path,
+             "content_type" => "application/pdf",
+             "bytes" => bytes
+           }
+         }}
+      end
+
+    duration_ms =
+      System.convert_time_unit(System.monotonic_time() - started_at, :native, :millisecond)
+
+    case result do
+      {:ok, output} ->
+        Logger.info(
+          "documents print to pdf completed",
+          [event: "documents.print_to_pdf.completed"] ++
+            print_log_metadata(instance, runtime_meta,
+              source_path: nil,
+              output_path: output.result["output_path"]
+            ) ++
+            [
+              duration_ms: duration_ms,
+              size_bytes: output.result["bytes"],
+              reason: "ok",
+              status: "ok"
+            ]
+        )
+
+      {:error, %{code: code} = error} ->
+        log_print_failure(error, code, duration_ms)
     end
+
+    result
   end
 
   defp validate_markdown_to_html_args(args) do
@@ -394,9 +429,6 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
       {:error, html_document, _messages} when is_binary(html_document) ->
         {:ok, html_document}
-
-      _ ->
-        markdown_render_failed()
     end
   rescue
     _ ->
@@ -1185,6 +1217,9 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   end
 
   defp request_pdf_with_retry(request_fun, retries_left) when is_function(request_fun, 0) do
+    max_retries = pdf_retries()
+    attempt = max_retries - retries_left + 1
+
     case request_fun.() do
       {:ok, %Req.Response{status: status, body: body}}
       when status in 200..299 and is_binary(body) ->
@@ -1192,9 +1227,23 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
       {:ok, %Req.Response{status: status}}
       when status in @retryable_statuses and retries_left > 0 ->
+        Logger.warning("documents print to pdf backend retry",
+          event: "documents.print_to_pdf.backend_retry",
+          status: to_string(status),
+          reason: "retryable_status",
+          retry_count: attempt,
+          max_retries: max_retries
+        )
+
         request_pdf_with_retry(request_fun, retries_left - 1)
 
       {:ok, %Req.Response{status: status}} ->
+        Logger.error("documents print to pdf backend failed",
+          event: "documents.print_to_pdf.backend_failed",
+          status: to_string(status),
+          reason: "backend_status"
+        )
+
         {:error,
          %{
            code: "tool.documents.pdf_conversion_failed",
@@ -1204,9 +1253,21 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
       {:error, %Req.TransportError{reason: reason}}
       when retries_left > 0 and reason in [:timeout, :econnrefused, :closed] ->
+        Logger.warning("documents print to pdf backend retry",
+          event: "documents.print_to_pdf.backend_retry",
+          reason: normalize_transport_reason(reason),
+          retry_count: attempt,
+          max_retries: max_retries
+        )
+
         request_pdf_with_retry(request_fun, retries_left - 1)
 
       {:error, %Req.TransportError{reason: _reason}} ->
+        Logger.error("documents print to pdf backend unavailable",
+          event: "documents.print_to_pdf.backend_unavailable",
+          reason: "transport_error"
+        )
+
         {:error,
          %{
            code: "tool.documents.pdf_backend_unavailable",
@@ -1215,6 +1276,11 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
          }}
 
       {:error, _} ->
+        Logger.error("documents print to pdf backend unavailable",
+          event: "documents.print_to_pdf.backend_unavailable",
+          reason: "request_failed"
+        )
+
         {:error,
          %{
            code: "tool.documents.pdf_backend_unavailable",
@@ -1222,6 +1288,98 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
            details: %{}
          }}
     end
+  rescue
+    _ ->
+      Logger.error("documents print to pdf backend unavailable",
+        event: "documents.print_to_pdf.backend_unavailable",
+        reason: "unexpected_error"
+      )
+
+      {:error,
+       %{
+         code: "tool.documents.pdf_backend_unavailable",
+         message: "PDF backend is unavailable",
+         details: %{}
+       }}
+  end
+
+  defp normalize_transport_reason(:timeout), do: "timeout"
+  defp normalize_transport_reason(:econnrefused), do: "connection_refused"
+  defp normalize_transport_reason(:closed), do: "connection_closed"
+
+  defp log_print_started(instance, runtime_meta, source_path, output_path) do
+    Logger.info(
+      "documents print to pdf started",
+      [event: "documents.print_to_pdf.started", reason: "start"] ++
+        print_log_metadata(instance, runtime_meta,
+          source_path: source_path,
+          output_path: output_path
+        )
+    )
+
+    :ok
+  end
+
+  defp log_print_failure(error, code, duration_ms) do
+    level = print_failure_level(code)
+    event = print_failure_event(code)
+    reason = print_failure_reason(code)
+    status = print_failure_status(error)
+    path = print_failure_path(error)
+
+    Logger.log(level, "documents print to pdf failed",
+      event: event,
+      reason: reason,
+      duration_ms: duration_ms,
+      status: status,
+      path: path
+    )
+  end
+
+  defp print_failure_level("tool.documents.pdf_conversion_failed"), do: :error
+  defp print_failure_level("tool.documents.pdf_backend_unavailable"), do: :error
+  defp print_failure_level(_code), do: :warning
+
+  defp print_failure_event("tool.documents.pdf_conversion_failed"),
+    do: "documents.print_to_pdf.backend_failed"
+
+  defp print_failure_event("tool.documents.pdf_backend_unavailable"),
+    do: "documents.print_to_pdf.backend_unavailable"
+
+  defp print_failure_event(_code), do: "documents.print_to_pdf.failed"
+
+  defp print_failure_reason(code) do
+    code
+    |> String.replace_prefix("tool.documents.", "")
+    |> String.replace(".", "_")
+  end
+
+  defp print_failure_status(%{details: %{"status" => status}}) when is_integer(status),
+    do: to_string(status)
+
+  defp print_failure_status(_error), do: "error"
+
+  defp print_failure_path(%{details: %{"output_path" => path}}) when is_binary(path), do: path
+  defp print_failure_path(%{details: %{"source_path" => path}}) when is_binary(path), do: path
+  defp print_failure_path(_error), do: nil
+
+  defp print_log_metadata(instance, runtime_meta, opts) do
+    source_path = Keyword.get(opts, :source_path)
+    output_path = Keyword.get(opts, :output_path)
+
+    [
+      path: output_path || source_path,
+      instance_id: Map.get(instance, :id),
+      world_id: runtime_meta_value(runtime_meta, :world_id),
+      city_id: runtime_meta_value(runtime_meta, :city_id),
+      department_id: runtime_meta_value(runtime_meta, :department_id),
+      work_area_ref: runtime_meta_value(runtime_meta, :work_area_ref)
+    ]
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+  end
+
+  defp runtime_meta_value(runtime_meta, key) do
+    Map.get(runtime_meta, key) || Map.get(runtime_meta, Atom.to_string(key))
   end
 
   defp validate_pdf_size(pdf_binary) do
