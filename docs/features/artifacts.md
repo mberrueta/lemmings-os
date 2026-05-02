@@ -55,12 +55,39 @@ Artifact bytes are stored in managed local filesystem storage.
 
 - Config key: `:lemmings_os, :artifact_storage`
 - Backend: `:local` only
-- Runtime env override: `LEMMINGS_ARTIFACT_STORAGE_PATH`
+- Runtime env override: `LEMMINGS_ARTIFACT_STORAGE_ROOT`
 - Default root path: `priv/runtime/storage`
+- Default max file size: `100 * 1024 * 1024` bytes
 - Physical layout: `<artifact_storage_root>/<world_id>/<artifact_id>/<filename>`
 - Durable reference format: `local://artifacts/<world_id>/<artifact_id>/<filename>`
 
 Promotion copies the source workspace file into managed storage (source file is not moved).
+The local backend writes through a temporary file in the target directory and
+renames into place after the copy succeeds. Directory and file permissions are
+best-effort private filesystem permissions where the host supports them.
+
+Artifact metadata lives in Postgres. Artifact bytes do not. A row with
+`storage_ref`, `checksum`, and `size_bytes` is only the database side of the
+durable Artifact; the corresponding file under the configured storage root must
+also be retained.
+
+## Self-host and backup requirements
+
+Container and self-host deployments must mount the artifact storage root on
+persistent storage. If the configured root is inside an ephemeral container
+filesystem, promoted Artifact bytes are lost on container replacement or host
+restart even though their database rows remain.
+
+Backups must include both:
+- the Postgres database
+- the artifact storage root or volume
+
+A DB-only backup is insufficient because it restores Artifact metadata without
+the file bytes. A filesystem-only backup is also insufficient because it lacks
+scope, lifecycle, checksum, content type, and provenance metadata.
+
+Soft-deleted Artifacts are lifecycle rows only. Setting status to `deleted` does
+not physically purge the managed file in this implementation.
 
 ## Collision and update behavior
 
@@ -98,11 +125,13 @@ Two routes exist:
 
 1. Durable Artifact download route:
 - `GET /lemmings/instances/:instance_id/artifacts/:artifact_id/download`
-- world + instance + artifact scope is validated before storage ref resolution
+- world + instance + artifact scope is validated before storage open
 - only `ready` Artifacts are downloadable by default
 - response includes safe headers:
   - `x-content-type-options: nosniff`
   - `content-disposition: attachment; filename="..."`
+- missing or broken managed storage returns a safe `404` and marks the ready
+  Artifact as `error` with safe storage-error metadata
 
 2. Workspace compatibility route (legacy path-based open/download):
 - `GET /lemmings/instances/:instance_id/artifacts/*path`
@@ -130,7 +159,8 @@ In this implementation slice:
 
 - Artifact lifecycle operations do not write durable audit/event rows to `events`
 - Artifact code does not rely on `LemmingsOs.Events` for lifecycle audit semantics
-- observability is limited to lightweight non-durable logging/telemetry
+- observability is limited to lightweight non-durable Logger metadata and
+  `:telemetry` events under `[:lemmings_os, :artifact_storage, ...]`
 
 ## Out of scope
 
@@ -140,6 +170,11 @@ Not implemented:
 - Artifact version graph/workflows
 - durable Artifact read/download audit taxonomy
 - Artifact content ingestion/RAG workflows
+- physical cleanup/retention of soft-deleted files
+- encryption at rest beyond host filesystem permissions
+- content scanning or malware scanning
+- previews/thumbnails
+- cross-City shared Artifact storage
 
 ## Future work
 

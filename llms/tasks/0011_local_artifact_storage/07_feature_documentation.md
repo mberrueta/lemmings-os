@@ -1,8 +1,8 @@
 # Task 07: Feature Documentation
 
 ## Status
-- **Status**: ⏳ PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETE
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 `docs-feature-documentation-author` - Feature documentation writer aligned with actual application behavior.
@@ -22,7 +22,7 @@ Document the local Artifact storage operational contract after implementation is
 - [ ] Final implemented config behavior from `config/runtime.exs`
 
 ## Expected Outputs
-- [ ] Docs mention `LEMMINGS_ARTIFACT_STORAGE_ROOT` and optional deprecated `LEMMINGS_ARTIFACT_STORAGE_PATH` fallback if implemented.
+- [ ] Docs mention `LEMMINGS_ARTIFACT_STORAGE_ROOT`.
 - [ ] Docs explain DB metadata vs filesystem bytes split.
 - [ ] Docs explain required persistent volume for Docker/self-host deployments.
 - [ ] Docs state DB-only backup is insufficient; DB and artifact volume must both be backed up.
@@ -57,7 +57,10 @@ llms/tasks/0011_local_artifact_storage/plan.md
 ---
 
 ## Execution Summary
-*[Filled by executing agent after completion]*
+- Updated `docs/features/artifacts.md` with the implemented local storage contract.
+- Documented `LEMMINGS_ARTIFACT_STORAGE_ROOT`, default max file size, local layout, and local-only backend behavior.
+- Documented the Postgres metadata vs filesystem bytes split, persistent volume requirement, and DB-plus-artifact-volume backup requirement.
+- Documented soft-delete non-purge behavior and future-work boundaries including S3/MinIO, cleanup/retention, scanning, previews, RAG ingestion, cross-City storage, and versioning.
 
 ## Human Review
 *[Filled by human reviewer]*

@@ -8,6 +8,8 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.Repo
 
+  @moduletag capture_log: true
+
   setup do
     old_artifact_storage = Application.get_env(:lemmings_os, :artifact_storage)
 
@@ -205,6 +207,13 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       refute headers_blob =~ stored_path
       refute headers_blob =~ artifact.storage_ref
       refute headers_blob =~ "artifact_storage"
+
+      repaired = Repo.get!(Artifact, artifact.id)
+      assert repaired.status == "error"
+      assert repaired.metadata["source"] == "manual_promotion"
+      assert repaired.metadata["storage_error_reason"] == "not_found"
+      assert repaired.metadata["storage_error_operation"] == "open"
+      assert is_binary(repaired.metadata["storage_error_at"])
     end
 
     test "DL05: invalid storage ref returns safe not found", %{
@@ -224,6 +233,11 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
 
       assert response.status == 404
       assert response.resp_body == "Artifact not found"
+
+      repaired = Repo.get!(Artifact, artifact.id)
+      assert repaired.status == "error"
+      assert repaired.metadata["storage_error_reason"] == "invalid_storage_ref"
+      assert repaired.metadata["storage_error_operation"] == "open"
     end
   end
 

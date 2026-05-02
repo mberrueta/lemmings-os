@@ -13,7 +13,7 @@ This issue does not redefine Artifact lifecycle, promotion UI, download authoriz
 - `LemmingsOs.Artifacts.LocalStorage` already builds `local://artifacts/...` refs, resolves trusted refs under the configured root, copies files, and computes checksum/size.
 - `LemmingsOs.Artifacts.Promotion` already promotes workspace files and supports explicit `:update_existing` and `:promote_as_new` behavior.
 - `InstanceArtifactController.download/2` currently resolves storage refs and reads files directly for downloads after scope/status checks.
-- Runtime config currently reads `LEMMINGS_ARTIFACT_STORAGE_PATH`; this issue standardizes on `LEMMINGS_ARTIFACT_STORAGE_ROOT`.
+- Runtime config standardizes on `LEMMINGS_ARTIFACT_STORAGE_ROOT`.
 - `Artifact` metadata validation currently allows only empty metadata or `%{"source" => "manual_promotion"}`; it must be extended narrowly for safe storage error metadata.
 
 ## Decisions
@@ -25,7 +25,7 @@ This issue does not redefine Artifact lifecycle, promotion UI, download authoriz
 - V1 adapter callbacks are `put/4`, `open/2`, `path_for/2`, `exists?/2`, and `health_check/1`; do not include `delete/2` because physical deletion is out of scope.
 - `path_for/2` is trusted/internal only. Public Artifact APIs must not expose resolved filesystem paths.
 - `open/2` returns an internal trusted path only after the caller has performed Artifact scope/status checks. Its contract is `{:ok, %{path: path, filename: filename, content_type: content_type, size_bytes: size_bytes}} | {:error, reason_token}`.
-- `LEMMINGS_ARTIFACT_STORAGE_ROOT` is the primary runtime env var. `LEMMINGS_ARTIFACT_STORAGE_PATH` may be supported only as a deprecated fallback to avoid breaking existing local envs.
+- `LEMMINGS_ARTIFACT_STORAGE_ROOT` is the runtime env var for the local storage root.
 - Default `max_file_size_bytes` is `100 * 1024 * 1024`.
 - Observability uses existing repo conventions: safe `Logger` metadata and `:telemetry.execute/3`; do not invent an undefined artifact event helper.
 - Canonical telemetry event names are atom-list events under `[:lemmings_os, :artifact_storage, ...]`. String-style names are allowed only in Logger `:event` metadata or log messages.
@@ -37,16 +37,16 @@ This issue does not redefine Artifact lifecycle, promotion UI, download authoriz
 | # | Task | Agent | Status | Approved |
 |---|------|-------|--------|----------|
 | 01 | Storage Test Scenarios | `qa-test-scenarios` | ⏳ PENDING | [ ] |
-| 02 | Adapter Config Contract | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
-| 03 | Local Storage Hardening | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
-| 04 | Artifact Context And Downloads | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
-| 05 | Storage Observability | `dev-logging-daily-guardian` | ⏳ PENDING | [ ] |
-| 06 | Storage Test Coverage | `qa-elixir-test-author` | ⏳ PENDING | [ ] |
-| 07 | Feature Documentation | `docs-feature-documentation-author` | ⏳ PENDING | [ ] |
-| 08 | Accessibility Scope Review | `audit-accessibility` | ⏳ PENDING | [ ] |
-| 09 | Security Audit | `audit-security` | ⏳ PENDING | [ ] |
-| 10 | Staff Elixir PR Audit | `audit-pr-elixir` | ⏳ PENDING | [ ] |
-| 11 | Release Validation | `rm-release-manager` | ⏳ PENDING | [ ] |
+| 02 | Adapter Config Contract | `dev-backend-elixir-engineer` | COMPLETE | [ ] |
+| 03 | Local Storage Hardening | `dev-backend-elixir-engineer` | COMPLETE | [ ] |
+| 04 | Artifact Context And Downloads | `dev-backend-elixir-engineer` | COMPLETE | [ ] |
+| 05 | Storage Observability | `dev-logging-daily-guardian` | COMPLETE | [ ] |
+| 06 | Storage Test Coverage | `qa-elixir-test-author` | COMPLETE | [ ] |
+| 07 | Feature Documentation | `docs-feature-documentation-author` | COMPLETE | [ ] |
+| 08 | Accessibility Scope Review | `audit-accessibility` | COMPLETE | [ ] |
+| 09 | Security Audit | `audit-security` | COMPLETE | [ ] |
+| 10 | Staff Elixir PR Audit | `audit-pr-elixir` | COMPLETE | [ ] |
+| 11 | Release Validation | `rm-release-manager` | COMPLETE | [ ] |
 
 Each task requires human approval before the next starts. Human reviewers own all git operations.
 
@@ -111,7 +111,7 @@ Each task requires human approval before the next starts. Human reviewers own al
 
 - [ ] `LemmingsOs.Artifacts.Storage.Adapter` exists with no physical delete callback in v1.
 - [ ] Existing `LemmingsOs.Artifacts.LocalStorage` implements or delegates behind the adapter without creating a duplicate local storage implementation.
-- [ ] Storage root is configurable through app config and `LEMMINGS_ARTIFACT_STORAGE_ROOT`, with `LEMMINGS_ARTIFACT_STORAGE_PATH` only as an optional deprecated fallback.
+- [ ] Storage root is configurable through app config and `LEMMINGS_ARTIFACT_STORAGE_ROOT`.
 - [ ] Canonical persisted refs use `local://artifacts/<world_id>/<artifact_id>/<safe_filename>` and never absolute filesystem paths.
 - [ ] Storage path uses `<root>/<world_id>/<artifact_id>/<safe_filename>`.
 - [ ] Writes and explicit updates use temp file plus atomic rename.

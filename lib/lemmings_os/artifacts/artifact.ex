@@ -28,6 +28,8 @@ defmodule LemmingsOs.Artifacts.Artifact do
   @required ~w(world_id filename type content_type storage_ref size_bytes checksum status metadata)a
   @optional ~w(city_id department_id lemming_id lemming_instance_id created_by_tool_execution_id notes)a
   @allowed_metadata_sources ~w(manual_promotion)
+  @allowed_storage_error_keys ~w(storage_error_reason storage_error_operation storage_error_at)
+  @allowed_metadata_keys ["source" | @allowed_storage_error_keys]
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -187,20 +189,11 @@ defmodule LemmingsOs.Artifacts.Artifact do
     end)
   end
 
-  defp metadata_contract_errors(%{} = metadata) do
-    with :ok <- validate_metadata_keys(metadata),
-         :ok <- validate_metadata_source(metadata) do
-      []
-    else
-      {:error, reason} -> [metadata: reason]
-    end
-  end
-
   defp validate_metadata_keys(metadata) do
-    case Map.keys(metadata) do
-      [] -> :ok
-      ["source"] -> :ok
-      _keys -> {:error, dgettext("errors", ".invalid_value")}
+    if Enum.all?(Map.keys(metadata), &(&1 in @allowed_metadata_keys)) do
+      :ok
+    else
+      {:error, dgettext("errors", ".invalid_value")}
     end
   end
 
@@ -211,4 +204,35 @@ defmodule LemmingsOs.Artifacts.Artifact do
     do: {:error, dgettext("errors", ".invalid_choice")}
 
   defp validate_metadata_source(%{}), do: :ok
+
+  defp metadata_contract_errors(%{} = metadata) do
+    with :ok <- validate_metadata_keys(metadata),
+         :ok <- validate_metadata_source(metadata),
+         :ok <- validate_storage_error_metadata(metadata) do
+      []
+    else
+      {:error, reason} -> [metadata: reason]
+    end
+  end
+
+  defp validate_storage_error_metadata(metadata) do
+    metadata
+    |> Map.take(@allowed_storage_error_keys)
+    |> Enum.reduce_while(:ok, fn {_key, value}, :ok ->
+      if safe_storage_error_value?(value) do
+        {:cont, :ok}
+      else
+        {:halt, {:error, dgettext("errors", ".invalid_value")}}
+      end
+    end)
+  end
+
+  defp safe_storage_error_value?(value) when is_binary(value) do
+    value != "" and byte_size(value) <= 256 and not String.contains?(value, <<0>>) and
+      not Regex.match?(~r/[\x00-\x1F\x7F]/, value) and
+      not String.contains?(value, "/") and not String.contains?(value, "\\") and
+      not Regex.match?(~r/[A-Za-z]:/, value)
+  end
+
+  defp safe_storage_error_value?(_value), do: false
 end

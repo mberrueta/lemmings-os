@@ -10,6 +10,7 @@ defmodule LemmingsOs.Artifacts do
   import Ecto.Query, warn: false
 
   alias LemmingsOs.Artifacts.Artifact
+  alias LemmingsOs.Artifacts.LocalStorage
   alias LemmingsOs.Artifacts.Promotion
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
@@ -19,6 +20,7 @@ defmodule LemmingsOs.Artifacts do
   alias LemmingsOs.Worlds.World
 
   @ready_status "ready"
+  @error_status "error"
   @artifact_statuses Artifact.statuses()
   @status_fields ~w(status statuses include_non_ready)a
   @scope_fields ~w(world_id city_id department_id lemming_id lemming_instance_id)a
@@ -78,6 +80,13 @@ defmodule LemmingsOs.Artifacts do
           filename: String.t(),
           content_type: String.t(),
           storage_ref: String.t()
+        }
+
+  @type opened_download :: %{
+          path: String.t(),
+          filename: String.t(),
+          content_type: String.t(),
+          size_bytes: non_neg_integer()
         }
 
   @doc """
@@ -202,6 +211,39 @@ defmodule LemmingsOs.Artifacts do
   end
 
   def get_artifact_download(_scope, _artifact_id), do: {:error, :invalid_scope}
+
+  @doc """
+  Opens one ready Artifact for trusted download use after scope/status checks.
+
+  If a ready Artifact points at missing or unreadable storage, the record is
+  marked `error` with safe storage metadata. That write is an intentional
+  consistency repair for broken storage, not a general read-side mutation.
+
+  ## Examples
+
+      iex> LemmingsOs.Artifacts.open_artifact_download(%{city_id: Ecto.UUID.generate()}, Ecto.UUID.generate())
+      {:error, :invalid_scope}
+  """
+  @spec open_artifact_download(scope(), Ecto.UUID.t()) ::
+          {:ok, opened_download()} | {:error, :invalid_scope | :not_found}
+  def open_artifact_download(scope, artifact_id) when is_binary(artifact_id) do
+    with {:ok, scope_data} <- scope_data(scope),
+         {:ok, artifact} <- get_ready_artifact_record(scope_data, artifact_id) do
+      case LocalStorage.open(artifact.storage_ref,
+             filename: artifact.filename,
+             content_type: artifact.content_type
+           ) do
+        {:ok, opened} ->
+          {:ok, opened}
+
+        {:error, reason} ->
+          mark_storage_error(artifact, :open, reason)
+          {:error, :not_found}
+      end
+    end
+  end
+
+  def open_artifact_download(_scope, _artifact_id), do: {:error, :invalid_scope}
 
   @doc """
   Lists `ready` artifacts in an explicit scope.
@@ -367,6 +409,33 @@ defmodule LemmingsOs.Artifacts do
     |> Repo.one()
     |> normalize_artifact_result()
   end
+
+  defp get_ready_artifact_record(scope_data, artifact_id) do
+    Artifact
+    |> filter_query(scope_filters(scope_data))
+    |> filter_query(id: artifact_id, status: @ready_status)
+    |> Repo.one()
+    |> normalize_artifact_result()
+  end
+
+  defp mark_storage_error(%Artifact{} = artifact, operation, reason) do
+    metadata =
+      artifact.metadata
+      |> Map.take(["source"])
+      |> Map.merge(%{
+        "storage_error_reason" => safe_reason(reason),
+        "storage_error_operation" => Atom.to_string(operation),
+        "storage_error_at" =>
+          DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      })
+
+    artifact
+    |> Artifact.changeset(%{status: @error_status, metadata: metadata})
+    |> Repo.update()
+  end
+
+  defp safe_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp safe_reason({reason, _detail}) when is_atom(reason), do: Atom.to_string(reason)
 
   defp normalize_read_result(nil), do: {:error, :not_found}
   defp normalize_read_result(%Artifact{} = artifact), do: {:ok, artifact_descriptor(artifact)}

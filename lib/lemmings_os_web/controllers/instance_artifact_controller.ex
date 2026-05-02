@@ -12,7 +12,6 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
   use LemmingsOsWeb, :controller
 
   alias LemmingsOs.Artifacts
-  alias LemmingsOs.Artifacts.LocalStorage
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.Worlds
 
@@ -20,9 +19,8 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
     with %{} = world <- resolve_world(params),
          {:ok, instance_id} <- fetch_instance_id(params),
          {:ok, instance} <- LemmingInstances.get_instance(instance_id, world: world),
-         {:ok, artifact} <- Artifacts.get_artifact_download(instance, artifact_id),
-         {:ok, absolute_path} <- LocalStorage.resolve_storage_ref(artifact.storage_ref),
-         {:ok, content} <- File.read(absolute_path) do
+         {:ok, artifact} <- Artifacts.open_artifact_download(instance, artifact_id),
+         {:ok, content} <- File.read(artifact.path) do
       conn
       |> put_resp_header("content-type", artifact.content_type)
       |> put_resp_header("x-content-type-options", "nosniff")
@@ -32,8 +30,6 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
       nil -> send_resp(conn, 404, "World not found")
       {:error, :missing_instance_id} -> send_resp(conn, 404, "Artifact not found")
       {:error, :not_found} -> send_resp(conn, 404, "Artifact not found")
-      {:error, :invalid_storage_ref} -> send_resp(conn, 404, "Artifact not found")
-      {:error, :storage_unavailable} -> send_resp(conn, 404, "Artifact not found")
       {:error, :enoent} -> send_resp(conn, 404, "Artifact not found")
       {:error, _reason} -> send_resp(conn, 404, "Artifact not found")
     end
