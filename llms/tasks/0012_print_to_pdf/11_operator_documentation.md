@@ -85,3 +85,11 @@ Update operator/developer documentation for `documents.markdown_to_html`, `docum
 
 ## Human Review
 Human reviewer confirms documentation accuracy before Task 12 begins.
+
+## Post-Completion Addendum (2026-05-03)
+
+- Follow-up UI/runtime behavior now exposes workspace output links and manual Artifact promotion actions for successful tool outputs (including documents tools).
+- Documentation intent is unchanged on core tool behavior: document outputs are created in the WorkArea first and are **not auto-promoted**.
+- Acceptance wording should be interpreted as:
+  - docs must not imply automatic Artifact persistence/promotion by the tools themselves
+  - explicit/manual promotion remains a separate operator action

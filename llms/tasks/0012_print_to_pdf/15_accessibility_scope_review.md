@@ -72,3 +72,26 @@ Verify that the document tools did not introduce UI accessibility impact. If imp
 
 ## Human Review
 Human reviewer approves the accessibility scope decision before Task 16 begins.
+
+## Post-Completion Addendum (2026-05-03)
+
+### Scope Correction
+- A later follow-up diff for this feature **did** include operator-facing UI updates:
+  - tool-card workspace download links for successful outputs
+  - shared output-candidate extraction used by LiveView/components
+  - workspace-file route wiring for downloads
+
+### Accessibility Re-Check Decision
+- Re-audited changed UI surfaces and interaction points:
+  - link visibility remains state-gated (`ok` tool executions only)
+  - existing promotion controls and stable DOM IDs remain intact
+  - no new keyboard trap, focus-loss, or missing-label issues were introduced by this change set
+- Result: no blocking accessibility findings for the added UI behavior.
+
+### Files In Scope (Follow-up UI delta)
+- `lib/lemmings_os_web/components/instance_components.ex`
+- `lib/lemmings_os_web/live/instance_live.ex`
+- `lib/lemmings_os_web/controllers/instance_artifact_controller.ex`
+- `lib/lemmings_os_web/router.ex`
+- `test/lemmings_os_web/live/instance_live_test.exs`
+- `test/lemmings_os_web/controllers/instance_artifact_controller_test.exs`

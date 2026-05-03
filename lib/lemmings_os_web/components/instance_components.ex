@@ -5,6 +5,8 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   use LemmingsOsWeb, :html
 
+  alias LemmingsOs.Tools.ToolExecutionOutputs
+
   @default_max_retries 3
 
   attr :id, :string, default: nil
@@ -1065,31 +1067,30 @@ defmodule LemmingsOsWeb.InstanceComponents do
   defp tool_preview(_tool_execution), do: nil
 
   defp tool_artifact_link(tool_execution, world_id) do
-    with true <- tool_execution.tool_name == "fs.write_text_file",
+    with true <- tool_execution.status in ["ok", :ok],
          true <- is_binary(world_id) and world_id != "",
-         label when is_binary(label) <- tool_artifact_label(tool_execution),
-         true <- Path.type(label) == :relative,
-         path_segments when is_list(path_segments) <- String.split(label, "/", trim: true),
+         %{relative_path: relative_path} <-
+           ToolExecutionOutputs.workspace_output_candidate(tool_execution),
+         path_segments when is_list(path_segments) <-
+           String.split(relative_path, "/", trim: true),
          true <- path_segments != [] do
       %{
-        label: label,
+        label: relative_path,
         href:
-          ~p"/lemmings/instances/#{tool_execution.lemming_instance_id}/artifacts/#{path_segments}?#{%{world: world_id}}"
+          ~p"/lemmings/instances/#{tool_execution.lemming_instance_id}/workspace_files/#{path_segments}?#{%{world: world_id}}"
       }
     else
       _ -> nil
     end
   end
 
-  defp tool_artifact_label(%{args: %{"path" => path}}) when is_binary(path) and path != "",
-    do: path
+  defp tool_artifact_label(%{status: status} = tool_execution) when status in ["ok", :ok] do
+    case ToolExecutionOutputs.workspace_output_candidate(tool_execution) do
+      %{relative_path: relative_path} -> relative_path
+      _other -> nil
+    end
+  end
 
-  defp tool_artifact_label(%{args: %{path: path}}) when is_binary(path) and path != "", do: path
-
-  defp tool_artifact_label(%{result: %{"path" => path}}) when is_binary(path) and path != "",
-    do: path
-
-  defp tool_artifact_label(%{result: %{path: path}}) when is_binary(path) and path != "", do: path
   defp tool_artifact_label(_tool_execution), do: nil
 
   defp artifact_download_link(

@@ -148,3 +148,31 @@ Run or verify the final validation sequence, capture operational notes for Goten
 
 ## Human Review
 Human reviewer gives final sign-off and performs any git operations.
+
+## Post-Completion Addendum (2026-05-03)
+
+### Additional Validated Outputs
+- Follow-up implementation/test updates included:
+  - `lib/lemmings_os/tools/tool_execution_outputs.ex`
+  - `lib/lemmings_os_web/components/instance_components.ex`
+  - `lib/lemmings_os_web/live/instance_live.ex`
+  - `lib/lemmings_os_web/controllers/instance_artifact_controller.ex`
+  - `lib/lemmings_os_web/router.ex`
+  - `test/lemmings_os/tools/tool_execution_outputs_test.exs`
+  - `test/lemmings_os_web/live/instance_live_test.exs`
+  - `test/lemmings_os_web/controllers/instance_artifact_controller_test.exs`
+
+### Behavior Alignment Notes
+- Workspace output links now use canonical route:
+  - `/lemmings/instances/:instance_id/workspace_files/*path`
+- Legacy workspace route compatibility remains available:
+  - `/lemmings/instances/:instance_id/artifacts/*path`
+- Tool cards for successful output-producing tools can expose:
+  - workspace download link
+  - manual "Promote to Artifact" action
+
+### Release Notes Wording Correction
+- Replace "no artifact persistence/promotion" with:
+  - document tools write outputs to workspace files first
+  - no automatic artifact promotion
+  - artifact persistence is available only through explicit/manual promotion flow
