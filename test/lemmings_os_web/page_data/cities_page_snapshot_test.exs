@@ -1,5 +1,5 @@
 defmodule LemmingsOsWeb.PageData.CitiesPageSnapshotTest do
-  use LemmingsOs.DataCase, async: true
+  use LemmingsOs.DataCase, async: false
 
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
 
@@ -56,6 +56,31 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshotTest do
       assert lemming_count == 2
       assert tags == ["customer-care", "tier-1"]
       assert snapshot.selected_city.departments |> hd() |> Map.fetch!(:notes_preview) =~ "..."
+    end
+
+    test "parses string heartbeat freshness config before deriving liveness" do
+      previous_config = Application.get_env(:lemmings_os, :runtime_city_heartbeat)
+
+      Application.put_env(:lemmings_os, :runtime_city_heartbeat,
+        interval_ms: 30_000,
+        freshness_threshold_seconds: "180"
+      )
+
+      on_exit(fn ->
+        Application.put_env(:lemmings_os, :runtime_city_heartbeat, previous_config)
+      end)
+
+      world = insert(:world)
+
+      city =
+        insert(:city,
+          world: world,
+          last_seen_at: DateTime.utc_now() |> DateTime.add(-120, :second)
+        )
+
+      {:ok, snapshot} = CitiesPageSnapshot.build(world: world, city_id: city.id)
+
+      assert snapshot.selected_city.liveness == "alive"
     end
   end
 end

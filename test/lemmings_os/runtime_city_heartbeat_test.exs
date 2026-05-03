@@ -168,5 +168,38 @@ defmodule LemmingsOs.Cities.HeartbeatTest do
       assert updated_city.status == "draining"
       assert updated_city.last_seen_at == ~U[2026-03-18 18:00:00Z]
     end
+
+    test "S06: parses string interval values at the heartbeat boundary" do
+      world = insert(:world)
+
+      city =
+        insert(:city,
+          world: world,
+          node_name: "string-interval@localhost",
+          status: "active",
+          last_seen_at: nil
+        )
+
+      previous_config = Application.get_env(:lemmings_os, :runtime_city_heartbeat)
+
+      Application.put_env(:lemmings_os, :runtime_city_heartbeat,
+        interval_ms: "30000",
+        freshness_threshold_seconds: 90
+      )
+
+      on_exit(fn ->
+        Application.put_env(:lemmings_os, :runtime_city_heartbeat, previous_config)
+      end)
+
+      assert {:ok, _pid} =
+               start_supervised(
+                 {Heartbeat,
+                  [
+                    name: :runtime_city_heartbeat_string_interval_test,
+                    now_fun: fn -> ~U[2026-03-18 18:00:00Z] end,
+                    current_city: city
+                  ]}
+               )
+    end
   end
 end

@@ -89,6 +89,8 @@ config :lemmings_os, :runtime_city,
   distribution_port: System.get_env("LEMMINGS_CITY_DISTRIBUTION_PORT"),
   epmd_port: System.get_env("LEMMINGS_CITY_EPMD_PORT")
 
+# Keep env overrides as raw runtime values here. Consumers parse and validate
+# the values according to their own execution contract.
 config :lemmings_os, :runtime_city_heartbeat,
   interval_ms:
     System.get_env("LEMMINGS_CITY_HEARTBEAT_INTERVAL_MS") ||
