@@ -20,6 +20,9 @@ defmodule LemmingsOs.Cities.Heartbeat do
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Cities.Runtime
+  alias LemmingsOs.Helpers
+
+  @default_interval_ms 30_000
 
   @type state :: %{
           interval_ms: pos_integer() | :manual,
@@ -64,7 +67,8 @@ defmodule LemmingsOs.Cities.Heartbeat do
   @impl true
   def init(opts) do
     state = %{
-      interval_ms: Keyword.get(opts, :interval_ms, heartbeat_config(:interval_ms)),
+      interval_ms:
+        heartbeat_interval_ms(Keyword.get(opts, :interval_ms, heartbeat_config(:interval_ms))),
       runtime_city: Keyword.get(opts, :runtime_city, Runtime),
       cities: Keyword.get(opts, :cities, Cities),
       now_fun: Keyword.get(opts, :now_fun, &DateTime.utc_now/0),
@@ -172,6 +176,15 @@ defmodule LemmingsOs.Cities.Heartbeat do
   defp heartbeat_config(key) do
     :lemmings_os
     |> Application.get_env(:runtime_city_heartbeat, [])
-    |> Keyword.fetch!(key)
+    |> Keyword.get(key)
+  end
+
+  defp heartbeat_interval_ms(:manual), do: :manual
+
+  defp heartbeat_interval_ms(value) do
+    case Helpers.parse_positive_integer(value) do
+      {:ok, interval_ms} -> interval_ms
+      :error -> @default_interval_ms
+    end
   end
 end

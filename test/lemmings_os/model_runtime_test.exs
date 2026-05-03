@@ -459,10 +459,12 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert request.format == "json"
     assert %{role: "system", content: system_prompt} = Enum.at(request.messages, 0)
 
-    assert String.contains?(
-             system_prompt,
-             "Available Tools:\n- fs.write_text_file: Write UTF-8 text files inside the instance work area.\n- web.fetch: Fetch HTTP(S) content from a single URL."
-           )
+    assert String.contains?(system_prompt, "Available Tools:")
+    assert String.contains?(system_prompt, "- fs.write_text_file:")
+    assert String.contains?(system_prompt, "args: required `path`")
+    assert String.contains?(system_prompt, "- web.fetch:")
+    assert String.contains?(system_prompt, "args: required `url`")
+    assert String.contains?(system_prompt, "Use exact argument keys from each contract.")
 
     assert List.last(request.messages) == %{role: "user", content: "Write notes/output.md"}
   end

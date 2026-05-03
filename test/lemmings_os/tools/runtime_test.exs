@@ -1,5 +1,6 @@
 defmodule LemmingsOs.Tools.RuntimeTest do
   use LemmingsOs.DataCase, async: false
+  @moduletag capture_log: true
 
   import Ecto.Query, only: [from: 2]
 
@@ -7,6 +8,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
   alias LemmingsOs.Tools.Runtime
+  alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds.World
 
   setup do
@@ -454,6 +456,246 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
       assert {:error, %{code: "tool.invalid_scope"}} =
                Runtime.execute(world, instance, "web.fetch", %{"url" => "https://example.com"})
+    end
+  end
+
+  describe "execute/5 with documents tools" do
+    test "dispatches documents.markdown_to_html with normalized success envelope", %{
+      world: world,
+      instance: instance
+    } do
+      work_area = Path.join(Application.fetch_env!(:lemmings_os, :work_areas_path), instance.id)
+      File.mkdir_p!(Path.join(work_area, "notes"))
+      File.write!(Path.join(work_area, "notes/a.md"), "# Runtime Title")
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.markdown_to_html",
+                 %{"source_path" => "notes/a.md", "output_path" => "notes/a.html"}
+               )
+
+      assert result.tool_name == "documents.markdown_to_html"
+      assert result.args == %{"source_path" => "notes/a.md", "output_path" => "notes/a.html"}
+      assert result.summary == "Converted notes/a.md to notes/a.html"
+      assert is_binary(result.preview)
+      assert result.result["source_path"] == "notes/a.md"
+      assert result.result["output_path"] == "notes/a.html"
+      assert result.result["content_type"] == "text/html"
+      assert is_integer(result.result["bytes"])
+    end
+
+    test "dispatches documents.markdown_to_html with derived output_path when omitted", %{
+      world: world,
+      instance: instance
+    } do
+      work_area = Path.join(Application.fetch_env!(:lemmings_os, :work_areas_path), instance.id)
+      File.mkdir_p!(Path.join(work_area, "notes"))
+      File.write!(Path.join(work_area, "notes/default.md"), "# Runtime Default")
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.markdown_to_html",
+                 %{"source_path" => "notes/default.md"}
+               )
+
+      assert result.tool_name == "documents.markdown_to_html"
+      assert result.args == %{"source_path" => "notes/default.md"}
+      assert result.summary == "Converted notes/default.md to notes/default.html"
+      assert result.result["output_path"] == "notes/default.html"
+      assert File.exists?(Path.join(work_area, "notes/default.html"))
+    end
+
+    test "dispatches documents.markdown_to_html with markdown_path alias", %{
+      world: world,
+      instance: instance
+    } do
+      work_area = Path.join(Application.fetch_env!(:lemmings_os, :work_areas_path), instance.id)
+      File.mkdir_p!(Path.join(work_area, "notes"))
+      File.write!(Path.join(work_area, "notes/alias.md"), "# Runtime Alias")
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.markdown_to_html",
+                 %{"markdown_path" => "notes/alias.md"}
+               )
+
+      assert result.tool_name == "documents.markdown_to_html"
+      assert result.args == %{"markdown_path" => "notes/alias.md"}
+      assert result.summary == "Converted notes/alias.md to notes/alias.html"
+      assert result.result["source_path"] == "notes/alias.md"
+      assert result.result["output_path"] == "notes/alias.html"
+      assert File.exists?(Path.join(work_area, "notes/alias.html"))
+    end
+
+    test "dispatches documents.print_to_pdf with normalized validation error", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.print_to_pdf",
+                 %{"source_path" => "notes/a.md", "output_path" => ""},
+                 %{work_area_ref: "work-area-v1"}
+               )
+
+      assert error.tool_name == "documents.print_to_pdf"
+      assert error.code == "tool.validation.invalid_args"
+      assert error.message == "Invalid tool arguments"
+      assert error.details == %{field: "output_path"}
+    end
+
+    test "dispatches documents.print_to_pdf with normalized success envelope", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      old_documents_config = Application.get_env(:lemmings_os, :documents)
+
+      Application.put_env(
+        :lemmings_os,
+        :documents,
+        gotenberg_url: "http://localhost:#{bypass.port}",
+        pdf_timeout_ms: 2_000,
+        pdf_connect_timeout_ms: 2_000,
+        pdf_retries: 0,
+        max_source_bytes: 1024 * 1024,
+        max_pdf_bytes: 1024 * 1024
+      )
+
+      on_exit(fn ->
+        if old_documents_config do
+          Application.put_env(:lemmings_os, :documents, old_documents_config)
+        else
+          Application.delete_env(:lemmings_os, :documents)
+        end
+      end)
+
+      work_area = Path.join(Application.fetch_env!(:lemmings_os, :work_areas_path), instance.id)
+      File.mkdir_p!(Path.join(work_area, "notes"))
+
+      File.write!(
+        Path.join(work_area, "notes/source.html"),
+        "<html><body>Runtime PDF</body></html>"
+      )
+
+      Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        assert body =~ "Runtime PDF"
+        Plug.Conn.resp(conn, 200, "%PDF runtime")
+      end)
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.print_to_pdf",
+                 %{"source_path" => "notes/source.html", "output_path" => "notes/source.pdf"}
+               )
+
+      assert result.tool_name == "documents.print_to_pdf"
+
+      assert result.args == %{
+               "source_path" => "notes/source.html",
+               "output_path" => "notes/source.pdf"
+             }
+
+      assert result.summary == "Printed notes/source.html to notes/source.pdf"
+      assert result.preview == nil
+      assert result.result["source_path"] == "notes/source.html"
+      assert result.result["output_path"] == "notes/source.pdf"
+      assert result.result["content_type"] == "application/pdf"
+      assert is_integer(result.result["bytes"])
+    end
+
+    test "dispatches documents.print_to_pdf with derived output_path when omitted", %{
+      world: world,
+      instance: instance
+    } do
+      bypass = Bypass.open()
+      old_documents_config = Application.get_env(:lemmings_os, :documents)
+
+      Application.put_env(
+        :lemmings_os,
+        :documents,
+        gotenberg_url: "http://localhost:#{bypass.port}",
+        pdf_timeout_ms: 2_000,
+        pdf_connect_timeout_ms: 2_000,
+        pdf_retries: 0,
+        max_source_bytes: 1024 * 1024,
+        max_pdf_bytes: 1024 * 1024
+      )
+
+      on_exit(fn ->
+        if old_documents_config do
+          Application.put_env(:lemmings_os, :documents, old_documents_config)
+        else
+          Application.delete_env(:lemmings_os, :documents)
+        end
+      end)
+
+      work_area = Path.join(Application.fetch_env!(:lemmings_os, :work_areas_path), instance.id)
+      File.mkdir_p!(Path.join(work_area, "notes"))
+
+      File.write!(
+        Path.join(work_area, "notes/default.html"),
+        "<html><body>Default PDF</body></html>"
+      )
+
+      Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        assert body =~ "Default PDF"
+        Plug.Conn.resp(conn, 200, "%PDF default")
+      end)
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.print_to_pdf",
+                 %{"source_path" => "notes/default.html"}
+               )
+
+      assert result.tool_name == "documents.print_to_pdf"
+      assert result.args == %{"source_path" => "notes/default.html"}
+      assert result.summary == "Printed notes/default.html to notes/default.pdf"
+      assert result.result["output_path"] == "notes/default.pdf"
+      assert File.read!(Path.join(work_area, "notes/default.pdf")) == "%PDF default"
+    end
+
+    test "honors runtime work_area_ref metadata for documents tool execution", %{
+      world: world,
+      instance: instance
+    } do
+      work_area_ref = Ecto.UUID.generate()
+      assert :ok = WorkArea.ensure(work_area_ref)
+
+      work_area = Path.join(Application.fetch_env!(:lemmings_os, :work_areas_path), work_area_ref)
+      File.mkdir_p!(Path.join(work_area, "notes"))
+      File.write!(Path.join(work_area, "notes/metadata.md"), "# Metadata Area")
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "documents.markdown_to_html",
+                 %{
+                   "source_path" => "notes/metadata.md",
+                   "output_path" => "notes/metadata.html"
+                 },
+                 %{work_area_ref: work_area_ref}
+               )
+
+      assert result.tool_name == "documents.markdown_to_html"
+      assert result.result["source_path"] == "notes/metadata.md"
+      assert File.exists?(Path.join(work_area, "notes/metadata.html"))
     end
   end
 

@@ -7,6 +7,17 @@ defmodule LemmingsOs.Helpers do
 
   @doc """
   Returns true when the value should be treated as blank.
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.blank?(nil)
+      true
+
+      iex> LemmingsOs.Helpers.blank?("   ")
+      true
+
+      iex> LemmingsOs.Helpers.blank?("value")
+      false
   """
   def blank?(nil), do: true
   def blank?(value) when is_binary(value), do: String.trim(value) == ""
@@ -47,6 +58,14 @@ defmodule LemmingsOs.Helpers do
   - strip leading/trailing `-`
   - reject blank results
   - deduplicate while preserving first-seen order
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.normalize_tags([" Customer Support ", "High-Priority"])
+      ["customer-support", "high-priority"]
+
+      iex> LemmingsOs.Helpers.normalize_tags(["---", "Ops__Desk", "ops desk", "QA", "qa"])
+      ["ops-desk", "qa"]
   """
   @spec normalize_tags(nil | [term()]) :: [String.t()]
   def normalize_tags(nil), do: []
@@ -88,6 +107,17 @@ defmodule LemmingsOs.Helpers do
 
   Supported options:
   - `:unavailable_label` - label shown when the value is blank
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.display_value(nil, unavailable_label: "N/A")
+      "N/A"
+
+      iex> LemmingsOs.Helpers.display_value(true)
+      "true"
+
+      iex> LemmingsOs.Helpers.display_value("local")
+      "local"
   """
   def display_value(value, opts \\ [])
 
@@ -108,6 +138,17 @@ defmodule LemmingsOs.Helpers do
   Supported options:
   - `:max_length` - max binary size before truncating. Defaults to `24`
   - `:unavailable_label` - label shown when the value is blank
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.truncate_value(nil, unavailable_label: "N/A")
+      "N/A"
+
+      iex> LemmingsOs.Helpers.truncate_value("abcdefghijklmnopqrstuvwxyz", max_length: 10)
+      "abcdefghij..."
+
+      iex> LemmingsOs.Helpers.truncate_value("local", max_length: 10)
+      "local"
   """
   def truncate_value(value, opts \\ []) do
     unavailable_label =
@@ -133,6 +174,17 @@ defmodule LemmingsOs.Helpers do
   Supported options:
   - `:nil_label` - label shown when the value is `nil`
   - `:format` - `Calendar.strftime/2` format string
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.format_datetime(nil, nil_label: "N/A")
+      "N/A"
+
+      iex> LemmingsOs.Helpers.format_datetime(~U[2026-03-17 11:03:00Z])
+      "2026-03-17 11:03:00 UTC"
+
+      iex> LemmingsOs.Helpers.format_datetime(~U[2026-03-17 11:03:00Z], format: "%Y-%m-%d")
+      "2026-03-17"
   """
   def format_datetime(datetime, opts \\ [])
 
@@ -144,6 +196,91 @@ defmodule LemmingsOs.Helpers do
     format = Keyword.get(opts, :format, "%Y-%m-%d %H:%M:%S UTC")
     Calendar.strftime(datetime, format)
   end
+
+  @doc """
+  Returns env value when present, otherwise fallback.
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.env_or_default("__LEMMINGS_OS_HELPERS_NOT_SET_0E6D80__", "fallback")
+      "fallback"
+  """
+  @spec env_or_default(String.t(), term()) :: term()
+  def env_or_default(env_key, fallback) when is_binary(env_key) do
+    case System.get_env(env_key) do
+      nil -> fallback
+      value -> value
+    end
+  end
+
+  @doc """
+  Returns env value when present, maps `\"\"` to nil, otherwise fallback.
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.env_optional_path_or_default("__LEMMINGS_OS_HELPERS_NOT_SET_9758E0__", "fallback")
+      "fallback"
+  """
+  @spec env_optional_path_or_default(String.t(), term()) :: term()
+  def env_optional_path_or_default(env_key, fallback) when is_binary(env_key) do
+    case System.get_env(env_key) do
+      nil -> fallback
+      "" -> nil
+      value -> value
+    end
+  end
+
+  @doc """
+  Parses positive integers from integer or string values.
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.parse_positive_integer(5)
+      {:ok, 5}
+
+      iex> LemmingsOs.Helpers.parse_positive_integer("42")
+      {:ok, 42}
+
+      iex> LemmingsOs.Helpers.parse_positive_integer("0")
+      :error
+  """
+  @spec parse_positive_integer(term()) :: {:ok, pos_integer()} | :error
+  def parse_positive_integer(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  def parse_positive_integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> {:ok, integer}
+      _ -> :error
+    end
+  end
+
+  def parse_positive_integer(_value), do: :error
+
+  @doc """
+  Parses non-negative integers from integer or string values.
+
+  ## Examples
+
+      iex> LemmingsOs.Helpers.parse_non_negative_integer(0)
+      {:ok, 0}
+
+      iex> LemmingsOs.Helpers.parse_non_negative_integer("7")
+      {:ok, 7}
+
+      iex> LemmingsOs.Helpers.parse_non_negative_integer("-1")
+      :error
+  """
+  @spec parse_non_negative_integer(term()) :: {:ok, non_neg_integer()} | :error
+  def parse_non_negative_integer(value) when is_integer(value) and value >= 0, do: {:ok, value}
+
+  def parse_non_negative_integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer >= 0 -> {:ok, integer}
+      _ -> :error
+    end
+  end
+
+  def parse_non_negative_integer(_value), do: :error
 
   defp normalize_tag_into(tag, normalized_tags) do
     case normalize_tag(tag) do

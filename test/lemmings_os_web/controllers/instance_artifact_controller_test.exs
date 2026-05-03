@@ -5,8 +5,11 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
 
   alias LemmingsOs.Artifacts.Artifact
   alias LemmingsOs.Artifacts.LocalStorage
+  alias LemmingsOs.LemmingInstances.EtsStore
+  alias LemmingsOs.LemmingInstances.RuntimeTableOwner
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.Repo
+  alias LemmingsOs.Tools.WorkArea
 
   @moduletag capture_log: true
 
@@ -283,8 +286,28 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
     end
   end
 
-  describe "show/2 workspace route compatibility" do
-    test "DL06: existing workspace catch-all route still serves workspace file", %{
+  describe "workspace file download routes" do
+    test "DL06: workspace_files route serves workspace file", %{
+      conn: conn,
+      world: world,
+      instance: instance
+    } do
+      _absolute_path =
+        write_workspace_file(instance, "reports/runtime.md", "# Runtime workspace artifact\n")
+
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{instance.id}/workspace_files/#{["reports", "runtime.md"]}?#{%{world: world.id}}"
+        )
+
+      assert response.status == 200
+      assert response.resp_body == "# Runtime workspace artifact\n"
+      assert get_resp_header(response, "content-type") == ["application/octet-stream"]
+      assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
+    end
+
+    test "DL06b: legacy artifacts catch-all route still serves workspace file", %{
       conn: conn,
       world: world,
       instance: instance
@@ -304,6 +327,53 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
     end
 
+    test "DL06c: workspace_files route resolves files under runtime work_area_ref", %{
+      conn: conn,
+      world: world,
+      instance: instance
+    } do
+      if is_nil(Process.whereis(RuntimeTableOwner)) do
+        start_supervised!(RuntimeTableOwner)
+      end
+
+      assert :ok = EtsStore.init_table()
+
+      work_area_ref = Ecto.UUID.generate()
+      assert :ok = WorkArea.ensure(work_area_ref)
+
+      {:ok, %{absolute_path: absolute_path}} = WorkArea.resolve(work_area_ref, "triage_sample.md")
+      File.mkdir_p!(Path.dirname(absolute_path))
+      File.write!(absolute_path, "# Runtime WorkArea file\n")
+
+      assert {:ok, _state} =
+               EtsStore.put(instance.id, %{
+                 department_id: instance.department_id,
+                 world_id: instance.world_id,
+                 work_area_ref: work_area_ref,
+                 queue: :queue.new(),
+                 current_item: nil,
+                 config_snapshot: %{},
+                 resource_key: nil,
+                 retry_count: 0,
+                 max_retries: 3,
+                 context_messages: [],
+                 status: :idle,
+                 started_at: DateTime.utc_now() |> DateTime.truncate(:second),
+                 last_activity_at: DateTime.utc_now() |> DateTime.truncate(:second)
+               })
+
+      response =
+        conn
+        |> get(
+          ~p"/lemmings/instances/#{instance.id}/workspace_files/#{["triage_sample.md"]}?#{%{world: world.id}}"
+        )
+
+      assert response.status == 200
+      assert response.resp_body == "# Runtime WorkArea file\n"
+      assert get_resp_header(response, "content-type") == ["application/octet-stream"]
+      assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
+    end
+
     test "returns world not found for unknown world", %{
       conn: conn,
       instance: instance
@@ -311,7 +381,7 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       response =
         conn
         |> get(
-          ~p"/lemmings/instances/#{instance.id}/artifacts/#{["reports", "runtime.md"]}?#{%{world: Ecto.UUID.generate()}}"
+          ~p"/lemmings/instances/#{instance.id}/workspace_files/#{["reports", "runtime.md"]}?#{%{world: Ecto.UUID.generate()}}"
         )
 
       assert response.status == 404
@@ -325,7 +395,7 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       response =
         conn
         |> get(
-          ~p"/lemmings/instances/#{Ecto.UUID.generate()}/artifacts/#{["reports", "runtime.md"]}?#{%{world: world.id}}"
+          ~p"/lemmings/instances/#{Ecto.UUID.generate()}/workspace_files/#{["reports", "runtime.md"]}?#{%{world: world.id}}"
         )
 
       assert response.status == 404
@@ -340,7 +410,7 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       response =
         conn
         |> get(
-          ~p"/lemmings/instances/#{instance.id}/artifacts/#{["reports", "missing.md"]}?#{%{world: world.id}}"
+          ~p"/lemmings/instances/#{instance.id}/workspace_files/#{["reports", "missing.md"]}?#{%{world: world.id}}"
         )
 
       assert response.status == 404
@@ -355,15 +425,15 @@ defmodule LemmingsOsWeb.InstanceArtifactControllerTest do
       response =
         conn
         |> get(
-          ~p"/lemmings/instances/#{instance.id}/artifacts/#{["..", "secret.md"]}?#{%{world: world.id}}"
+          ~p"/lemmings/instances/#{instance.id}/workspace_files/#{["..", "secret.md"]}?#{%{world: world.id}}"
         )
 
       assert response.status == 404
       assert response.resp_body == "Artifact not found"
     end
 
-    test "falls back to artifact not found for non-show params", %{conn: conn} do
-      response = LemmingsOsWeb.InstanceArtifactController.show(conn, %{})
+    test "falls back to artifact not found for non-workspace params", %{conn: conn} do
+      response = LemmingsOsWeb.InstanceArtifactController.workspace_download(conn, %{})
 
       assert response.status == 404
       assert response.resp_body == "Artifact not found"

@@ -6,13 +6,16 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
 
   - Durable Artifact-record downloads from
     `/lemmings/instances/:instance_id/artifacts/:artifact_id/download`
-  - Legacy workspace artifact path downloads from
+  - Workspace file downloads from
+    `/lemmings/instances/:instance_id/workspace_files/*path`
+  - Legacy workspace path downloads from
     `/lemmings/instances/:instance_id/artifacts/*path`
   """
   use LemmingsOsWeb, :controller
 
   alias LemmingsOs.Artifacts
   alias LemmingsOs.LemmingInstances
+  alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds
 
   def download(conn, %{"artifact_id" => artifact_id} = params) when is_binary(artifact_id) do
@@ -37,14 +40,26 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
 
   def download(conn, _params), do: send_resp(conn, 404, "Artifact not found")
 
+  def workspace_download(conn, %{"path" => path_segments} = params) when is_list(path_segments) do
+    workspace_download_by_path(conn, path_segments, params)
+  end
+
+  def workspace_download(conn, _params), do: send_resp(conn, 404, "Artifact not found")
+
   def show(conn, %{"path" => path_segments} = params) when is_list(path_segments) do
+    workspace_download_by_path(conn, path_segments, params)
+  end
+
+  def show(conn, _params), do: send_resp(conn, 404, "Artifact not found")
+
+  defp workspace_download_by_path(conn, path_segments, params) when is_list(path_segments) do
     with %{} = world <- resolve_world(params),
          {:ok, instance_id} <- fetch_instance_id(params),
          {:ok, instance} <-
            LemmingInstances.get_instance(instance_id, world: world, preload: [:lemming]),
          relative_path <- Path.join(path_segments),
          {:ok, %{absolute_path: absolute_path, relative_path: normalized_path}} <-
-           LemmingInstances.artifact_absolute_path(instance, relative_path),
+           workspace_download_path(instance, world, relative_path),
          {:ok, content} <- File.read(absolute_path) do
       conn
       |> put_resp_header("content-type", "application/octet-stream")
@@ -65,7 +80,19 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
     end
   end
 
-  def show(conn, _params), do: send_resp(conn, 404, "Artifact not found")
+  defp workspace_download_path(instance, world, relative_path)
+       when is_binary(relative_path) do
+    with {:ok, runtime_state} <- LemmingInstances.get_runtime_state(instance, world: world),
+         work_area_ref when is_binary(work_area_ref) and work_area_ref != "" <-
+           Map.get(runtime_state, :work_area_ref),
+         {:ok, resolved} <- WorkArea.resolve(work_area_ref, relative_path),
+         true <- File.regular?(resolved.absolute_path) do
+      {:ok, resolved}
+    else
+      _other ->
+        LemmingInstances.artifact_absolute_path(instance, relative_path)
+    end
+  end
 
   defp fetch_instance_id(%{"instance_id" => instance_id})
        when is_binary(instance_id) and instance_id != "",

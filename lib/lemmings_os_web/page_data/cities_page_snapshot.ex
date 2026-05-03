@@ -210,9 +210,20 @@ defmodule LemmingsOsWeb.PageData.CitiesPageSnapshot do
   end
 
   defp freshness_threshold_seconds(opts) do
-    Keyword.get(opts, :freshness_threshold_seconds) ||
-      Application.get_env(:lemmings_os, :runtime_city_heartbeat, [])
-      |> Keyword.get(:freshness_threshold_seconds, 90)
+    value =
+      Keyword.get(opts, :freshness_threshold_seconds) ||
+        :lemmings_os
+        |> Application.get_env(:runtime_city_heartbeat, [])
+        |> Keyword.get(:freshness_threshold_seconds, 90)
+
+    positive_integer_or_default(value, 90)
+  end
+
+  defp positive_integer_or_default(value, default) do
+    case Helpers.parse_positive_integer(value) do
+      {:ok, integer} -> integer
+      :error -> default
+    end
   end
 
   defp liveness_tone("alive"), do: "success"

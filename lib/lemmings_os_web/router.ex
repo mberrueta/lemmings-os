@@ -35,6 +35,10 @@ defmodule LemmingsOsWeb.Router do
         InstanceArtifactController,
         :download
 
+    get "/lemmings/instances/:instance_id/workspace_files/*path",
+        InstanceArtifactController,
+        :workspace_download
+
     get "/lemmings/instances/:instance_id/artifacts/*path", InstanceArtifactController, :show
     get "/lemmings/instances/:id/raw.md", InstanceRawSnapshotController, :show
     live "/lemmings/instances/:id/raw", InstanceRawLive, :show

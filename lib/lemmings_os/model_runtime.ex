@@ -423,17 +423,50 @@ defmodule LemmingsOs.ModelRuntime do
       config_snapshot
       |> available_tools()
       |> Enum.map_join("\n", fn tool ->
-        "- #{tool.id}: #{tool.description}"
+        case tool_argument_contract(tool.id) do
+          nil ->
+            "- #{tool.id}: #{tool.description}"
+
+          contract ->
+            "- #{tool.id}: #{tool.description}\n  args: #{contract}"
+        end
       end)
 
     [
       "Available Tools:",
       tool_lines,
+      "Use exact argument keys from each contract.",
       "For file creation or file updates, use fs.write_text_file.",
       "After a successful tool call, prefer returning a final reply instead of repeating the same tool call with the same arguments."
     ]
     |> Enum.join("\n")
   end
+
+  defp tool_argument_contract("fs.read_text_file") do
+    "required `path` (WorkArea-relative string)."
+  end
+
+  defp tool_argument_contract("fs.write_text_file") do
+    "required `path` (WorkArea-relative string), required `content` (UTF-8 string)."
+  end
+
+  defp tool_argument_contract("web.search") do
+    "required `query` (string)."
+  end
+
+  defp tool_argument_contract("web.fetch") do
+    "required `url` (http/https URL string)."
+  end
+
+  defp tool_argument_contract("documents.markdown_to_html") do
+    "required `source_path` (WorkArea-relative `.md`); compatibility alias: `markdown_path` when `source_path` is omitted; optional `output_path` (defaults to same path with `.html`); optional `overwrite` (boolean, default `true`)."
+  end
+
+  defp tool_argument_contract("documents.print_to_pdf") do
+    "required `source_path` (WorkArea-relative supported source); optional `output_path` (defaults to same path with `.pdf`); optional `overwrite` (default `true`); optional `print_raw_file` (default `false`); optional `header_path`/`footer_path`; optional `style_paths` (list of `.css`); optional `paper_size`, `landscape`, `margin_top`, `margin_bottom`, `margin_left`, `margin_right`."
+  end
+
+  defp tool_argument_contract(_tool_id), do: nil
 
   defp available_lemming_calls_message(config_snapshot) do
     targets = lemming_call_targets(config_snapshot)

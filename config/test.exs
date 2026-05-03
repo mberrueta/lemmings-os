@@ -45,6 +45,18 @@ config :lemmings_os, :model_runtime,
 config :lemmings_os, :tools_runtime_fetcher, LemmingsOs.Tools.MockRuntimeFetcher
 config :lemmings_os, :tools_policy_fetcher, LemmingsOs.Tools.MockPolicyFetcher
 
+config :lemmings_os, :documents,
+  gotenberg_url: "http://127.0.0.1:3999",
+  pdf_timeout_ms: 30_000,
+  pdf_connect_timeout_ms: 5_000,
+  pdf_retries: 1,
+  max_source_bytes: 10 * 1024 * 1024,
+  max_pdf_bytes: 50 * 1024 * 1024,
+  max_fallback_bytes: 1 * 1024 * 1024,
+  default_header_path: nil,
+  default_footer_path: nil,
+  default_css_path: nil
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

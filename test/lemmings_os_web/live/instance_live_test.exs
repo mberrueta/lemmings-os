@@ -699,7 +699,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"bytes\": 32")
 
     assert html =~
-             ~s(/lemmings/instances/#{instance.id}/artifacts/notes/output.md?world=#{world.id})
+             ~s(/lemmings/instances/#{instance.id}/workspace_files/notes/output.md?world=#{world.id})
 
     assert text_position(html, "Initial assistant reply") <
              text_position(html, "notes/output.md")
@@ -730,7 +730,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     response =
       conn
       |> get(
-        ~p"/lemmings/instances/#{instance.id}/artifacts/#{["sample.md"]}?#{%{world: world.id}}"
+        ~p"/lemmings/instances/#{instance.id}/workspace_files/#{["sample.md"]}?#{%{world: world.id}}"
       )
 
     assert response.status == 200
@@ -742,6 +742,120 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
            ]
 
     assert get_resp_header(response, "x-content-type-options") == ["nosniff"]
+  end
+
+  test "S08d2: documents.markdown_to_html card exposes output file link and promotion actions", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "documents.markdown_to_html",
+        status: "ok",
+        args: %{"source_path" => "reports/triage_sample.md"},
+        summary: "Converted reports/triage_sample.md to reports/triage_sample.html",
+        result: %{
+          "source_path" => "reports/triage_sample.md",
+          "output_path" => "reports/triage_sample.html",
+          "bytes" => 1234
+        }
+      })
+
+    {:ok, view, html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(
+             view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "reports/triage_sample.html"
+           )
+
+    assert has_element?(view, "#artifact-promotion-form-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#artifact-promotion-source-#{tool_execution.id}",
+             "reports/triage_sample.html"
+           )
+
+    assert html =~
+             ~s(/lemmings/instances/#{instance.id}/workspace_files/reports/triage_sample.html?world=#{world.id})
+  end
+
+  test "S08d3: documents.print_to_pdf card exposes output file link and promotion actions", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "documents.print_to_pdf",
+        status: "ok",
+        args: %{"source_path" => "reports/triage_sample.html"},
+        summary: "Printed reports/triage_sample.html to reports/triage_sample.pdf",
+        result: %{
+          "source_path" => "reports/triage_sample.html",
+          "output_path" => "reports/triage_sample.pdf",
+          "bytes" => 25_063
+        }
+      })
+
+    {:ok, view, html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(
+             view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "reports/triage_sample.pdf"
+           )
+
+    assert has_element?(view, "#artifact-promotion-form-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#artifact-promotion-source-#{tool_execution.id}",
+             "reports/triage_sample.pdf"
+           )
+
+    assert html =~
+             ~s(/lemmings/instances/#{instance.id}/workspace_files/reports/triage_sample.pdf?world=#{world.id})
+  end
+
+  test "S08d4: tool cards hide file link and promotion actions for unsafe or non-ok output paths",
+       %{
+         conn: conn
+       } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, unsafe_tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "documents.print_to_pdf",
+        status: "ok",
+        args: %{"source_path" => "triage_sample.html"},
+        summary: "Printed triage_sample.html to ../outside.pdf",
+        result: %{"output_path" => "../outside.pdf"}
+      })
+
+    {:ok, failed_tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "documents.markdown_to_html",
+        status: "error",
+        args: %{"source_path" => "reports/failed.md"},
+        summary: "Conversion failed",
+        result: %{"output_path" => "reports/failed.html"},
+        error: %{"code" => "tool.documents.write_failed"}
+      })
+
+    {:ok, view, html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    refute has_element?(view, "#artifact-promotion-form-#{unsafe_tool_execution.id}")
+    refute has_element?(view, "#artifact-promotion-form-#{failed_tool_execution.id}")
+    refute html =~ "/artifacts/../outside.pdf"
+
+    refute html =~
+             ~s(/lemmings/instances/#{instance.id}/artifacts/reports/failed.html?world=#{world.id})
   end
 
   test "S08j: workspace action copies the workspace path", %{conn: conn} do
@@ -1171,7 +1285,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     response =
       conn
       |> get(
-        ~p"/lemmings/instances/#{instance.id}/artifacts/#{["artifact-link.md"]}?#{%{world: world.id}}"
+        ~p"/lemmings/instances/#{instance.id}/workspace_files/#{["artifact-link.md"]}?#{%{world: world.id}}"
       )
 
     assert response.status == 404

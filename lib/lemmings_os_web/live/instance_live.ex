@@ -11,6 +11,7 @@ defmodule LemmingsOsWeb.InstanceLive do
   alias LemmingsOs.LemmingTools
   alias LemmingsOs.Helpers
   alias LemmingsOs.Runtime
+  alias LemmingsOs.Tools.ToolExecutionOutputs
   alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds
   alias LemmingsOs.Worlds.World
@@ -1056,19 +1057,11 @@ defmodule LemmingsOsWeb.InstanceLive do
     }
   end
 
-  defp tool_execution_promotion_candidate(%{tool_name: "fs.write_text_file"} = tool_execution) do
-    case tool_execution_artifact_relative_path(tool_execution) do
-      path when is_binary(path) and path != "" ->
-        if safe_relative_path?(path) do
-          %{relative_path: path, filename: Path.basename(path)}
-        else
-          nil
-        end
+  defp tool_execution_promotion_candidate(%{status: "ok"} = tool_execution),
+    do: ToolExecutionOutputs.workspace_output_candidate(tool_execution)
 
-      _path ->
-        nil
-    end
-  end
+  defp tool_execution_promotion_candidate(%{status: :ok} = tool_execution),
+    do: ToolExecutionOutputs.workspace_output_candidate(tool_execution)
 
   defp tool_execution_promotion_candidate(_tool_execution), do: nil
 
@@ -1107,31 +1100,6 @@ defmodule LemmingsOsWeb.InstanceLive do
       {:error, _reason} ->
         :none
     end
-  end
-
-  defp tool_execution_artifact_relative_path(%{args: %{"path" => path}})
-       when is_binary(path) and path != "",
-       do: path
-
-  defp tool_execution_artifact_relative_path(%{args: %{path: path}})
-       when is_binary(path) and path != "",
-       do: path
-
-  defp tool_execution_artifact_relative_path(%{result: %{"path" => path}})
-       when is_binary(path) and path != "",
-       do: path
-
-  defp tool_execution_artifact_relative_path(%{result: %{path: path}})
-       when is_binary(path) and path != "",
-       do: path
-
-  defp tool_execution_artifact_relative_path(_tool_execution), do: nil
-
-  defp safe_relative_path?(path) when is_binary(path) do
-    path_segments = String.split(path, "/", trim: true)
-
-    Path.type(path) == :relative and path_segments != [] and
-      Enum.all?(path_segments, &(&1 not in [".", ".."]))
   end
 
   defp workspace_file_fingerprint(instance, runtime_state, relative_path) do
