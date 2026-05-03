@@ -31,34 +31,55 @@ documents = Application.get_env(:lemmings_os, :documents, [])
 
 config :lemmings_os, :documents,
   gotenberg_url:
-    System.get_env("LEMMINGS_GOTENBERG_URL") ||
-      Keyword.get(documents, :gotenberg_url, "http://gotenberg:3000"),
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_GOTENBERG_URL",
+      Keyword.get(documents, :gotenberg_url, "http://gotenberg:3000")
+    ),
   pdf_timeout_ms:
-    System.get_env("LEMMINGS_DOCUMENTS_PDF_TIMEOUT_MS") ||
-      Keyword.get(documents, :pdf_timeout_ms, 30_000),
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_DOCUMENTS_PDF_TIMEOUT_MS",
+      Keyword.get(documents, :pdf_timeout_ms, 30_000)
+    ),
   pdf_connect_timeout_ms:
-    System.get_env("LEMMINGS_DOCUMENTS_PDF_CONNECT_TIMEOUT_MS") ||
-      Keyword.get(documents, :pdf_connect_timeout_ms, 5_000),
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_DOCUMENTS_PDF_CONNECT_TIMEOUT_MS",
+      Keyword.get(documents, :pdf_connect_timeout_ms, 5_000)
+    ),
   pdf_retries:
-    System.get_env("LEMMINGS_DOCUMENTS_PDF_RETRIES") || Keyword.get(documents, :pdf_retries, 1),
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_DOCUMENTS_PDF_RETRIES",
+      Keyword.get(documents, :pdf_retries, 1)
+    ),
   max_source_bytes:
-    System.get_env("LEMMINGS_DOCUMENTS_MAX_SOURCE_BYTES") ||
-      Keyword.get(documents, :max_source_bytes, 10 * 1024 * 1024),
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_DOCUMENTS_MAX_SOURCE_BYTES",
+      Keyword.get(documents, :max_source_bytes, 10 * 1024 * 1024)
+    ),
   max_pdf_bytes:
-    System.get_env("LEMMINGS_DOCUMENTS_MAX_PDF_BYTES") ||
-      Keyword.get(documents, :max_pdf_bytes, 50 * 1024 * 1024),
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_DOCUMENTS_MAX_PDF_BYTES",
+      Keyword.get(documents, :max_pdf_bytes, 50 * 1024 * 1024)
+    ),
   max_fallback_bytes:
-    System.get_env("LEMMINGS_DOCUMENTS_MAX_FALLBACK_BYTES") ||
-      Keyword.get(documents, :max_fallback_bytes, 1 * 1024 * 1024),
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_DOCUMENTS_MAX_FALLBACK_BYTES",
+      Keyword.get(documents, :max_fallback_bytes, 1 * 1024 * 1024)
+    ),
   default_header_path:
-    System.get_env("LEMMINGS_DOCUMENTS_DEFAULT_HEADER_PATH") ||
-      Keyword.get(documents, :default_header_path),
+    LemmingsOs.Helpers.env_optional_path_or_default(
+      "LEMMINGS_DOCUMENTS_DEFAULT_HEADER_PATH",
+      Keyword.get(documents, :default_header_path)
+    ),
   default_footer_path:
-    System.get_env("LEMMINGS_DOCUMENTS_DEFAULT_FOOTER_PATH") ||
-      Keyword.get(documents, :default_footer_path),
+    LemmingsOs.Helpers.env_optional_path_or_default(
+      "LEMMINGS_DOCUMENTS_DEFAULT_FOOTER_PATH",
+      Keyword.get(documents, :default_footer_path)
+    ),
   default_css_path:
-    System.get_env("LEMMINGS_DOCUMENTS_DEFAULT_CSS_PATH") ||
+    LemmingsOs.Helpers.env_optional_path_or_default(
+      "LEMMINGS_DOCUMENTS_DEFAULT_CSS_PATH",
       Keyword.get(documents, :default_css_path)
+    )
 
 config :lemmings_os, :runtime_city,
   node_name: runtime_city_node_name,

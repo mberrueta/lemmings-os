@@ -83,6 +83,90 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
     assert byte_size(html) == result.result["bytes"]
   end
 
+  test "derives markdown output_path from source_path when omitted", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    source_path = Path.join(work_area, "notes/derived.md")
+    output_path = Path.join(work_area, "notes/derived.html")
+    File.mkdir_p!(Path.dirname(source_path))
+    File.write!(source_path, "# Derived")
+
+    assert {:ok, result} =
+             Documents.markdown_to_html(
+               instance,
+               %{"source_path" => "notes/derived.md"},
+               runtime_meta
+             )
+
+    assert result.summary == "Converted notes/derived.md to notes/derived.html"
+    assert result.result["output_path"] == "notes/derived.html"
+    assert File.read!(output_path) =~ ~r/<h1>\s*Derived<\/h1>/
+  end
+
+  test "accepts markdown_path alias for markdown_to_html source", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    source_path = Path.join(work_area, "notes/alias.md")
+    output_path = Path.join(work_area, "notes/alias.html")
+    File.mkdir_p!(Path.dirname(source_path))
+    File.write!(source_path, "# Alias")
+
+    assert {:ok, result} =
+             Documents.markdown_to_html(
+               instance,
+               %{"markdown_path" => "notes/alias.md"},
+               runtime_meta
+             )
+
+    assert result.result["source_path"] == "notes/alias.md"
+    assert result.result["output_path"] == "notes/alias.html"
+    assert File.read!(output_path) =~ ~r/<h1>\s*Alias<\/h1>/
+  end
+
+  test "returns invalid_configuration when documents numeric config is invalid for markdown", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    Application.put_env(:lemmings_os, :documents, pdf_timeout_ms: "30s")
+    File.write!(Path.join(work_area, "doc.md"), "# Title")
+
+    assert {:error,
+            %{
+              code: "tool.documents.invalid_configuration",
+              details: %{"field" => "pdf_timeout_ms"}
+            }} =
+             Documents.markdown_to_html(
+               instance,
+               %{"source_path" => "doc.md", "output_path" => "doc.html"},
+               runtime_meta
+             )
+  end
+
+  test "returns invalid_configuration when documents numeric config is invalid for print", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    Application.put_env(:lemmings_os, :documents, max_pdf_bytes: "many")
+    File.write!(Path.join(work_area, "doc.html"), "<html><body>Hello</body></html>")
+
+    assert {:error,
+            %{
+              code: "tool.documents.invalid_configuration",
+              details: %{"field" => "max_pdf_bytes"}
+            }} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
+  end
+
   test "rejects invalid args", %{instance: instance, runtime_meta: runtime_meta} do
     assert {:error, %{code: "tool.validation.invalid_args", details: %{field: "source_path"}}} =
              Documents.markdown_to_html(instance, %{"output_path" => "x.html"}, runtime_meta)
@@ -166,7 +250,11 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
     assert {:error, %{code: "tool.documents.output_exists"}} =
              Documents.markdown_to_html(
                instance,
-               %{"source_path" => "draft.md", "output_path" => "draft.html"},
+               %{
+                 "source_path" => "draft.md",
+                 "output_path" => "draft.html",
+                 "overwrite" => false
+               },
                runtime_meta
              )
 
@@ -194,6 +282,25 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
              )
 
     assert File.read!(output_path) =~ ~r/<h1>\s*New<\/h1>/
+  end
+
+  test "overwrites existing markdown output by default when overwrite is omitted", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    File.write!(Path.join(work_area, "draft.md"), "# Default Overwrite")
+    output_path = Path.join(work_area, "draft.html")
+    File.write!(output_path, "existing")
+
+    assert {:ok, _result} =
+             Documents.markdown_to_html(
+               instance,
+               %{"source_path" => "draft.md", "output_path" => "draft.html"},
+               runtime_meta
+             )
+
+    assert File.read!(output_path) =~ ~r/<h1>\s*Default Overwrite<\/h1>/
   end
 
   test "returns write_failed and does not leave output file on directory preparation failure", %{
@@ -270,6 +377,217 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
     assert log =~ "event=documents.print_to_pdf.completed"
     refute log =~ "<h1>Hello</h1>"
     refute log =~ work_area
+  end
+
+  test "derives pdf output_path from source_path when omitted", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.mkdir_p!(Path.join(work_area, "notes"))
+
+    File.write!(
+      Path.join(work_area, "notes/source.html"),
+      "<html><body>Derived PDF</body></html>"
+    )
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert body =~ "Derived PDF"
+      Plug.Conn.resp(conn, 200, "%PDF derived")
+    end)
+
+    assert {:ok, result} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "notes/source.html"},
+               runtime_meta
+             )
+
+    assert result.summary == "Printed notes/source.html to notes/source.pdf"
+    assert result.result["output_path"] == "notes/source.pdf"
+    assert File.read!(Path.join(work_area, "notes/source.pdf")) == "%PDF derived"
+  end
+
+  test "prints .htm source to pdf", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(Path.join(work_area, "doc.htm"), "<html><body><h1>Hello HTM</h1></body></html>")
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert body =~ "filename=\"index.html\""
+      assert body =~ "Hello HTM"
+      Plug.Conn.resp(conn, 200, "%PDF htm")
+    end)
+
+    assert {:ok, result} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.htm", "output_path" => "doc-htm.pdf"},
+               runtime_meta
+             )
+
+    assert result.result["source_path"] == "doc.htm"
+    assert File.read!(Path.join(work_area, "doc-htm.pdf")) == "%PDF htm"
+  end
+
+  test "prints markdown source to pdf with rendered markdown by default and raw text when print_raw_file is true",
+       %{
+         instance: instance,
+         runtime_meta: runtime_meta,
+         work_area: work_area
+       } do
+    bypass = Bypass.open()
+    request_counter = :counters.new(1, [])
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(Path.join(work_area, "doc.md"), "# Heading\n\nParagraph")
+
+    Bypass.expect(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      :counters.add(request_counter, 1, 1)
+      attempt = :counters.get(request_counter, 1)
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+      case attempt do
+        1 ->
+          assert body =~ ~r/<h1>\s*Heading\s*<\/h1>/
+          refute body =~ "<pre># Heading"
+
+        2 ->
+          assert body =~ "<pre># Heading"
+      end
+
+      Plug.Conn.resp(conn, 200, "%PDF markdown")
+    end)
+
+    assert {:ok, rendered_result} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.md", "output_path" => "rendered.pdf"},
+               runtime_meta
+             )
+
+    assert rendered_result.result["output_path"] == "rendered.pdf"
+
+    assert {:ok, raw_result} =
+             Documents.print_to_pdf(
+               instance,
+               %{
+                 "source_path" => "doc.md",
+                 "output_path" => "raw.pdf",
+                 "print_raw_file" => true
+               },
+               runtime_meta
+             )
+
+    assert raw_result.result["output_path"] == "raw.pdf"
+    assert File.read!(Path.join(work_area, "rendered.pdf")) == "%PDF markdown"
+    assert File.read!(Path.join(work_area, "raw.pdf")) == "%PDF markdown"
+  end
+
+  test "prints txt and image source types through printable wrappers", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(Path.join(work_area, "note.txt"), "Hello <b>team</b>")
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      assert body =~ "<pre>Hello &lt;b&gt;team&lt;/b&gt;</pre>"
+      Plug.Conn.resp(conn, 200, "%PDF txt")
+    end)
+
+    assert {:ok, txt_result} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "note.txt", "output_path" => "note.pdf"},
+               runtime_meta
+             )
+
+    assert txt_result.result["source_path"] == "note.txt"
+
+    image_types = [
+      {"png", "image/png"},
+      {"jpg", "image/jpeg"},
+      {"jpeg", "image/jpeg"},
+      {"webp", "image/webp"}
+    ]
+
+    Enum.each(image_types, fn {ext, media_type} ->
+      source_path = "image.#{ext}"
+      output_path = "image-#{ext}.pdf"
+      image_binary = "image-binary-#{ext}"
+      File.write!(Path.join(work_area, source_path), image_binary)
+
+      Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        assert body =~ "data:#{media_type};base64,#{Base.encode64(image_binary)}"
+        Plug.Conn.resp(conn, 200, "%PDF image #{ext}")
+      end)
+
+      assert {:ok, image_result} =
+               Documents.print_to_pdf(
+                 instance,
+                 %{"source_path" => source_path, "output_path" => output_path},
+                 runtime_meta
+               )
+
+      assert image_result.result["source_path"] == source_path
+      assert File.read!(Path.join(work_area, output_path)) == "%PDF image #{ext}"
+    end)
   end
 
   test "returns pdf_conversion_failed on non-2xx response", %{
@@ -432,7 +750,103 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
     assert {:error, %{code: "tool.documents.output_exists"}} =
              Documents.print_to_pdf(
                instance,
+               %{
+                 "source_path" => "doc.html",
+                 "output_path" => "doc.pdf",
+                 "overwrite" => false
+               },
+               runtime_meta
+             )
+  end
+
+  test "overwrites existing pdf output by default when overwrite is omitted", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "<html>ok</html>")
+    existing_pdf = Path.join(work_area, "doc.pdf")
+    File.write!(existing_pdf, "existing")
+
+    Bypass.expect_once(
+      bypass,
+      "POST",
+      "/forms/chromium/convert/html",
+      &Plug.Conn.resp(&1, 200, "%PDF replaced")
+    )
+
+    assert {:ok, _result} =
+             Documents.print_to_pdf(
+               instance,
                %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
+
+    assert File.read!(existing_pdf) == "%PDF replaced"
+  end
+
+  test "enforces source size limit for print_to_pdf before backend call", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+    parent = self()
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 5,
+      max_pdf_bytes: 1024 * 1024
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "123456")
+
+    Bypass.stub(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      send(parent, :backend_called)
+      Plug.Conn.resp(conn, 200, "%PDF should not happen")
+    end)
+
+    assert {:error,
+            %{code: "tool.documents.file_too_large", details: %{"source_path" => "doc.html"}}} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
+
+    refute_received :backend_called
+  end
+
+  test "returns unsupported_format for unsupported print source extension", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    File.write!(Path.join(work_area, "doc.csv"), "a,b")
+
+    assert {:error,
+            %{code: "tool.documents.unsupported_format", details: %{"source_path" => "doc.csv"}}} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.csv", "output_path" => "doc.pdf"},
                runtime_meta
              )
   end
@@ -636,8 +1050,8 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
     {_symlink_target_rel, symlink_target_abs} =
       write_priv_documents_file("documents_test_symlink_target.html", "TARGET")
 
-    symlink_rel = "priv/documents/documents_test_symlink_header.html"
-    symlink_abs = Path.expand(symlink_rel)
+    symlink_rel = Path.join("priv/documents", "documents_test_symlink_header.html")
+    symlink_abs = Path.join(priv_documents_root(), "documents_test_symlink_header.html")
     File.rm(symlink_abs)
     assert :ok = File.ln_s(symlink_target_abs, symlink_abs)
 
@@ -684,6 +1098,59 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
                    runtime_meta
                  )
       end)
+  end
+
+  test "fallback asset under symlinked parent directory is rejected as outside_root", %{
+    instance: instance,
+    runtime_meta: runtime_meta,
+    work_area: work_area
+  } do
+    bypass = Bypass.open()
+
+    unique = System.unique_integer([:positive])
+    outside_dir = Path.join(System.tmp_dir!(), "documents_fallback_outside_#{unique}")
+    linked_dir_name = "documents_test_linked_dir_#{unique}"
+    linked_dir_abs = Path.join(priv_documents_root(), linked_dir_name)
+    linked_header_rel = Path.join("priv/documents", "#{linked_dir_name}/header.html")
+
+    File.mkdir_p!(outside_dir)
+    File.write!(Path.join(outside_dir, "header.html"), "OUTSIDE_HEADER")
+    File.rm_rf(linked_dir_abs)
+    assert :ok = File.ln_s(outside_dir, linked_dir_abs)
+
+    on_exit(fn ->
+      File.rm_rf(linked_dir_abs)
+      File.rm_rf(outside_dir)
+    end)
+
+    Application.put_env(
+      :lemmings_os,
+      :documents,
+      gotenberg_url: "http://localhost:#{bypass.port}",
+      pdf_timeout_ms: 2_000,
+      pdf_connect_timeout_ms: 2_000,
+      pdf_retries: 0,
+      max_source_bytes: 1024 * 1024,
+      max_pdf_bytes: 1024 * 1024,
+      max_fallback_bytes: 1024 * 1024,
+      default_header_path: linked_header_rel
+    )
+
+    File.write!(Path.join(work_area, "doc.html"), "<html><head></head><body>Hello</body></html>")
+
+    Bypass.expect_once(bypass, "POST", "/forms/chromium/convert/html", fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      refute body =~ "OUTSIDE_HEADER"
+      refute body =~ "filename=\"header.html\""
+      Plug.Conn.resp(conn, 200, "%PDF no-linked-fallback")
+    end)
+
+    assert {:ok, _result} =
+             Documents.print_to_pdf(
+               instance,
+               %{"source_path" => "doc.html", "output_path" => "doc.pdf"},
+               runtime_meta
+             )
   end
 
   test "blocks remote asset references in source html before backend call", %{
@@ -763,9 +1230,16 @@ defmodule LemmingsOs.Tools.Adapters.DocumentsTest do
   end
 
   defp write_priv_documents_file(filename, content) do
-    path = Path.expand(Path.join("priv/documents", filename))
+    path = Path.join(priv_documents_root(), filename)
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, content)
     {Path.join("priv/documents", filename), path}
+  end
+
+  defp priv_documents_root do
+    :lemmings_os
+    |> :code.priv_dir()
+    |> List.to_string()
+    |> Path.join("documents")
   end
 end

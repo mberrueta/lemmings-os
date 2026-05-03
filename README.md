@@ -180,6 +180,7 @@ Feature documentation:
 
 - [Artifacts](docs/features/artifacts.md) — promoted durable file references,
   managed local storage, lifecycle/state model, and safe download/promotion flows.
+- [Tools Catalog](docs/features/tools.md) — human-readable runtime tool catalog, including Filesystem, Web, and Documents tools.
 - [Secret Bank](docs/features/secret_bank.md) — encrypted local runtime secrets,
   hierarchy resolution, env fallback, write-only operator flows, and safe audit
   events.

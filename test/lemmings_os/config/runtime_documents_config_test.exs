@@ -70,7 +70,7 @@ defmodule LemmingsOs.Config.RuntimeDocumentsConfigTest do
       )
     end
 
-    test "empty fallback env vars are preserved for consumer validation" do
+    test "empty fallback env vars are treated as unset" do
       with_env(
         %{
           "LEMMINGS_DOCUMENTS_DEFAULT_HEADER_PATH" => "",
@@ -80,15 +80,15 @@ defmodule LemmingsOs.Config.RuntimeDocumentsConfigTest do
         fn ->
           with_documents_app_env(nil, fn ->
             documents = runtime_documents_config(:dev)
-            assert Keyword.get(documents, :default_header_path) == ""
-            assert Keyword.get(documents, :default_footer_path) == ""
-            assert Keyword.get(documents, :default_css_path) == ""
+            assert Keyword.get(documents, :default_header_path) == nil
+            assert Keyword.get(documents, :default_footer_path) == nil
+            assert Keyword.get(documents, :default_css_path) == nil
           end)
         end
       )
     end
 
-    test "keeps numeric env values as raw strings for consumer validation" do
+    test "keeps invalid numeric env values for adapter-time validation" do
       with_env(
         %{"LEMMINGS_DOCUMENTS_PDF_TIMEOUT_MS" => "30s"},
         fn ->

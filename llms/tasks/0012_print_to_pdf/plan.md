@@ -625,30 +625,30 @@ mix precommit
 
 ## Acceptance Criteria
 
-- [ ] Tool catalog includes `documents.markdown_to_html`.
-- [ ] Tool catalog includes `documents.print_to_pdf`.
-- [ ] `documents.markdown_to_html` converts Markdown WorkArea files to HTML WorkArea files.
-- [ ] `documents.print_to_pdf` prints HTML WorkArea files to PDF WorkArea files.
-- [ ] `documents.print_to_pdf` prints Markdown WorkArea files to PDF by internally converting Markdown to HTML.
-- [ ] `documents.print_to_pdf` prints Markdown as raw text when `print_raw_file: true`.
-- [ ] `documents.print_to_pdf` prints text WorkArea files to PDF.
-- [ ] `documents.print_to_pdf` prints PNG, JPG, JPEG, and WEBP WorkArea files to PDF.
-- [ ] Explicit `header_path`, `footer_path`, and `style_paths` are supported.
-- [ ] Conventional sibling header/footer/CSS files are supported.
-- [ ] Operator fallback header/footer/CSS env files are supported.
-- [ ] Explicit paths override conventions, and conventions override env fallbacks.
-- [ ] Operator fallback files are constrained to `priv/documents/`, regular files, valid extensions, and configured size limits.
-- [ ] Remote asset references and CSS imports are blocked before calling Gotenberg.
-- [ ] Absolute paths, traversal, Windows drive paths, and unsupported extensions are rejected.
-- [ ] Existing output files are protected unless `overwrite: true`.
-- [ ] Generated HTML and PDF outputs use temp-file plus atomic rename and do not leave partial final files on failure.
-- [ ] Gotenberg is available in Docker Compose on a private internal network without a published host port.
-- [ ] `documents.print_to_pdf` clearly returns `tool.documents.pdf_backend_unavailable` when Gotenberg is down.
-- [ ] Gotenberg URL and limits are configurable through env-backed runtime config.
-- [ ] Errors are structured, namespaced, and safe.
-- [ ] Logs/telemetry do not include document contents, unsafe paths, or backend response bodies.
-- [ ] Tests cover catalog, adapter behavior, runtime dispatch, config parsing, Gotenberg success/failure, remote asset blocking, atomic writes, path safety, precedence, and size limits.
-- [ ] No artifact persistence or promotion is implemented in this ticket.
+- [x] Tool catalog includes `documents.markdown_to_html`.
+- [x] Tool catalog includes `documents.print_to_pdf`.
+- [x] `documents.markdown_to_html` converts Markdown WorkArea files to HTML WorkArea files.
+- [x] `documents.print_to_pdf` prints HTML WorkArea files to PDF WorkArea files.
+- [x] `documents.print_to_pdf` prints Markdown WorkArea files to PDF by internally converting Markdown to HTML.
+- [x] `documents.print_to_pdf` prints Markdown as raw text when `print_raw_file: true`.
+- [x] `documents.print_to_pdf` prints text WorkArea files to PDF.
+- [x] `documents.print_to_pdf` prints PNG, JPG, JPEG, and WEBP WorkArea files to PDF.
+- [x] Explicit `header_path`, `footer_path`, and `style_paths` are supported.
+- [x] Conventional sibling header/footer/CSS files are supported.
+- [x] Operator fallback header/footer/CSS env files are supported.
+- [x] Explicit paths override conventions, and conventions override env fallbacks.
+- [x] Operator fallback files are constrained to `priv/documents/`, regular files, valid extensions, and configured size limits.
+- [x] Remote asset references and CSS imports are blocked before calling Gotenberg.
+- [x] Absolute paths, traversal, Windows drive paths, and unsupported extensions are rejected.
+- [x] Existing output files are protected unless `overwrite: true`.
+- [x] Generated HTML and PDF outputs use temp-file plus atomic rename and do not leave partial final files on failure.
+- [x] Gotenberg is available in Docker Compose on a private internal network without a published host port.
+- [x] `documents.print_to_pdf` clearly returns `tool.documents.pdf_backend_unavailable` when Gotenberg is down.
+- [x] Gotenberg URL and limits are configurable through env-backed runtime config.
+- [x] Errors are structured, namespaced, and safe.
+- [x] Logs/telemetry do not include document contents, unsafe paths, or backend response bodies.
+- [x] Tests cover catalog, adapter behavior, runtime dispatch, config parsing, Gotenberg success/failure, remote asset blocking, atomic writes, path safety, precedence, and size limits.
+- [x] No artifact persistence or promotion is implemented in this ticket.
 
 ## Task Sequence
 
@@ -665,13 +665,13 @@ This section was added by `tl-architect` decomposition on 2026-05-02. The source
 | 07 | HTML Asset Policy | `dev-backend-elixir-engineer` | PENDING | [ ] |
 | 08 | Safe Observability | `dev-logging-daily-guardian` | PENDING | [ ] |
 | 09 | Compose Gotenberg Integration | `dev-backend-elixir-engineer` | PENDING | [ ] |
-| 10 | Documents ExUnit Coverage Closure | `qa-elixir-test-author` | PENDING | [ ] |
-| 11 | Operator Documentation | `docs-feature-documentation-author` | PENDING | [ ] |
-| 12 | Elixir Code And PR Audit | `audit-pr-elixir` | PENDING | [ ] |
-| 13 | Elixir Test Style Audit | `qa-elixir-test-author` | PENDING | [ ] |
-| 14 | Security Audit | `audit-security` | PENDING | [ ] |
-| 15 | Accessibility Scope Review | `audit-accessibility` | PENDING | [ ] |
-| 16 | Release Validation | `rm-release-manager` | PENDING | [ ] |
+| 10 | Documents ExUnit Coverage Closure | `qa-elixir-test-author` | COMPLETE | [x] |
+| 11 | Operator Documentation | `docs-feature-documentation-author` | COMPLETE | [x] |
+| 12 | Elixir Code And PR Audit | `audit-pr-elixir` | COMPLETE | [x] |
+| 13 | Elixir Test Style Audit | `qa-elixir-test-author` | COMPLETE | [x] |
+| 14 | Security Audit | `audit-security` | COMPLETE | [x] |
+| 15 | Accessibility Scope Review | `audit-accessibility` | COMPLETE | [x] |
+| 16 | Release Validation | `rm-release-manager` | COMPLETE | [x] |
 
 ## Task Decomposition Notes
 

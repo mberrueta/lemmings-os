@@ -5,6 +5,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
   require Logger
 
+  alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.WorkArea
 
@@ -37,7 +38,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
       iex> {:error, error} =
       ...>   LemmingsOs.Tools.Adapters.Documents.markdown_to_html(
       ...>     instance,
-      ...>     %{"source_path" => "notes/a.md", "output_path" => ""},
+      ...>     %{"source_path" => "", "output_path" => "notes/a.html"},
       ...>     %{}
       ...>   )
       iex> error.code
@@ -47,7 +48,8 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
           adapter_success() | adapter_error()
   def markdown_to_html(%LemmingInstance{} = instance, args, runtime_meta \\ %{})
       when is_map(args) and is_map(runtime_meta) do
-    with {:ok, {source_path, output_path, overwrite?}} <- validate_markdown_to_html_args(args),
+    with :ok <- validate_documents_config(),
+         {:ok, {source_path, output_path, overwrite?}} <- validate_markdown_to_html_args(args),
          {:ok, source} <- resolve_work_area_path(instance, source_path, runtime_meta),
          {:ok, output} <- resolve_work_area_path(instance, output_path, runtime_meta),
          :ok <- validate_source_extension(source.relative_path),
@@ -88,16 +90,6 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
       ...>   )
       iex> error.code
       "tool.validation.invalid_args"
-
-      iex> instance = %LemmingsOs.LemmingInstances.LemmingInstance{id: "instance-1"}
-      iex> {:error, error} =
-      ...>   LemmingsOs.Tools.Adapters.Documents.print_to_pdf(
-      ...>     instance,
-      ...>     %{"source_path" => "notes/a.md"},
-      ...>     %{}
-      ...>   )
-      iex> error.details
-      %{field: "output_path"}
   """
   @spec print_to_pdf(LemmingInstance.t(), map(), runtime_meta()) ::
           adapter_success() | adapter_error()
@@ -106,7 +98,8 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     started_at = System.monotonic_time()
 
     result =
-      with {:ok, print_args} <- validate_print_to_pdf_args(args),
+      with :ok <- validate_documents_config(),
+           {:ok, print_args} <- validate_print_to_pdf_args(args),
            {:ok, source} <-
              resolve_work_area_path(instance, print_args.source_path, runtime_meta),
            {:ok, output} <-
@@ -130,7 +123,16 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
            {:ok, resolved_assets} <-
              resolve_print_assets(instance, source, print_args, runtime_meta),
            :ok <- enforce_asset_policy(source.relative_path, html_body, resolved_assets),
-           {:ok, pdf_binary} <- convert_html_to_pdf(html_body, print_args, resolved_assets),
+           {:ok, pdf_binary} <-
+             convert_html_to_pdf(
+               html_body,
+               print_args,
+               resolved_assets,
+               print_log_metadata(instance, runtime_meta,
+                 source_path: source.relative_path,
+                 output_path: output.relative_path
+               )
+             ),
            {:ok, bytes} <-
              write_pdf_atomic(output.relative_path, output.absolute_path, pdf_binary) do
         {:ok,
@@ -167,17 +169,58 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
         )
 
       {:error, %{code: code} = error} ->
-        log_print_failure(error, code, duration_ms)
+        log_print_failure(
+          error,
+          code,
+          duration_ms,
+          print_log_metadata(instance, runtime_meta,
+            source_path: failure_source_path(error),
+            output_path: failure_output_path(error)
+          )
+        )
     end
 
     result
   end
 
   defp validate_markdown_to_html_args(args) do
-    with {:ok, source_path} <- fetch_required_path(args, "source_path"),
-         {:ok, output_path} <- fetch_required_path(args, "output_path"),
+    with {:ok, source_path} <- fetch_markdown_source_path(args),
+         {:ok, output_path} <- fetch_optional_output_path(args, source_path, ".html"),
          {:ok, overwrite?} <- fetch_optional_overwrite(args) do
       {:ok, {source_path, output_path, overwrite?}}
+    end
+  end
+
+  defp fetch_markdown_source_path(args) do
+    case fetch_arg(args, "source_path", :missing) do
+      value when is_binary(value) and value != "" ->
+        {:ok, value}
+
+      :missing ->
+        fetch_markdown_source_path_alias(args)
+
+      _ ->
+        {:error,
+         %{
+           code: "tool.validation.invalid_args",
+           message: "Invalid tool arguments",
+           details: %{field: "source_path"}
+         }}
+    end
+  end
+
+  defp fetch_markdown_source_path_alias(args) do
+    case fetch_arg(args, "markdown_path", :missing) do
+      value when is_binary(value) and value != "" ->
+        {:ok, value}
+
+      _ ->
+        {:error,
+         %{
+           code: "tool.validation.invalid_args",
+           message: "Invalid tool arguments",
+           details: %{field: "source_path"}
+         }}
     end
   end
 
@@ -197,7 +240,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   end
 
   defp fetch_optional_overwrite(args) do
-    case Map.get(args, "overwrite", Map.get(args, :overwrite, false)) do
+    case Map.get(args, "overwrite", Map.get(args, :overwrite, true)) do
       value when value in [true, false] ->
         {:ok, value}
 
@@ -404,22 +447,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   end
 
   defp max_source_bytes do
-    documents_config = Application.get_env(:lemmings_os, :documents, [])
-    configured = Keyword.get(documents_config, :max_source_bytes, @default_max_source_bytes)
-
-    case configured do
-      value when is_integer(value) and value > 0 ->
-        value
-
-      value when is_binary(value) ->
-        case Integer.parse(value) do
-          {integer, ""} when integer > 0 -> integer
-          _ -> @default_max_source_bytes
-        end
-
-      _ ->
-        @default_max_source_bytes
-    end
+    integer_config_value(:max_source_bytes, @default_max_source_bytes)
   end
 
   defp render_markdown(markdown) when is_binary(markdown) do
@@ -534,8 +562,8 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
   defp validate_print_to_pdf_args(args) do
     with {:ok, source_path} <- fetch_required_path(args, "source_path"),
-         {:ok, output_path} <- fetch_required_path(args, "output_path"),
-         {:ok, overwrite} <- fetch_boolean_arg(args, "overwrite", false),
+         {:ok, output_path} <- fetch_optional_output_path(args, source_path, ".pdf"),
+         {:ok, overwrite} <- fetch_boolean_arg(args, "overwrite", true),
          {:ok, print_raw_file} <- fetch_boolean_arg(args, "print_raw_file", false),
          {:ok, landscape} <- fetch_boolean_arg(args, "landscape", false),
          {:ok, paper_size} <- fetch_optional_string_arg(args, "paper_size"),
@@ -565,8 +593,27 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     end
   end
 
+  defp fetch_optional_output_path(args, source_path, extension)
+       when is_map(args) and is_binary(source_path) and is_binary(extension) do
+    case fetch_arg(args, "output_path", :missing) do
+      :missing ->
+        {:ok, replace_extension(source_path, extension)}
+
+      value when is_binary(value) and value != "" ->
+        {:ok, value}
+
+      _ ->
+        {:error,
+         %{
+           code: "tool.validation.invalid_args",
+           message: "Invalid tool arguments",
+           details: %{field: "output_path"}
+         }}
+    end
+  end
+
   defp fetch_boolean_arg(args, key, default) do
-    case Map.get(args, key, Map.get(args, String.to_atom(key), default)) do
+    case fetch_arg(args, key, default) do
       value when value in [true, false] ->
         {:ok, value}
 
@@ -581,7 +628,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   end
 
   defp fetch_optional_string_arg(args, key) do
-    case Map.get(args, key, Map.get(args, String.to_atom(key))) do
+    case fetch_arg(args, key) do
       nil ->
         {:ok, nil}
 
@@ -600,21 +647,50 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
 
   defp fetch_optional_style_paths(args) do
     args
-    |> Map.get("style_paths", Map.get(args, :style_paths))
+    |> fetch_arg("style_paths")
     |> normalize_style_paths_arg()
   end
 
   defp normalize_style_paths_arg(nil), do: {:ok, nil}
 
   defp normalize_style_paths_arg(paths) when is_list(paths) do
-    with true <- Enum.all?(paths, &(is_binary(&1) and &1 != "")) do
+    if Enum.all?(paths, &(is_binary(&1) and &1 != "")) do
       {:ok, paths}
     else
-      false -> invalid_style_paths_error()
+      invalid_style_paths_error()
     end
   end
 
   defp normalize_style_paths_arg(_value), do: invalid_style_paths_error()
+
+  defp fetch_arg(args, key, default \\ nil) do
+    case Map.fetch(args, key) do
+      {:ok, value} ->
+        value
+
+      :error ->
+        case arg_atom_key(key) do
+          nil -> default
+          atom_key -> Map.get(args, atom_key, default)
+        end
+    end
+  end
+
+  defp arg_atom_key("source_path"), do: :source_path
+  defp arg_atom_key("markdown_path"), do: :markdown_path
+  defp arg_atom_key("output_path"), do: :output_path
+  defp arg_atom_key("overwrite"), do: :overwrite
+  defp arg_atom_key("print_raw_file"), do: :print_raw_file
+  defp arg_atom_key("landscape"), do: :landscape
+  defp arg_atom_key("paper_size"), do: :paper_size
+  defp arg_atom_key("margin_top"), do: :margin_top
+  defp arg_atom_key("margin_bottom"), do: :margin_bottom
+  defp arg_atom_key("margin_left"), do: :margin_left
+  defp arg_atom_key("margin_right"), do: :margin_right
+  defp arg_atom_key("header_path"), do: :header_path
+  defp arg_atom_key("footer_path"), do: :footer_path
+  defp arg_atom_key("style_paths"), do: :style_paths
+  defp arg_atom_key(_key), do: nil
 
   defp invalid_style_paths_error do
     {:error,
@@ -626,16 +702,19 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   end
 
   defp validate_source_pdf_extension(path) do
-    case String.downcase(Path.extname(path)) do
-      ".html" -> :ok
-      ".htm" -> :ok
-      ".md" -> :ok
-      ".txt" -> :ok
-      ".png" -> :ok
-      ".jpg" -> :ok
-      ".jpeg" -> :ok
-      ".webp" -> :ok
-      _ -> unsupported_source_format(path)
+    if String.downcase(Path.extname(path)) in [
+         ".html",
+         ".htm",
+         ".md",
+         ".txt",
+         ".png",
+         ".jpg",
+         ".jpeg",
+         ".webp"
+       ] do
+      :ok
+    else
+      unsupported_source_format(path)
     end
   end
 
@@ -769,7 +848,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     """
   end
 
-  defp convert_html_to_pdf(html_body, print_args, resolved_assets) do
+  defp convert_html_to_pdf(html_body, print_args, resolved_assets, log_metadata) do
     html_with_styles =
       inject_css_into_html(html_body, Enum.map(resolved_assets.styles, & &1.content))
 
@@ -796,7 +875,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
       Req.post(req, url: "/forms/chromium/convert/html", form_multipart: form_fields)
     end
 
-    request_pdf_with_retry(request_fun, pdf_retries())
+    request_pdf_with_retry(request_fun, pdf_retries(), log_metadata)
   end
 
   defp maybe_header_field(nil), do: []
@@ -1003,23 +1082,27 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   defp resolve_conventional_asset(instance, runtime_meta, conventional_path, extension_check) do
     with true <- extension_check.(conventional_path),
          {:ok, resolved} <- resolve_work_area_path(instance, conventional_path, runtime_meta) do
-      case File.stat(resolved.absolute_path) do
-        {:ok, %File.Stat{type: :regular}} ->
-          case File.read(resolved.absolute_path) do
-            {:ok, content} ->
-              {:ok, %{source: :conventional, content: content, path: resolved.relative_path}}
-
-            {:error, _} ->
-              {:ok, nil}
-          end
-
-        _ ->
-          {:ok, nil}
-      end
+      read_conventional_asset(resolved)
     else
       {:error, %{code: "tool.validation.invalid_path"}} -> {:ok, nil}
       {:error, %{code: "tool.fs.work_area_unavailable"}} -> {:ok, nil}
       _ -> {:ok, nil}
+    end
+  end
+
+  defp read_conventional_asset(%{absolute_path: absolute_path, relative_path: relative_path}) do
+    case File.stat(absolute_path) do
+      {:ok, %File.Stat{type: :regular}} ->
+        case File.read(absolute_path) do
+          {:ok, content} ->
+            {:ok, %{source: :conventional, content: content, path: relative_path}}
+
+          {:error, _} ->
+            {:ok, nil}
+        end
+
+      _ ->
+        {:ok, nil}
     end
   end
 
@@ -1036,14 +1119,17 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   defp resolve_fallback_asset_path(_fallback_path, _extension_check), do: {:ok, nil}
 
   defp resolve_valid_fallback_asset(fallback_path, extension_check) do
-    fallback_absolute = Path.expand(fallback_path, File.cwd!())
-    allowed_root = Path.expand("priv/documents", File.cwd!())
+    fallback_absolute = Path.expand(fallback_path, app_root_path())
+    allowed_root = allowed_fallback_root()
 
     with true <-
-           String.starts_with?(fallback_absolute, allowed_root <> "/") ||
+           path_within_root?(fallback_absolute, allowed_root) ||
              fallback_reject("outside_root"),
          true <- extension_check.(fallback_absolute) || fallback_reject("invalid_extension"),
          {:ok, %File.Stat{type: :regular}} <- File.lstat(fallback_absolute),
+         true <-
+           path_without_symlink_components?(allowed_root, fallback_absolute) ||
+             fallback_reject("symlink"),
          {:ok, content} <- File.read(fallback_absolute),
          true <- byte_size(content) <= max_fallback_bytes() || fallback_reject("too_large") do
       {:ok, %{source: :fallback, content: content, path: nil}}
@@ -1075,6 +1161,45 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     )
 
     {:error, :rejected_fallback}
+  end
+
+  defp path_within_root?(candidate_path, root_path) do
+    candidate_path == root_path or String.starts_with?(candidate_path, root_path <> "/")
+  end
+
+  defp path_without_symlink_components?(root_path, candidate_path) do
+    {valid?, _path} =
+      candidate_path
+      |> Path.relative_to(root_path)
+      |> String.split("/", trim: true)
+      |> Enum.reduce_while({true, root_path}, fn segment, {_valid?, current_path} ->
+        next_path = Path.join(current_path, segment)
+
+        case File.lstat(next_path) do
+          {:ok, %File.Stat{type: :symlink}} ->
+            {:halt, {false, next_path}}
+
+          {:ok, _} ->
+            {:cont, {true, next_path}}
+
+          {:error, _} ->
+            {:halt, {true, next_path}}
+        end
+      end)
+
+    valid?
+  end
+
+  defp app_root_path do
+    Application.app_dir(:lemmings_os)
+  end
+
+  defp allowed_fallback_root do
+    :lemmings_os
+    |> :code.priv_dir()
+    |> List.to_string()
+    |> Path.join("documents")
+    |> Path.expand()
   end
 
   defp ensure_asset_exists(relative_path, absolute_path, field_name) do
@@ -1137,38 +1262,52 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     Path.join(directory, basename <> suffix)
   end
 
+  defp replace_extension(path, extension) do
+    Path.rootname(path) <> extension
+  end
+
   defp enforce_asset_policy(source_path, html_body, resolved_assets) do
-    with :ok <- check_asset_content("source_path", source_path, html_body),
-         :ok <- check_optional_asset_content("header_path", resolved_assets.header),
-         :ok <- check_optional_asset_content("footer_path", resolved_assets.footer),
-         :ok <- check_style_asset_contents(resolved_assets.styles) do
-      :ok
-    end
-  end
-
-  defp check_optional_asset_content(_field, nil), do: :ok
-
-  defp check_optional_asset_content(field, %{content: content, path: path}) do
-    check_asset_content(field, path, content)
-  end
-
-  defp check_style_asset_contents(styles) when is_list(styles) do
-    styles
-    |> Enum.reduce_while(:ok, fn style, :ok ->
-      case check_asset_content("style_paths", style.path, style.content) do
+    [{"source_path", source_path, html_body}]
+    |> append_optional_policy_asset("header_path", resolved_assets.header)
+    |> append_optional_policy_asset("footer_path", resolved_assets.footer)
+    |> append_policy_styles(resolved_assets.styles)
+    |> Enum.reduce_while(:ok, fn {field, path, content}, :ok ->
+      case check_asset_content(field, path, content) do
         :ok -> {:cont, :ok}
         {:error, error} -> {:halt, {:error, error}}
       end
     end)
   end
 
+  defp append_optional_policy_asset(assets, _field, nil), do: assets
+
+  defp append_optional_policy_asset(assets, field, %{content: content, path: path})
+       when is_list(assets),
+       do: assets ++ [{field, path, content}]
+
+  defp append_policy_styles(assets, styles) when is_list(styles) do
+    assets ++ Enum.map(styles, &{"style_paths", &1.path, &1.content})
+  end
+
+  defp append_policy_styles(assets, _styles), do: assets
+
   defp check_asset_content(field, path, content) when is_binary(content) do
-    with :ok <- reject_http_https_references(field, path, content),
-         :ok <- reject_file_references(field, path, content),
-         :ok <- reject_protocol_relative_references(field, path, content),
-         :ok <- reject_css_import_references(field, path, content) do
-      :ok
-    end
+    do_check_asset_content(field, path, content)
+  end
+
+  defp do_check_asset_content(field, path, content) do
+    [
+      &reject_http_https_references/3,
+      &reject_file_references/3,
+      &reject_protocol_relative_references/3,
+      &reject_css_import_references/3
+    ]
+    |> Enum.reduce_while(:ok, fn validator, :ok ->
+      case validator.(field, path, content) do
+        :ok -> {:cont, :ok}
+        {:error, error} -> {:halt, {:error, error}}
+      end
+    end)
   end
 
   defp reject_http_https_references(field, path, content) do
@@ -1216,91 +1355,154 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     }
   end
 
-  defp request_pdf_with_retry(request_fun, retries_left) when is_function(request_fun, 0) do
-    max_retries = pdf_retries()
-    attempt = max_retries - retries_left + 1
+  defp request_pdf_with_retry(request_fun, retries_left, log_metadata)
+       when is_function(request_fun, 0) and is_list(log_metadata) do
+    request_pdf_with_retry_loop(request_fun, retries_left, pdf_retries(), 1, log_metadata)
+  rescue
+    _ ->
+      backend_unavailable("unexpected_error", log_metadata)
+  end
 
-    case request_fun.() do
-      {:ok, %Req.Response{status: status, body: body}}
-      when status in 200..299 and is_binary(body) ->
-        validate_pdf_size(body)
+  defp request_pdf_with_retry_loop(request_fun, retries_left, max_retries, attempt, log_metadata)
+       when retries_left >= 0 do
+    request_fun.()
+    |> handle_pdf_request_result(request_fun, retries_left, max_retries, attempt, log_metadata)
+  end
 
-      {:ok, %Req.Response{status: status}}
-      when status in @retryable_statuses and retries_left > 0 ->
-        Logger.warning("documents print to pdf backend retry",
+  defp handle_pdf_request_result(
+         {:ok, %Req.Response{status: status, body: body}},
+         _request_fun,
+         _retries_left,
+         _max_retries,
+         _attempt,
+         _log_metadata
+       )
+       when status in 200..299 and is_binary(body) do
+    validate_pdf_size(body)
+  end
+
+  defp handle_pdf_request_result(
+         {:ok, %Req.Response{status: status}},
+         request_fun,
+         retries_left,
+         max_retries,
+         attempt,
+         log_metadata
+       )
+       when status in @retryable_statuses and retries_left > 0 do
+    backend_retry("retryable_status", max_retries, attempt, status, log_metadata)
+
+    request_pdf_with_retry_loop(
+      request_fun,
+      retries_left - 1,
+      max_retries,
+      attempt + 1,
+      log_metadata
+    )
+  end
+
+  defp handle_pdf_request_result(
+         {:ok, %Req.Response{status: status}},
+         _request_fun,
+         _retries_left,
+         _max_retries,
+         _attempt,
+         log_metadata
+       ) do
+    backend_failed(status, log_metadata)
+  end
+
+  defp handle_pdf_request_result(
+         {:error, %Req.TransportError{reason: reason}},
+         request_fun,
+         retries_left,
+         max_retries,
+         attempt,
+         log_metadata
+       )
+       when retries_left > 0 and reason in [:timeout, :econnrefused, :closed] do
+    backend_retry(normalize_transport_reason(reason), max_retries, attempt, nil, log_metadata)
+
+    request_pdf_with_retry_loop(
+      request_fun,
+      retries_left - 1,
+      max_retries,
+      attempt + 1,
+      log_metadata
+    )
+  end
+
+  defp handle_pdf_request_result(
+         {:error, %Req.TransportError{}},
+         _request_fun,
+         _retries_left,
+         _max_retries,
+         _attempt,
+         log_metadata
+       ) do
+    backend_unavailable("transport_error", log_metadata)
+  end
+
+  defp handle_pdf_request_result(
+         {:error, _},
+         _request_fun,
+         _retries_left,
+         _max_retries,
+         _attempt,
+         log_metadata
+       ) do
+    backend_unavailable("request_failed", log_metadata)
+  end
+
+  defp backend_retry(reason, max_retries, attempt, status, log_metadata) do
+    Logger.warning(
+      "documents print to pdf backend retry",
+      log_metadata ++
+        [
           event: "documents.print_to_pdf.backend_retry",
-          status: to_string(status),
-          reason: "retryable_status",
+          status: if(is_integer(status), do: to_string(status), else: nil),
+          reason: reason,
           retry_count: attempt,
           max_retries: max_retries
-        )
+        ]
+    )
+  end
 
-        request_pdf_with_retry(request_fun, retries_left - 1)
-
-      {:ok, %Req.Response{status: status}} ->
-        Logger.error("documents print to pdf backend failed",
+  defp backend_failed(status, log_metadata) do
+    Logger.error(
+      "documents print to pdf backend failed",
+      log_metadata ++
+        [
           event: "documents.print_to_pdf.backend_failed",
           status: to_string(status),
           reason: "backend_status"
-        )
+        ]
+    )
 
-        {:error,
-         %{
-           code: "tool.documents.pdf_conversion_failed",
-           message: "PDF backend conversion failed",
-           details: %{"status" => status}
-         }}
+    {:error,
+     %{
+       code: "tool.documents.pdf_conversion_failed",
+       message: "PDF backend conversion failed",
+       details: %{"status" => status}
+     }}
+  end
 
-      {:error, %Req.TransportError{reason: reason}}
-      when retries_left > 0 and reason in [:timeout, :econnrefused, :closed] ->
-        Logger.warning("documents print to pdf backend retry",
-          event: "documents.print_to_pdf.backend_retry",
-          reason: normalize_transport_reason(reason),
-          retry_count: attempt,
-          max_retries: max_retries
-        )
-
-        request_pdf_with_retry(request_fun, retries_left - 1)
-
-      {:error, %Req.TransportError{reason: _reason}} ->
-        Logger.error("documents print to pdf backend unavailable",
+  defp backend_unavailable(reason, log_metadata) do
+    Logger.error(
+      "documents print to pdf backend unavailable",
+      log_metadata ++
+        [
           event: "documents.print_to_pdf.backend_unavailable",
-          reason: "transport_error"
-        )
+          reason: reason
+        ]
+    )
 
-        {:error,
-         %{
-           code: "tool.documents.pdf_backend_unavailable",
-           message: "PDF backend is unavailable",
-           details: %{}
-         }}
-
-      {:error, _} ->
-        Logger.error("documents print to pdf backend unavailable",
-          event: "documents.print_to_pdf.backend_unavailable",
-          reason: "request_failed"
-        )
-
-        {:error,
-         %{
-           code: "tool.documents.pdf_backend_unavailable",
-           message: "PDF backend is unavailable",
-           details: %{}
-         }}
-    end
-  rescue
-    _ ->
-      Logger.error("documents print to pdf backend unavailable",
-        event: "documents.print_to_pdf.backend_unavailable",
-        reason: "unexpected_error"
-      )
-
-      {:error,
-       %{
-         code: "tool.documents.pdf_backend_unavailable",
-         message: "PDF backend is unavailable",
-         details: %{}
-       }}
+    {:error,
+     %{
+       code: "tool.documents.pdf_backend_unavailable",
+       message: "PDF backend is unavailable",
+       details: %{}
+     }}
   end
 
   defp normalize_transport_reason(:timeout), do: "timeout"
@@ -1320,19 +1522,24 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     :ok
   end
 
-  defp log_print_failure(error, code, duration_ms) do
+  defp log_print_failure(error, code, duration_ms, log_metadata) do
     level = print_failure_level(code)
     event = print_failure_event(code)
     reason = print_failure_reason(code)
     status = print_failure_status(error)
     path = print_failure_path(error)
 
-    Logger.log(level, "documents print to pdf failed",
-      event: event,
-      reason: reason,
-      duration_ms: duration_ms,
-      status: status,
-      path: path
+    Logger.log(
+      level,
+      "documents print to pdf failed",
+      log_metadata ++
+        [
+          event: event,
+          reason: reason,
+          duration_ms: duration_ms,
+          status: status,
+          path: path
+        ]
     )
   end
 
@@ -1362,6 +1569,12 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   defp print_failure_path(%{details: %{"output_path" => path}}) when is_binary(path), do: path
   defp print_failure_path(%{details: %{"source_path" => path}}) when is_binary(path), do: path
   defp print_failure_path(_error), do: nil
+
+  defp failure_source_path(%{details: %{"source_path" => path}}) when is_binary(path), do: path
+  defp failure_source_path(_error), do: nil
+
+  defp failure_output_path(%{details: %{"output_path" => path}}) when is_binary(path), do: path
+  defp failure_output_path(_error), do: nil
 
   defp print_log_metadata(instance, runtime_meta, opts) do
     source_path = Keyword.get(opts, :source_path)
@@ -1470,7 +1683,7 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
   end
 
   defp pdf_retries do
-    integer_config_value(:pdf_retries, @default_pdf_retries)
+    non_negative_integer_config_value(:pdf_retries, @default_pdf_retries)
   end
 
   defp max_pdf_bytes do
@@ -1486,21 +1699,51 @@ defmodule LemmingsOs.Tools.Adapters.Documents do
     |> Keyword.get(key, default)
   end
 
+  defp validate_documents_config do
+    [
+      pdf_timeout_ms: {@default_pdf_timeout_ms, :positive},
+      pdf_connect_timeout_ms: {@default_pdf_connect_timeout_ms, :positive},
+      pdf_retries: {@default_pdf_retries, :non_negative},
+      max_source_bytes: {@default_max_source_bytes, :positive},
+      max_pdf_bytes: {@default_max_pdf_bytes, :positive},
+      max_fallback_bytes: {@default_max_fallback_bytes, :positive}
+    ]
+    |> Enum.reduce_while(:ok, fn {key, {default, parser}}, :ok ->
+      case parse_integer_config_value(config_value(key, default), parser) do
+        {:ok, _value} ->
+          {:cont, :ok}
+
+        :error ->
+          {:halt, invalid_documents_config_error(key)}
+      end
+    end)
+  end
+
+  defp invalid_documents_config_error(key) when is_atom(key) do
+    {:error,
+     %{
+       code: "tool.documents.invalid_configuration",
+       message: "Documents tool is misconfigured",
+       details: %{"field" => Atom.to_string(key)}
+     }}
+  end
+
   defp integer_config_value(key, default) do
-    value = config_value(key, default)
-
-    case value do
-      integer when is_integer(integer) and integer > 0 ->
-        integer
-
-      binary when is_binary(binary) ->
-        case Integer.parse(binary) do
-          {integer, ""} when integer > 0 -> integer
-          _ -> default
-        end
-
-      _ ->
-        default
+    case parse_integer_config_value(config_value(key, default), :positive) do
+      {:ok, value} -> value
+      :error -> default
     end
   end
+
+  defp non_negative_integer_config_value(key, default) do
+    case parse_integer_config_value(config_value(key, default), :non_negative) do
+      {:ok, value} -> value
+      :error -> default
+    end
+  end
+
+  defp parse_integer_config_value(value, :positive), do: Helpers.parse_positive_integer(value)
+
+  defp parse_integer_config_value(value, :non_negative),
+    do: Helpers.parse_non_negative_integer(value)
 end
