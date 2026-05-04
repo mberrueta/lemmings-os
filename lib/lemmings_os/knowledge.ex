@@ -8,7 +8,10 @@ defmodule LemmingsOs.Knowledge do
 
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Events
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.LemmingInstances.ToolExecution
@@ -202,6 +205,7 @@ defmodule LemmingsOs.Knowledge do
       %KnowledgeItem{}
       |> KnowledgeItem.changeset(attrs)
       |> Repo.insert()
+      |> maybe_record_memory_event("knowledge.memory.created", scope_data, "Memory created")
     end
   end
 
@@ -226,6 +230,7 @@ defmodule LemmingsOs.Knowledge do
       knowledge_item
       |> KnowledgeItem.user_update_changeset(Map.take(attrs, [:title, :content, :tags]))
       |> Repo.update()
+      |> maybe_record_memory_event("knowledge.memory.updated", scope_data, "Memory updated")
     end
   end
 
@@ -246,6 +251,7 @@ defmodule LemmingsOs.Knowledge do
     with {:ok, scope_data} <- scope_data(scope),
          :ok <- validate_exact_scope(knowledge_item, scope_data) do
       Repo.delete(knowledge_item)
+      |> maybe_record_memory_event("knowledge.memory.deleted", scope_data, "Memory deleted")
     end
   end
 
@@ -474,6 +480,69 @@ defmodule LemmingsOs.Knowledge do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_record_memory_event(
+         {:ok, %KnowledgeItem{} = memory} = result,
+         event_type,
+         scope_data,
+         message
+       )
+       when is_binary(event_type) and is_map(scope_data) and is_binary(message) do
+    payload = memory_event_payload(memory)
+
+    case Events.record_event(
+           event_type,
+           scope_data,
+           message,
+           payload: payload,
+           event_family: "audit",
+           action: memory_event_action(event_type),
+           status: "succeeded",
+           resource_type: "knowledge_item",
+           resource_id: memory.id
+         ) do
+      {:ok, _event} ->
+        result
+
+      {:error, reason} ->
+        Logger.warning("failed to record memory lifecycle event",
+          event: "knowledge.memory.event_failed",
+          world_id: memory.world_id,
+          department_id: memory.department_id,
+          lemming_id: memory.lemming_id,
+          reason: inspect(reason)
+        )
+
+        result
+    end
+  end
+
+  defp maybe_record_memory_event(result, _event_type, _scope_data, _message), do: result
+
+  defp memory_event_action("knowledge.memory.created"), do: "create"
+  defp memory_event_action("knowledge.memory.updated"), do: "update"
+  defp memory_event_action("knowledge.memory.deleted"), do: "delete"
+  defp memory_event_action(_event_type), do: "update"
+
+  defp memory_event_payload(%KnowledgeItem{} = memory) do
+    %{
+      knowledge_item_id: memory.id,
+      kind: memory.kind,
+      source: memory.source,
+      status: memory.status,
+      world_id: memory.world_id,
+      city_id: memory.city_id,
+      department_id: memory.department_id,
+      lemming_id: memory.lemming_id,
+      creator_type: memory.creator_type,
+      creator_id: memory.creator_id,
+      creator_lemming_id: memory.creator_lemming_id,
+      creator_lemming_instance_id: memory.creator_lemming_instance_id,
+      creator_tool_execution_id: memory.creator_tool_execution_id
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
 
   defp normalize_read_mode(:local), do: {:ok, :local}
   defp normalize_read_mode(:visible), do: {:ok, :visible}

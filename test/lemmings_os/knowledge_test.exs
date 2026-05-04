@@ -1,8 +1,11 @@
 defmodule LemmingsOs.KnowledgeTest do
   use LemmingsOs.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
   alias LemmingsOs.Knowledge
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Events.Event
   alias LemmingsOs.Repo
 
   doctest LemmingsOs.Knowledge
@@ -69,6 +72,29 @@ defmodule LemmingsOs.KnowledgeTest do
       assert memory.creator_type == "user"
       assert memory.creator_id == "operator-123"
       assert memory.creator_lemming_id == lemming.id
+    end
+
+    test "emits safe memory.created event payload" do
+      world = insert(:world)
+
+      assert {:ok, memory} =
+               Knowledge.create_memory(world, %{
+                 title: "ACME - Language",
+                 content: "Use Portuguese for outbound summaries.",
+                 tags: ["customer:acme", "language:pt-BR"]
+               })
+
+      event =
+        Repo.one!(
+          from(e in Event,
+            where: e.event_type == "knowledge.memory.created" and e.resource_id == ^memory.id
+          )
+        )
+
+      assert event.payload["knowledge_item_id"] == memory.id
+      assert event.payload["world_id"] == world.id
+      refute Map.has_key?(event.payload, "content")
+      refute Map.has_key?(event.payload, "path")
     end
   end
 
@@ -203,6 +229,20 @@ defmodule LemmingsOs.KnowledgeTest do
       assert {:error, :scope_mismatch} =
                Knowledge.update_memory(city, memory, %{title: "Nope", content: "Nope"})
     end
+
+    test "emits memory.updated event" do
+      world = insert(:world)
+      memory = insert(:knowledge_item, world: world, city: nil, department: nil, lemming: nil)
+
+      assert {:ok, _updated} =
+               Knowledge.update_memory(world, memory, %{title: "Updated", content: "Updated"})
+
+      assert Repo.exists?(
+               from(e in Event,
+                 where: e.event_type == "knowledge.memory.updated" and e.resource_id == ^memory.id
+               )
+             )
+    end
   end
 
   describe "delete_memory/2" do
@@ -236,6 +276,20 @@ defmodule LemmingsOs.KnowledgeTest do
 
       assert {:error, :scope_mismatch} = Knowledge.delete_memory(city, memory)
       assert Repo.get(KnowledgeItem, memory.id)
+    end
+
+    test "emits memory.deleted event" do
+      world = insert(:world)
+      memory = insert(:knowledge_item, world: world, city: nil, department: nil, lemming: nil)
+
+      assert {:ok, deleted} = Knowledge.delete_memory(world, memory)
+
+      assert Repo.exists?(
+               from(e in Event,
+                 where:
+                   e.event_type == "knowledge.memory.deleted" and e.resource_id == ^deleted.id
+               )
+             )
     end
   end
 

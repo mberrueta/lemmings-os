@@ -5,6 +5,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   import Ecto.Query, only: [from: 2]
 
   alias LemmingsOs.Events.Event
+  alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
@@ -116,6 +118,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
           lemming: lemming
         )
 
+      assert :ok = PubSub.subscribe_instance_messages(persisted_instance.id)
+
       assert {:ok, result} =
                Runtime.execute(
                  world,
@@ -150,6 +154,28 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert memory.creator_id == "knowledge.store"
       assert memory.creator_lemming_id == instance.lemming_id
       assert memory.creator_lemming_instance_id == persisted_instance.id
+
+      persisted_instance_id = persisted_instance.id
+
+      assert_receive {:message_appended,
+                      %{
+                        instance_id: ^persisted_instance_id,
+                        message_id: message_id,
+                        role: "assistant"
+                      }}
+
+      notification = Repo.get!(Message, message_id)
+      assert notification.lemming_instance_id == persisted_instance.id
+      assert String.contains?(notification.content, "Memory added:")
+      assert String.contains?(notification.content, "/knowledge?memory_id=#{memory.id}")
+
+      assert Repo.exists?(
+               from(e in Event,
+                 where:
+                   e.event_type == "knowledge.memory.created_by_llm" and
+                     e.resource_id == ^memory.id
+               )
+             )
     end
 
     test "accepts explicit scope hints within current ancestry", %{

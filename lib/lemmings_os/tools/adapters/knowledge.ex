@@ -15,12 +15,17 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
 
   import Ecto.Query, only: [from: 2]
 
+  require Logger
+
   alias Ecto.Changeset
+  alias LemmingsOs.Events
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge, as: KnowledgeContext
   alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
   alias LemmingsOs.Worlds.World
@@ -118,6 +123,9 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
              source: "llm",
              creator: creator_metadata(instance, runtime_meta)
            ) do
+      _ = record_llm_memory_event(memory, instance)
+      _ = notify_runtime_chat(memory, runtime_meta)
+
       {:ok,
        %{
          summary: "Stored memory #{memory.title}",
@@ -382,9 +390,116 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   defp creator_instance_id_result(true, actor_instance_id), do: actor_instance_id
   defp creator_instance_id_result(false, _actor_instance_id), do: nil
 
+  defp notify_runtime_chat(%KnowledgeItem{} = memory, runtime_meta) do
+    with instance_id when is_binary(instance_id) <- fetch(runtime_meta, :actor_instance_id),
+         {:ok, %Message{} = message} <- persist_memory_notification_message(memory, instance_id),
+         :ok <- PubSub.broadcast_message_appended(instance_id, message.id, message.role) do
+      :ok
+    else
+      nil ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("memory chat notification failed",
+          event: "knowledge.memory.notification_failed",
+          instance_id: fetch(runtime_meta, :actor_instance_id),
+          world_id: memory.world_id,
+          department_id: memory.department_id,
+          lemming_id: memory.lemming_id,
+          reason: inspect(reason)
+        )
+
+        :ok
+    end
+  end
+
+  defp persist_memory_notification_message(%KnowledgeItem{} = memory, instance_id) do
+    content =
+      [
+        "Memory added:",
+        memory.title,
+        memory_notification_preview(memory.content),
+        "View or edit: /knowledge?memory_id=#{memory.id}"
+      ]
+      |> Enum.join("\n")
+
+    %Message{}
+    |> Message.changeset(%{
+      lemming_instance_id: instance_id,
+      world_id: memory.world_id,
+      role: "assistant",
+      content: content
+    })
+    |> Repo.insert()
+  end
+
+  defp memory_notification_preview(content) when is_binary(content) do
+    content
+    |> String.trim()
+    |> String.slice(0, 200)
+  end
+
+  defp memory_notification_preview(_content), do: ""
+
+  defp record_llm_memory_event(%KnowledgeItem{} = memory, %LemmingInstance{} = instance) do
+    payload =
+      %{
+        knowledge_item_id: memory.id,
+        kind: memory.kind,
+        source: memory.source,
+        status: memory.status,
+        world_id: memory.world_id,
+        city_id: memory.city_id,
+        department_id: memory.department_id,
+        lemming_id: memory.lemming_id,
+        creator_type: memory.creator_type,
+        creator_id: memory.creator_id,
+        creator_lemming_id: memory.creator_lemming_id,
+        creator_lemming_instance_id: memory.creator_lemming_instance_id,
+        creator_tool_execution_id: memory.creator_tool_execution_id,
+        actor_instance_id: instance.id
+      }
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    case Events.record_event(
+           "knowledge.memory.created_by_llm",
+           memory_scope(memory),
+           "Memory created by llm",
+           payload: payload,
+           event_family: "audit",
+           action: "create",
+           status: "succeeded",
+           resource_type: "knowledge_item",
+           resource_id: memory.id
+         ) do
+      {:ok, _event} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("failed to record llm memory event",
+          event: "knowledge.memory.event_failed",
+          instance_id: instance.id,
+          world_id: memory.world_id,
+          department_id: memory.department_id,
+          lemming_id: memory.lemming_id,
+          reason: inspect(reason)
+        )
+
+        :ok
+    end
+  end
+
+  defp memory_scope(%KnowledgeItem{} = memory) do
+    %{
+      world_id: memory.world_id,
+      city_id: memory.city_id,
+      department_id: memory.department_id,
+      lemming_id: memory.lemming_id
+    }
+  end
+
   defp field_name(field) when is_atom(field), do: Atom.to_string(field)
-  defp field_name(field) when is_binary(field), do: field
-  defp field_name(_field), do: "field"
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
