@@ -14,6 +14,7 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Connections.Connection
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
+  alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
@@ -271,6 +272,26 @@ defmodule LemmingsOs.Factory do
       status: "ready",
       notes: nil,
       metadata: %{"source" => "manual_promotion"}
+    }
+  end
+
+  def knowledge_item_factory do
+    lemming = build(:lemming)
+
+    %KnowledgeItem{
+      world: lemming.world,
+      city: lemming.city,
+      department: lemming.department,
+      lemming: nil,
+      artifact: nil,
+      kind: "memory",
+      title: "Memory #{sequence(:knowledge_item_unique, & &1)}",
+      content: "Stored knowledge content",
+      tags: ["memory", "ops"],
+      source: "user",
+      status: "active",
+      creator_type: "user",
+      creator_id: "operator"
     }
   end
 end

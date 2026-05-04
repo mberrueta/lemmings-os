@@ -4,6 +4,7 @@ defmodule LemmingsOs.Tools.Runtime do
   """
 
   alias LemmingsOs.Tools.Adapters.Documents
+  alias LemmingsOs.Tools.Adapters.Knowledge
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.Adapters.Filesystem
   alias LemmingsOs.Tools.Adapters.Web
@@ -133,6 +134,21 @@ defmodule LemmingsOs.Tools.Runtime do
 
   defp dispatch_tool_call(world, instance, "web.fetch", args, _runtime_meta, trusted_config) do
     normalize_tool_result("web.fetch", args, Web.fetch(world, instance, args, trusted_config))
+  end
+
+  defp dispatch_tool_call(
+         _world,
+         instance,
+         "knowledge.store",
+         args,
+         runtime_meta,
+         _trusted_config
+       ) do
+    normalize_tool_result(
+      "knowledge.store",
+      args,
+      Knowledge.store_memory(instance, args, runtime_meta)
+    )
   end
 
   defp dispatch_tool_call(

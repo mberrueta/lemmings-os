@@ -5,6 +5,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   import Ecto.Query, only: [from: 2]
 
   alias LemmingsOs.Events.Event
+  alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
   alias LemmingsOs.Tools.Runtime
@@ -56,7 +57,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
     File.mkdir_p!(Path.join(work_areas_path, instance.id))
 
-    {:ok, world: world, instance: instance}
+    {:ok, world: world, city: city, department: department, lemming: lemming, instance: instance}
   end
 
   describe "execute/4 with filesystem tools" do
@@ -96,6 +97,137 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
       assert {:error, %{code: "tool.validation.invalid_path"}} =
                Runtime.execute(world, instance, "fs.read_text_file", %{"path" => "../secret.txt"})
+    end
+  end
+
+  describe "execute/4 with knowledge tools" do
+    test "stores llm memory with lemming scope by default and minimal result payload", %{
+      world: world,
+      city: city,
+      department: department,
+      lemming: lemming,
+      instance: instance
+    } do
+      persisted_instance =
+        insert(:lemming_instance,
+          world: world,
+          city: city,
+          department: department,
+          lemming: lemming
+        )
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "ACME - email summary language",
+                   "content" => "Client ACME prefers short email summaries in Portuguese.",
+                   "tags" => ["customer:ACME", "language:pt-BR"]
+                 },
+                 %{actor_instance_id: persisted_instance.id}
+               )
+
+      assert result.tool_name == "knowledge.store"
+      assert result.result.status == "stored"
+      assert result.result.scope == "lemming"
+      assert is_binary(result.result.knowledge_item_id)
+      assert is_binary(result.summary)
+      refute Map.has_key?(result.result, :world_id)
+      refute Map.has_key?(result.result, :work_area_ref)
+
+      memory = Repo.get!(KnowledgeItem, result.result.knowledge_item_id)
+
+      assert memory.source == "llm"
+      assert memory.status == "active"
+      assert memory.kind == "memory"
+      assert memory.world_id == instance.world_id
+      assert memory.city_id == instance.city_id
+      assert memory.department_id == instance.department_id
+      assert memory.lemming_id == instance.lemming_id
+      assert memory.creator_type == "tool_runtime"
+      assert memory.creator_id == "knowledge.store"
+      assert memory.creator_lemming_id == instance.lemming_id
+      assert memory.creator_lemming_instance_id == persisted_instance.id
+    end
+
+    test "accepts explicit scope hints within current ancestry", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Language policy",
+                   "content" => "Use Portuguese for this city.",
+                   "scope" => %{
+                     "world_id" => instance.world_id,
+                     "city_id" => instance.city_id
+                   }
+                 }
+               )
+
+      assert result.result.scope == "city"
+      memory = Repo.get!(KnowledgeItem, result.result.knowledge_item_id)
+      assert memory.world_id == instance.world_id
+      assert memory.city_id == instance.city_id
+      assert is_nil(memory.department_id)
+      assert is_nil(memory.lemming_id)
+    end
+
+    test "rejects unsupported file/category/type fields safely", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Invalid payload",
+                   "content" => "Should fail",
+                   "category" => "memory",
+                   "type" => "client_preference",
+                   "artifact_id" => Ecto.UUID.generate(),
+                   "source_path" => "docs/file.md"
+                 }
+               )
+
+      assert error.tool_name == "knowledge.store"
+      assert error.code == "tool.knowledge.unsupported_fields"
+      assert Enum.sort(error.details.fields) == ["artifact_id", "category", "source_path", "type"]
+      assert Repo.aggregate(KnowledgeItem, :count, :id) == 0
+    end
+
+    test "rejects scope escalation outside the current execution ancestry", %{
+      world: world,
+      instance: instance
+    } do
+      other_city = insert(:city, world: world)
+
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Cross-scope attempt",
+                   "content" => "Should fail",
+                   "scope" => %{
+                     "world_id" => instance.world_id,
+                     "city_id" => other_city.id
+                   }
+                 }
+               )
+
+      assert error.tool_name == "knowledge.store"
+      assert error.code == "tool.knowledge.invalid_scope"
+      assert Repo.aggregate(KnowledgeItem, :count, :id) == 0
     end
   end
 
