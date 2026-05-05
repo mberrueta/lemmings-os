@@ -25,6 +25,7 @@
       />
     <% :show -> %>
       <LemmingComponents.lemming_detail_page
+        socket={@socket}
         world={@world}
         selected_city={@selected_city}
         selected_department={@selected_department}
@@ -37,6 +38,7 @@
         overview_path={@overview_path}
         edit_path={@edit_path}
         secrets_path={@secrets_path}
+        knowledge_path={@knowledge_path}
         artifacts_path={@artifacts_path}
         artifact_rows={@lemming_artifact_rows}
         secret_form={@lemming_secret_form}

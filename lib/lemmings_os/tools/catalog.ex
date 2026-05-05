@@ -39,6 +39,15 @@ defmodule LemmingsOs.Tools.Catalog do
       risk: "medium"
     },
     %{
+      id: "knowledge.store",
+      name: "Store Memory",
+      description:
+        "Store a memory note with title, content, optional tags, and optional scope hint (world/city/department/lemming). Use title format: <Subject> - <specific preference/rule/fact>.",
+      icon: "hero-bookmark",
+      category: "knowledge",
+      risk: "medium"
+    },
+    %{
       id: "documents.markdown_to_html",
       name: "Markdown To HTML",
       description: "Convert a Markdown file in the instance work area to HTML.",
@@ -74,7 +83,7 @@ defmodule LemmingsOs.Tools.Catalog do
 
       iex> tools = LemmingsOs.Tools.Catalog.list_tools()
       iex> Enum.map(tools, & &1.id)
-      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch", "documents.markdown_to_html", "documents.print_to_pdf"]
+      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch", "knowledge.store", "documents.markdown_to_html", "documents.print_to_pdf"]
   """
   @spec list_tools() :: [tool()]
   def list_tools, do: @tools

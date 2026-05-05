@@ -169,6 +169,7 @@ Current implementation references:
 - `LemmingsOs.Tools.Runtime`
 - `LemmingsOs.Tools.Adapters.Filesystem`
 - `LemmingsOs.Tools.Adapters.Web`
+- `LemmingsOs.Tools.Adapters.Knowledge`
 - `LemmingsOs.LemmingTools`
 - `LemmingsOs.LemmingInstances.ToolExecution`
 
@@ -177,16 +178,19 @@ Responsibilities:
 - expose the fixed v1 catalog to both runtime and UI
 - accept direct executor calls for supported tool names
 - validate catalog membership and World/instance scope
-- execute the four v1 adapters only
+- execute the fixed first-party adapters only
 - normalize success and error payloads
 - persist per-invocation history through `lemming_instance_tool_executions`
 
-The executable v1 catalog is exactly:
+The executable catalog is exactly:
 
 - `fs.read_text_file`
 - `fs.write_text_file`
 - `web.search`
 - `web.fetch`
+- `knowledge.store`
+- `documents.markdown_to_html`
+- `documents.print_to_pdf`
 
 The executor owns orchestration. It creates a `running` tool-execution row, calls `Tools.Runtime.execute/4`, updates that same row to `ok` or `error`, broadcasts the changed row, appends a normalized tool-result context message, then calls `ModelRuntime` again until a final reply or bounded failure.
 

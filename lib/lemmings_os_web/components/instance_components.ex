@@ -137,7 +137,10 @@ defmodule LemmingsOsWeb.InstanceComponents do
   attr :class, :string, default: nil
 
   def message_bubble(assigns) do
-    assigns = assign(assigns, :message_role, normalize_role(assigns.message.role))
+    assigns =
+      assigns
+      |> assign(:message_role, normalize_role(assigns.message.role))
+      |> assign(:knowledge_memory_path, extract_knowledge_memory_path(assigns.message.content))
 
     ~H"""
     <article
@@ -169,6 +172,16 @@ defmodule LemmingsOsWeb.InstanceComponents do
           <p class="whitespace-pre-wrap break-words text-sm leading-6 text-zinc-100">
             {@message.content}
           </p>
+          <div :if={@knowledge_memory_path} class="mt-3">
+            <.link
+              id={"message-knowledge-link-#{@message.id}"}
+              navigate={@knowledge_memory_path}
+              class="inline-flex min-h-11 items-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-xs font-medium uppercase tracking-widest text-emerald-300 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-300 hover:text-emerald-200"
+            >
+              <.icon name="hero-book-open" class="size-4" />
+              {dgettext("lemmings", "View/Edit memory")}
+            </.link>
+          </div>
 
           <div
             :if={assistant_metadata?(@message_role)}
@@ -1150,6 +1163,15 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   defp assistant_metadata?(role) when role in ["assistant", :assistant], do: true
   defp assistant_metadata?(_role), do: false
+
+  defp extract_knowledge_memory_path(content) when is_binary(content) do
+    case Regex.run(~r|(/knowledge\?memory_id=[0-9a-fA-F-]{36})|, content) do
+      [path, _uuid] when is_binary(path) -> path
+      _other -> nil
+    end
+  end
+
+  defp extract_knowledge_memory_path(_content), do: nil
 
   defp delegation_avatar_label(label) when is_binary(label) do
     label

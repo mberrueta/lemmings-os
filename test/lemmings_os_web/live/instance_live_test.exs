@@ -225,6 +225,27 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     refute html =~ ">Assistant<"
   end
 
+  test "S02d: assistant transcript bubble renders knowledge memory deep link when present" do
+    memory_id = Ecto.UUID.generate()
+
+    assistant_message = %Message{
+      id: Ecto.UUID.generate(),
+      role: "assistant",
+      content: "Memory added:\nOps note\nView or edit: /knowledge?memory_id=#{memory_id}",
+      inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    }
+
+    html =
+      render_component(&InstanceComponents.message_bubble/1, %{
+        id: "assistant-message",
+        message: assistant_message
+      })
+
+    assert html =~ ~s(id="message-knowledge-link-#{assistant_message.id}")
+    assert html =~ ~s(href="/knowledge?memory_id=#{memory_id}")
+    assert html =~ "View/Edit memory"
+  end
+
   test "S03: renders a not found state for missing instances", %{conn: conn} do
     world = insert(:world, name: "Ops World", slug: "ops-world")
 

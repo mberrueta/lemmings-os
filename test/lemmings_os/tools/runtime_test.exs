@@ -5,6 +5,9 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   import Ecto.Query, only: [from: 2]
 
   alias LemmingsOs.Events.Event
+  alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingInstances.PubSub
+  alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
   alias LemmingsOs.Tools.Runtime
@@ -56,7 +59,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
     File.mkdir_p!(Path.join(work_areas_path, instance.id))
 
-    {:ok, world: world, instance: instance}
+    {:ok, world: world, city: city, department: department, lemming: lemming, instance: instance}
   end
 
   describe "execute/4 with filesystem tools" do
@@ -96,6 +99,269 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
       assert {:error, %{code: "tool.validation.invalid_path"}} =
                Runtime.execute(world, instance, "fs.read_text_file", %{"path" => "../secret.txt"})
+    end
+  end
+
+  describe "execute/4 with knowledge tools" do
+    test "stores llm memory with lemming scope by default and minimal result payload", %{
+      world: world,
+      city: city,
+      department: department,
+      lemming: lemming,
+      instance: instance
+    } do
+      persisted_instance =
+        insert(:lemming_instance,
+          world: world,
+          city: city,
+          department: department,
+          lemming: lemming
+        )
+
+      assert :ok = PubSub.subscribe_instance_messages(persisted_instance.id)
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "ACME - email summary language",
+                   "content" => "Client ACME prefers short email summaries in Portuguese.",
+                   "tags" => ["customer:ACME", "language:pt-BR"]
+                 },
+                 %{actor_instance_id: persisted_instance.id}
+               )
+
+      assert result.tool_name == "knowledge.store"
+      assert result.result.status == "stored"
+      assert result.result.scope == "lemming"
+      assert is_binary(result.result.knowledge_item_id)
+      assert is_binary(result.summary)
+      refute Map.has_key?(result.result, :world_id)
+      refute Map.has_key?(result.result, :work_area_ref)
+
+      memory = Repo.get!(KnowledgeItem, result.result.knowledge_item_id)
+
+      assert memory.source == "llm"
+      assert memory.status == "active"
+      assert memory.kind == "memory"
+      assert memory.world_id == instance.world_id
+      assert memory.city_id == instance.city_id
+      assert memory.department_id == instance.department_id
+      assert memory.lemming_id == instance.lemming_id
+      assert memory.creator_type == "tool_runtime"
+      assert memory.creator_id == "knowledge.store"
+      assert memory.creator_lemming_id == instance.lemming_id
+      assert memory.creator_lemming_instance_id == persisted_instance.id
+
+      persisted_instance_id = persisted_instance.id
+
+      assert_receive {:message_appended,
+                      %{
+                        instance_id: ^persisted_instance_id,
+                        message_id: message_id,
+                        role: "assistant"
+                      }}
+
+      notification = Repo.get!(Message, message_id)
+      assert notification.lemming_instance_id == persisted_instance.id
+      assert String.contains?(notification.content, "Memory added:")
+      assert String.contains?(notification.content, "/knowledge?memory_id=#{memory.id}")
+
+      assert Repo.exists?(
+               from(e in Event,
+                 where:
+                   e.event_type == "knowledge.memory.created_by_llm" and
+                     e.resource_id == ^memory.id
+               )
+             )
+    end
+
+    test "accepts explicit scope hints within current ancestry", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Language policy",
+                   "content" => "Use Portuguese for this city.",
+                   "scope" => %{
+                     "world_id" => instance.world_id,
+                     "city_id" => instance.city_id
+                   }
+                 }
+               )
+
+      assert result.result.scope == "city"
+      memory = Repo.get!(KnowledgeItem, result.result.knowledge_item_id)
+      assert memory.world_id == instance.world_id
+      assert memory.city_id == instance.city_id
+      assert is_nil(memory.department_id)
+      assert is_nil(memory.lemming_id)
+    end
+
+    test "rejects unsupported file/category/type fields safely", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Invalid payload",
+                   "content" => "Should fail",
+                   "category" => "memory",
+                   "type" => "client_preference",
+                   "artifact_id" => Ecto.UUID.generate(),
+                   "source_path" => "docs/file.md"
+                 }
+               )
+
+      assert error.tool_name == "knowledge.store"
+      assert error.code == "tool.knowledge.unsupported_fields"
+      assert Enum.sort(error.details.fields) == ["artifact_id", "category", "source_path", "type"]
+      assert Repo.aggregate(KnowledgeItem, :count, :id) == 0
+    end
+
+    test "rejects scope escalation outside the current execution ancestry", %{
+      world: world,
+      instance: instance
+    } do
+      other_city = insert(:city, world: world)
+
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Cross-scope attempt",
+                   "content" => "Should fail",
+                   "scope" => %{
+                     "world_id" => instance.world_id,
+                     "city_id" => other_city.id
+                   }
+                 }
+               )
+
+      assert error.tool_name == "knowledge.store"
+      assert error.code == "tool.knowledge.invalid_scope"
+      assert Repo.aggregate(KnowledgeItem, :count, :id) == 0
+    end
+
+    test "rejects missing required memory fields with safe validation envelope", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "   ",
+                   "content" => ""
+                 }
+               )
+
+      assert error.tool_name == "knowledge.store"
+      assert error.code == "tool.validation.invalid_args"
+      assert error.message == "Invalid tool arguments"
+      assert "title" in error.details.required
+      assert Repo.aggregate(KnowledgeItem, :count, :id) == 0
+    end
+
+    test "notification write failures do not roll back a successful memory store", %{
+      world: world,
+      instance: instance
+    } do
+      missing_instance_id = Ecto.UUID.generate()
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Persist even when notification fails",
+                   "content" => "Notification is best effort only."
+                 },
+                 %{actor_instance_id: missing_instance_id}
+               )
+
+      assert result.tool_name == "knowledge.store"
+      assert result.result.status == "stored"
+      assert is_binary(result.result.knowledge_item_id)
+
+      memory = Repo.get!(KnowledgeItem, result.result.knowledge_item_id)
+      assert memory.title == "Persist even when notification fails"
+
+      refute Repo.exists?(
+               from(message in Message,
+                 where:
+                   message.lemming_instance_id == ^missing_instance_id and
+                     message.world_id == ^world.id
+               )
+             )
+    end
+
+    test "llm memory audit payload excludes content and runtime internals", %{
+      world: world,
+      city: city,
+      department: department,
+      lemming: lemming,
+      instance: instance
+    } do
+      persisted_instance =
+        insert(:lemming_instance,
+          world: world,
+          city: city,
+          department: department,
+          lemming: lemming
+        )
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Safe payload check",
+                   "content" =>
+                     "SENTINEL_SECRET_TOKEN_MEMORY_001 SENTINEL_RUNTIME_DUMP_{\"raw\":\"state\"}",
+                   "tags" => ["sentinel"]
+                 },
+                 %{actor_instance_id: persisted_instance.id, work_area_ref: "work-area-v1/secret"}
+               )
+
+      memory_id = result.result.knowledge_item_id
+
+      event =
+        Repo.one!(
+          from(e in Event,
+            where:
+              e.event_type == "knowledge.memory.created_by_llm" and e.resource_id == ^memory_id
+          )
+        )
+
+      assert event.payload["knowledge_item_id"] == memory_id
+      assert event.payload["world_id"] == world.id
+      assert event.payload["city_id"] == city.id
+      assert event.payload["department_id"] == department.id
+      assert event.payload["lemming_id"] == lemming.id
+      assert event.payload["creator_id"] == "knowledge.store"
+      assert event.payload["actor_instance_id"] == instance.id
+      refute Map.has_key?(event.payload, "content")
+      refute Map.has_key?(event.payload, "work_area_ref")
+      refute Map.has_key?(event.payload, "path")
+      refute Map.has_key?(event.payload, "runtime")
     end
   end
 

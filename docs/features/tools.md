@@ -20,6 +20,7 @@ Catalog scope:
 | `fs.write_text_file` | Filesystem | Write UTF-8 text files into the instance WorkArea | Write confirmation + metadata |
 | `web.search` | Web | Search the web and return short snippets | Search snippets |
 | `web.fetch` | Web | Fetch one HTTP(S) URL | Response content/summary |
+| `knowledge.store` | Knowledge | Store a scoped memory note for future use | Stored memory ID + scope |
 | `documents.markdown_to_html` | Documents | Convert WorkArea Markdown file to WorkArea HTML file | `text/html` file + byte size |
 | `documents.print_to_pdf` | Documents | Print supported WorkArea source file to WorkArea PDF via Gotenberg | `application/pdf` file + byte size |
 
@@ -53,6 +54,48 @@ Catalog scope:
 
 - Fetches one HTTP(S) URL via `Req`.
 - Rejects invalid URL shapes.
+
+## Knowledge
+
+### `knowledge.store`
+
+Stores one Knowledge memory note. This tool is memory-only in the current MVP.
+
+Required inputs:
+
+- `title`: non-empty memory title
+- `content`: non-empty memory body
+
+Optional inputs:
+
+- `tags`: list of strings or comma-separated string
+- `scope`: one of `world`, `city`, `department`, `lemming`, `lemming_type`, or an explicit scope map matching the current runtime ancestry
+
+Minimal call:
+
+```json
+{
+  "title": "ACME - email summary language",
+  "content": "Client ACME prefers short email summaries in Portuguese.",
+  "tags": ["customer:ACME", "language:pt-BR"]
+}
+```
+
+Result details include:
+
+- `knowledge_item_id`
+- `status` (`stored`)
+- `scope`
+
+Safety notes:
+
+- Defaults to the current Lemming scope.
+- Rejects cross-ancestry scope hints.
+- Rejects file/future-family fields such as `category`, `type`, `artifact_id`, and `source_path`.
+- Persists `source = "llm"` and `status = "active"`.
+- Chat notification is best effort; notification failure does not roll back the stored memory.
+
+See [Knowledge Memories](knowledge.md) for scope semantics and operator behavior.
 
 ## Documents
 

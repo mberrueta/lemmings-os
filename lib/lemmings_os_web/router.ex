@@ -44,6 +44,7 @@ defmodule LemmingsOsWeb.Router do
     live "/lemmings/instances/:id/raw", InstanceRawLive, :show
     live "/lemmings/instances/:id", InstanceLive, :show
     live "/tools", ToolsLive, :index
+    live "/knowledge", KnowledgeLive, :index
     live "/logs", LogsLive, :index
     live "/settings", SettingsLive, :index
   end

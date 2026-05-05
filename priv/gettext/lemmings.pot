@@ -35,19 +35,19 @@ msgstr ""
 msgid ".subtitle_all_lemmings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:862
-#: lib/lemmings_os_web/components/lemming_components.ex:918
+#: lib/lemmings_os_web/components/lemming_components.ex:889
+#: lib/lemmings_os_web/components/lemming_components.ex:945
 #, elixir-autogen
 msgid ".title_create_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:482
-#: lib/lemmings_os_web/components/lemming_components.ex:924
+#: lib/lemmings_os_web/components/lemming_components.ex:496
+#: lib/lemmings_os_web/components/lemming_components.ex:951
 #, elixir-autogen
 msgid ".label_name"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:929
+#: lib/lemmings_os_web/components/lemming_components.ex:956
 #, elixir-autogen
 msgid ".placeholder_name"
 msgstr ""
@@ -57,97 +57,97 @@ msgstr ""
 msgid ".page_title_create_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:238
+#: lib/lemmings_os_web/components/lemming_components.ex:240
 #, elixir-autogen, elixir-format
 msgid ".button_lemming_activate"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:249
+#: lib/lemmings_os_web/components/lemming_components.ex:251
 #, elixir-autogen, elixir-format
 msgid ".button_lemming_archive"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:406
+#: lib/lemmings_os_web/components/lemming_components.ex:420
 #, elixir-autogen, elixir-format
 msgid ".copy_inheriting_all_config"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:643
+#: lib/lemmings_os_web/components/lemming_components.ex:670
 #, elixir-autogen, elixir-format
 msgid ".copy_instances_workspace_selected"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:437
+#: lib/lemmings_os_web/components/lemming_components.ex:451
 #, elixir-autogen, elixir-format
 msgid ".detail_allowed_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:451
+#: lib/lemmings_os_web/components/lemming_components.ex:465
 #, elixir-autogen, elixir-format
 msgid ".detail_denied_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:424
+#: lib/lemmings_os_web/components/lemming_components.ex:438
 #, elixir-autogen, elixir-format
 msgid ".detail_effective_cross_city"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:429
+#: lib/lemmings_os_web/components/lemming_components.ex:443
 #, elixir-autogen, elixir-format
 msgid ".detail_effective_daily_tokens"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:419
+#: lib/lemmings_os_web/components/lemming_components.ex:433
 #, elixir-autogen, elixir-format
 msgid ".detail_effective_idle_ttl"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:412
+#: lib/lemmings_os_web/components/lemming_components.ex:426
 #, elixir-autogen, elixir-format
 msgid ".detail_effective_max_lemmings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:392
+#: lib/lemmings_os_web/components/lemming_components.ex:406
 #, elixir-autogen, elixir-format
 msgid ".detail_instructions"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:609
+#: lib/lemmings_os_web/components/lemming_components.ex:636
 #, elixir-autogen, elixir-format
 msgid ".detail_spawn_requests"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:270
+#: lib/lemmings_os_web/components/lemming_components.ex:272
 #, elixir-autogen, elixir-format
 msgid ".detail_status"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:649
+#: lib/lemmings_os_web/components/lemming_components.ex:676
 #, elixir-autogen, elixir-format
 msgid ".empty_instances_workspace"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:650
+#: lib/lemmings_os_web/components/lemming_components.ex:677
 #, elixir-autogen, elixir-format
 msgid ".empty_instances_workspace_copy"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:282
+#: lib/lemmings_os_web/components/lemming_components.ex:284
 #, elixir-autogen, elixir-format
 msgid ".empty_lemming_not_found"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:283
+#: lib/lemmings_os_web/components/lemming_components.ex:285
 #, elixir-autogen, elixir-format
 msgid ".empty_lemming_not_found_copy"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:444
+#: lib/lemmings_os_web/components/lemming_components.ex:458
 #, elixir-autogen, elixir-format
 msgid ".empty_no_allowed_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:458
+#: lib/lemmings_os_web/components/lemming_components.ex:472
 #, elixir-autogen, elixir-format
 msgid ".empty_no_denied_tools"
 msgstr ""
@@ -169,58 +169,58 @@ msgstr ""
 
 #: lib/lemmings_os_web/components/lemming_components.ex:65
 #: lib/lemmings_os_web/components/lemming_components.ex:128
-#: lib/lemmings_os_web/components/lemming_components.ex:260
-#: lib/lemmings_os_web/components/lemming_components.ex:896
-#: lib/lemmings_os_web/components/lemming_components.ex:1019
+#: lib/lemmings_os_web/components/lemming_components.ex:262
+#: lib/lemmings_os_web/components/lemming_components.ex:923
+#: lib/lemmings_os_web/components/lemming_components.ex:1046
 #, elixir-autogen, elixir-format
 msgid ".filter_city"
 msgstr ""
 
 #: lib/lemmings_os_web/components/lemming_components.ex:67
-#: lib/lemmings_os_web/components/lemming_components.ex:898
+#: lib/lemmings_os_web/components/lemming_components.ex:925
 #, elixir-autogen, elixir-format
 msgid ".filter_city_prompt"
 msgstr ""
 
 #: lib/lemmings_os_web/components/lemming_components.ex:74
 #: lib/lemmings_os_web/components/lemming_components.ex:121
-#: lib/lemmings_os_web/components/lemming_components.ex:265
-#: lib/lemmings_os_web/components/lemming_components.ex:905
-#: lib/lemmings_os_web/components/lemming_components.ex:1024
+#: lib/lemmings_os_web/components/lemming_components.ex:267
+#: lib/lemmings_os_web/components/lemming_components.ex:932
+#: lib/lemmings_os_web/components/lemming_components.ex:1051
 #, elixir-autogen, elixir-format
 msgid ".filter_department"
 msgstr ""
 
 #: lib/lemmings_os_web/components/lemming_components.ex:76
-#: lib/lemmings_os_web/components/lemming_components.ex:909
+#: lib/lemmings_os_web/components/lemming_components.ex:936
 #, elixir-autogen, elixir-format
 msgid ".filter_department_prompt"
 msgstr ""
 
 #: lib/lemmings_os_web/components/lemming_components.ex:54
-#: lib/lemmings_os_web/components/lemming_components.ex:885
-#: lib/lemmings_os_web/components/lemming_components.ex:1014
+#: lib/lemmings_os_web/components/lemming_components.ex:912
+#: lib/lemmings_os_web/components/lemming_components.ex:1041
 #, elixir-autogen, elixir-format
 msgid ".filter_world"
 msgstr ""
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:86
-#: lib/lemmings_os_web/live/lemmings_live.ex:118
+#: lib/lemmings_os_web/live/lemmings_live.ex:87
+#: lib/lemmings_os_web/live/lemmings_live.ex:119
 #, elixir-autogen, elixir-format
 msgid ".flash_instructions_required"
 msgstr ""
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:539
+#: lib/lemmings_os_web/live/lemmings_live.ex:543
 #, elixir-autogen, elixir-format
 msgid ".flash_lemming_activated"
 msgstr ""
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:540
+#: lib/lemmings_os_web/live/lemmings_live.ex:544
 #, elixir-autogen, elixir-format
 msgid ".flash_lemming_archived"
 msgstr ""
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:122
+#: lib/lemmings_os_web/live/lemmings_live.ex:123
 #, elixir-autogen, elixir-format
 msgid ".flash_lemming_update_failed"
 msgstr ""
@@ -230,7 +230,7 @@ msgstr ""
 msgid ".label_open_detail"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:399
+#: lib/lemmings_os_web/components/lemming_components.ex:413
 #, elixir-autogen, elixir-format
 msgid ".subtitle_effective_config"
 msgstr ""
@@ -240,7 +240,7 @@ msgstr ""
 msgid ".subtitle_filters"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:603
+#: lib/lemmings_os_web/components/lemming_components.ex:630
 #, elixir-autogen, elixir-format
 msgid ".subtitle_instances_workspace"
 msgstr ""
@@ -250,13 +250,13 @@ msgstr ""
 msgid ".subtitle_lemming_types"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:361
-#: lib/lemmings_os_web/components/lemming_components.ex:1073
+#: lib/lemmings_os_web/components/lemming_components.ex:367
+#: lib/lemmings_os_web/components/lemming_components.ex:1101
 #, elixir-autogen, elixir-format
 msgid ".tab_overview"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:398
+#: lib/lemmings_os_web/components/lemming_components.ex:412
 #, elixir-autogen, elixir-format
 msgid ".title_effective_config"
 msgstr ""
@@ -266,13 +266,13 @@ msgstr ""
 msgid ".title_filters"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:602
+#: lib/lemmings_os_web/components/lemming_components.ex:629
 #, elixir-autogen, elixir-format
 msgid ".title_instances_workspace"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:179
-#: lib/lemmings_os_web/components/lemming_components.ex:279
+#: lib/lemmings_os_web/components/lemming_components.ex:181
+#: lib/lemmings_os_web/components/lemming_components.ex:281
 #, elixir-autogen, elixir-format
 msgid ".title_lemming_detail"
 msgstr ""
@@ -282,27 +282,27 @@ msgstr ""
 msgid ".title_lemming_types"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:1001
+#: lib/lemmings_os_web/components/lemming_components.ex:1028
 #, elixir-autogen, elixir-format
 msgid ".button_create_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:998
+#: lib/lemmings_os_web/components/lemming_components.ex:1025
 #, elixir-autogen, elixir-format
 msgid ".button_creating_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:1028
+#: lib/lemmings_os_web/components/lemming_components.ex:1055
 #, elixir-autogen, elixir-format
 msgid ".copy_create_scope"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:874
+#: lib/lemmings_os_web/components/lemming_components.ex:901
 #, elixir-autogen, elixir-format
 msgid ".empty_create_missing_department"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:875
+#: lib/lemmings_os_web/components/lemming_components.ex:902
 #, elixir-autogen, elixir-format
 msgid ".empty_create_missing_department_copy"
 msgstr ""
@@ -319,63 +319,63 @@ msgstr ""
 msgid ".flash_lemming_created"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:499
-#: lib/lemmings_os_web/components/lemming_components.ex:946
+#: lib/lemmings_os_web/components/lemming_components.ex:513
+#: lib/lemmings_os_web/components/lemming_components.ex:973
 #, elixir-autogen, elixir-format
 msgid ".label_description"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:512
-#: lib/lemmings_os_web/components/lemming_components.ex:959
+#: lib/lemmings_os_web/components/lemming_components.ex:526
+#: lib/lemmings_os_web/components/lemming_components.ex:986
 #, elixir-autogen, elixir-format
 msgid ".label_instructions"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:490
-#: lib/lemmings_os_web/components/lemming_components.ex:935
+#: lib/lemmings_os_web/components/lemming_components.ex:504
+#: lib/lemmings_os_web/components/lemming_components.ex:962
 #, elixir-autogen, elixir-format
 msgid ".label_slug"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:525
-#: lib/lemmings_os_web/components/lemming_components.ex:972
+#: lib/lemmings_os_web/components/lemming_components.ex:539
+#: lib/lemmings_os_web/components/lemming_components.ex:999
 #, elixir-autogen, elixir-format
 msgid ".label_status"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:940
+#: lib/lemmings_os_web/components/lemming_components.ex:967
 #, elixir-autogen, elixir-format
 msgid ".placeholder_slug"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:919
+#: lib/lemmings_os_web/components/lemming_components.ex:946
 #, elixir-autogen, elixir-format
 msgid ".subtitle_create_lemming_form"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:863
+#: lib/lemmings_os_web/components/lemming_components.ex:890
 #, elixir-autogen, elixir-format
 msgid ".subtitle_create_lemming_real"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:869
-#: lib/lemmings_os_web/components/lemming_components.ex:1010
+#: lib/lemmings_os_web/components/lemming_components.ex:896
+#: lib/lemmings_os_web/components/lemming_components.ex:1037
 #, elixir-autogen, elixir-format
 msgid ".subtitle_create_scope"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:868
-#: lib/lemmings_os_web/components/lemming_components.ex:1009
+#: lib/lemmings_os_web/components/lemming_components.ex:895
+#: lib/lemmings_os_web/components/lemming_components.ex:1036
 #, elixir-autogen, elixir-format
 msgid ".title_create_scope"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:219
+#: lib/lemmings_os_web/components/lemming_components.ex:221
 #, elixir-autogen
 msgid ".button_export_json"
 msgstr ""
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:136
+#: lib/lemmings_os_web/live/lemmings_live.ex:137
 #, elixir-autogen
 msgid ".flash_export_no_lemming"
 msgstr ""
@@ -506,42 +506,42 @@ msgstr ""
 msgid ".error_import_file_too_large"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:991
+#: lib/lemmings_os_web/components/lemming_components.ex:1018
 #, elixir-autogen, elixir-format
 msgid ".button_cancel_create"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:553
+#: lib/lemmings_os_web/components/lemming_components.ex:567
 #, elixir-autogen, elixir-format
 msgid ".button_cancel_edit"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:544
+#: lib/lemmings_os_web/components/lemming_components.ex:558
 #, elixir-autogen, elixir-format
 msgid ".button_edit_costs"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:538
+#: lib/lemmings_os_web/components/lemming_components.ex:552
 #, elixir-autogen, elixir-format
 msgid ".button_edit_limit"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:541
+#: lib/lemmings_os_web/components/lemming_components.ex:555
 #, elixir-autogen, elixir-format
 msgid ".button_edit_runtime"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:547
+#: lib/lemmings_os_web/components/lemming_components.ex:561
 #, elixir-autogen, elixir-format
 msgid ".button_edit_tools"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:561
+#: lib/lemmings_os_web/components/lemming_components.ex:575
 #, elixir-autogen, elixir-format
 msgid ".button_save_lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:559
+#: lib/lemmings_os_web/components/lemming_components.ex:573
 #, elixir-autogen, elixir-format
 msgid ".button_saving_lemming"
 msgstr ""
@@ -556,81 +556,81 @@ msgstr ""
 msgid ".empty_world_unavailable_copy"
 msgstr ""
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:92
+#: lib/lemmings_os_web/live/lemmings_live.ex:93
 #, elixir-autogen, elixir-format
 msgid ".flash_lemming_saved"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:953
+#: lib/lemmings_os_web/components/lemming_components.ex:980
 #, elixir-autogen, elixir-format
 msgid ".placeholder_description"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:966
+#: lib/lemmings_os_web/components/lemming_components.ex:993
 #, elixir-autogen, elixir-format
 msgid ".placeholder_instructions"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:469
+#: lib/lemmings_os_web/components/lemming_components.ex:483
 #, elixir-autogen, elixir-format
 msgid ".subtitle_lemming_settings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:227
-#: lib/lemmings_os_web/components/lemming_components.ex:369
-#: lib/lemmings_os_web/components/lemming_components.ex:1070
+#: lib/lemmings_os_web/components/lemming_components.ex:229
+#: lib/lemmings_os_web/components/lemming_components.ex:375
+#: lib/lemmings_os_web/components/lemming_components.ex:1097
 #, elixir-autogen, elixir-format
 msgid ".tab_edit"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:468
+#: lib/lemmings_os_web/components/lemming_components.ex:482
 #, elixir-autogen, elixir-format
 msgid ".title_lemming_settings"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:500
-#: lib/lemmings_os_web/components/lemming_components.ex:947
+#: lib/lemmings_os_web/components/lemming_components.ex:514
+#: lib/lemmings_os_web/components/lemming_components.ex:974
 #, elixir-autogen, elixir-format
 msgid ".tooltip_create_description"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:513
-#: lib/lemmings_os_web/components/lemming_components.ex:960
+#: lib/lemmings_os_web/components/lemming_components.ex:527
+#: lib/lemmings_os_web/components/lemming_components.ex:987
 #, elixir-autogen, elixir-format
 msgid ".tooltip_create_instructions"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:483
-#: lib/lemmings_os_web/components/lemming_components.ex:925
+#: lib/lemmings_os_web/components/lemming_components.ex:497
+#: lib/lemmings_os_web/components/lemming_components.ex:952
 #, elixir-autogen, elixir-format
 msgid ".tooltip_create_name"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:491
-#: lib/lemmings_os_web/components/lemming_components.ex:936
+#: lib/lemmings_os_web/components/lemming_components.ex:505
+#: lib/lemmings_os_web/components/lemming_components.ex:963
 #, elixir-autogen, elixir-format
 msgid ".tooltip_create_slug"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:526
-#: lib/lemmings_os_web/components/lemming_components.ex:973
+#: lib/lemmings_os_web/components/lemming_components.ex:540
+#: lib/lemmings_os_web/components/lemming_components.ex:1000
 #, elixir-autogen, elixir-format
 msgid ".tooltip_create_status"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:902
+#: lib/lemmings_os_web/components/instance_components.ex:915
 #: lib/lemmings_os_web/live/instance_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "%{hours}h %{minutes}m %{seconds}s"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:894
+#: lib/lemmings_os_web/components/instance_components.ex:907
 #: lib/lemmings_os_web/live/instance_live.ex:703
 #, elixir-autogen, elixir-format
 msgid "%{minutes}m %{seconds}s"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:888
+#: lib/lemmings_os_web/components/instance_components.ex:901
 #: lib/lemmings_os_web/live/instance_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "%{seconds}s"
@@ -641,7 +641,7 @@ msgstr ""
 msgid "Ask the instance to continue..."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:955
+#: lib/lemmings_os_web/components/instance_components.ex:968
 #, elixir-autogen, elixir-format
 msgid "Assistant"
 msgstr ""
@@ -688,7 +688,7 @@ msgstr ""
 msgid "Expired"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1005
+#: lib/lemmings_os_web/components/instance_components.ex:1018
 #: lib/lemmings_os_web/live/instance_live.ex:648
 #, elixir-autogen, elixir-format
 msgid "Failed"
@@ -710,13 +710,13 @@ msgstr ""
 msgid "Idle"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:845
+#: lib/lemmings_os_web/components/instance_components.ex:858
 #: lib/lemmings_os_web/live/instance_live.ex:671
 #, elixir-autogen, elixir-format
 msgid "Idle for %{elapsed}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:179
+#: lib/lemmings_os_web/components/instance_components.ex:192
 #, elixir-autogen, elixir-format
 msgid "Input %{count} tokens"
 msgstr ""
@@ -775,7 +775,7 @@ msgstr ""
 msgid "Live"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:182
+#: lib/lemmings_os_web/components/instance_components.ex:195
 #, elixir-autogen, elixir-format
 msgid "Output %{count} tokens"
 msgstr ""
@@ -785,7 +785,7 @@ msgstr ""
 msgid "Processing"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:832
+#: lib/lemmings_os_web/components/instance_components.ex:845
 #: lib/lemmings_os_web/live/instance_live.ex:658
 #, elixir-autogen, elixir-format
 msgid "Processing for %{elapsed}"
@@ -807,8 +807,8 @@ msgstr ""
 msgid "Ready for another request."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:815
-#: lib/lemmings_os_web/components/instance_components.ex:838
+#: lib/lemmings_os_web/components/instance_components.ex:828
+#: lib/lemmings_os_web/components/instance_components.ex:851
 #: lib/lemmings_os_web/live/instance_live.ex:628
 #: lib/lemmings_os_web/live/instance_live.ex:664
 #, elixir-autogen, elixir-format
@@ -837,13 +837,13 @@ msgstr ""
 msgid "Return to parent lemming"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:851
+#: lib/lemmings_os_web/components/instance_components.ex:864
 #: lib/lemmings_os_web/live/instance_live.ex:677
 #, elixir-autogen, elixir-format
 msgid "Runtime expired."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:850
+#: lib/lemmings_os_web/components/instance_components.ex:863
 #: lib/lemmings_os_web/live/instance_live.ex:676
 #, elixir-autogen, elixir-format
 msgid "Runtime failed."
@@ -870,8 +870,8 @@ msgstr ""
 msgid "Started at"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:826
-#: lib/lemmings_os_web/components/instance_components.ex:852
+#: lib/lemmings_os_web/components/instance_components.ex:839
+#: lib/lemmings_os_web/components/instance_components.ex:865
 #: lib/lemmings_os_web/live/instance_live.ex:636
 #: lib/lemmings_os_web/live/instance_live.ex:650
 #: lib/lemmings_os_web/live/instance_live.ex:652
@@ -893,7 +893,7 @@ msgstr ""
 msgid "This request will reuse the current transcript context."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:185
+#: lib/lemmings_os_web/components/instance_components.ex:198
 #, elixir-autogen, elixir-format
 msgid "Total %{count} tokens"
 msgstr ""
@@ -909,8 +909,8 @@ msgstr ""
 msgid "Unable to save the follow-up request."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1116
-#: lib/lemmings_os_web/components/instance_components.ex:1229
+#: lib/lemmings_os_web/components/instance_components.ex:1129
+#: lib/lemmings_os_web/components/instance_components.ex:1251
 #, elixir-autogen, elixir-format
 msgid "Unknown time"
 msgstr ""
@@ -920,12 +920,12 @@ msgstr ""
 msgid "Use the transcript to review the latest runtime activity."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:957
+#: lib/lemmings_os_web/components/instance_components.ex:970
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:829
+#: lib/lemmings_os_web/components/instance_components.ex:842
 #: lib/lemmings_os_web/live/instance_live.ex:637
 #: lib/lemmings_os_web/live/instance_live.ex:655
 #: lib/lemmings_os_web/live/instance_live.ex:781
@@ -943,7 +943,7 @@ msgstr ""
 msgid "World"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:883
+#: lib/lemmings_os_web/components/instance_components.ex:896
 #: lib/lemmings_os_web/live/instance_live.ex:694
 #, elixir-autogen, elixir-format
 msgid "unknown"
@@ -990,7 +990,7 @@ msgstr ""
 msgid "Unable to retry this instance right now."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1235
+#: lib/lemmings_os_web/components/instance_components.ex:1257
 #, elixir-autogen, elixir-format
 msgid "now"
 msgstr ""
@@ -1005,38 +1005,38 @@ msgstr ""
 msgid "Total tokens"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:701
+#: lib/lemmings_os_web/components/lemming_components.ex:728
 #, elixir-autogen, elixir-format
 msgid ".button_cancel"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:711
+#: lib/lemmings_os_web/components/lemming_components.ex:738
 #, elixir-autogen, elixir-format
 msgid ".button_confirm_spawn"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:626
-#: lib/lemmings_os_web/components/lemming_components.ex:637
+#: lib/lemmings_os_web/components/lemming_components.ex:653
+#: lib/lemmings_os_web/components/lemming_components.ex:664
 #, elixir-autogen, elixir-format
 msgid ".button_spawn"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:709
+#: lib/lemmings_os_web/components/lemming_components.ex:736
 #, elixir-autogen, elixir-format
 msgid ".button_spawning"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:664
+#: lib/lemmings_os_web/components/lemming_components.ex:691
 #, elixir-autogen, elixir-format
 msgid ".copy_spawn_instance"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:772
+#: lib/lemmings_os_web/components/lemming_components.ex:799
 #, elixir-autogen, elixir-format
 msgid ".count_shown"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:725
+#: lib/lemmings_os_web/components/lemming_components.ex:752
 #, elixir-autogen, elixir-format
 msgid ".count_total"
 msgstr ""
@@ -1081,12 +1081,12 @@ msgstr ""
 msgid ".detail_registry_target"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:732
+#: lib/lemmings_os_web/components/lemming_components.ex:759
 #, elixir-autogen, elixir-format
 msgid ".empty_no_active_instances"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:733
+#: lib/lemmings_os_web/components/lemming_components.ex:760
 #, elixir-autogen, elixir-format
 msgid ".empty_no_active_instances_copy"
 msgstr ""
@@ -1187,7 +1187,7 @@ msgstr ""
 msgid ".label_holders"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:690
+#: lib/lemmings_os_web/components/lemming_components.ex:717
 #, elixir-autogen, elixir-format
 msgid ".label_initial_request"
 msgstr ""
@@ -1269,8 +1269,8 @@ msgstr ""
 msgid ".label_started"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:749
-#: lib/lemmings_os_web/components/lemming_components.ex:788
+#: lib/lemmings_os_web/components/lemming_components.ex:776
+#: lib/lemmings_os_web/components/lemming_components.ex:815
 #, elixir-autogen, elixir-format
 msgid ".label_unknown"
 msgstr ""
@@ -1280,12 +1280,12 @@ msgstr ""
 msgid ".label_up"
 msgstr ""
 
-#: lib/lemmings_os_web/live/mock_shell.ex:52
+#: lib/lemmings_os_web/live/mock_shell.ex:53
 #, elixir-autogen, elixir-format
 msgid ".nav_runtime"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:691
+#: lib/lemmings_os_web/components/lemming_components.ex:718
 #, elixir-autogen, elixir-format
 msgid ".placeholder_spawn_request"
 msgstr ""
@@ -1385,7 +1385,7 @@ msgstr ""
 msgid ".runtime_service_label_scheduler_supervisor"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:613
+#: lib/lemmings_os_web/components/lemming_components.ex:640
 #, elixir-autogen, elixir-format
 msgid ".spawn_enabled_copy"
 msgstr ""
@@ -1420,7 +1420,7 @@ msgstr ""
 msgid ".subtitle_runtime_dashboard"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:722
+#: lib/lemmings_os_web/components/lemming_components.ex:749
 #, elixir-autogen, elixir-format
 msgid ".title_active_instances"
 msgstr ""
@@ -1446,7 +1446,7 @@ msgstr ""
 msgid ".title_executors"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:769
+#: lib/lemmings_os_web/components/lemming_components.ex:796
 #, elixir-autogen, elixir-format
 msgid ".title_recent_sessions"
 msgstr ""
@@ -1462,27 +1462,27 @@ msgstr ""
 msgid ".title_runtime_dashboard"
 msgstr ""
 
-#: lib/lemmings_os_web/components/lemming_components.ex:661
+#: lib/lemmings_os_web/components/lemming_components.ex:688
 #, elixir-autogen, elixir-format
 msgid ".title_spawn_instance"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1138
+#: lib/lemmings_os_web/components/instance_components.ex:1151
 #, elixir-autogen, elixir-format
 msgid "%{count} args"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1132
+#: lib/lemmings_os_web/components/instance_components.ex:1145
 #, elixir-autogen, elixir-format
 msgid "%{count} ms"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1141
+#: lib/lemmings_os_web/components/instance_components.ex:1154
 #, elixir-autogen, elixir-format
 msgid "0 args"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:513
+#: lib/lemmings_os_web/components/instance_components.ex:526
 #, elixir-autogen, elixir-format
 msgid "Arguments"
 msgstr ""
@@ -1497,8 +1497,8 @@ msgstr ""
 msgid "Chronological session activity"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:698
-#: lib/lemmings_os_web/components/instance_components.ex:1004
+#: lib/lemmings_os_web/components/instance_components.ex:711
+#: lib/lemmings_os_web/components/instance_components.ex:1017
 #, elixir-autogen, elixir-format
 msgid "Completed"
 msgstr ""
@@ -1513,12 +1513,12 @@ msgstr ""
 msgid "Context messages"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:533
+#: lib/lemmings_os_web/components/instance_components.ex:546
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:507
+#: lib/lemmings_os_web/components/instance_components.ex:520
 #, elixir-autogen, elixir-format
 msgid "Inspect persisted details"
 msgstr ""
@@ -1564,12 +1564,12 @@ msgstr ""
 msgid "Raw context"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:523
+#: lib/lemmings_os_web/components/instance_components.ex:536
 #, elixir-autogen, elixir-format
 msgid "Result"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1003
+#: lib/lemmings_os_web/components/instance_components.ex:1016
 #, elixir-autogen, elixir-format
 msgid "Running"
 msgstr ""
@@ -1589,37 +1589,37 @@ msgstr ""
 msgid "Shows the live LLM and tool loop as a readable timeline. Raw payloads stay collapsed under each step."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:260
+#: lib/lemmings_os_web/components/instance_components.ex:273
 #, elixir-autogen, elixir-format
 msgid "Tool"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1014
+#: lib/lemmings_os_web/components/instance_components.ex:1027
 #, elixir-autogen, elixir-format
 msgid "Tool execution completed successfully."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1020
+#: lib/lemmings_os_web/components/instance_components.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Tool execution failed with code %{code}."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1022
+#: lib/lemmings_os_web/components/instance_components.ex:1035
 #, elixir-autogen, elixir-format
 msgid "Tool execution failed."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1011
+#: lib/lemmings_os_web/components/instance_components.ex:1024
 #, elixir-autogen, elixir-format
 msgid "Tool execution is still running."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1026
+#: lib/lemmings_os_web/components/instance_components.ex:1039
 #, elixir-autogen, elixir-format
 msgid "Tool execution recorded."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:262
+#: lib/lemmings_os_web/components/instance_components.ex:275
 #, elixir-autogen, elixir-format
 msgid "Tool run"
 msgstr ""
@@ -1634,22 +1634,22 @@ msgstr ""
 msgid "%{count} historical"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:740
+#: lib/lemmings_os_web/components/instance_components.ex:753
 #, elixir-autogen, elixir-format
 msgid "Caller"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:908
+#: lib/lemmings_os_web/components/world_components.ex:919
 #, elixir-autogen, elixir-format
 msgid "Capability"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:765
+#: lib/lemmings_os_web/components/instance_components.ex:778
 #, elixir-autogen, elixir-format
 msgid "Child"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:650
+#: lib/lemmings_os_web/components/instance_components.ex:663
 #, elixir-autogen, elixir-format
 msgid "Delegated"
 msgstr ""
@@ -1664,7 +1664,7 @@ msgstr ""
 msgid "Delegated work"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1181
+#: lib/lemmings_os_web/components/instance_components.ex:1203
 #, elixir-autogen, elixir-format
 msgid "Delegating work to a child lemming."
 msgstr ""
@@ -1674,20 +1674,20 @@ msgstr ""
 msgid "Delegation state"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:729
+#: lib/lemmings_os_web/components/instance_components.ex:742
 #, elixir-autogen, elixir-format
 msgid "Error summary"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:708
+#: lib/lemmings_os_web/components/instance_components.ex:721
 #, elixir-autogen, elixir-format
 msgid "Inspect delegated work"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:572
-#: lib/lemmings_os_web/components/instance_components.ex:610
-#: lib/lemmings_os_web/components/instance_components.ex:655
-#: lib/lemmings_os_web/components/world_components.ex:903
+#: lib/lemmings_os_web/components/instance_components.ex:585
+#: lib/lemmings_os_web/components/instance_components.ex:623
+#: lib/lemmings_os_web/components/instance_components.ex:668
+#: lib/lemmings_os_web/components/world_components.ex:914
 #, elixir-autogen, elixir-format
 msgid "Manager"
 msgstr ""
@@ -1697,18 +1697,18 @@ msgstr ""
 msgid "Manager relationship"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:888
+#: lib/lemmings_os_web/components/world_components.ex:899
 #, elixir-autogen, elixir-format
 msgid "Manager-centered entry for this department"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:680
+#: lib/lemmings_os_web/components/instance_components.ex:693
 #, elixir-autogen, elixir-format
 msgid "Open child"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:756
-#: lib/lemmings_os_web/components/world_components.ex:896
+#: lib/lemmings_os_web/components/instance_components.ex:769
+#: lib/lemmings_os_web/components/world_components.ex:907
 #, elixir-autogen, elixir-format
 msgid "Open manager"
 msgstr ""
@@ -1718,18 +1718,18 @@ msgstr ""
 msgid "Open parent"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:886
-#: lib/lemmings_os_web/components/world_components.ex:1062
+#: lib/lemmings_os_web/components/world_components.ex:897
+#: lib/lemmings_os_web/components/world_components.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Primary manager"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:695
+#: lib/lemmings_os_web/components/instance_components.ex:708
 #, elixir-autogen, elixir-format
 msgid "Requested"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:718
+#: lib/lemmings_os_web/components/instance_components.ex:731
 #, elixir-autogen, elixir-format
 msgid "Result summary"
 msgstr ""
@@ -1744,17 +1744,17 @@ msgstr ""
 msgid "This session was opened through a manager delegation flow"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1192
+#: lib/lemmings_os_web/components/instance_components.ex:1214
 #, elixir-autogen, elixir-format
 msgid "UNKNOWN"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1187
+#: lib/lemmings_os_web/components/instance_components.ex:1209
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:658
+#: lib/lemmings_os_web/components/instance_components.ex:671
 #, elixir-autogen, elixir-format
 msgid "Worker"
 msgstr ""
@@ -1784,12 +1784,12 @@ msgstr ""
 msgid "Workspace path copied."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1109
+#: lib/lemmings_os_web/components/instance_components.ex:1122
 #, elixir-autogen, elixir-format
 msgid "%{count} bytes"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:346
+#: lib/lemmings_os_web/components/instance_components.ex:359
 #, elixir-autogen, elixir-format
 msgid "An Artifact is a promoted, durable file reference with tracked metadata and lifecycle state."
 msgstr ""
@@ -1814,7 +1814,7 @@ msgstr ""
 msgid "Artifact promoted: %{filename}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:329
+#: lib/lemmings_os_web/components/instance_components.ex:342
 #, elixir-autogen, elixir-format
 msgid "Artifact promotion"
 msgstr ""
@@ -1859,22 +1859,22 @@ msgstr ""
 msgid "Choose a valid promotion action for this Artifact."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:463
+#: lib/lemmings_os_web/components/instance_components.ex:476
 #, elixir-autogen, elixir-format
 msgid "Created"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:479
+#: lib/lemmings_os_web/components/instance_components.ex:492
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:473
+#: lib/lemmings_os_web/components/instance_components.ex:486
 #, elixir-autogen, elixir-format
 msgid "Download Artifact %{filename}"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:493
+#: lib/lemmings_os_web/components/instance_components.ex:506
 #, elixir-autogen, elixir-format
 msgid "Notes"
 msgstr ""
@@ -1889,33 +1889,33 @@ msgstr ""
 msgid "Only regular files can be promoted as Artifacts."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:425
+#: lib/lemmings_os_web/components/instance_components.ex:438
 #, elixir-autogen, elixir-format
 msgid "Promote as New Artifact"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:420
+#: lib/lemmings_os_web/components/instance_components.ex:433
 #, elixir-autogen, elixir-format
 msgid "Promote as new Artifact from workspace file"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:395
+#: lib/lemmings_os_web/components/instance_components.ex:408
 #, elixir-autogen, elixir-format
 msgid "Promote to Artifact"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:390
+#: lib/lemmings_os_web/components/instance_components.ex:403
 #, elixir-autogen, elixir-format
 msgid "Promote workspace file to Artifact"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:361
+#: lib/lemmings_os_web/components/instance_components.ex:374
 #, elixir-autogen, elixir-format
 msgid "Promoted"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:389
-#: lib/lemmings_os_web/components/instance_components.ex:419
+#: lib/lemmings_os_web/components/instance_components.ex:402
+#: lib/lemmings_os_web/components/instance_components.ex:432
 #, elixir-autogen, elixir-format
 msgid "Promoting..."
 msgstr ""
@@ -1925,7 +1925,7 @@ msgstr ""
 msgid "Runtime instance not found for Artifact promotion."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:339
+#: lib/lemmings_os_web/components/instance_components.ex:352
 #, elixir-autogen, elixir-format
 msgid "Show Artifact help"
 msgstr ""
@@ -1940,22 +1940,22 @@ msgstr ""
 msgid "Unable to promote this file right now."
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:1111
+#: lib/lemmings_os_web/components/instance_components.ex:1124
 #, elixir-autogen, elixir-format
 msgid "Unknown size"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:410
+#: lib/lemmings_os_web/components/instance_components.ex:423
 #, elixir-autogen, elixir-format
 msgid "Update Artifact"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:405
+#: lib/lemmings_os_web/components/instance_components.ex:418
 #, elixir-autogen, elixir-format
 msgid "Update existing Artifact from workspace file"
 msgstr ""
 
-#: lib/lemmings_os_web/components/instance_components.ex:404
+#: lib/lemmings_os_web/components/instance_components.ex:417
 #, elixir-autogen, elixir-format
 msgid "Updating..."
 msgstr ""
@@ -1969,4 +1969,9 @@ msgstr ""
 #: lib/lemmings_os_web/live/instance_live.ex:1237
 #, elixir-autogen, elixir-format
 msgid "Workspace file path is invalid for Artifact promotion."
+msgstr ""
+
+#: lib/lemmings_os_web/components/instance_components.ex:182
+#, elixir-autogen, elixir-format
+msgid "View/Edit memory"
 msgstr ""

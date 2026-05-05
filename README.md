@@ -180,7 +180,9 @@ Feature documentation:
 
 - [Artifacts](docs/features/artifacts.md) — promoted durable file references,
   managed local storage, lifecycle/state model, and safe download/promotion flows.
-- [Tools Catalog](docs/features/tools.md) — human-readable runtime tool catalog, including Filesystem, Web, and Documents tools.
+- [Knowledge Memories](docs/features/knowledge.md) — scoped memory notes,
+  operator CRUD, Lemming-created memories, and `knowledge.store` behavior.
+- [Tools Catalog](docs/features/tools.md) — human-readable runtime tool catalog, including Filesystem, Web, Knowledge, and Documents tools.
 - [Secret Bank](docs/features/secret_bank.md) — encrypted local runtime secrets,
   hierarchy resolution, env fallback, write-only operator flows, and safe audit
   events.
