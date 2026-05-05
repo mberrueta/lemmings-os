@@ -66,6 +66,28 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
     assert has_element?(view, "#department-overview-tab-panel")
   end
 
+  test "knowledge tab deep links resolve for city, department, and lemming pages", %{conn: conn} do
+    world = insert(:world)
+    city = insert(:city, world: world, slug: "city-alpha", name: "City Alpha")
+    department = insert(:department, world: world, city: city, slug: "eng", name: "Engineering")
+    lemming = insert(:lemming, world: world, city: city, department: department, name: "Triage")
+
+    {:ok, city_view, _city_html} = live(conn, ~p"/cities?#{%{city: city.id, tab: "knowledge"}}")
+
+    {:ok, dept_view, _dept_html} =
+      live(conn, ~p"/departments?#{%{city: city.id, dept: department.id, tab: "knowledge"}}")
+
+    {:ok, lemming_view, _lemming_html} =
+      live(
+        conn,
+        ~p"/lemmings/#{lemming.id}?#{%{city: city.id, dept: department.id, tab: "knowledge"}}"
+      )
+
+    assert has_element?(city_view, "#city-knowledge-panel")
+    assert has_element?(dept_view, "#department-knowledge-tab-panel")
+    assert has_element?(lemming_view, "#lemming-knowledge-tab-panel")
+  end
+
   test "lemmings page links into dedicated detail view", %{conn: conn} do
     world = insert(:world)
     city = insert(:city, world: world, slug: "city-alpha", name: "City Alpha")
@@ -82,12 +104,14 @@ defmodule LemmingsOsWeb.NavigationLiveTest do
     assert has_element?(detail_view, "#lemming-hero-name", "Triage")
   end
 
-  test "tools, logs, settings, and create lemming pages render", %{conn: conn} do
+  test "knowledge, tools, logs, settings, and create lemming pages render", %{conn: conn} do
+    {:ok, knowledge_view, _knowledge_html} = live(conn, ~p"/knowledge")
     {:ok, tools_view, _tools_html} = live(conn, ~p"/tools")
     {:ok, logs_view, _logs_html} = live(conn, ~p"/logs")
     {:ok, settings_view, _settings_html} = live(conn, ~p"/settings")
     {:ok, create_view, _create_html} = live(conn, ~p"/lemmings/new")
 
+    assert has_element?(knowledge_view, "#knowledge-page")
     assert has_element?(tools_view, "#tools-page")
     assert has_element?(logs_view, "#logs-runtime-page")
     assert has_element?(settings_view, "#settings-page")

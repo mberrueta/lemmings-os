@@ -48,6 +48,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
        overview_path: nil,
        edit_path: nil,
        secrets_path: nil,
+       knowledge_path: nil,
        artifacts_path: nil,
        lemming_artifact_rows: [],
        lemming_secret_form: blank_secret_form(),
@@ -320,6 +321,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
           overview_path: nil,
           edit_path: nil,
           secrets_path: nil,
+          knowledge_path: nil,
           artifacts_path: nil,
           lemming_artifact_rows: [],
           lemming_secret_form: blank_secret_form(),
@@ -357,6 +359,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
       overview_path: nil,
       edit_path: nil,
       secrets_path: nil,
+      knowledge_path: nil,
       artifacts_path: nil,
       lemming_artifact_rows: [],
       lemming_secret_form: blank_secret_form(),
@@ -391,6 +394,7 @@ defmodule LemmingsOsWeb.LemmingsLive do
       overview_path: detail_path(lemming, socket, "overview"),
       edit_path: detail_path(lemming, socket, "edit"),
       secrets_path: detail_path(lemming, socket, "secrets"),
+      knowledge_path: detail_path(lemming, socket, "knowledge"),
       artifacts_path: detail_path(lemming, socket, "artifacts"),
       lemming_artifact_rows: list_scope_artifacts(lemming),
       lemming_secret_metadata: SecretBank.list_effective_metadata(lemming),
@@ -615,6 +619,9 @@ defmodule LemmingsOsWeb.LemmingsLive do
 
   defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "edit"}), do: "edit"
   defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "secrets"}), do: "secrets"
+
+  defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "knowledge"}),
+    do: "knowledge"
 
   defp active_detail_tab(%{assigns: %{live_action: :show}}, %{"tab" => "artifacts"}),
     do: "artifacts"

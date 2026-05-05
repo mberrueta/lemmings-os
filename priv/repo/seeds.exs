@@ -102,7 +102,10 @@ lemming_seeds = %{
       description: "Classifies inbound incidents and routes them to the right team.",
       instructions:
         "Review new incidents, tag urgency, and route them to the correct department.",
-      tools_config: %{"allowed_tools" => ["github", "logs"], "denied_tools" => ["shell"]}
+      tools_config: %{
+        "allowed_tools" => ["github", "logs", "knowledge.store"],
+        "denied_tools" => ["shell"]
+      }
     },
     %{
       slug: "customer-follow-up",

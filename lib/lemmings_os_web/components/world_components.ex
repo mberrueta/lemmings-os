@@ -755,6 +755,7 @@ defmodule LemmingsOsWeb.WorldComponents do
   end
 
   attr :department, :map, required: true
+  attr :socket, :any, required: true
   attr :selected_city, :map, default: nil
   attr :selected_world, :map, default: nil
   attr :active_tab, :string, default: "overview"
@@ -849,6 +850,16 @@ defmodule LemmingsOsWeb.WorldComponents do
           class={department_tab_class(@active_tab == "artifacts")}
         >
           {dgettext("layout", "Artifacts")}
+        </.link>
+        <.link
+          id="department-tab-knowledge"
+          patch={
+            ~p"/departments?#{department_tab_params(@selected_city.id, @department.id, "knowledge")}"
+          }
+          aria-current={if @active_tab == "knowledge", do: "page"}
+          class={department_tab_class(@active_tab == "knowledge")}
+        >
+          Knowledge
         </.link>
       </div>
 
@@ -1252,6 +1263,19 @@ defmodule LemmingsOsWeb.WorldComponents do
         id_prefix="department"
         rows={@artifact_rows}
       />
+
+      <.panel :if={@active_tab == "knowledge"} id="department-knowledge-tab-panel" tone="info">
+        <:title>Knowledge</:title>
+        <:subtitle>Department-scoped memory management.</:subtitle>
+        {live_render(@socket, LemmingsOsWeb.KnowledgeLive,
+          id: "department-knowledge-live-#{@department.id}",
+          session: %{
+            "embedded" => "1",
+            "scope_type" => "department",
+            "scope_id" => @department.id
+          }
+        )}
+      </.panel>
     </.panel>
     """
   end

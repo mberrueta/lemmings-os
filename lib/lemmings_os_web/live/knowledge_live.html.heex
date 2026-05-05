@@ -1,0 +1,322 @@
+<Layouts.app
+  flash={@flash}
+  current_scope={@current_scope}
+  page_key={@page_key}
+  page_title={@page_title}
+  shell_user={@shell_user}
+  shell_host={@shell_host}
+  shell_breadcrumb={@shell_breadcrumb}
+  summary={@summary}
+  shell_frame?={!@embedded?}
+  show_flash?={!@embedded?}
+>
+  <.content_container>
+    <div id="knowledge-page" class="grid gap-4">
+      <.panel :if={@form_open?} id="knowledge-memory-form-panel" tone="accent">
+        <:title>
+          <span class="flex items-center gap-2">
+            <.icon name="hero-book-open" class="size-5" /> Knowledge Memory
+          </span>
+        </:title>
+        <:subtitle>Create and maintain memory notes by scope.</:subtitle>
+
+        <.form id="knowledge-scope-form" for={@scope_form} phx-change="change_scope">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <.input
+              id="knowledge-scope-type"
+              field={@scope_form[:scope_type]}
+              type="select"
+              label="Scope Type"
+              options={[
+                {"World", "world"},
+                {"City", "city"},
+                {"Department", "department"},
+                {"Lemming", "lemming"}
+              ]}
+            />
+            <.input
+              id="knowledge-scope-id"
+              field={@scope_form[:scope_id]}
+              type="select"
+              label="Scope"
+              prompt="Select scope"
+              options={
+                case @scope_type do
+                  "world" ->
+                    Enum.map(@scope_options.worlds, &{"#{&1.name} (#{&1.slug})", &1.id})
+
+                  "city" ->
+                    Enum.map(@scope_options.cities, &{"#{&1.name} (#{&1.slug})", &1.id})
+
+                  "department" ->
+                    Enum.map(@scope_options.departments, &{"#{&1.name} (#{&1.slug})", &1.id})
+
+                  "lemming" ->
+                    Enum.map(@scope_options.lemmings, &{"#{&1.name} (#{&1.slug})", &1.id})
+                end
+              }
+            />
+          </div>
+        </.form>
+
+        <.form
+          id="knowledge-memory-form"
+          for={@memory_form}
+          phx-change="validate_memory"
+          phx-submit="save_memory"
+          class="mt-4 space-y-3"
+        >
+          <.input
+            id="knowledge-memory-title"
+            field={@memory_form[:title]}
+            type="text"
+            label="Title"
+            required
+          />
+          <.input
+            id="knowledge-memory-content"
+            field={@memory_form[:content]}
+            type="textarea"
+            label="Content"
+            required
+          />
+          <.input
+            id="knowledge-memory-tags"
+            field={@memory_form[:tags]}
+            type="text"
+            label="Tags (comma separated)"
+            placeholder="customer:acme, language:pt-BR"
+            value={@memory_tags_value}
+          />
+
+          <div class="flex flex-wrap gap-2 pt-1">
+            <.button id="knowledge-memory-save" type="submit" variant="secondary">
+              {if @form_mode == :edit, do: "Update Memory", else: "Create Memory"}
+            </.button>
+            <.button
+              :if={@form_mode == :edit}
+              id="knowledge-memory-new"
+              type="button"
+              variant="neutral"
+              phx-click="new_memory"
+            >
+              New Memory
+            </.button>
+            <.button
+              id="knowledge-memory-close"
+              type="button"
+              variant="neutral"
+              phx-click="close_memory_form"
+            >
+              Close
+            </.button>
+          </div>
+        </.form>
+      </.panel>
+
+      <.panel id="knowledge-memory-list-panel" tone="accent">
+        <:title>Effective Memories</:title>
+        <:subtitle>
+          <span id="knowledge-total-count">{@total_count} total</span>
+        </:subtitle>
+        <:actions>
+          <.button
+            id="knowledge-memory-open"
+            type="button"
+            variant="secondary"
+            phx-click="new_memory"
+          >
+            <.icon name="hero-plus" class="size-4" /> New Memory
+          </.button>
+        </:actions>
+
+        <.form id="knowledge-filters-form" for={@filter_form} phx-change="change_filters">
+          <div class="grid gap-3 sm:grid-cols-3">
+            <.input
+              id="knowledge-filter-query"
+              field={@filter_form[:query]}
+              type="text"
+              label="Search"
+              placeholder="title or tag"
+            />
+            <.input
+              id="knowledge-filter-source"
+              field={@filter_form[:source]}
+              type="select"
+              label="Source"
+              options={[{"All", ""}, {"User", "user"}, {"LLM", "llm"}]}
+            />
+            <.input
+              id="knowledge-filter-status"
+              field={@filter_form[:status]}
+              type="select"
+              label="Status"
+              options={[{"Active", "active"}]}
+            />
+          </div>
+        </.form>
+
+        <.empty_state
+          :if={@entries == [] && @query == "" && @source == ""}
+          id="knowledge-list-empty-state"
+          title="No memories found"
+          copy="Create the first memory in this scope."
+        />
+
+        <.empty_state
+          :if={@entries == [] && (@query != "" || @source != "")}
+          id="knowledge-filter-empty-state"
+          title="No filtered results"
+          copy="Adjust filters to broaden the result set."
+        />
+
+        <div :if={@entries != []} id="knowledge-memory-list" class="mt-3 flex flex-col gap-3">
+          <article
+            :for={row <- @entries}
+            id={"knowledge-memory-row-#{row.memory.id}"}
+            class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
+          >
+            <% city = Map.get(@city_lookup, row.memory.city_id) %>
+            <% department = Map.get(@department_lookup, row.memory.department_id) %>
+            <% lemming = Map.get(@lemming_lookup, row.memory.lemming_id) %>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div class="min-w-0">
+                <h3
+                  id={"knowledge-memory-title-#{row.memory.id}"}
+                  class="text-sm font-semibold text-zinc-100"
+                >
+                  {row.memory.title}
+                </h3>
+
+                <p
+                  id={"knowledge-memory-content-#{row.memory.id}"}
+                  class="mt-2 text-sm text-zinc-300"
+                >
+                  {LemmingsOs.Helpers.truncate_value(row.memory.content, max_length: 200)}
+                </p>
+
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                  <.badge id={"knowledge-memory-owner-#{row.memory.id}"} tone="default">
+                    {row.owner_scope_label}
+                  </.badge>
+                  <.badge id={"knowledge-memory-source-#{row.memory.id}"} tone="info">
+                    {String.upcase(row.memory.source)}
+                  </.badge>
+                  <.badge id={"knowledge-memory-local-#{row.memory.id}"} tone="muted">
+                    {if row.local?,
+                      do: "Local",
+                      else: if(row.inherited?, do: "Inherited", else: "Descendant")}
+                  </.badge>
+                  <.badge id={"knowledge-memory-timestamp-#{row.memory.id}"} tone="muted">
+                    {Calendar.strftime(
+                      row.memory.updated_at || row.memory.inserted_at,
+                      "%Y-%m-%d %H:%M"
+                    )}
+                  </.badge>
+                  <.badge
+                    :for={tag <- row.memory.tags}
+                    id={"knowledge-memory-tag-#{row.memory.id}-#{tag}"}
+                    tone="success"
+                  >
+                    #{tag}
+                  </.badge>
+                </div>
+
+                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                  <.link
+                    :if={city}
+                    id={"knowledge-memory-city-link-#{row.memory.id}"}
+                    navigate={~p"/cities?#{%{city: city.id, tab: "knowledge"}}"}
+                    target={if @embedded?, do: "_top", else: nil}
+                    class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    city: {city.slug}
+                  </.link>
+                  <.link
+                    :if={department}
+                    id={"knowledge-memory-department-link-#{row.memory.id}"}
+                    navigate={
+                      ~p"/departments?#{%{city: department.city_id, dept: department.id, tab: "knowledge"}}"
+                    }
+                    target={if @embedded?, do: "_top", else: nil}
+                    class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    department: {department.slug}
+                  </.link>
+                  <.link
+                    :if={lemming}
+                    id={"knowledge-memory-lemming-link-#{row.memory.id}"}
+                    navigate={
+                      ~p"/lemmings/#{lemming.id}?#{%{city: lemming.city_id, dept: lemming.department_id, tab: "knowledge"}}"
+                    }
+                    target={if @embedded?, do: "_top", else: nil}
+                    class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    lemming: {lemming.slug}
+                  </.link>
+                </div>
+              </div>
+
+              <div class="flex items-start justify-end gap-2">
+                <button
+                  id={"knowledge-memory-edit-#{row.memory.id}"}
+                  type="button"
+                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition duration-150 hover:border-emerald-400 hover:text-emerald-300 disabled:opacity-40"
+                  phx-click="edit_memory"
+                  phx-value-id={row.memory.id}
+                  disabled={!row.local?}
+                  title="Edit memory"
+                  aria-label="Edit memory"
+                >
+                  <.icon name="hero-pencil-square" class="size-4" />
+                </button>
+                <button
+                  id={"knowledge-memory-delete-#{row.memory.id}"}
+                  type="button"
+                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition duration-150 hover:border-red-400 hover:text-red-300 disabled:opacity-40"
+                  phx-click="delete_memory"
+                  phx-value-id={row.memory.id}
+                  data-confirm="Delete this memory permanently?"
+                  disabled={!row.local?}
+                  title="Delete memory"
+                  aria-label="Delete memory"
+                >
+                  <.icon name="hero-trash" class="size-4" />
+                </button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div id="knowledge-pagination" class="mt-4 flex items-center justify-between gap-3">
+          <.button
+            id="knowledge-page-prev"
+            type="button"
+            variant="neutral"
+            phx-click="page_prev"
+            disabled={@offset <= 0}
+          >
+            Previous
+          </.button>
+
+          <p id="knowledge-page-range" class="text-xs text-zinc-400">
+            Showing {if @total_count == 0, do: 0, else: @offset + 1} to {min(
+              @offset + @limit,
+              @total_count
+            )}
+          </p>
+
+          <.button
+            id="knowledge-page-next"
+            type="button"
+            variant="neutral"
+            phx-click="page_next"
+            disabled={@offset + @limit >= @total_count}
+          >
+            Next
+          </.button>
+        </div>
+      </.panel>
+    </div>
+  </.content_container>
+</Layouts.app>

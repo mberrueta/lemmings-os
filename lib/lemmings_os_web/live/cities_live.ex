@@ -37,7 +37,7 @@ defmodule LemmingsOsWeb.CitiesLive do
   alias LemmingsOsWeb.PageData.CitiesPageSnapshot
   require Logger
 
-  @detail_tabs ~w(overview secrets connections artifacts)
+  @detail_tabs ~w(overview secrets connections artifacts knowledge)
 
   def mount(params, _session, socket) do
     connection_types = Connections.list_connection_types()

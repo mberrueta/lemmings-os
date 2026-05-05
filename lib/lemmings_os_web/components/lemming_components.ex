@@ -148,6 +148,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
   end
 
   attr :world, :map, default: nil
+  attr :socket, :any, required: true
   attr :selected_city, :map, default: nil
   attr :selected_department, :map, default: nil
   attr :selected_lemming, :map, default: nil
@@ -159,6 +160,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
   attr :secrets_path, :string, default: nil
+  attr :knowledge_path, :string, default: nil
   attr :artifacts_path, :string, default: nil
   attr :artifact_rows, :list, default: []
   attr :secret_form, :any, default: nil
@@ -286,6 +288,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
 
       <.content_grid :if={@selected_lemming} id="lemmings-workspace-grid" columns="two">
         <.lemming_detail_workspace
+          socket={@socket}
           lemming={@selected_lemming}
           effective_config={@selected_lemming_effective_config}
           inheriting?={@selected_lemming_inheriting?}
@@ -294,6 +297,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
           overview_path={@overview_path}
           edit_path={@edit_path}
           secrets_path={@secrets_path}
+          knowledge_path={@knowledge_path}
           artifacts_path={@artifacts_path}
           artifact_rows={@artifact_rows}
           secret_form={@secret_form}
@@ -317,6 +321,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
   end
 
   attr :lemming, :map, required: true
+  attr :socket, :any, required: true
   attr :effective_config, :map, required: true
   attr :inheriting?, :boolean, default: false
   attr :active_tab, :string, default: "overview"
@@ -324,6 +329,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
   attr :overview_path, :string, default: nil
   attr :edit_path, :string, default: nil
   attr :secrets_path, :string, default: nil
+  attr :knowledge_path, :string, default: nil
   attr :artifacts_path, :string, default: nil
   attr :artifact_rows, :list, default: []
   attr :secret_form, :any, default: nil
@@ -375,6 +381,14 @@ defmodule LemmingsOsWeb.LemmingComponents do
           class={detail_tab_class(@active_tab == "secrets")}
         >
           {dgettext("world", ".tab_secrets")}
+        </.link>
+        <.link
+          id="lemming-tab-knowledge"
+          patch={@knowledge_path}
+          aria-current={if @active_tab == "knowledge", do: "page"}
+          class={detail_tab_class(@active_tab == "knowledge")}
+        >
+          Knowledge
         </.link>
         <.link
           id="lemming-tab-artifacts"
@@ -578,6 +592,19 @@ defmodule LemmingsOsWeb.LemmingComponents do
         delete_event="delete_lemming_secret"
         subtitle={dgettext("world", ".secret_lemming_subtitle")}
       />
+
+      <.panel :if={@active_tab == "knowledge"} id="lemming-knowledge-tab-panel" tone="info">
+        <:title>Knowledge</:title>
+        <:subtitle>Lemming-scoped memory management.</:subtitle>
+        {live_render(@socket, LemmingsOsWeb.KnowledgeLive,
+          id: "lemming-knowledge-live-#{@lemming.id}",
+          session: %{
+            "embedded" => "1",
+            "scope_type" => "lemming",
+            "scope_id" => @lemming.id
+          }
+        )}
+      </.panel>
 
       <ArtifactsComponents.artifact_surface
         :if={@active_tab == "artifacts"}
@@ -1069,6 +1096,7 @@ defmodule LemmingsOsWeb.LemmingComponents do
 
   defp detail_mode_label("edit"), do: dgettext("lemmings", ".tab_edit")
   defp detail_mode_label("secrets"), do: dgettext("world", ".tab_secrets")
+  defp detail_mode_label("knowledge"), do: "Knowledge"
   defp detail_mode_label("artifacts"), do: dgettext("layout", "Artifacts")
   defp detail_mode_label(_tab), do: dgettext("lemmings", ".tab_overview")
 

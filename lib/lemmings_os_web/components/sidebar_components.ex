@@ -183,6 +183,12 @@ defmodule LemmingsOsWeb.SidebarComponents do
             icon: "hero-wrench-screwdriver"
           },
           %{
+            key: :knowledge,
+            label: "Knowledge",
+            path: ~p"/knowledge",
+            icon: "hero-book-open"
+          },
+          %{
             key: :logs,
             label: dgettext("layout", ".nav_logs"),
             path: ~p"/logs",

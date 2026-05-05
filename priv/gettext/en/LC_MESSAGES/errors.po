@@ -120,25 +120,25 @@ msgstr "Remove the key or extend the bootstrap validator if it is intentional."
 msgid ".aria_close"
 msgstr "close"
 
-#: lib/lemmings_os_web/components/layouts.ex:118
+#: lib/lemmings_os_web/components/layouts.ex:126
 #, elixir-autogen
 msgid ".error_no_internet"
 msgstr "We can't find the internet"
 
-#: lib/lemmings_os_web/components/layouts.ex:123
-#: lib/lemmings_os_web/components/layouts.ex:135
+#: lib/lemmings_os_web/components/layouts.ex:131
+#: lib/lemmings_os_web/components/layouts.ex:143
 #, elixir-autogen
 msgid ".error_attempting_reconnect"
 msgstr "Attempting to reconnect"
 
-#: lib/lemmings_os_web/components/layouts.ex:130
+#: lib/lemmings_os_web/components/layouts.ex:138
 #, elixir-autogen
 msgid ".error_something_went_wrong"
 msgstr "Something went wrong!"
 
 #: lib/lemmings_os_web/live/cities_live.ex:179
 #: lib/lemmings_os_web/live/departments_live.ex:161
-#: lib/lemmings_os_web/live/lemmings_live.ex:160
+#: lib/lemmings_os_web/live/lemmings_live.ex:161
 #: lib/lemmings_os_web/live/world_live.ex:78
 #, elixir-autogen
 msgid ".error_invalid_key"
@@ -284,6 +284,9 @@ msgstr "Lemming deletion is not available because safety cannot yet be proven."
 #: lib/lemmings_os/connections/connection.ex:68
 #: lib/lemmings_os/connections/connection.ex:104
 #: lib/lemmings_os/events/event.ex:115
+#: lib/lemmings_os/knowledge/knowledge_item.ex:110
+#: lib/lemmings_os/knowledge/knowledge_item.ex:111
+#: lib/lemmings_os/knowledge/knowledge_item.ex:112
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:108
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:122
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:72
@@ -299,6 +302,8 @@ msgstr ""
 #: lib/lemmings_os/artifacts/artifact.ex:181
 #: lib/lemmings_os/connections/connection.ex:134
 #: lib/lemmings_os/events/event.ex:128
+#: lib/lemmings_os/knowledge/knowledge_item.ex:176
+#: lib/lemmings_os/knowledge/knowledge_item.ex:180
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:102
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:142
 #, elixir-autogen, elixir-format
@@ -308,6 +313,8 @@ msgstr ""
 #: lib/lemmings_os/artifacts/artifact.ex:106
 #: lib/lemmings_os/connections/connection.ex:67
 #: lib/lemmings_os/events/event.ex:113
+#: lib/lemmings_os/knowledge/knowledge_item.ex:109
+#: lib/lemmings_os/knowledge/knowledge_item.ex:142
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:107
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:121
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:133
@@ -329,6 +336,12 @@ msgstr ""
 #: lib/lemmings_os/connections/connection.ex:95
 #: lib/lemmings_os/connections/connection.ex:118
 #: lib/lemmings_os/events/event.ex:139
+#: lib/lemmings_os/knowledge/knowledge_item.ex:113
+#: lib/lemmings_os/knowledge/knowledge_item.ex:117
+#: lib/lemmings_os/knowledge/knowledge_item.ex:143
+#: lib/lemmings_os/knowledge/knowledge_item.ex:147
+#: lib/lemmings_os/knowledge/knowledge_item.ex:193
+#: lib/lemmings_os/knowledge/knowledge_item.ex:208
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:156
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:88
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:117
@@ -481,15 +494,15 @@ msgstr "City is unavailable"
 msgid ".error_department_unavailable"
 msgstr "Department is unavailable"
 
-#: lib/lemmings_os_web/live/lemmings_live.ex:153
-#: lib/lemmings_os_web/live/lemmings_live.ex:192
+#: lib/lemmings_os_web/live/lemmings_live.ex:154
+#: lib/lemmings_os_web/live/lemmings_live.ex:193
 #, elixir-autogen, elixir-format
 msgid ".error_lemming_unavailable"
 msgstr "Lemming is unavailable"
 
 #: lib/lemmings_os_web/live/cities_live.ex:225
 #: lib/lemmings_os_web/live/departments_live.ex:210
-#: lib/lemmings_os_web/live/lemmings_live.ex:206
+#: lib/lemmings_os_web/live/lemmings_live.ex:207
 #: lib/lemmings_os_web/live/world_live.ex:122
 #, elixir-autogen, elixir-format
 msgid ".error_secret_delete_failed"
@@ -497,7 +510,7 @@ msgstr "Failed to delete secret"
 
 #: lib/lemmings_os_web/live/cities_live.ex:218
 #: lib/lemmings_os_web/live/departments_live.ex:203
-#: lib/lemmings_os_web/live/lemmings_live.ex:199
+#: lib/lemmings_os_web/live/lemmings_live.ex:200
 #: lib/lemmings_os_web/live/world_live.ex:115
 #, elixir-autogen, elixir-format
 msgid ".error_secret_inherited_not_deletable"
@@ -505,7 +518,7 @@ msgstr "Only local values can be deleted at this scope"
 
 #: lib/lemmings_os_web/live/cities_live.ex:222
 #: lib/lemmings_os_web/live/departments_live.ex:207
-#: lib/lemmings_os_web/live/lemmings_live.ex:203
+#: lib/lemmings_os_web/live/lemmings_live.ex:204
 #: lib/lemmings_os_web/live/world_live.ex:119
 #, elixir-autogen, elixir-format
 msgid ".error_secret_key_not_found"
@@ -513,7 +526,7 @@ msgstr "Secret key not found"
 
 #: lib/lemmings_os_web/live/cities_live.ex:194
 #: lib/lemmings_os_web/live/departments_live.ex:179
-#: lib/lemmings_os_web/live/lemmings_live.ex:175
+#: lib/lemmings_os_web/live/lemmings_live.ex:176
 #: lib/lemmings_os_web/live/world_live.ex:93
 #, elixir-autogen, elixir-format
 msgid ".error_secret_save_failed"
@@ -521,7 +534,7 @@ msgstr "Failed to save secret"
 
 #: lib/lemmings_os_web/live/cities_live.ex:187
 #: lib/lemmings_os_web/live/departments_live.ex:172
-#: lib/lemmings_os_web/live/lemmings_live.ex:168
+#: lib/lemmings_os_web/live/lemmings_live.ex:169
 #: lib/lemmings_os_web/live/world_live.ex:86
 #, elixir-autogen, elixir-format
 msgid ".error_secret_value_required"

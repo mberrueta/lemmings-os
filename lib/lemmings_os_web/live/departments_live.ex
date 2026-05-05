@@ -18,7 +18,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   alias LemmingsOsWeb.PageData.DepartmentCollaborationSnapshot
   require Logger
 
-  @detail_tabs ~w(overview lemmings settings secrets connections artifacts)
+  @detail_tabs ~w(overview lemmings settings secrets connections artifacts knowledge)
 
   def mount(_params, _session, socket) do
     connection_types = Connections.list_connection_types()

@@ -18,6 +18,7 @@
 
     <WorldComponents.department_detail_page
       :if={@selected_department && @selected_city}
+      socket={@socket}
       department={@selected_department}
       selected_city={@selected_city}
       selected_world={@world}

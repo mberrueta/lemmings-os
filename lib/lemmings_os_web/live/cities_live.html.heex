@@ -255,6 +255,15 @@
               >
                 {dgettext("layout", "Artifacts")}
               </.button>
+              <.button
+                id="city-tab-knowledge"
+                type="button"
+                phx-click="select_city_tab"
+                phx-value-tab="knowledge"
+                variant={if(@selected_city_tab == "knowledge", do: "secondary", else: "neutral")}
+              >
+                Knowledge
+              </.button>
             </div>
 
             <div
@@ -333,6 +342,22 @@
             id_prefix="city"
             rows={@city_artifact_rows}
           />
+          <.panel
+            :if={@snapshot.selected_city && @selected_city_tab == "knowledge"}
+            id="city-knowledge-panel"
+            tone="info"
+          >
+            <:title>Knowledge</:title>
+            <:subtitle>City-scoped memory management.</:subtitle>
+            {live_render(@socket, LemmingsOsWeb.KnowledgeLive,
+              id: "city-knowledge-live-#{@snapshot.selected_city.id}",
+              session: %{
+                "embedded" => "1",
+                "scope_type" => "city",
+                "scope_id" => @snapshot.selected_city.id
+              }
+            )}
+          </.panel>
           <.city_effective_config_panel
             :if={@snapshot.selected_city && @selected_city_tab == "overview"}
             city={@snapshot.selected_city}

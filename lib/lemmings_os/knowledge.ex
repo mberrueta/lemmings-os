@@ -129,6 +129,85 @@ defmodule LemmingsOs.Knowledge do
   end
 
   @doc """
+  Lists all memories across scopes with filters and local Ecto pagination.
+
+  This read is intentionally unscoped and intended for operator-facing global
+  memory inventory surfaces.
+
+  ## Examples
+
+      iex> {:ok, page} = LemmingsOs.Knowledge.list_all_memories(limit: 5, offset: 0)
+      iex> is_list(page.entries) and is_integer(page.total_count)
+      true
+  """
+  @spec list_all_memories(keyword()) :: {:ok, paginated_memories()}
+  def list_all_memories(opts \\ []) when is_list(opts) do
+    limit = limit_value(opts)
+    offset = offset_value(opts)
+    page_number = page_number_from_offset(offset, limit)
+
+    page =
+      KnowledgeItem
+      |> where([knowledge_item], knowledge_item.kind == "memory")
+      |> apply_memory_filters(opts)
+      |> order_by([knowledge_item], desc: knowledge_item.inserted_at, desc: knowledge_item.id)
+      |> Repo.paginate(page: page_number, page_size: limit)
+
+    entries = Enum.map(page.entries, &to_unscoped_row/1)
+
+    {:ok,
+     %{
+       entries: entries,
+       total_count: page.total_entries,
+       limit: page.page_size,
+       offset: (page.page_number - 1) * page.page_size
+     }}
+  end
+
+  @doc """
+  Lists memories filtered by concrete scope identifiers (including descendants
+  for broader scopes).
+
+  Scope semantics:
+  - world: all memories in world
+  - city: all memories in city (city + department + lemming owned)
+  - department: all memories in department (department + lemming owned)
+  - lemming: only lemming-owned memories
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.list_scope_memories(%{})
+      {:error, :invalid_scope}
+  """
+  @spec list_scope_memories(scope(), keyword()) ::
+          {:ok, paginated_memories()} | {:error, :invalid_scope | :scope_mismatch}
+  def list_scope_memories(scope, opts \\ []) when is_list(opts) do
+    with {:ok, scope_data} <- scope_data(scope) do
+      limit = limit_value(opts)
+      offset = offset_value(opts)
+      page_number = page_number_from_offset(offset, limit)
+
+      page =
+        KnowledgeItem
+        |> where([knowledge_item], knowledge_item.kind == "memory")
+        |> filter_scope_descendants(scope_data)
+        |> apply_memory_filters(opts)
+        |> order_by([knowledge_item], desc: knowledge_item.inserted_at, desc: knowledge_item.id)
+        |> Repo.paginate(page: page_number, page_size: limit)
+
+      entries = Enum.map(page.entries, &to_effective_row(&1, scope_data))
+
+      {:ok,
+       %{
+         entries: entries,
+         total_count: page.total_entries,
+         limit: page.page_size,
+         offset: (page.page_number - 1) * page.page_size
+       }}
+    end
+  end
+
+  @doc """
   Returns one memory visible from the requested scope.
 
   Visibility follows hierarchy inheritance:
@@ -167,6 +246,27 @@ defmodule LemmingsOs.Knowledge do
   end
 
   def get_memory(_scope, _id, _opts), do: nil
+
+  @doc """
+  Returns one memory by ID without scope visibility filtering.
+
+  This helper is intended for internal wiring flows that need to infer the
+  owning scope before applying visibility checks.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.get_memory_by_id(Ecto.UUID.generate())
+      nil
+  """
+  @spec get_memory_by_id(Ecto.UUID.t()) :: KnowledgeItem.t() | nil
+  def get_memory_by_id(id) when is_binary(id) do
+    KnowledgeItem
+    |> where([knowledge_item], knowledge_item.id == ^id)
+    |> where([knowledge_item], knowledge_item.kind == "memory")
+    |> Repo.one()
+  end
+
+  def get_memory_by_id(_id), do: nil
 
   @doc """
   Creates one user memory at the exact requested scope.
@@ -257,6 +357,12 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Returns a changeset for memory form handling.
+
+  ## Examples
+
+      iex> changeset = LemmingsOs.Knowledge.change_memory(%LemmingsOs.Knowledge.KnowledgeItem{})
+      iex> changeset.valid?
+      false
   """
   @spec change_memory(KnowledgeItem.t(), map()) :: Ecto.Changeset.t()
   def change_memory(%KnowledgeItem{} = knowledge_item, attrs \\ %{}) when is_map(attrs) do
@@ -343,6 +449,19 @@ defmodule LemmingsOs.Knowledge do
   defp owner_scope(%KnowledgeItem{department_id: nil, lemming_id: nil}), do: "city"
   defp owner_scope(%KnowledgeItem{lemming_id: nil}), do: "department"
   defp owner_scope(%KnowledgeItem{}), do: "lemming"
+
+  defp to_unscoped_row(%KnowledgeItem{} = knowledge_item) do
+    owner_scope = owner_scope(knowledge_item)
+
+    %{
+      memory: knowledge_item,
+      owner_scope: owner_scope,
+      owner_scope_label: String.capitalize(owner_scope),
+      local?: true,
+      inherited?: false,
+      descendant?: false
+    }
+  end
 
   defp limit_value(opts) do
     case Keyword.get(opts, :limit, @default_limit) do
@@ -782,6 +901,50 @@ defmodule LemmingsOs.Knowledge do
   defp city_only_filter(query) do
     from(knowledge_item in query,
       where: is_nil(knowledge_item.department_id) and is_nil(knowledge_item.lemming_id)
+    )
+  end
+
+  defp filter_scope_descendants(query, %{world_id: world_id, city_id: nil}) do
+    from(knowledge_item in query, where: knowledge_item.world_id == ^world_id)
+  end
+
+  defp filter_scope_descendants(
+         query,
+         %{world_id: world_id, city_id: city_id, department_id: nil}
+       )
+       when is_binary(city_id) do
+    from(knowledge_item in query,
+      where: knowledge_item.world_id == ^world_id and knowledge_item.city_id == ^city_id
+    )
+  end
+
+  defp filter_scope_descendants(
+         query,
+         %{world_id: world_id, city_id: city_id, department_id: department_id, lemming_id: nil}
+       )
+       when is_binary(city_id) and is_binary(department_id) do
+    from(knowledge_item in query,
+      where:
+        knowledge_item.world_id == ^world_id and knowledge_item.city_id == ^city_id and
+          knowledge_item.department_id == ^department_id
+    )
+  end
+
+  defp filter_scope_descendants(
+         query,
+         %{
+           world_id: world_id,
+           city_id: city_id,
+           department_id: department_id,
+           lemming_id: lemming_id
+         }
+       )
+       when is_binary(city_id) and is_binary(department_id) and is_binary(lemming_id) do
+    from(knowledge_item in query,
+      where:
+        knowledge_item.world_id == ^world_id and knowledge_item.city_id == ^city_id and
+          knowledge_item.department_id == ^department_id and
+          knowledge_item.lemming_id == ^lemming_id
     )
   end
 
