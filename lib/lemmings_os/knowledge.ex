@@ -103,7 +103,6 @@ defmodule LemmingsOs.Knowledge do
     with {:ok, scope_data} <- scope_data(scope) do
       limit = limit_value(opts)
       offset = offset_value(opts)
-      page_number = page_number_from_offset(offset, limit)
 
       query =
         KnowledgeItem
@@ -111,19 +110,16 @@ defmodule LemmingsOs.Knowledge do
         |> filter_scope_relevance(scope_data)
         |> apply_memory_filters(opts)
 
-      page =
+      result =
         query
-        |> order_by([knowledge_item], desc: knowledge_item.inserted_at, desc: knowledge_item.id)
-        |> Repo.paginate(page: page_number, page_size: limit)
-
-      entries = Enum.map(page.entries, &to_effective_row(&1, scope_data))
+        |> paginate_query(offset, limit, &to_effective_row(&1, scope_data))
 
       {:ok,
        %{
-         entries: entries,
-         total_count: page.total_entries,
-         limit: page.page_size,
-         offset: (page.page_number - 1) * page.page_size
+         entries: result.entries,
+         total_count: result.total_count,
+         limit: result.limit,
+         offset: result.offset
        }}
     end
   end
@@ -144,23 +140,19 @@ defmodule LemmingsOs.Knowledge do
   def list_all_memories(opts \\ []) when is_list(opts) do
     limit = limit_value(opts)
     offset = offset_value(opts)
-    page_number = page_number_from_offset(offset, limit)
 
-    page =
+    result =
       KnowledgeItem
       |> where([knowledge_item], knowledge_item.kind == "memory")
       |> apply_memory_filters(opts)
-      |> order_by([knowledge_item], desc: knowledge_item.inserted_at, desc: knowledge_item.id)
-      |> Repo.paginate(page: page_number, page_size: limit)
-
-    entries = Enum.map(page.entries, &to_unscoped_row/1)
+      |> paginate_query(offset, limit, &to_unscoped_row/1)
 
     {:ok,
      %{
-       entries: entries,
-       total_count: page.total_entries,
-       limit: page.page_size,
-       offset: (page.page_number - 1) * page.page_size
+       entries: result.entries,
+       total_count: result.total_count,
+       limit: result.limit,
+       offset: result.offset
      }}
   end
 
@@ -185,24 +177,20 @@ defmodule LemmingsOs.Knowledge do
     with {:ok, scope_data} <- scope_data(scope) do
       limit = limit_value(opts)
       offset = offset_value(opts)
-      page_number = page_number_from_offset(offset, limit)
 
-      page =
+      result =
         KnowledgeItem
         |> where([knowledge_item], knowledge_item.kind == "memory")
         |> filter_scope_descendants(scope_data)
         |> apply_memory_filters(opts)
-        |> order_by([knowledge_item], desc: knowledge_item.inserted_at, desc: knowledge_item.id)
-        |> Repo.paginate(page: page_number, page_size: limit)
-
-      entries = Enum.map(page.entries, &to_effective_row(&1, scope_data))
+        |> paginate_query(offset, limit, &to_effective_row(&1, scope_data))
 
       {:ok,
        %{
-         entries: entries,
-         total_count: page.total_entries,
-         limit: page.page_size,
-         offset: (page.page_number - 1) * page.page_size
+         entries: result.entries,
+         total_count: result.total_count,
+         limit: result.limit,
+         offset: result.offset
        }}
     end
   end
@@ -477,10 +465,23 @@ defmodule LemmingsOs.Knowledge do
     end
   end
 
-  defp page_number_from_offset(offset, limit) do
-    offset
-    |> Kernel.div(limit)
-    |> Kernel.+(1)
+  defp paginate_query(query, offset, limit, map_entry_fun) when is_function(map_entry_fun, 1) do
+    total_count = Repo.aggregate(query, :count, :id)
+
+    entries =
+      query
+      |> order_by([knowledge_item], desc: knowledge_item.inserted_at, desc: knowledge_item.id)
+      |> offset(^offset)
+      |> limit(^limit)
+      |> Repo.all()
+      |> Enum.map(map_entry_fun)
+
+    %{
+      entries: entries,
+      total_count: total_count,
+      limit: limit,
+      offset: offset
+    }
   end
 
   defp validate_exact_scope(%KnowledgeItem{} = knowledge_item, scope_data) do

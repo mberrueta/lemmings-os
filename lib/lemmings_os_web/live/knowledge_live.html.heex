@@ -214,8 +214,8 @@
                     )}
                   </.badge>
                   <.badge
-                    :for={tag <- row.memory.tags}
-                    id={"knowledge-memory-tag-#{row.memory.id}-#{tag}"}
+                    :for={{tag, index} <- Enum.with_index(row.memory.tags)}
+                    id={"knowledge-memory-tag-#{row.memory.id}-#{index}"}
                     tone="success"
                   >
                     #{tag}

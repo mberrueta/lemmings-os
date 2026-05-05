@@ -41,6 +41,8 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
 
     assert has_element?(view, "#knowledge-memory-row-#{memory.id}")
     assert has_element?(view, "#knowledge-memory-source-#{memory.id}", "USER")
+    assert has_element?(view, "#knowledge-memory-tag-#{memory.id}-0", "customer:acme")
+    assert has_element?(view, "#knowledge-memory-tag-#{memory.id}-1", "language:pt-BR")
 
     view
     |> element("#knowledge-memory-edit-#{memory.id}")

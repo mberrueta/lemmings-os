@@ -427,6 +427,49 @@ defmodule LemmingsOs.KnowledgeTest do
              )
     end
 
+    test "honors exact non-aligned offsets across memory list APIs" do
+      world = insert(:world)
+
+      Enum.each(1..6, fn index ->
+        insert(:knowledge_item,
+          world: world,
+          city: nil,
+          department: nil,
+          lemming: nil,
+          title: "World Memory #{index}",
+          inserted_at: DateTime.add(DateTime.utc_now(), index, :second)
+        )
+      end)
+
+      assert {:ok, effective_page_0} =
+               Knowledge.list_effective_memories(world, limit: 3, offset: 0)
+
+      assert {:ok, effective_page_1} =
+               Knowledge.list_effective_memories(world, limit: 2, offset: 1)
+
+      assert effective_page_1.offset == 1
+
+      assert effective_page_1.entries |> Enum.map(& &1.memory.id) ==
+               effective_page_0.entries
+               |> Enum.drop(1)
+               |> Enum.take(2)
+               |> Enum.map(& &1.memory.id)
+
+      assert {:ok, scope_page_0} = Knowledge.list_scope_memories(world, limit: 3, offset: 0)
+      assert {:ok, scope_page_1} = Knowledge.list_scope_memories(world, limit: 2, offset: 1)
+      assert scope_page_1.offset == 1
+
+      assert scope_page_1.entries |> Enum.map(& &1.memory.id) ==
+               scope_page_0.entries |> Enum.drop(1) |> Enum.take(2) |> Enum.map(& &1.memory.id)
+
+      assert {:ok, all_page_0} = Knowledge.list_all_memories(limit: 3, offset: 0)
+      assert {:ok, all_page_1} = Knowledge.list_all_memories(limit: 2, offset: 1)
+      assert all_page_1.offset == 1
+
+      assert all_page_1.entries |> Enum.map(& &1.memory.id) ==
+               all_page_0.entries |> Enum.drop(1) |> Enum.take(2) |> Enum.map(& &1.memory.id)
+    end
+
     test "fails closed for invalid scope" do
       assert {:error, :invalid_scope} = Knowledge.list_effective_memories(%{})
     end
