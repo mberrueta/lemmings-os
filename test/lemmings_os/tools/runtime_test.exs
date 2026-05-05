@@ -255,6 +255,114 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert error.code == "tool.knowledge.invalid_scope"
       assert Repo.aggregate(KnowledgeItem, :count, :id) == 0
     end
+
+    test "rejects missing required memory fields with safe validation envelope", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:error, error} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "   ",
+                   "content" => ""
+                 }
+               )
+
+      assert error.tool_name == "knowledge.store"
+      assert error.code == "tool.validation.invalid_args"
+      assert error.message == "Invalid tool arguments"
+      assert "title" in error.details.required
+      assert Repo.aggregate(KnowledgeItem, :count, :id) == 0
+    end
+
+    test "notification write failures do not roll back a successful memory store", %{
+      world: world,
+      instance: instance
+    } do
+      missing_instance_id = Ecto.UUID.generate()
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Persist even when notification fails",
+                   "content" => "Notification is best effort only."
+                 },
+                 %{actor_instance_id: missing_instance_id}
+               )
+
+      assert result.tool_name == "knowledge.store"
+      assert result.result.status == "stored"
+      assert is_binary(result.result.knowledge_item_id)
+
+      memory = Repo.get!(KnowledgeItem, result.result.knowledge_item_id)
+      assert memory.title == "Persist even when notification fails"
+
+      refute Repo.exists?(
+               from(message in Message,
+                 where:
+                   message.lemming_instance_id == ^missing_instance_id and
+                     message.world_id == ^world.id
+               )
+             )
+    end
+
+    test "llm memory audit payload excludes content and runtime internals", %{
+      world: world,
+      city: city,
+      department: department,
+      lemming: lemming,
+      instance: instance
+    } do
+      persisted_instance =
+        insert(:lemming_instance,
+          world: world,
+          city: city,
+          department: department,
+          lemming: lemming
+        )
+
+      assert {:ok, result} =
+               Runtime.execute(
+                 world,
+                 instance,
+                 "knowledge.store",
+                 %{
+                   "title" => "Safe payload check",
+                   "content" =>
+                     "SENTINEL_SECRET_TOKEN_MEMORY_001 SENTINEL_RUNTIME_DUMP_{\"raw\":\"state\"}",
+                   "tags" => ["sentinel"]
+                 },
+                 %{actor_instance_id: persisted_instance.id, work_area_ref: "work-area-v1/secret"}
+               )
+
+      memory_id = result.result.knowledge_item_id
+
+      event =
+        Repo.one!(
+          from(e in Event,
+            where:
+              e.event_type == "knowledge.memory.created_by_llm" and e.resource_id == ^memory_id
+          )
+        )
+
+      assert event.payload["knowledge_item_id"] == memory_id
+      assert event.payload["world_id"] == world.id
+      assert event.payload["city_id"] == city.id
+      assert event.payload["department_id"] == department.id
+      assert event.payload["lemming_id"] == lemming.id
+      assert event.payload["creator_id"] == "knowledge.store"
+      assert event.payload["actor_instance_id"] == instance.id
+      refute Map.has_key?(event.payload, "content")
+      refute Map.has_key?(event.payload, "work_area_ref")
+      refute Map.has_key?(event.payload, "path")
+      refute Map.has_key?(event.payload, "runtime")
+    end
   end
 
   describe "execute/4 with web tools" do

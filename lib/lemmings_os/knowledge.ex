@@ -629,7 +629,7 @@ defmodule LemmingsOs.Knowledge do
           world_id: memory.world_id,
           department_id: memory.department_id,
           lemming_id: memory.lemming_id,
-          reason: inspect(reason)
+          reason: safe_reason(reason)
         )
 
         result
@@ -993,6 +993,10 @@ defmodule LemmingsOs.Knowledge do
 
   defp filter_query(query, [_unknown | rest]), do: filter_query(query, rest)
   defp filter_query(query, []), do: query
+
+  defp safe_reason(%Ecto.Changeset{}), do: "changeset_error"
+  defp safe_reason(:invalid_scope), do: "invalid_scope"
+  defp safe_reason(:invalid_event), do: "invalid_event"
 
   defp fetch(map, key) when is_map(map),
     do: Map.get(map, key) || Map.get(map, Atom.to_string(key))

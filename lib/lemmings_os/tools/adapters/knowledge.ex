@@ -392,11 +392,24 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
 
   defp notify_runtime_chat(%KnowledgeItem{} = memory, runtime_meta) do
     with instance_id when is_binary(instance_id) <- fetch(runtime_meta, :actor_instance_id),
+         true <- runtime_instance_exists?(instance_id, memory.world_id),
          {:ok, %Message{} = message} <- persist_memory_notification_message(memory, instance_id),
          :ok <- PubSub.broadcast_message_appended(instance_id, message.id, message.role) do
       :ok
     else
       nil ->
+        :ok
+
+      false ->
+        Logger.warning("memory chat notification skipped for invalid actor instance",
+          event: "knowledge.memory.notification_skipped",
+          instance_id: fetch(runtime_meta, :actor_instance_id),
+          world_id: memory.world_id,
+          department_id: memory.department_id,
+          lemming_id: memory.lemming_id,
+          reason: "invalid_actor_instance_id"
+        )
+
         :ok
 
       {:error, reason} ->
@@ -406,7 +419,7 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
           world_id: memory.world_id,
           department_id: memory.department_id,
           lemming_id: memory.lemming_id,
-          reason: inspect(reason)
+          reason: safe_reason(reason)
         )
 
         :ok
@@ -483,7 +496,7 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
           world_id: memory.world_id,
           department_id: memory.department_id,
           lemming_id: memory.lemming_id,
-          reason: inspect(reason)
+          reason: safe_reason(reason)
         )
 
         :ok
@@ -538,6 +551,13 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   defp normalize_key(key) when is_atom(key), do: Atom.to_string(key)
   defp normalize_key(key) when is_binary(key), do: key
   defp normalize_key(_key), do: ""
+
+  defp safe_reason(%Changeset{}), do: "changeset_error"
+  defp safe_reason({:error, reason}), do: safe_reason(reason)
+  defp safe_reason({tag, _reason}) when is_atom(tag), do: Atom.to_string(tag)
+  defp safe_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp safe_reason(reason) when is_binary(reason), do: reason
+  defp safe_reason(_reason), do: "unknown_error"
 
   defp fetch(map, key) when is_map(map),
     do: Map.get(map, key) || Map.get(map, Atom.to_string(key))

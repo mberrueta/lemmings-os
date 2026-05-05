@@ -132,4 +132,117 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
     assert has_element?(view, "#knowledge-memory-department-link-#{memory.id}")
     assert has_element?(view, "#knowledge-memory-lemming-link-#{memory.id}")
   end
+
+  test "department scoped view shows local and descendant ownership labels", %{conn: conn} do
+    world = insert(:world, name: "Ops World", slug: "ops")
+    city = insert(:city, world: world, name: "Ops City", slug: "ops-city")
+    department = insert(:department, world: world, city: city, name: "Ops Dept", slug: "ops-dept")
+    lemming = insert(:lemming, world: world, city: city, department: department, name: "Ops Bot")
+
+    department_memory =
+      insert(:knowledge_item,
+        world: world,
+        city: city,
+        department: department,
+        lemming: nil,
+        title: "Department local memory"
+      )
+
+    lemming_memory =
+      insert(:knowledge_item,
+        world: world,
+        city: city,
+        department: department,
+        lemming: lemming,
+        title: "Department descendant memory"
+      )
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/knowledge?#{%{scope_type: "department", scope_id: department.id, status: "active"}}"
+      )
+
+    assert has_element?(view, "#knowledge-memory-row-#{department_memory.id}")
+    assert has_element?(view, "#knowledge-memory-row-#{lemming_memory.id}")
+    assert has_element?(view, "#knowledge-memory-local-#{department_memory.id}", "Local")
+    assert has_element?(view, "#knowledge-memory-local-#{lemming_memory.id}", "Descendant")
+  end
+
+  test "scoped lemming query params do not expose sibling memories", %{conn: conn} do
+    world = insert(:world, name: "Ops World", slug: "ops")
+    city = insert(:city, world: world, name: "Ops City", slug: "ops-city")
+    department = insert(:department, world: world, city: city, name: "Ops Dept", slug: "ops-dept")
+
+    sibling_department =
+      insert(:department, world: world, city: city, name: "Ops Other", slug: "ops-other")
+
+    lemming = insert(:lemming, world: world, city: city, department: department, name: "Ops Bot")
+
+    sibling_lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: sibling_department,
+        name: "Other Bot"
+      )
+
+    local_memory =
+      insert(:knowledge_item,
+        world: world,
+        city: city,
+        department: department,
+        lemming: lemming,
+        title: "Visible lemming memory"
+      )
+
+    sibling_memory =
+      insert(:knowledge_item,
+        world: world,
+        city: city,
+        department: sibling_department,
+        lemming: sibling_lemming,
+        title: "Hidden sibling memory"
+      )
+
+    {:ok, view, _html} =
+      live(conn, ~p"/knowledge?#{%{scope_type: "lemming", scope_id: lemming.id}}")
+
+    assert has_element?(view, "#knowledge-memory-row-#{local_memory.id}")
+    refute has_element?(view, "#knowledge-memory-row-#{sibling_memory.id}")
+  end
+
+  test "pagination controls move between pages with stable selectors", %{conn: conn} do
+    world = insert(:world, name: "Ops World", slug: "ops")
+
+    Enum.each(1..26, fn index ->
+      insert(:knowledge_item,
+        world: world,
+        city: nil,
+        department: nil,
+        lemming: nil,
+        title: "Paged Memory #{index}",
+        inserted_at: DateTime.add(~U[2026-01-01 00:00:00Z], index, :second)
+      )
+    end)
+
+    {:ok, view, _html} = live(conn, ~p"/knowledge")
+
+    assert has_element?(view, "#knowledge-page-range", "Showing 1 to 25")
+    assert has_element?(view, "#knowledge-page-next")
+    assert has_element?(view, "#knowledge-page-prev[disabled]")
+
+    view
+    |> element("#knowledge-page-next")
+    |> render_click()
+
+    assert has_element?(view, "#knowledge-page-range", "Showing 26 to 26")
+    assert has_element?(view, "#knowledge-page-prev")
+
+    view
+    |> element("#knowledge-page-prev")
+    |> render_click()
+
+    assert has_element?(view, "#knowledge-page-range", "Showing 1 to 25")
+  end
 end
