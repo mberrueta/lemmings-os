@@ -36,6 +36,11 @@ config :lemmings_os, :artifact_storage,
   root_path: Path.expand("../tmp/runtime/storage", __DIR__),
   max_file_size_bytes: 100 * 1024 * 1024
 
+config :lemmings_os, :knowledge_source_file_storage,
+  backend: :local,
+  root_path: Path.expand("../tmp/runtime/knowledge_storage", __DIR__),
+  max_file_size_bytes: 10 * 1024 * 1024
+
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,
   default_model: "llama3.2",

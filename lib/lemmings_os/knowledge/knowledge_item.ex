@@ -1,9 +1,10 @@
 defmodule LemmingsOs.Knowledge.KnowledgeItem do
   @moduledoc """
-  Persisted Knowledge item schema for memory-backed entries.
+  Persisted Knowledge item schema for memory and source-file entries.
 
-  This schema is shared-ready for future knowledge families, but this phase only
-  allows memory items (`kind = "memory"`) without artifact references.
+  Memory rows remain strict (`kind = "memory"`) and do not allow `artifact_id`.
+  Source-file rows are represented by `kind = "source_file"` and may optionally
+  carry artifact provenance.
   """
 
   use Ecto.Schema
@@ -22,9 +23,20 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  @kinds ~w(memory)
+  @kinds ~w(memory source_file)
   @sources ~w(user llm)
-  @statuses ~w(active)
+  @memory_statuses ~w(active)
+  @source_file_statuses ~w(
+    pending_index
+    extracting
+    chunking
+    embedding
+    ready
+    failed
+    archived
+    deleted
+  )
+  @statuses @memory_statuses ++ @source_file_statuses
 
   @required ~w(world_id kind title content source status)a
 
@@ -111,13 +123,10 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
     |> validate_inclusion(:source, @sources, message: dgettext("errors", ".invalid_choice"))
     |> validate_inclusion(:status, @statuses, message: dgettext("errors", ".invalid_choice"))
     |> validate_length(:title, min: 1, max: 200, message: dgettext("errors", ".invalid_value"))
-    |> validate_length(:content,
-      min: 1,
-      max: 10_000,
-      message: dgettext("errors", ".invalid_value")
-    )
+    |> validate_content()
     |> validate_tags()
-    |> validate_memory_artifact_rule()
+    |> validate_kind_artifact_rule()
+    |> validate_kind_status_rule()
     |> validate_scope_shape()
     |> assoc_constraint(:world)
     |> assoc_constraint(:city)
@@ -181,7 +190,15 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
     end)
   end
 
-  defp validate_memory_artifact_rule(changeset) do
+  defp validate_content(changeset) do
+    validate_length(changeset, :content,
+      min: 1,
+      max: 10_000,
+      message: dgettext("errors", ".invalid_value")
+    )
+  end
+
+  defp validate_kind_artifact_rule(changeset) do
     kind = get_field(changeset, :kind)
     artifact_id = get_field(changeset, :artifact_id)
 
@@ -196,6 +213,21 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
         changeset
     end
   end
+
+  defp validate_kind_status_rule(changeset) do
+    kind = get_field(changeset, :kind)
+    status = get_field(changeset, :status)
+
+    if valid_status_for_kind?(kind, status) do
+      changeset
+    else
+      add_error(changeset, :status, dgettext("errors", ".invalid_choice"))
+    end
+  end
+
+  defp valid_status_for_kind?("memory", status), do: status in @memory_statuses
+  defp valid_status_for_kind?("source_file", status), do: status in @source_file_statuses
+  defp valid_status_for_kind?(_kind, _status), do: false
 
   defp validate_scope_shape(changeset) do
     city_id = get_field(changeset, :city_id)

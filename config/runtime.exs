@@ -17,6 +17,21 @@ artifact_storage_root_path =
 artifact_storage_max_file_size_bytes =
   Keyword.get(artifact_storage, :max_file_size_bytes, 100 * 1024 * 1024)
 
+knowledge_source_file_storage =
+  Application.get_env(:lemmings_os, :knowledge_source_file_storage, [])
+
+knowledge_source_file_storage_root_path =
+  System.get_env("LEMMINGS_KNOWLEDGE_SOURCE_FILE_STORAGE_ROOT") ||
+    Keyword.get(
+      knowledge_source_file_storage,
+      :root_path,
+      Path.expand("../priv/runtime/knowledge_storage", __DIR__)
+    )
+
+# Source-file uploads can be larger than memory-sized payloads; keep a higher runtime default.
+knowledge_source_file_storage_max_file_size_bytes =
+  Keyword.get(knowledge_source_file_storage, :max_file_size_bytes, 100 * 1024 * 1024)
+
 runtime_city_node_name = System.get_env("LEMMINGS_CITY_NODE_NAME") || Atom.to_string(node())
 runtime_city_heartbeat = Application.get_env(:lemmings_os, :runtime_city_heartbeat, [])
 
@@ -26,6 +41,11 @@ config :lemmings_os, :artifact_storage,
   backend: :local,
   root_path: artifact_storage_root_path,
   max_file_size_bytes: artifact_storage_max_file_size_bytes
+
+config :lemmings_os, :knowledge_source_file_storage,
+  backend: :local,
+  root_path: knowledge_source_file_storage_root_path,
+  max_file_size_bytes: knowledge_source_file_storage_max_file_size_bytes
 
 documents = Application.get_env(:lemmings_os, :documents, [])
 

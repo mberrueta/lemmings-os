@@ -15,6 +15,8 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.SourceFile
+  alias LemmingsOs.Knowledge.SourceFileChunk
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
@@ -292,6 +294,43 @@ defmodule LemmingsOs.Factory do
       status: "active",
       creator_type: "user",
       creator_id: "operator"
+    }
+  end
+
+  def knowledge_source_file_factory do
+    knowledge_item = build(:knowledge_item, kind: "source_file", status: "pending_index")
+    unique_value = sequence(:knowledge_source_file_unique, & &1)
+
+    %SourceFile{
+      knowledge_item: knowledge_item,
+      source_file_type: "company_knowledge",
+      original_filename: "knowledge-#{unique_value}.md",
+      content_type: "text/markdown",
+      size_bytes: 1_024,
+      checksum: String.duplicate("b", 64),
+      storage_ref: "knowledge://local/source_files/#{Ecto.UUID.generate()}/document.md",
+      extraction_status: "pending",
+      indexing_status: "pending",
+      failure_reason: nil,
+      extracted_at: nil,
+      indexed_at: nil,
+      metadata: %{"origin" => "upload"}
+    }
+  end
+
+  def knowledge_source_file_chunk_factory do
+    source_file = build(:knowledge_source_file)
+
+    %SourceFileChunk{
+      knowledge_item: source_file.knowledge_item,
+      knowledge_source_file: source_file,
+      chunk_index: 0,
+      chunk_ref: "chunk-#{sequence(:knowledge_source_file_chunk_unique, & &1)}",
+      content: "Chunk content for retrieval.",
+      content_hash: String.duplicate("c", 64),
+      token_count: 20,
+      char_count: 28,
+      metadata: %{"section" => "intro"}
     }
   end
 end
