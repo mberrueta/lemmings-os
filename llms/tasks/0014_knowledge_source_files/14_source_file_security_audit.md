@@ -20,12 +20,16 @@ Verify no unauthorized scope access, no path/content leakage, and no unsafe prov
 ## Expected Outputs
 - [ ] Security findings report with severity and file references.
 - [ ] Focused fixes for confirmed P0/P1 issues.
+- [ ] Audit notes for tools runner capability registration, argument validation, and path boundary enforcement.
 - [ ] Residual risk notes for human sign-off.
 
 ## Acceptance Criteria
 - [ ] Scope authorization for search/read is server-enforced.
 - [ ] Logs/events/tool outputs are free from forbidden sensitive fields.
 - [ ] Upload/extraction/indexing inputs are validated with safe failure paths.
+- [ ] Tools runner execution cannot call arbitrary shell commands or raw shell strings.
+- [ ] MarkItDown, Trafilatura, and `pdftotext` invocations use controlled file paths, timeouts, output caps, and safe error tokens.
+- [ ] Apache Tika is absent from runtime configuration and service exposure.
 
 ## Constraints
 - Avoid speculative churn; prioritize confirmed exploitable issues.

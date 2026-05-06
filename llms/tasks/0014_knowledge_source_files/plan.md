@@ -18,7 +18,7 @@ This PR must deliver a working first retrieval loop:
 ```text
 user adds source file
   -> app stores the original file through Knowledge-managed storage
-  -> app extracts text through private Tika
+  -> app extracts text through a controlled CLI tools runner
   -> app chunks extracted text with overlap
   -> app embeds and indexes chunks in PostgreSQL with pgvector
   -> Lemmings use knowledge.search and knowledge.read inside allowed scope
@@ -64,7 +64,10 @@ This PR covers:
 - User upload or registration from the Knowledge management surface.
 - Optional user-approved ingestion from an existing Artifact.
 - Knowledge-managed storage for original source files.
-- Text extraction through Apache Tika.
+- Text extraction through a controlled CLI tools runner.
+- MarkItDown extraction for uploaded files.
+- Trafilatura extraction for URL/HTML sources.
+- Poppler `pdftotext` fallback for PDFs when MarkItDown output is empty or insufficient.
 - Chunk creation with ordering and overlap.
 - Chunk embedding and PostgreSQL/pgvector indexing.
 - Metadata, tag, scope, and status filters for source files.
@@ -84,12 +87,13 @@ This PR does **not** include:
 - External vector databases such as Qdrant.
 - Redis as a retrieval backend.
 - LangChain or LlamaIndex sidecars.
-- OCR-heavy guarantees.
+- OCR implementation. Image-only/scanned PDFs should be detected and marked `needs_ocr`.
 - Table-perfect extraction guarantees.
 - Advanced reranking.
 - Full document editing or annotation.
 - Public file sharing or public source file download links.
-- Adding Oban or another job dependency unless explicitly approved.
+- Broad background-job architecture, workflows, batches, cron, or unrelated job queues.
+- Apache Tika dependency or service.
 
 ---
 
@@ -145,10 +149,21 @@ Cross-World access is never allowed. Sibling City and sibling Department access 
 
 ### Extraction
 
-- Apache Tika is the first extraction service.
-- Tika must be private by default in Docker Compose.
+- Extraction runs through a generic lightweight `lemmings-os-tools-runner` image/container.
+- The tools runner is not extraction-only; it is a controlled runtime for named CLI capabilities.
+- The tools runner may run on the same host as the Phoenix app, but its dependencies should stay outside the main Phoenix release image.
+- Initial installed commands are Python runtime, MarkItDown CLI, Trafilatura CLI, and Poppler `pdftotext`.
+- MarkItDown is the primary extractor for uploaded files.
+- Trafilatura is the primary extractor for URL/HTML sources.
+- `pdftotext` is a PDF fallback when MarkItDown returns empty or insufficient text.
+- Image-only/scanned PDFs are detected and marked `needs_ocr`; OCR is future work and must not be implemented in this PR.
+- Apache Tika is not part of v1 and must not be added as a dependency or service.
+- The Phoenix app invokes only named/registered capabilities with validated arguments.
+- Use argument lists or structured command specs; never raw shell strings.
+- File paths must be controlled by the Knowledge storage/workspace boundary.
 - Extraction has bounded timeout and bounded output size.
 - Extraction failures update status and emit safe observability; they must not crash the app.
+- The tools runner must enforce timeouts, output size limits, safe error tokens, and no path/content leakage.
 
 ### Indexing Backend
 
@@ -161,14 +176,20 @@ Cross-World access is never allowed. Sibling City and sibling Department access 
 
 `knowledge.search` must only return source file chunks whose Knowledge item and source file index are ready.
 
-Failed, pending, extracting, embedding, archived, or deleted items are excluded from retrieval.
+Failed, pending/uploaded, extracting, extracted, chunking, embedding, needs_ocr, archived, or deleted items are excluded from retrieval.
 
 ### Background Processing
 
 - Upload/registration must return quickly.
 - Extraction, chunking, embedding, and indexing must run after the initial request.
-- The first implementation may use the simplest supervised background mechanism already compatible with the app.
-- A new durable job system is out of scope unless approved.
+- Add Oban now if it is the least-rework path for non-blocking source-file indexing.
+- Keep Oban narrowly scoped to one source-file indexing worker/job and a dedicated queue such as `knowledge_indexing`.
+- The indexing worker owns the lifecycle: extract, chunk, embed, mark ready, mark failed, or mark `needs_ocr`.
+- Upload/create creates the Knowledge item and enqueues the indexing job.
+- Retry safely enqueues or re-enqueues the same indexing job without mixing stale chunks.
+- If the current codebase already has a preferred job/background pattern, compare it briefly during Task 04 and choose the least-rework path.
+- Do not introduce broad job architecture, unrelated background processing, workflows, batches, cron, or multiple queues in this PR.
+- Tests must be deterministic by executing the worker directly or using Oban testing helpers; do not rely on sleeps.
 - Failed or interrupted indexing must leave a clear status and support retry where practical.
 
 ### Tool Surface
@@ -195,7 +216,7 @@ Extend the existing table/schema enough to represent source file ownership and l
 Likely changes:
 
 - Allow `kind = "source_file"`.
-- Add or support source file lifecycle statuses, such as `pending_index`, `extracting`, `chunking`, `embedding`, `ready`, `failed`, and `archived`.
+- Add or support source file lifecycle statuses, such as `uploaded` or `pending`, `extracting`, `extracted`, `chunking`, `embedding`, `ready`, `needs_ocr`, `failed`, and `archived`.
 - Avoid requiring memory-style full `content` for source files. If the existing column remains required in this PR, use a safe short summary/description placeholder rather than extracted document content.
 - Keep `artifact_id` nullable and optional provenance-only.
 
@@ -271,12 +292,14 @@ Required constraints and indexes:
 - pgvector index appropriate for the chosen operator class and dimensions.
 - Metadata/tag filters must remain efficient enough for MVP usage.
 
-### HTTP And pgvector Integration
+### Tools Runner, HTTP, And pgvector Integration
 
-- Use the existing `Req` library for Tika and embedding-provider HTTP calls unless the task breakdown identifies a repo-approved alternative.
+- Use the generic tools runner boundary for extraction capabilities.
+- Use the existing `Req` library for embedding-provider HTTP calls unless the task breakdown identifies a repo-approved alternative.
 - Prefer direct Ecto/PostgreSQL integration for pgvector over adding an Elixir dependency unless implementation proves a dependency is necessary and it is explicitly approved.
 - Keep embedding generation behind a small behavior or boundary so tests can use deterministic fake embeddings.
 - Keep vector dimensions and provider configuration centralized so migrations, indexing, and search cannot silently disagree.
+- Keep tools runner command registration explicit and allowlisted. Future CLI tools can be added later through an explicit command catalog; the runner must not become arbitrary shell execution.
 
 ### UI Implementation Guidance
 
@@ -336,12 +359,18 @@ Acceptance points:
 
 ### FR-3 — Extract Text
 
-The system extracts text from supported files through private Tika.
+The system extracts text from supported files through controlled tools runner capabilities.
 
 Acceptance points:
 
-- Extraction uses `Req` and configured Tika endpoint.
-- Tika is not publicly exposed by default in Docker Compose.
+- Uploaded files are extracted with MarkItDown where supported.
+- URL/HTML sources are extracted with Trafilatura.
+- PDFs fall back to Poppler `pdftotext` when MarkItDown returns empty or insufficient text.
+- Image-only/scanned PDFs are detected and marked `needs_ocr`.
+- OCR is not implemented in this PR.
+- Apache Tika is not added as a dependency or service.
+- Tools runner capabilities are named/registered and use validated structured arguments, not raw shell strings.
+- Tools runner file paths are controlled by the Knowledge storage/workspace boundary.
 - Extraction timeout is bounded.
 - Extracted output size is bounded.
 - Unsupported, empty, timed-out, or failed extraction marks the item failed or no-content according to the chosen lifecycle.
@@ -462,6 +491,7 @@ Suggested durable event types:
 
 - `knowledge.source_file.created`
 - `knowledge.source_file.extraction_failed`
+- `knowledge.source_file.needs_ocr`
 - `knowledge.source_file.indexed`
 - `knowledge.source_file.index_failed`
 - `knowledge.source_file.retry_requested`
@@ -509,7 +539,7 @@ Minimum coverage:
 - Storage: safe storage refs, unsafe filename/path rejection, no path leakage, checksum and size calculation.
 - Upload/create: source file Knowledge item and metadata row are created at allowed scope.
 - Artifact ingestion: explicit user action required, optional provenance recorded, no Artifact requirement.
-- Tika extraction: success, timeout, unsupported/empty content, safe failure handling.
+- Tools runner extraction: MarkItDown success, Trafilatura URL/HTML success, PDF `pdftotext` fallback, scanned/image-only PDF `needs_ocr`, timeout, unsupported/empty content, safe failure handling.
 - Chunking: ordering, overlap, stable chunk refs, stale chunk replacement on retry.
 - Embeddings: deterministic fake embedder in tests, dimension validation, provider failure handling.
 - pgvector retrieval: vector search returns relevant ready chunks with filters.
@@ -529,7 +559,12 @@ Minimum coverage:
 - [ ] Raw paths, storage roots, upload temp paths, and workspace paths are not exposed in UI, logs, events, or tool outputs.
 - [ ] Users can add a source file with allowed scope, type, title, description, and tags.
 - [ ] Upload/registration returns quickly and indexing continues after the request.
-- [ ] Tika extraction is configured as a private service by default.
+- [ ] Tools runner extraction is configured as a controlled private runtime by default.
+- [ ] MarkItDown extraction works for supported uploaded files.
+- [ ] Trafilatura extraction works for supported URL/HTML sources.
+- [ ] PDF extraction falls back to `pdftotext` when MarkItDown output is empty or insufficient.
+- [ ] Image-only/scanned PDFs are marked `needs_ocr`; OCR is not implemented in this PR.
+- [ ] Apache Tika is not added as a dependency or service.
 - [ ] Extraction, chunking, embedding, and indexing statuses are visible to users.
 - [ ] Failed indexing is visible, safe, retryable where practical, and excluded from retrieval.
 - [ ] Chunks are ordered, bounded, overlapped, and associated with stable chunk refs.
@@ -553,8 +588,8 @@ Minimum coverage:
 - **Scope bugs**: Retrieval can leak data even when UI filters look correct. Scope must be part of every search/read query.
 - **Index inconsistency**: Retrying indexing can leave stale chunks. Re-indexing must replace chunks atomically enough that search never mixes old and new chunks as one ready index.
 - **Provider coupling**: Embedding provider details should not spread through the Knowledge context. Keep an embedding boundary with fakeable tests.
-- **Operational fragility**: Tika, embedding providers, and pgvector can fail independently. Fail visibly and safely without crashing request handling.
-- **Dependency creep**: Do not add RAG frameworks, vector databases, job systems, or HTTP clients for this PR unless explicitly approved.
+- **Operational fragility**: Tools runner capabilities, embedding providers, Oban jobs where used, and pgvector can fail independently. Fail visibly and safely without crashing request handling.
+- **Dependency creep**: Do not add Apache Tika, RAG frameworks, vector databases, broad job systems, or HTTP clients for this PR unless explicitly approved.
 
 ---
 
@@ -564,11 +599,11 @@ Execution tasks for this plan are tracked in numbered task files in this directo
 
 | # | Task | Agent | Status | Approved |
 |---|---|---|---|---|
-| 01 | Source File Test Scenarios | `qa-test-scenarios` | ⏳ PENDING | [ ] |
-| 02 | Source File Schema And pgvector Migration | `dev-db-performance-architect` | ⏳ PENDING | [ ] |
-| 03 | Source File Storage Boundary | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
+| 01 | Source File Test Scenarios | `qa-test-scenarios` | COMPLETE | [X] |
+| 02 | Source File Schema And pgvector Migration | `dev-db-performance-architect` | COMPLETE | [X] |
+| 03 | Source File Storage Boundary | `dev-backend-elixir-engineer` | COMPLETE | [X] |
 | 04 | Source File Domain Context And Lifecycle | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
-| 05 | Tika Extraction Integration | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
+| 05 | Tools Runner Extraction Integration | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
 | 06 | Chunking Pipeline And Reindex Replacement | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
 | 07 | Embedding Boundary And Provider Configuration | `dev-backend-elixir-engineer` | ⏳ PENDING | [ ] |
 | 08 | Vector Retrieval Queries And Filtering | `dev-db-performance-architect` | ⏳ PENDING | [ ] |

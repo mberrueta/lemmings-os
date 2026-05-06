@@ -32,6 +32,7 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
     chunking
     embedding
     ready
+    needs_ocr
     failed
     archived
     deleted

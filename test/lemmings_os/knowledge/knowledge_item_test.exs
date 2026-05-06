@@ -57,6 +57,23 @@ defmodule LemmingsOs.Knowledge.KnowledgeItemTest do
       assert changeset.valid?
     end
 
+    test "accepts source_file with needs_ocr status" do
+      world = insert(:world)
+
+      changeset =
+        KnowledgeItem.changeset(%KnowledgeItem{}, %{
+          world_id: world.id,
+          kind: "source_file",
+          title: "Scanned source file",
+          content: "Source file summary placeholder",
+          source: "user",
+          status: "needs_ocr",
+          tags: []
+        })
+
+      assert changeset.valid?
+    end
+
     test "rejects memory rows with artifact provenance" do
       world = insert(:world)
 

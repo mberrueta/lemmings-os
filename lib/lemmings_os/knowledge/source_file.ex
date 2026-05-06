@@ -41,8 +41,8 @@ defmodule LemmingsOs.Knowledge.SourceFile do
     other
   )
 
-  @statuses ~w(pending extracting ready failed no_content)
-  @indexing_statuses ~w(pending chunking embedding ready failed archived deleted)
+  @statuses ~w(pending extracting ready needs_ocr failed no_content)
+  @indexing_statuses ~w(pending chunking embedding ready needs_ocr failed archived deleted)
 
   @required ~w(
     knowledge_item_id

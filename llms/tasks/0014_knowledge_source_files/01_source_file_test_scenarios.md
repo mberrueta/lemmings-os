@@ -48,7 +48,7 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 - Path/content leakage in storage refs, UI, logs, events, telemetry, and tool outputs.
 - Schema drift that breaks existing memory behavior or makes `knowledge.store` accept file semantics.
 - Retry/reindex inconsistency that mixes stale chunks with fresh chunks.
-- Tika and embedding provider failures causing request crashes or sensitive provider responses in errors.
+- Tools runner and embedding provider failures causing request crashes or sensitive provider responses in errors.
 - pgvector dimension/config mismatch causing runtime failures after chunks are persisted.
 - Artifact ingestion ambiguity that silently promotes runtime-generated files into Knowledge.
 - Long document limits causing slow tests, unbounded memory use, or unbounded DB writes.
@@ -60,12 +60,12 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 | Schema and migrations | P0 | Validate discriminator/status/type constraints, source-file metadata, chunk constraints, pgvector dimension, and memory regressions. |
 | Storage boundary | P0 | Validate opaque storage refs, size/checksum capture, filename normalization, traversal rejection, and no path leakage. |
 | Scope and retrieval | P0 | Validate cross-world, sibling city, sibling department, and wrong lemming denial for search and read independently. |
-| Ready-only lifecycle | P0 | Validate pending/extracting/chunking/embedding/failed/archived/deleted items never appear in retrieval. |
+| Ready-only lifecycle | P0 | Validate pending/uploaded/extracting/extracted/chunking/embedding/needs_ocr/failed/archived/deleted items never appear in retrieval. |
 | Tool runtime | P0 | Validate `knowledge.search` and `knowledge.read` success/failure envelopes, max limits, and safe outputs. |
-| Extraction/chunk/embed pipeline | P1 | Validate Tika success/failure, chunk ordering/overlap, fake embedding determinism, retries, and provider failures. |
+| Extraction/chunk/embed pipeline | P1 | Validate tools runner success/failure, MarkItDown upload extraction, Trafilatura URL/HTML extraction, PDF `pdftotext` fallback, `needs_ocr`, chunk ordering/overlap, fake embedding determinism, retries, and provider failures. |
 | UI management | P1 | Validate upload/list/filter/status/detail/retry/archive/delete flows with stable selectors and safe failures. |
 | Observability | P1 | Validate durable events/logs/telemetry include IDs/statuses and exclude raw content, paths, vectors, provider responses, and secrets. |
-| Manual UX/ops | P2 | Validate Docker/Tika privacy posture, operator comprehension of statuses, and runbook-style recovery flow. |
+| Manual UX/ops | P2 | Validate tools runner privacy posture, operator comprehension of statuses, and runbook-style recovery flow. |
 
 ## Scenario Matrix
 
@@ -93,13 +93,17 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 | SF-ART-002 | P0 | Integration | Artifact | Source files do not require `artifact_id` | Direct upload without Artifact | Create source file | Item persists without Artifact provenance | AC-1, Task 04 |
 | SF-ART-003 | P0 | Integration | Artifact | LLM/runtime cannot silently promote generated files into source files | Lemming generated Artifact exists | Attempt source-file creation through tool/runtime-only path | Rejected or unavailable; only user-approved UI/context action can ingest | FR-2, AC-16, security |
 | SF-ART-004 | P1 | Integration | Artifact | Artifact ingestion copies or references through Knowledge storage boundary | Approved Artifact ingest | Inspect source metadata | Storage is Knowledge-managed; raw Artifact workspace path not exposed | FR-2, Task 03, Task 04 |
-| SF-EXT-001 | P0 | Integration | Extraction | Tika extraction success updates lifecycle | Private Tika fake returns text | Run extraction job/boundary | Status progresses from extracting to chunking/embedding path; extracted timestamp set | FR-3, Task 05 |
-| SF-EXT-002 | P0 | Integration | Extraction | Tika call uses configured endpoint via `Req` and bounded timeout | Fake Tika endpoint records request | Run extraction | Request uses config; timeout set to 30 seconds or configured equivalent | FR-3, AC defaults, Task 05 |
-| SF-EXT-003 | P0 | Integration | Extraction | Unsupported file marks safe failure | Fake Tika returns unsupported/415 | Run extraction | Item status failed/no-content per lifecycle; failure reason safe; no crash | FR-3, Task 05 |
-| SF-EXT-004 | P0 | Integration | Extraction | Empty extraction marks safe failure or no-content | Fake Tika returns empty/whitespace | Run extraction | No chunks persisted; retrieval excludes item; safe status visible | FR-3, FR-6, Task 05 |
-| SF-EXT-005 | P0 | Integration | Extraction | Timeout marks safe failure without raw exception leakage | Fake Tika times out | Run extraction | Failure status set; logs/events omit raw body/paths/stack dumps | FR-3, observability |
-| SF-EXT-006 | P1 | Integration | Extraction | Extracted output is capped at 500,000 chars | Fake Tika returns over cap | Run extraction | Content truncated/rejected according to implementation; status and counts are deterministic | AC defaults, Task 05 |
-| SF-EXT-007 | P1 | Manual | Ops | Tika is private by default in Docker Compose | Compose config available | Inspect service ports/network | Tika is not publicly exposed by default | FR-3, AC-7, Task 05 |
+| SF-EXT-001 | P0 | Integration | Extraction | MarkItDown upload extraction success updates lifecycle | Tools runner MarkItDown fake returns text | Run extraction job/boundary | Status progresses from extracting to chunking/embedding path; extracted timestamp set | FR-3, Task 05 |
+| SF-EXT-002 | P0 | Integration | Extraction | Tools runner uses registered capability specs and bounded timeout | Fake runner records capability and argv | Run extraction | Capability is named/registered; argv is structured; timeout set to 30 seconds or configured equivalent; no raw shell string | FR-3, AC defaults, Task 05 |
+| SF-EXT-003 | P0 | Integration | Extraction | Unsupported file marks safe failure | Fake runner returns unsupported token | Run extraction | Item status failed/no-content per lifecycle; failure reason safe; no crash | FR-3, Task 05 |
+| SF-EXT-004 | P0 | Integration | Extraction | Empty extraction marks safe failure or no-content | Fake runner returns empty/whitespace | Run extraction | No chunks persisted; retrieval excludes item; safe status visible | FR-3, FR-6, Task 05 |
+| SF-EXT-005 | P0 | Integration | Extraction | Timeout marks safe failure without raw exception leakage | Fake runner times out | Run extraction | Failure status set; logs/events omit raw body/paths/stack dumps | FR-3, observability |
+| SF-EXT-006 | P1 | Integration | Extraction | Extracted output is capped at 500,000 chars | Fake runner returns over cap | Run extraction | Content truncated/rejected according to implementation; status and counts are deterministic | AC defaults, Task 05 |
+| SF-EXT-007 | P1 | Manual | Ops | Tools runner is private and not arbitrary shell execution | Compose/runtime config available | Inspect service ports/network and capability config | Tools runner is not publicly exposed by default; only named capabilities are callable | FR-3, AC-7, Task 05 |
+| SF-EXT-008 | P0 | Integration | Extraction | Trafilatura extracts URL/HTML sources | URL/HTML source with deterministic HTML fixture | Run extraction job/boundary | Trafilatura capability is invoked; boilerplate is removed; extracted text proceeds to indexing lifecycle | FR-3, Task 05 |
+| SF-EXT-009 | P0 | Integration | Extraction | PDF falls back to `pdftotext` when MarkItDown output is insufficient | PDF fixture; MarkItDown fake returns empty/insufficient text; `pdftotext` fake returns text | Run extraction | Fallback text is used; status proceeds; safe metadata notes fallback without paths/content leakage | FR-3, Task 05 |
+| SF-EXT-010 | P0 | Integration | Extraction | Image-only/scanned PDF is marked `needs_ocr` | PDF fixture; MarkItDown and `pdftotext` return empty/insufficient text | Run extraction | Source file is marked `needs_ocr`; no OCR attempted; retrieval excludes item | FR-3, ready-only, Task 05 |
+| SF-EXT-011 | P1 | Integration | Extraction | Apache Tika is not configured or invoked | Runtime config and dependency list available | Run extraction and inspect config/deps | No Tika service, client, dependency, or endpoint is required for v1 | FR-3, Task 05 |
 | SF-CHK-001 | P0 | Unit | Chunking | Chunking preserves document order | Deterministic text with section markers | Chunk text | `chunk_index` increases in source order; no reordering | FR-4, Task 06 |
 | SF-CHK-002 | P0 | Unit | Chunking | Chunk size and overlap defaults are applied | Text longer than multiple chunks | Chunk text | Default chunk size 1,200 chars and overlap 200 chars are honored or centralized config value is asserted | AC defaults, FR-4 |
 | SF-CHK-003 | P0 | Unit | Chunking | Empty chunks are not persisted | Text with whitespace/page breaks | Chunk text | No blank chunks inserted | FR-4, Task 06 |
@@ -112,7 +116,7 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 | SF-EMB-004 | P0 | Integration | Embeddings | Dimension mismatch fails before ready state | Embedder returns wrong vector length | Run indexing | Item not ready; no partially searchable chunks | FR-5, AC defaults, Task 07 |
 | SF-EMB-005 | P1 | Integration | Config | Missing embedding provider config fails predictably | Runtime config absent/invalid | Start or execute indexing | Clear config validation error; no external call attempted | FR-5, Task 07 |
 | SF-RET-001 | P0 | Integration | Retrieval | Vector search returns ranked ready chunks with snippets | Ready source files with deterministic embeddings | Call context search with query/top_k | Ranked allowed chunks returned with snippets and score | FR-6, AC-11, AC-12, Task 08 |
-| SF-RET-002 | P0 | Integration | Retrieval | Search excludes non-ready lifecycle states | Items in pending/extracting/chunking/embedding/failed/archived/deleted | Search broad query | Only ready chunks returned | Ready-only AC, FR-6, Task 08 |
+| SF-RET-002 | P0 | Integration | Retrieval | Search excludes non-ready lifecycle states | Items in pending/uploaded/extracting/extracted/chunking/embedding/needs_ocr/failed/archived/deleted | Search broad query | Only ready chunks returned | Ready-only AC, FR-6, Task 08 |
 | SF-RET-003 | P0 | Integration | Scope | Search blocks cross-world content | Source files in two worlds | Search as lemming/world A | World B results absent; no count/title/id leak | FR-6, AC-14, security |
 | SF-RET-004 | P0 | Integration | Scope | Search blocks sibling city content | Two cities in one world | Search as city/department/lemming A | Sibling city chunks absent | FR-6, AC-14 |
 | SF-RET-005 | P0 | Integration | Scope | Search blocks sibling department content | Two departments in one city | Search as department/lemming A | Sibling department chunks absent | FR-6, AC-14 |
@@ -150,7 +154,7 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 | SF-REG-002 | P0 | Integration | Regression | Existing `knowledge.store` runtime tests continue to pass | Runtime instance | Execute current store paths | Memory created; invalid scope/unsupported fields unchanged | AC-2, Task 11 |
 | SF-REG-003 | P1 | LiveView | Regression | Existing Knowledge memory UI continues to pass | Current LiveView flows | Create/edit/delete/filter memories | Memory UI not broken by source-file UI additions | Task 12 |
 | SF-REG-004 | P1 | Controller | Regression | Artifact download/path safety behavior remains unchanged | Existing Artifact controller cases | Run artifact controller tests | Artifact route still denies unsafe paths and leaks no refs | Artifact boundary regression |
-| SF-MAN-001 | P2 | Manual | UX | Operator can understand indexing lifecycle and retry | Browser with Tika/embedding fake | Upload, observe indexing, force failure, retry | Status copy is understandable and retry outcome clear | Task 15, Task 17 |
+| SF-MAN-001 | P2 | Manual | UX | Operator can understand indexing lifecycle and retry | Browser with tools runner/embedding fake | Upload, observe indexing, force failure, retry | Status copy is understandable and retry outcome clear | Task 15, Task 17 |
 | SF-MAN-002 | P2 | Manual | Ops | Release validation covers no external vector DB or RAG framework | Built release config | Inspect config/deps/runtime | PostgreSQL/pgvector used; no Qdrant/Redis/LangChain/LlamaIndex dependency introduced | Out-of-scope guard |
 
 ## FR/AC Traceability
@@ -159,7 +163,7 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 |---|---|
 | FR-1 Add Source Files | SF-SCH-001, SF-SCH-003, SF-SCH-004, SF-STO-001, SF-STO-004, SF-CRT-001, SF-CRT-002, SF-CRT-003, SF-UI-001, SF-UI-002, SF-UI-003 |
 | FR-2 Optional Artifact Ingestion | SF-ART-001, SF-ART-002, SF-ART-003, SF-ART-004, SF-REG-004 |
-| FR-3 Extract Text | SF-EXT-001, SF-EXT-002, SF-EXT-003, SF-EXT-004, SF-EXT-005, SF-EXT-006, SF-EXT-007 |
+| FR-3 Extract Text | SF-EXT-001, SF-EXT-002, SF-EXT-003, SF-EXT-004, SF-EXT-005, SF-EXT-006, SF-EXT-007, SF-EXT-008, SF-EXT-009, SF-EXT-010, SF-EXT-011 |
 | FR-4 Chunk Extracted Text | SF-SCH-006, SF-SCH-007, SF-CHK-001, SF-CHK-002, SF-CHK-003, SF-CHK-004, SF-CHK-005, SF-CHK-006 |
 | FR-5 Embed And Index Chunks | SF-SCH-008, SF-EMB-001, SF-EMB-002, SF-EMB-003, SF-EMB-004, SF-EMB-005, SF-RET-001 |
 | FR-6 Search Source File Knowledge | SF-RET-001, SF-RET-002, SF-RET-003, SF-RET-004, SF-RET-005, SF-RET-006, SF-RET-007, SF-RET-008, SF-RET-009, SF-RET-010, SF-TOOL-001, SF-TOOL-002 |
@@ -172,7 +176,12 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 | AC: No raw path/storage/temp/workspace path exposure | SF-STO-002, SF-STO-003, SF-ART-004, SF-READ-005, SF-OBS-002 |
 | AC: Add file with scope/type/title/description/tags | SF-CRT-001, SF-CRT-003, SF-UI-002 |
 | AC: Upload returns quickly and indexing continues | SF-CRT-001, SF-OBS-004 |
-| AC: Tika private by default | SF-EXT-007 |
+| AC: Tools runner private/controlled by default | SF-EXT-007 |
+| AC: MarkItDown upload extraction | SF-EXT-001 |
+| AC: Trafilatura URL/HTML extraction | SF-EXT-008 |
+| AC: PDF `pdftotext` fallback | SF-EXT-009 |
+| AC: Scanned/image-only PDF `needs_ocr`; no OCR | SF-EXT-010 |
+| AC: No Apache Tika dependency/service | SF-EXT-011 |
 | AC: Lifecycle statuses visible | SF-UI-004, SF-UI-007 |
 | AC: Failed indexing visible/safe/retryable/excluded | SF-EXT-003, SF-EXT-005, SF-EMB-003, SF-RET-002, SF-UI-008 |
 | AC: Chunks ordered/bounded/overlapped/stable refs | SF-CHK-001, SF-CHK-002, SF-CHK-003, SF-CHK-004, SF-CHK-006 |
@@ -193,7 +202,7 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 | 02 Source File Schema And pgvector Migration | SF-SCH-001 through SF-SCH-009 |
 | 03 Source File Storage Boundary | SF-STO-001 through SF-STO-006, SF-ART-004 |
 | 04 Source File Domain Context And Lifecycle | SF-CRT-001 through SF-CRT-003, SF-ART-001 through SF-ART-003, SF-OBS-001 |
-| 05 Tika Extraction Integration | SF-EXT-001 through SF-EXT-007, SF-OBS-002 |
+| 05 Tools Runner Extraction Integration | SF-EXT-001 through SF-EXT-011, SF-OBS-002 |
 | 06 Chunking Pipeline And Reindex Replacement | SF-CHK-001 through SF-CHK-006 |
 | 07 Embedding Boundary And Provider Configuration | SF-EMB-001 through SF-EMB-005 |
 | 08 Vector Retrieval Queries And Filtering | SF-RET-001 through SF-RET-010, SF-READ-001 through SF-READ-005 |
@@ -224,11 +233,11 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 
 ## Required Fixtures And Sentinel Patterns
 - Hierarchy fixtures: two worlds; two cities in one world; two departments in one city; two lemmings in one department; lemmings in sibling departments.
-- Source-file fixtures: ready, pending_index, extracting, chunking, embedding, failed, archived, and deleted items.
+- Source-file fixtures: ready, uploaded or pending, extracting, extracted, chunking, embedding, needs_ocr, failed, archived, and deleted items.
 - File fixtures: small text file, unsupported file, empty file, 10 MB boundary file, oversized file, document producing more than 500 chunks.
 - Chunk fixtures: ordered chunks with deterministic `chunk_ref`, overlapping boundary text, sentinel chunk text, and wrong-dimension embedding vector.
 - Runtime fixtures: lemming instance with valid hierarchy for `knowledge.search` and `knowledge.read`, plus sibling/cross-world instances.
-- External-service fakes: private Tika fake using `Req` boundary and deterministic fake embedder returning 1536-dimensional vectors.
+- External-service fakes: deterministic tools runner fake with registered MarkItDown, Trafilatura, and `pdftotext` capabilities plus deterministic fake embedder returning 1536-dimensional vectors.
 - Sentinel values for leak checks:
   - `SENTINEL_SOURCE_FILE_SECRET_001`
   - `SENTINEL_FULL_EXTRACTED_TEXT_SHOULD_NOT_LEAK`
@@ -243,8 +252,8 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 - Given a user uploads a valid source file with allowed scope, type, title, description, and tags, when create completes, then a Knowledge source-file item and metadata row exist, original bytes are stored outside the DB, and the UI shows a non-ready lifecycle status.
 - Given a source file is indexed successfully, when search runs in an allowed scope, then only ready chunks are ranked and returned with snippets and safe metadata.
 - Given a caller has a guessed chunk ref outside its scope, when `knowledge.read` is called, then the response is a safe not-found/denied result and does not reveal whether the chunk exists.
-- Given source files are pending, extracting, chunking, embedding, failed, archived, or deleted, when search/read runs, then those chunks are excluded.
-- Given Tika, storage, or embedding provider failures occur, when lifecycle processing handles the failure, then the app updates safe failure status and does not log or emit raw paths, extracted text, vectors, or provider responses.
+- Given source files are uploaded/pending, extracting, extracted, chunking, embedding, needs_ocr, failed, archived, or deleted, when search/read runs, then those chunks are excluded.
+- Given tools runner, storage, or embedding provider failures occur, when lifecycle processing handles the failure, then the app updates safe failure status and does not log or emit raw paths, extracted text, vectors, or provider responses.
 - Given existing memory and `knowledge.store` behavior, when source-file functionality is added, then memory CRUD/list/tool tests continue to pass and source-file fields remain unsupported in `knowledge.store`.
 - Given the MVP defaults, when limits are exercised, then 10 MB file size, 30 second extraction timeout, 500,000 extracted characters, 1,200 character chunks, 200 character overlap, 500 max chunks, 1536 vector dimensions, safe `top_k`, and bounded `max_chars` are enforced.
 
@@ -254,24 +263,24 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
 - [ ] Existing `test/lemmings_os_web/live/knowledge_live_test.exs` memory UI tests pass after source-file UI additions.
 - [ ] Existing Artifact storage/download/path safety tests pass; source files do not become Artifacts by accident.
 - [ ] Search and read deny cross-world, sibling city, sibling department, and wrong-lemming access at the backend/tool layer.
-- [ ] Ready-only retrieval excludes pending/extracting/chunking/embedding/failed/archived/deleted items.
+- [ ] Ready-only retrieval excludes pending/uploaded/extracting/extracted/chunking/embedding/needs_ocr/failed/archived/deleted items.
 - [ ] Storage refs remain opaque and raw paths never appear in UI, logs, events, telemetry, or tool outputs.
 - [ ] Full extracted text is absent from Knowledge item rows, search snippets, events, logs, and telemetry.
 - [ ] `knowledge.read` is the only path returning chunk content and it is bounded after scope checks.
 - [ ] Reindex retry replaces stale chunks without mixing old and new ready results.
-- [ ] Tika and embedding provider failures are safe, deterministic in tests, and do not crash request handling.
+- [ ] Tools runner and embedding provider failures are safe, deterministic in tests, and do not crash request handling.
 - [ ] MVP limits and embedding dimension defaults are explicitly covered.
 - [ ] LiveView source-file tests use stable DOM IDs for forms, buttons, rows, filters, retry actions, and detail sections.
 
 ## Out-of-scope
 - Implementing automated tests or production code in this task.
-- Reference files, template engine behavior, automatic LLM promotion of generated files, OCR-heavy guarantees, table-perfect extraction, advanced reranking, public file sharing, external vector databases, Redis retrieval, LangChain/LlamaIndex sidecars, and new durable job dependencies.
+- Reference files, template engine behavior, automatic LLM promotion of generated files, OCR implementation, table-perfect extraction, advanced reranking, public file sharing, external vector databases, Redis retrieval, LangChain/LlamaIndex sidecars, and broad durable job architecture beyond narrow source-file indexing.
 - Final decisions on physical deletion retention, hybrid full-text/vector ranking, and whether retry is UI-first or internal-only beyond the scenarios that must cover whichever implementation is chosen.
 
 ## Execution Summary
 ### Work Performed
 - Converted the source-file Knowledge plan into an implementation-ready scenario matrix with risk-ranked P0/P1/P2 coverage.
-- Added explicit coverage for schema, storage, Artifact ingestion, Tika extraction, chunking, embeddings, pgvector retrieval, `knowledge.search`, `knowledge.read`, UI management, observability, privacy, and regressions.
+- Added explicit coverage for schema, storage, Artifact ingestion, tools runner extraction, chunking, embeddings, pgvector retrieval, `knowledge.search`, `knowledge.read`, UI management, observability, privacy, and regressions.
 - Added traceability from FR/AC requirements to scenario IDs and future implementation tasks.
 - Added explicit negative/security/privacy scenarios and sentinel data guidance.
 

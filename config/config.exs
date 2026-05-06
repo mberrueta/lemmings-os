@@ -25,6 +25,11 @@ config :lemmings_os, :knowledge_source_file_storage,
   root_path: Path.expand("../priv/runtime/knowledge_storage", __DIR__),
   max_file_size_bytes: 10 * 1024 * 1024
 
+config :lemmings_os, Oban,
+  engine: Oban.Engines.Basic,
+  repo: LemmingsOs.Repo,
+  queues: [knowledge_indexing: 1]
+
 config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
 config :lemmings_os, :runtime_engine_on_startup, true
 

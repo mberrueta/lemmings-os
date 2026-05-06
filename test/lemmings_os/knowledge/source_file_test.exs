@@ -34,6 +34,37 @@ defmodule LemmingsOs.Knowledge.SourceFileTest do
       assert changeset.valid?
     end
 
+    test "accepts needs_ocr lifecycle statuses" do
+      world = insert(:world)
+
+      knowledge_item =
+        insert(:knowledge_item,
+          world: world,
+          city: nil,
+          department: nil,
+          lemming: nil,
+          kind: "source_file",
+          status: "needs_ocr"
+        )
+
+      changeset =
+        SourceFile.changeset(%SourceFile{}, %{
+          knowledge_item_id: knowledge_item.id,
+          source_file_type: "company_knowledge",
+          original_filename: "scanned.pdf",
+          content_type: "application/pdf",
+          size_bytes: 2048,
+          checksum: String.duplicate("a", 64),
+          storage_ref: "knowledge://local/source_files/scanned.pdf",
+          extraction_status: "needs_ocr",
+          indexing_status: "needs_ocr",
+          failure_reason: "needs_ocr",
+          metadata: %{"origin" => "upload"}
+        })
+
+      assert changeset.valid?
+    end
+
     test "rejects unsupported type and invalid size" do
       world = insert(:world)
 

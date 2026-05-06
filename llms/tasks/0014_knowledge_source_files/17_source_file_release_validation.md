@@ -20,12 +20,15 @@ Close the task sequence with final validation, migration/rollout risk assessment
 
 ## Expected Outputs
 - [ ] Final validation checklist and execution evidence.
-- [ ] Rollout/rollback notes for migrations and service dependencies.
+- [ ] Rollout/rollback notes for migrations, tools runner image/container/runtime dependency, and Oban configuration if added.
 - [ ] Post-release monitoring checklist for retrieval/indexing health.
 
 ## Acceptance Criteria
 - [ ] Narrow relevant checks were run first; `mix format` and `mix precommit` pass.
 - [ ] Migration and configuration prerequisites are documented.
+- [ ] Tools runner runtime prerequisites are documented, including MarkItDown, Trafilatura, Poppler `pdftotext`, private exposure, timeout/output limits, and allowlisted capability behavior.
+- [ ] Release notes state Apache Tika and OCR are not included in v1, and scanned/image-only PDFs become `needs_ocr`.
+- [ ] If Oban is added, the dedicated `knowledge_indexing` queue and deterministic validation evidence are documented.
 - [ ] Human reviewer has enough evidence for final merge/release decision.
 
 ## Constraints

@@ -32,6 +32,20 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeSourceFilesAndChunks do
     create index(:knowledge_source_files, [:extraction_status])
     create index(:knowledge_source_files, [:indexing_status])
 
+    create constraint(
+             :knowledge_source_files,
+             :knowledge_source_files_extraction_status_check,
+             check:
+               "extraction_status in ('pending', 'extracting', 'ready', 'needs_ocr', 'failed', 'no_content')"
+           )
+
+    create constraint(
+             :knowledge_source_files,
+             :knowledge_source_files_indexing_status_check,
+             check:
+               "indexing_status in ('pending', 'chunking', 'embedding', 'ready', 'needs_ocr', 'failed', 'archived', 'deleted')"
+           )
+
     create table(:knowledge_source_file_chunks, primary_key: false) do
       add :id, :binary_id, primary_key: true
 
@@ -108,6 +122,9 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeSourceFilesAndChunks do
          )
 
     drop table(:knowledge_source_file_chunks)
+
+    drop constraint(:knowledge_source_files, :knowledge_source_files_indexing_status_check)
+    drop constraint(:knowledge_source_files, :knowledge_source_files_extraction_status_check)
 
     drop index(:knowledge_source_files, [:indexing_status])
     drop index(:knowledge_source_files, [:extraction_status])

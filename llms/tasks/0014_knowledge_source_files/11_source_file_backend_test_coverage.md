@@ -20,16 +20,21 @@ Add deterministic tests for schema/context/storage/extraction/chunking/embedding
 
 ## Expected Outputs
 - [ ] Backend tests for lifecycle, limits, scope enforcement, and ready-only retrieval.
+- [ ] Backend tests for tools runner extraction fakes, registered capabilities, PDF fallback, and `needs_ocr`.
+- [ ] If Oban is added, deterministic worker/job tests using direct execution or Oban testing helpers.
 - [ ] Tests for leakage prevention (paths, vectors, provider payloads, extracted full text).
 - [ ] Regression protection for existing memory behavior.
 
 ## Acceptance Criteria
 - [ ] Tests are deterministic and sandbox-safe.
 - [ ] Tests cover default limits: size/time/chars/chunk count.
+- [ ] Tests verify MarkItDown upload extraction, Trafilatura URL/HTML extraction, and `pdftotext` fallback behavior.
+- [ ] Tests verify no Apache Tika service/client/dependency is required.
 - [ ] Tests verify `knowledge.store` remains memory-only.
 
 ## Constraints
 - Use factories and existing test patterns.
+- Do not rely on sleeps for background indexing assertions.
 
 ## Approval Gate
 Human reviewer must approve this task before Task 12 begins.
