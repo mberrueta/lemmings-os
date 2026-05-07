@@ -39,21 +39,21 @@ Human reviewer must approve this task before Task 03 begins.
 
 ## Execution Summary
 ### Work Performed
-- Added migration [`20260506120000_add_knowledge_source_files_and_chunks.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/priv/repo/migrations/20260506120000_add_knowledge_source_files_and_chunks.exs) to:
+- Added migration [`20260506120000_add_knowledge_source_files_and_chunks.exs`](/priv/repo/migrations/20260506120000_add_knowledge_source_files_and_chunks.exs) to:
 - Enable pgvector extension (`CREATE EXTENSION IF NOT EXISTS vector`).
 - Add `knowledge_items` constraints for source-file compatibility (`kind` and `status` by `kind`).
 - Create `knowledge_source_files` metadata table with constraints and indexes.
 - Create `knowledge_source_file_chunks` table with vector column (`embedding vector(1536)`), uniqueness constraints, and HNSW vector index.
 - Add source-file-specific scope/status indexes on `knowledge_items` for retrieval filtering.
-- Extended [`KnowledgeItem` schema](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge/knowledge_item.ex) to allow `kind = "source_file"` and source-file lifecycle statuses while preserving memory invariants.
+- Extended [`KnowledgeItem` schema](/lib/lemmings_os/knowledge/knowledge_item.ex) to allow `kind = "source_file"` and source-file lifecycle statuses while preserving memory invariants.
 - Added new schemas:
-- [`SourceFile`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge/source_file.ex)
-- [`SourceFileChunk`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge/source_file_chunk.ex)
-- Added factory support for new entities in [`test/support/factory.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/support/factory.ex).
+- [`SourceFile`](/lib/lemmings_os/knowledge/source_file.ex)
+- [`SourceFileChunk`](/lib/lemmings_os/knowledge/source_file_chunk.ex)
+- Added factory support for new entities in [`test/support/factory.ex`](/test/support/factory.ex).
 - Added focused schema tests:
-- [`knowledge_item_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/knowledge/knowledge_item_test.exs)
-- [`source_file_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/knowledge/source_file_test.exs)
-- [`source_file_chunk_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/knowledge/source_file_chunk_test.exs)
+- [`knowledge_item_test.exs`](/test/lemmings_os/knowledge/knowledge_item_test.exs)
+- [`source_file_test.exs`](/test/lemmings_os/knowledge/source_file_test.exs)
+- [`source_file_chunk_test.exs`](/test/lemmings_os/knowledge/source_file_chunk_test.exs)
 
 ### Validation Run
 - `mix test test/lemmings_os/knowledge/knowledge_item_test.exs test/lemmings_os/knowledge/source_file_test.exs test/lemmings_os/knowledge/source_file_chunk_test.exs`

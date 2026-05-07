@@ -101,6 +101,11 @@ You MUST:
   with clearly labelled dev-only defaults in `config.exs`
   (e.g., `"dev_only_signing_salt"`). If a new secret is needed, add an env var
   read in `runtime.exs` that raises on missing value, and document it
+- NEVER commit real host-specific absolute filesystem paths in code, tests,
+  docs, task notes, or generated output (for example `/mnt/...`, `/Users/...`,
+  `C:\\...`). Use repo-relative paths or sanitized placeholders.
+- NEVER expose keys, tokens, secrets, or unredacted PII in code, fixtures,
+  logs, docs, PR notes, or review output.
 
 ---
 

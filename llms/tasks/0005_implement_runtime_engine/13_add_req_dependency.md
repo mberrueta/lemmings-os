@@ -69,11 +69,11 @@ Task completed. The required production dependency was already present in the br
 
 ### Work Performed
 - Verified `llms/constitution.md`, `llms/project_context.md`, `llms/coding_styles/elixir.md`, the task contract, and the runtime engine plan requirements.
-- Inspected [mix.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/mix.exs) and confirmed `{:req, "~> 0.5"}` is already declared in the main production dependency block directly after `{:bandit, "~> 1.5"}`.
+- Inspected [mix.exs](/mix.exs) and confirmed `{:req, "~> 0.5"}` is already declared in the main production dependency block directly after `{:bandit, "~> 1.5"}`.
 - Confirmed there is no duplicate `Req` dependency entry and no other dependency changes were required.
 
 ### Outputs Created
-- Updated [llms/tasks/0005_implement_runtime_engine/13_add_req_dependency.md](/mnt/data4/matt/code/personal_stuffs/lemmings-os/llms/tasks/0005_implement_runtime_engine/13_add_req_dependency.md)
+- Updated [llms/tasks/0005_implement_runtime_engine/13_add_req_dependency.md](/llms/tasks/0005_implement_runtime_engine/13_add_req_dependency.md)
 
 ### Assumptions Made
 | Assumption | Rationale |

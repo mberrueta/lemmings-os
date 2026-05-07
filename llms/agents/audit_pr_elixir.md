@@ -110,6 +110,8 @@ End with:
 - Any authz gaps?
 - Any PII leaks in logs/errors?
 - Any unsafe parameter usage?
+- Any exposed secrets/keys/tokens (code, tests, docs, logs, fixtures)?
+- Any host-specific absolute filesystem paths leaked in code/docs/output (for example `/mnt/...`, `/Users/...`, `C:\\...`)?
 
 ### 4) Performance & DB
 - N+1 risk?
@@ -131,6 +133,12 @@ End with:
 - Important state changes have structured logs?
 - Errors are logged once at the right boundary?
 - Events/metadata are queryable and low-cardinality?
+- Logs, docs, and review notes avoid exposing PII, secrets, or real machine paths.
+
+### 8) Security hygiene blockers (always enforce)
+- Block if any hardcoded credential, API key, token, private key material, or secret-like value is committed.
+- Block if any real host-specific absolute path is committed in docs, code, tests, logs, or generated artifacts.
+- Block if any unredacted PII/sensitive payload appears in logs, errors, fixtures, or snapshots.
 
 ---
 
@@ -161,4 +169,3 @@ End with:
 Do not ask questions early.
 First produce the best-effort review from the diff.
 Only then, if needed, add a short "Questions" section with at most 3 targeted questions.
-

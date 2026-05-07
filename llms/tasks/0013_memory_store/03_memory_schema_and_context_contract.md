@@ -53,21 +53,21 @@ Add memory-focused schema(s), changesets, and context APIs for create/read/updat
 
 ## Execution Summary
 ### Work Performed
-- Added new schema module [`lib/lemmings_os/knowledge/knowledge_item.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge/knowledge_item.ex:1):
+- Added new schema module [`lib/lemmings_os/knowledge/knowledge_item.ex`](/lib/lemmings_os/knowledge/knowledge_item.ex:1):
   - `knowledge_items` schema with scope fields, memory fields, tags, source/status, and creator metadata FKs.
   - `changeset/2` for internal create/update validation.
   - `user_update_changeset/2` for user-editable fields only (`title`, `content`, `tags`).
   - Product-state validations in schema layer (`kind`, `source`, `status`) and memory rule (`artifact_id` must be `nil` for memory).
   - Scope-shape and FK constraints aligned with migration.
-- Added new context module [`lib/lemmings_os/knowledge.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge.ex:1):
+- Added new context module [`lib/lemmings_os/knowledge.ex`](/lib/lemmings_os/knowledge.ex:1):
   - `create_memory/3` with runtime-owned defaults (`kind=memory`, `source=user`, `status=active`).
   - `get_memory/3` with allowed visibility by hierarchy (local or inherited mode).
   - `update_memory/3` and `delete_memory/2` with exact-scope enforcement.
   - `list_memories/2` for exact-scope local list.
   - Scope normalization + DB-backed scope consistency checks to reject invalid/spoofed scopes with deterministic `:invalid_scope` / `:scope_mismatch`.
   - Optional creator metadata handling and UUID validation without atom conversion.
-- Added factory support in [`test/support/factory.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/support/factory.ex:1) for `knowledge_item`.
-- Added focused context tests in [`test/lemmings_os/knowledge_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/knowledge_test.exs:1) covering defaults, update/delete behavior, scope mismatch rejection, and visibility rules.
+- Added factory support in [`test/support/factory.ex`](/test/support/factory.ex:1) for `knowledge_item`.
+- Added focused context tests in [`test/lemmings_os/knowledge_test.exs`](/test/lemmings_os/knowledge_test.exs:1) covering defaults, update/delete behavior, scope mismatch rejection, and visibility rules.
 
 ### Validation
 - `mix test test/lemmings_os/knowledge_test.exs` passed.

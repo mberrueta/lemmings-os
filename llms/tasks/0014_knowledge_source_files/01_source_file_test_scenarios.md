@@ -243,7 +243,7 @@ Translate `plan.md` into an ordered scenario matrix that covers schema, storage,
   - `SENTINEL_FULL_EXTRACTED_TEXT_SHOULD_NOT_LEAK`
   - `SENTINEL_ABS_PATH_/var/lib/lemmings_os/knowledge/private.pdf`
   - `SENTINEL_UPLOAD_TMP_/tmp/plug-upload/source.pdf`
-  - `SENTINEL_WORKSPACE_/mnt/data4/matt/code/personal_stuffs/lemmings-os/private/source.pdf`
+  - `SENTINEL_WORKSPACE_/private/source.pdf`
   - `SENTINEL_STORAGE_REF_knowledge://local/private/ref`
   - `SENTINEL_EMBEDDING_VECTOR_[0.123,0.456]`
   - `SENTINEL_PROVIDER_RESPONSE_{"api_key":"secret"}`

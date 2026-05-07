@@ -29,17 +29,17 @@ Integrate retrieval and read APIs into the tool runtime envelope with strict sco
 - [x] `knowledge.store` remains memory-only.
 
 ## Completed Implementation
-- Added runtime dispatch wiring in [`lib/lemmings_os/tools/runtime.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/tools/runtime.ex):
+- Added runtime dispatch wiring in [`lib/lemmings_os/tools/runtime.ex`](/lib/lemmings_os/tools/runtime.ex):
   - `knowledge.search` -> `LemmingsOs.Tools.Adapters.Knowledge.search/3`
   - `knowledge.read` -> `LemmingsOs.Tools.Adapters.Knowledge.read/3`
-- Added tool catalog entries in [`lib/lemmings_os/tools/catalog.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/tools/catalog.ex):
+- Added tool catalog entries in [`lib/lemmings_os/tools/catalog.ex`](/lib/lemmings_os/tools/catalog.ex):
   - `knowledge.search`
   - `knowledge.read`
-- Added tool argument contracts in [`lib/lemmings_os/model_runtime.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/model_runtime.ex) for:
+- Added tool argument contracts in [`lib/lemmings_os/model_runtime.ex`](/lib/lemmings_os/model_runtime.ex) for:
   - `knowledge.search`
   - `knowledge.read`
   - explicit memory-only contract note for `knowledge.store`
-- Extended Knowledge tool adapter in [`lib/lemmings_os/tools/adapters/knowledge.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/tools/adapters/knowledge.ex):
+- Extended Knowledge tool adapter in [`lib/lemmings_os/tools/adapters/knowledge.ex`](/lib/lemmings_os/tools/adapters/knowledge.ex):
   - Implemented `search/3` with:
     - args validation (`query`, optional `kind=source_file`, `source_file_type`, `tags`, `scope`, `top_k`)
     - query embedding generation via embedding boundary
@@ -48,13 +48,13 @@ Integrate retrieval and read APIs into the tool runtime envelope with strict sco
   - Implemented `read/3` with:
     - args validation (`chunk_ref`, optional `scope`, `max_chars`)
     - bounded content reads and not-found safe error mapping
-- Added context read API in [`lib/lemmings_os/knowledge.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge.ex):
+- Added context read API in [`lib/lemmings_os/knowledge.ex`](/lib/lemmings_os/knowledge.ex):
   - `read_source_file_chunk/3` with ready-only + scope enforcement and bounded content.
 
 ## Validation
 - Updated tests:
-  - [`test/lemmings_os/tools/catalog_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/tools/catalog_test.exs)
-  - [`test/lemmings_os/tools/runtime_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/tools/runtime_test.exs)
+  - [`test/lemmings_os/tools/catalog_test.exs`](/test/lemmings_os/tools/catalog_test.exs)
+  - [`test/lemmings_os/tools/runtime_test.exs`](/test/lemmings_os/tools/runtime_test.exs)
 - Verification commands run:
   - `mix test test/lemmings_os/tools/catalog_test.exs test/lemmings_os/tools/runtime_test.exs`
   - `mix test test/lemmings_os/tools/runtime_test.exs`

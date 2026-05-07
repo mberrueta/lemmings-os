@@ -136,12 +136,12 @@ Task completed. A concrete scenario and coverage plan now exists for the runtime
 ### Work Performed
 - Reviewed the runtime engine plan’s User Stories, Acceptance Criteria, and Edge Case sections.
 - Reviewed the repo’s test style guide, context test precedent, LiveView test precedent, and current runtime test inventory.
-- Produced [llms/tasks/0005_implement_runtime_engine/test_plan.md](/mnt/data4/matt/code/personal_stuffs/lemmings-os/llms/tasks/0005_implement_runtime_engine/test_plan.md) with scenario IDs, test-layer organization, User Story mapping, edge-case coverage, infrastructure requirements, and recommended implementation order for Tasks 18 and 19.
+- Produced [llms/tasks/0005_implement_runtime_engine/test_plan.md](/llms/tasks/0005_implement_runtime_engine/test_plan.md) with scenario IDs, test-layer organization, User Story mapping, edge-case coverage, infrastructure requirements, and recommended implementation order for Tasks 18 and 19.
 - Included an explicit existing-coverage snapshot so Tasks 18 and 19 extend the current runtime tests instead of duplicating them.
 
 ### Outputs Created
-- [llms/tasks/0005_implement_runtime_engine/test_plan.md](/mnt/data4/matt/code/personal_stuffs/lemmings-os/llms/tasks/0005_implement_runtime_engine/test_plan.md)
-- Updated [llms/tasks/0005_implement_runtime_engine/17_test_scenario_and_coverage_plan.md](/mnt/data4/matt/code/personal_stuffs/lemmings-os/llms/tasks/0005_implement_runtime_engine/17_test_scenario_and_coverage_plan.md)
+- [llms/tasks/0005_implement_runtime_engine/test_plan.md](/llms/tasks/0005_implement_runtime_engine/test_plan.md)
+- Updated [llms/tasks/0005_implement_runtime_engine/17_test_scenario_and_coverage_plan.md](/llms/tasks/0005_implement_runtime_engine/17_test_scenario_and_coverage_plan.md)
 
 ### Assumptions Made
 | Assumption | Rationale |

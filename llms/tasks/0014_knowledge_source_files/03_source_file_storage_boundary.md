@@ -39,7 +39,7 @@ Human reviewer must approve this task before Task 04 begins.
 
 ## Execution Summary
 ### Work Performed
-- Added dedicated storage boundary module [`source_file_storage.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge/source_file_storage.ex) under Knowledge domain (separate from Artifacts).
+- Added dedicated storage boundary module [`source_file_storage.ex`](/lib/lemmings_os/knowledge/source_file_storage.ex) under Knowledge domain (separate from Artifacts).
 - Implemented safe APIs:
 - `put/4` to copy original bytes into managed storage and return `%{storage_ref, checksum, size_bytes}`.
 - `read_private/1` for private byte reads.
@@ -52,8 +52,8 @@ Human reviewer must approve this task before Task 04 begins.
 - `config/test.exs` test root and max size defaults.
 - `config/runtime.exs` runtime root override via `LEMMINGS_KNOWLEDGE_SOURCE_FILE_STORAGE_ROOT`.
 - Added targeted tests:
-- [`source_file_storage_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/knowledge/source_file_storage_test.exs)
-- [`runtime_knowledge_source_file_storage_config_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/config/runtime_knowledge_source_file_storage_config_test.exs)
+- [`source_file_storage_test.exs`](/test/lemmings_os/knowledge/source_file_storage_test.exs)
+- [`runtime_knowledge_source_file_storage_config_test.exs`](/test/lemmings_os/config/runtime_knowledge_source_file_storage_config_test.exs)
 
 ### Validation Run
 - `mix test test/lemmings_os/knowledge/source_file_storage_test.exs test/lemmings_os/config/runtime_knowledge_source_file_storage_config_test.exs`

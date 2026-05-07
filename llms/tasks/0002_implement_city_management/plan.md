@@ -44,9 +44,9 @@ The repository already contains a real persisted `World` foundation:
 
 City management is still mock-backed:
 
-- [`lib/lemmings_os_web/live/cities_live.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/live/cities_live.ex) reads from `LemmingsOs.MockData`.
-- [`lib/lemmings_os/mock_data.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/mock_data.ex) currently invents city status, region, geometry, and agent counts.
-- [`lib/lemmings_os_web/components/world_components.ex`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/components/world_components.ex) still renders city-oriented surfaces from mock data.
+- [`lib/lemmings_os_web/live/cities_live.ex`](/lib/lemmings_os_web/live/cities_live.ex) reads from `LemmingsOs.MockData`.
+- [`lib/lemmings_os/mock_data.ex`](/lib/lemmings_os/mock_data.ex) currently invents city status, region, geometry, and agent counts.
+- [`lib/lemmings_os_web/components/world_components.ex`](/lib/lemmings_os_web/components/world_components.ex) still renders city-oriented surfaces from mock data.
 
 That leaves the system in an inconsistent state:
 
@@ -77,7 +77,7 @@ This branch intentionally prefers:
 - ADR 0021: `cities` is a canonical core domain entity, but its currently documented shape must be narrowed to the implementation chosen here.
 - ADR 0022: minimal self-hosted deployments must stay simple; one world and one city on one host remains the default path.
 - ADR 0023: degraded and unavailable states must be reported honestly, not inferred from invented data.
-- [`docs/architecture.md`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/docs/architecture.md) already describes `City` as an OTP node and references city health behavior.
+- [`docs/architecture.md`](/docs/architecture.md) already describes `City` as an OTP node and references city health behavior.
 
 The existing `World` implementation already refined older ADR wording around `config_jsonb`
 into split scoped JSONB columns. This City issue should follow the same rigor: if implementation
@@ -733,11 +733,11 @@ Those updates should explain:
 
 Minimum doc targets:
 
-- [`docs/architecture.md`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/docs/architecture.md)
-- [`docs/adr/0017-runtime-topology-city-execution-model.md`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/docs/adr/0017-runtime-topology-city-execution-model.md)
-- [`docs/adr/0020-hierarchical-configuration-model.md`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/docs/adr/0020-hierarchical-configuration-model.md)
-- [`docs/adr/0021-core-domain-schema.md`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/docs/adr/0021-core-domain-schema.md)
-- [`docs/adr/0022-deployment-and-packaging-model.md`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/docs/adr/0022-deployment-and-packaging-model.md)
+- [`docs/architecture.md`](/docs/architecture.md)
+- [`docs/adr/0017-runtime-topology-city-execution-model.md`](/docs/adr/0017-runtime-topology-city-execution-model.md)
+- [`docs/adr/0020-hierarchical-configuration-model.md`](/docs/adr/0020-hierarchical-configuration-model.md)
+- [`docs/adr/0021-core-domain-schema.md`](/docs/adr/0021-core-domain-schema.md)
+- [`docs/adr/0022-deployment-and-packaging-model.md`](/docs/adr/0022-deployment-and-packaging-model.md)
 
 ## Change Log
 
