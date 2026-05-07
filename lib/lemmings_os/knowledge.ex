@@ -17,6 +17,7 @@ defmodule LemmingsOs.Knowledge do
   alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.Knowledge.SourceFileChunk
   alias LemmingsOs.Knowledge.SourceFiles.ChunkingService
+  alias LemmingsOs.Knowledge.SourceFiles.EmbeddingService
   alias LemmingsOs.Knowledge.SourceFiles.ExtractionService
   alias LemmingsOs.Knowledge.SourceFiles.Workers.SourceFilesIndexingWorker
   alias LemmingsOs.LemmingInstances.ToolExecution
@@ -592,6 +593,10 @@ defmodule LemmingsOs.Knowledge do
     set_source_file_status(source_file, "embedding", "embedding")
   end
 
+  defp set_source_file_status(%SourceFile{} = source_file, :ready) do
+    set_source_file_status(source_file, "ready", "ready")
+  end
+
   defp set_source_file_status(%SourceFile{} = source_file, :archived) do
     set_source_file_status(source_file, "archived", "archived")
   end
@@ -617,10 +622,12 @@ defmodule LemmingsOs.Knowledge do
     end
   end
 
-  defp handle_chunking_result({:ok, _chunk_count}, %SourceFile{} = source_file) do
+  defp handle_chunking_result({:ok, rows}, %SourceFile{} = source_file) do
     _ = set_source_file_status(source_file, :embedding)
-    _ = set_source_file_status(source_file, :failed, "indexing_not_implemented")
-    :ok
+
+    rows
+    |> embed_chunk_vectors()
+    |> handle_embedding_result(source_file)
   end
 
   defp handle_chunking_result({:error, :empty_chunks}, %SourceFile{} = source_file) do
@@ -630,6 +637,17 @@ defmodule LemmingsOs.Knowledge do
 
   defp handle_chunking_result({:error, _reason}, %SourceFile{} = source_file) do
     _ = set_source_file_status(source_file, :failed, "chunking_failed")
+    :ok
+  end
+
+  defp handle_embedding_result(:ok, %SourceFile{} = source_file) do
+    _ = set_source_file_status(source_file, :ready)
+    :ok
+  end
+
+  defp handle_embedding_result({:error, failure_reason}, %SourceFile{} = source_file)
+       when is_binary(failure_reason) do
+    _ = set_source_file_status(source_file, :failed, failure_reason)
     :ok
   end
 
@@ -702,11 +720,37 @@ defmodule LemmingsOs.Knowledge do
         |> Ecto.Multi.insert_all(:insert_chunks, SourceFileChunk, rows)
 
       case Repo.transaction(multi) do
-        {:ok, %{insert_chunks: {count, _rows}}} -> {:ok, count}
+        {:ok, %{insert_chunks: {count, _inserted_rows}}} when count > 0 -> {:ok, rows}
+        {:ok, %{insert_chunks: {0, _inserted_rows}}} -> {:error, :empty_chunks}
         {:error, _step, _reason, _changes_so_far} -> {:error, :chunking_failed}
       end
     end
   end
+
+  defp embed_chunk_vectors([]), do: {:error, "embedding_invalid_response"}
+
+  defp embed_chunk_vectors(rows) when is_list(rows) do
+    texts = Enum.map(rows, &Map.get(&1, :content, ""))
+
+    case EmbeddingService.embed_texts(texts) do
+      {:ok, vectors} when length(vectors) == length(rows) ->
+        :ok
+
+      {:ok, _vectors} ->
+        {:error, "embedding_invalid_response"}
+
+      {:error, reason} ->
+        {:error, embedding_failure_reason(reason)}
+    end
+  end
+
+  defp embedding_failure_reason(:provider_not_configured), do: "embedding_provider_not_configured"
+  defp embedding_failure_reason(:provider_timeout), do: "embedding_timeout"
+  defp embedding_failure_reason(:provider_network_error), do: "embedding_network_error"
+  defp embedding_failure_reason(:provider_http_error), do: "embedding_provider_error"
+  defp embedding_failure_reason(:provider_invalid_dimension), do: "embedding_invalid_dimension"
+  defp embedding_failure_reason(:provider_invalid_input), do: "embedding_invalid_input"
+  defp embedding_failure_reason(:provider_invalid_response), do: "embedding_invalid_response"
 
   defp set_source_file_status(
          %SourceFile{} = source_file,

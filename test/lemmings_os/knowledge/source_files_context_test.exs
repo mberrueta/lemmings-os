@@ -18,6 +18,12 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
     end
   end
 
+  defmodule WrongDimensionEmbedder do
+    def embed_texts(texts, _opts) when is_list(texts) do
+      {:ok, Enum.map(texts, fn _text -> [0.1, 0.2, 0.3] end)}
+    end
+  end
+
   describe "create_source_file/2" do
     test "creates source-file records and enqueues a knowledge indexing job" do
       world = insert(:world)
@@ -282,6 +288,172 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
                Enum.map(second_chunks, & &1.chunk_ref) != Enum.map(first_chunks, & &1.chunk_ref)
 
       refute Enum.any?(second_chunks, fn chunk -> chunk.content =~ "alpha " end)
+    end
+  end
+
+  describe "embedding pipeline" do
+    test "marks source file as ready when fake embeddings are persisted" do
+      world = insert(:world)
+      old_runner = Application.get_env(:lemmings_os, :knowledge_tools_runner, [])
+      old_storage = Application.get_env(:lemmings_os, :knowledge_source_file_storage)
+      old_embeddings = Application.get_env(:lemmings_os, :knowledge_embeddings, [])
+
+      root_path =
+        Path.join(
+          System.tmp_dir!(),
+          "lemmings_knowledge_embedding_ready_#{System.unique_integer([:positive])}"
+        )
+
+      Application.put_env(:lemmings_os, :knowledge_source_file_storage,
+        backend: :local,
+        root_path: root_path,
+        max_file_size_bytes: 10 * 1024 * 1024
+      )
+
+      Application.put_env(
+        :lemmings_os,
+        :knowledge_tools_runner,
+        Keyword.merge(old_runner,
+          executor_module: StubExtractorExecutor,
+          capabilities: %{
+            markitdown_extract_file: "markitdown",
+            pdftotext_extract_file: "pdftotext",
+            trafilatura_extract_url: "trafilatura"
+          }
+        )
+      )
+
+      Application.put_env(:lemmings_os, :knowledge_embeddings, provider: :fake, dimensions: 1536)
+
+      on_exit(fn ->
+        Application.put_env(:lemmings_os, :knowledge_tools_runner, old_runner)
+        Application.put_env(:lemmings_os, :knowledge_embeddings, old_embeddings)
+
+        if old_storage do
+          Application.put_env(:lemmings_os, :knowledge_source_file_storage, old_storage)
+        else
+          Application.delete_env(:lemmings_os, :knowledge_source_file_storage)
+        end
+
+        Application.delete_env(:lemmings_os, :knowledge_chunking_test_output)
+        File.rm_rf(root_path)
+      end)
+
+      source_path = Path.join(root_path, "source.md")
+      :ok = File.mkdir_p(root_path)
+      :ok = File.write(source_path, "input")
+
+      {:ok, stored} =
+        SourceFileStorageService.put(world.id, Ecto.UUID.generate(), source_path, "source.md")
+
+      {:ok, %{source_file: source_file}} =
+        Knowledge.create_source_file(world, %{
+          source_file_type: "company_knowledge",
+          original_filename: "source.md",
+          content_type: "text/markdown",
+          size_bytes: stored.size_bytes,
+          checksum: stored.checksum,
+          storage_ref: stored.storage_ref
+        })
+
+      Application.put_env(
+        :lemmings_os,
+        :knowledge_chunking_test_output,
+        String.duplicate("ok ", 600)
+      )
+
+      assert :ok = Knowledge.run_source_file_indexing(source_file.id)
+
+      updated_source_file = Repo.get!(SourceFile, source_file.id)
+      updated_item = Repo.get!(KnowledgeItem, source_file.knowledge_item_id)
+
+      assert updated_source_file.indexing_status == "ready"
+      assert updated_source_file.failure_reason == nil
+      assert updated_item.status == "ready"
+    end
+
+    test "fails safely when provider returns wrong dimensions" do
+      world = insert(:world)
+      old_runner = Application.get_env(:lemmings_os, :knowledge_tools_runner, [])
+      old_storage = Application.get_env(:lemmings_os, :knowledge_source_file_storage)
+      old_embeddings = Application.get_env(:lemmings_os, :knowledge_embeddings, [])
+
+      root_path =
+        Path.join(
+          System.tmp_dir!(),
+          "lemmings_knowledge_embedding_bad_dims_#{System.unique_integer([:positive])}"
+        )
+
+      Application.put_env(:lemmings_os, :knowledge_source_file_storage,
+        backend: :local,
+        root_path: root_path,
+        max_file_size_bytes: 10 * 1024 * 1024
+      )
+
+      Application.put_env(
+        :lemmings_os,
+        :knowledge_tools_runner,
+        Keyword.merge(old_runner,
+          executor_module: StubExtractorExecutor,
+          capabilities: %{
+            markitdown_extract_file: "markitdown",
+            pdftotext_extract_file: "pdftotext",
+            trafilatura_extract_url: "trafilatura"
+          }
+        )
+      )
+
+      Application.put_env(:lemmings_os, :knowledge_embeddings,
+        provider: :fake,
+        module: WrongDimensionEmbedder,
+        dimensions: 1536
+      )
+
+      on_exit(fn ->
+        Application.put_env(:lemmings_os, :knowledge_tools_runner, old_runner)
+        Application.put_env(:lemmings_os, :knowledge_embeddings, old_embeddings)
+
+        if old_storage do
+          Application.put_env(:lemmings_os, :knowledge_source_file_storage, old_storage)
+        else
+          Application.delete_env(:lemmings_os, :knowledge_source_file_storage)
+        end
+
+        Application.delete_env(:lemmings_os, :knowledge_chunking_test_output)
+        File.rm_rf(root_path)
+      end)
+
+      source_path = Path.join(root_path, "source.md")
+      :ok = File.mkdir_p(root_path)
+      :ok = File.write(source_path, "input")
+
+      {:ok, stored} =
+        SourceFileStorageService.put(world.id, Ecto.UUID.generate(), source_path, "source.md")
+
+      {:ok, %{source_file: source_file}} =
+        Knowledge.create_source_file(world, %{
+          source_file_type: "company_knowledge",
+          original_filename: "source.md",
+          content_type: "text/markdown",
+          size_bytes: stored.size_bytes,
+          checksum: stored.checksum,
+          storage_ref: stored.storage_ref
+        })
+
+      Application.put_env(
+        :lemmings_os,
+        :knowledge_chunking_test_output,
+        String.duplicate("ok ", 600)
+      )
+
+      assert :ok = Knowledge.run_source_file_indexing(source_file.id)
+
+      updated_source_file = Repo.get!(SourceFile, source_file.id)
+      updated_item = Repo.get!(KnowledgeItem, source_file.knowledge_item_id)
+
+      assert updated_source_file.indexing_status == "failed"
+      assert updated_source_file.failure_reason == "embedding_invalid_dimension"
+      assert updated_item.status == "failed"
     end
   end
 end

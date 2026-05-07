@@ -259,6 +259,35 @@ cp .envrc.custom.example .envrc.custom
 direnv allow
 ```
 
+### Source-File Embeddings (RAG) With Ollama (OpenAI-Compatible)
+
+For source-file embedding/indexing in the RAG pipeline, this repository
+supports an OpenAI-compatible embedding endpoint. Ollama can be used through
+its `/v1` compatibility API.
+
+Recommended local embedding model:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+Runtime configuration:
+
+```bash
+export LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER=openai_compatible
+export LEMMINGS_KNOWLEDGE_EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
+export LEMMINGS_KNOWLEDGE_EMBEDDING_MODEL=nomic-embed-text
+export LEMMINGS_KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
+export OPENAI_API_KEY=dummy
+```
+
+Notes:
+
+- `OPENAI_API_KEY` is required by the current OpenAI-compatible embedder config path.
+  Ollama typically ignores this header, so `dummy` is acceptable.
+- Keep dimensions aligned with the current MVP default (`1536`) to avoid
+  dimension validation failures in RAG indexing.
+
 `.envrc` ships with open-source defaults and `.envrc.custom` is for machine-local overrides.
 
 Default ports in `.envrc`:

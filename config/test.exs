@@ -56,6 +56,14 @@ config :lemmings_os, :knowledge_tools_runner,
     pdftotext_extract_file: "pdftotext"
   }
 
+config :lemmings_os, :knowledge_embeddings,
+  provider: :openai_compatible,
+  dimensions: 1536,
+  timeout_ms: 30_000,
+  base_url: "http://127.0.0.1:11434/v1",
+  model: "nomic-embed-text",
+  api_key_env: "OPENAI_API_KEY"
+
 config :lemmings_os, Oban, testing: :manual
 
 config :lemmings_os, :model_runtime,

@@ -88,6 +88,31 @@ config :lemmings_os, :knowledge_tools_runner,
     ),
   capabilities: Keyword.get(knowledge_tools_runner, :capabilities, %{})
 
+knowledge_embeddings = Application.get_env(:lemmings_os, :knowledge_embeddings, [])
+
+config :lemmings_os, :knowledge_embeddings,
+  provider:
+    System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER") ||
+      Keyword.get(knowledge_embeddings, :provider, :openai_compatible),
+  dimensions:
+    System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_DIMENSIONS") ||
+      Keyword.get(knowledge_embeddings, :dimensions, 1536),
+  timeout_ms:
+    System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_TIMEOUT_MS") ||
+      Keyword.get(knowledge_embeddings, :timeout_ms, 30_000),
+  base_url:
+    System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_BASE_URL") ||
+      Keyword.get(knowledge_embeddings, :base_url, "http://127.0.0.1:11434/v1"),
+  model:
+    System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_MODEL") ||
+      Keyword.get(knowledge_embeddings, :model, "nomic-embed-text"),
+  api_key_env:
+    System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY_ENV") ||
+      Keyword.get(knowledge_embeddings, :api_key_env, "OPENAI_API_KEY"),
+  api_key:
+    System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY") ||
+      Keyword.get(knowledge_embeddings, :api_key)
+
 documents = Application.get_env(:lemmings_os, :documents, [])
 
 config :lemmings_os, :documents,

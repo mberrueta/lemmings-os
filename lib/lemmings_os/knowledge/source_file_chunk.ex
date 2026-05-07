@@ -10,8 +10,8 @@ defmodule LemmingsOs.Knowledge.SourceFileChunk do
   state; this module keeps chunk-level retrieval data.
 
   Current defaults/status:
-  - Chunk overlap/size behavior is planned but not implemented in this module yet.
-    The MVP defaults are documented in
+  - Chunk overlap/size behavior is produced by
+    `LemmingsOs.Knowledge.SourceFiles.ChunkingService` using MVP defaults from
     `llms/tasks/0014_knowledge_source_files/plan.md` (chunk size `1200`,
     overlap `200`, max chunks `500`).
   - Vector dimension is currently defined at the DB layer in
