@@ -9,7 +9,7 @@
 
 ## Assigned Agent
 
-`audit-pr-elixir` - Staff-level PR reviewer for Elixir/Phoenix backends.
+`audit-pr-elixir` - Senior PR reviewer for Elixir/Phoenix backends.
 
 ## Agent Invocation
 
@@ -65,4 +65,3 @@ Catch N+1 risks, missing preloads, query-shape problems, secret-handling mistake
 2. Ensure required fixes are made before Task 14 begins.
 3. Confirm the branch still stays within City-foundation scope.
 4. Approve only after issues are either fixed or consciously accepted.
-

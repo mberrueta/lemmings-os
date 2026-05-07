@@ -121,15 +121,6 @@ defmodule LemmingsOs.Knowledge.SourceFileChunk do
     |> unique_constraint(:chunk_index,
       name: :knowledge_source_file_chunks_source_file_chunk_index_index
     )
-    |> check_constraint(:chunk_index,
-      name: :knowledge_source_file_chunks_chunk_index_nonnegative_check
-    )
-    |> check_constraint(:char_count,
-      name: :knowledge_source_file_chunks_char_count_positive_check
-    )
-    |> check_constraint(:token_count,
-      name: :knowledge_source_file_chunks_token_count_nonnegative_check
-    )
   end
 
   defp validate_metadata(changeset) do

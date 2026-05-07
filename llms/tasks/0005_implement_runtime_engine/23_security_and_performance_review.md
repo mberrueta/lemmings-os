@@ -5,7 +5,7 @@
 - **Approved**: [X] Human sign-off
 
 ## Assigned Agent
-`audit-pr-elixir` - staff-level PR reviewer for Elixir/Phoenix backends focusing on correctness, security, performance, and OTP supervision.
+`audit-pr-elixir` - senior PR reviewer for Elixir/Phoenix backends focusing on correctness, security, performance, and OTP supervision.
 
 ## Agent Invocation
 Act as `audit-pr-elixir` following `llms/constitution.md` and perform a security and performance review of the entire runtime engine implementation before the final PR audit.

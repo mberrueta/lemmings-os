@@ -31,6 +31,12 @@ defmodule LemmingsOs.Knowledge.SourceFiles.ExtractionServiceTest do
     defp stubbed_response(:markitdown_long, "markitdown"),
       do: {:ok, %{stdout: String.duplicate("x", 100), exit_status: 0}}
 
+    defp stubbed_response(:url_empty, "trafilatura"),
+      do: {:ok, %{stdout: "   ", exit_status: 0}}
+
+    defp stubbed_response(:url_timeout, "trafilatura"),
+      do: {:error, :timeout}
+
     defp stubbed_response(_mode, _command), do: nil
 
     defp payload_response("timeout"), do: {:error, :timeout}
@@ -92,11 +98,21 @@ defmodule LemmingsOs.Knowledge.SourceFiles.ExtractionServiceTest do
   end
 
   test "extract_url/1 handles empty output safely" do
-    assert {:error, :empty} = ExtractionService.extract_url("empty")
+    Application.put_env(:lemmings_os, :knowledge_extraction_test_mode, :url_empty)
+    assert {:error, :empty} = ExtractionService.extract_url("https://example.com/empty")
   end
 
   test "extract_url/1 handles timeout safely" do
-    assert {:error, :timeout} = ExtractionService.extract_url("timeout")
+    Application.put_env(:lemmings_os, :knowledge_extraction_test_mode, :url_timeout)
+    assert {:error, :timeout} = ExtractionService.extract_url("https://example.com/timeout")
+  end
+
+  test "extract_url/1 rejects non-http(s) schemes" do
+    assert {:error, :unsupported} = ExtractionService.extract_url("file:///etc/passwd")
+  end
+
+  test "extract_url/1 rejects hostless URLs" do
+    assert {:error, :unsupported} = ExtractionService.extract_url("https:///no-host")
   end
 
   test "extract/1 uses pdftotext fallback for PDFs when markitdown is insufficient", %{

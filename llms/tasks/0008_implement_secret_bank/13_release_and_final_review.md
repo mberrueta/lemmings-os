@@ -14,7 +14,7 @@
 Act as `rm-release-manager`. Prepare release notes, migration/runbook, rollback notes, and final validation instructions. Then have `audit-pr-elixir` perform the final PR review.
 
 ## Objective
-Close the Secret Bank branch with operational notes, validation evidence, and a final staff-level Elixir/Phoenix review.
+Close the Secret Bank branch with operational notes, validation evidence, and a final Elixir/Phoenix review.
 
 ## Expected Outputs
 - Release notes/runbook updates where appropriate.

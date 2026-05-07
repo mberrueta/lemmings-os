@@ -285,6 +285,21 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
              "Pricing Handbook"
            )
 
+    assert has_element?(
+             view,
+             "#knowledge-source-file-edit-#{source_file.id}[aria-label='Edit source file metadata']"
+           )
+
+    assert has_element?(
+             view,
+             "#knowledge-source-file-retry-#{source_file.id}[aria-label='Retry source file indexing']"
+           )
+
+    assert has_element?(
+             view,
+             "#knowledge-source-file-archive-#{source_file.id}[aria-label='Archive source file']"
+           )
+
     view
     |> element("#knowledge-source-file-edit-#{source_file.id}")
     |> render_click()

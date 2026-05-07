@@ -5,7 +5,7 @@
 - **Approved**: [ ] Human sign-off
 
 ## Assigned Agent
-`audit-pr-elixir` - staff-level PR reviewer for Elixir/Phoenix backends focusing on correctness, design quality, security, performance, logging, and test coverage.
+`audit-pr-elixir` - senior PR reviewer for Elixir/Phoenix backends focusing on correctness, design quality, security, performance, logging, and test coverage.
 
 ## Agent Invocation
 Act as `audit-pr-elixir` following `llms/constitution.md` and perform the final comprehensive PR audit of the runtime engine branch. Review against the plan's branch-level acceptance criteria, the security review findings (Task 23), and the ADR updates (Task 22).

@@ -54,6 +54,21 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
                )
              )
     end
+
+    test "rejects storage refs that belong to a different world" do
+      world = insert(:world)
+      other_world = insert(:world)
+
+      assert {:error, :scope_mismatch} =
+               Knowledge.create_source_file(world, %{
+                 source_file_type: "company_knowledge",
+                 original_filename: "policy.pdf",
+                 content_type: "application/pdf",
+                 size_bytes: 2_048,
+                 storage_ref:
+                   "local://knowledge_source_files/#{other_world.id}/#{Ecto.UUID.generate()}/policy.pdf"
+               })
+    end
   end
 
   describe "archive_source_file/2" do
@@ -636,8 +651,8 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
 
       {:ok, _result} =
         Repo.query(
-          "update knowledge_source_file_chunks set embedding = $1 where id = '#{chunk.id}'::uuid",
-          [List.duplicate(0.1, 1536)]
+          "update knowledge_source_file_chunks set embedding = $1 where id = $2::uuid",
+          [List.duplicate(0.1, 1536), Ecto.UUID.dump!(chunk.id)]
         )
 
       chunk
@@ -651,9 +666,25 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
         original_filename: original_filename,
         content_type: "text/markdown",
         size_bytes: 512,
-        storage_ref: "local://knowledge_source_files/#{Ecto.UUID.generate()}/#{original_filename}"
+        storage_ref:
+          "local://knowledge_source_files/#{source_file_world_id(scope)}/#{Ecto.UUID.generate()}/#{original_filename}"
       })
 
     Repo.preload(source_file, :knowledge_item)
   end
+
+  defp source_file_world_id(%LemmingsOs.Worlds.World{id: world_id}) when is_binary(world_id),
+    do: world_id
+
+  defp source_file_world_id(%LemmingsOs.Cities.City{world_id: world_id})
+       when is_binary(world_id),
+       do: world_id
+
+  defp source_file_world_id(%LemmingsOs.Departments.Department{world_id: world_id})
+       when is_binary(world_id),
+       do: world_id
+
+  defp source_file_world_id(%LemmingsOs.Lemmings.Lemming{world_id: world_id})
+       when is_binary(world_id),
+       do: world_id
 end

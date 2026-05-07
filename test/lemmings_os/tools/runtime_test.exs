@@ -1108,8 +1108,8 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
     {:ok, _result} =
       Repo.query(
-        "update knowledge_source_file_chunks set embedding = $1 where id = '#{chunk.id}'::uuid",
-        [List.duplicate(0.1, 1536)]
+        "update knowledge_source_file_chunks set embedding = $1 where id = $2::uuid",
+        [List.duplicate(0.1, 1536), Ecto.UUID.dump!(chunk.id)]
       )
 
     %{chunk_ref: chunk.chunk_ref, content: content}

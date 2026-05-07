@@ -128,6 +128,18 @@ defmodule LemmingsOs.Knowledge.SourceFileStorageService do
   def resolve_storage_ref(_storage_ref), do: {:error, :invalid_storage_ref}
 
   @doc """
+  Returns the World ID encoded in a Knowledge source-file storage ref.
+  """
+  @spec storage_ref_world_id(String.t()) :: {:ok, Ecto.UUID.t()} | {:error, atom()}
+  def storage_ref_world_id(storage_ref) when is_binary(storage_ref) do
+    with {:ok, world_id, _knowledge_item_id, _filename} <- parse_storage_ref(storage_ref) do
+      {:ok, world_id}
+    end
+  end
+
+  def storage_ref_world_id(_storage_ref), do: {:error, :invalid_storage_ref}
+
+  @doc """
   Reads private source-file bytes from managed storage.
 
   ## Examples

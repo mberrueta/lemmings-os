@@ -9,10 +9,12 @@ defmodule LemmingsOs.Knowledge.SourceFiles.Embedders.OpenAiCompatible do
   Calls an OpenAI-compatible `/embeddings` endpoint and returns one vector per
   input text.
 
-  Required opts:
-  - `:base_url`
-  - `:api_key`
-  - `:model`
+   Required opts:
+   - `:base_url`
+   - `:model`
+
+   Optional opts:
+   - `:api_key` (sent as a bearer token when present)
 
   ## Examples
 
@@ -36,8 +38,9 @@ defmodule LemmingsOs.Knowledge.SourceFiles.Embedders.OpenAiCompatible do
   @impl true
   def embed_texts(texts, opts) when is_list(texts) and is_list(opts) do
     with {:ok, base_url} <- fetch_config(opts, :base_url),
-         {:ok, api_key} <- fetch_config(opts, :api_key),
          {:ok, model} <- fetch_config(opts, :model) do
+      api_key = optional_config(opts, :api_key)
+
       req =
         Req.new(
           base_url: base_url,
@@ -49,7 +52,7 @@ defmodule LemmingsOs.Knowledge.SourceFiles.Embedders.OpenAiCompatible do
 
       case Req.post(req,
              url: "/embeddings",
-             headers: [{"authorization", "Bearer #{api_key}"}],
+             headers: auth_headers(api_key),
              json: %{"model" => model, "input" => texts}
            ) do
         {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
@@ -78,6 +81,16 @@ defmodule LemmingsOs.Knowledge.SourceFiles.Embedders.OpenAiCompatible do
       _other -> {:error, :provider_not_configured}
     end
   end
+
+  defp optional_config(opts, key) do
+    case Keyword.get(opts, key) do
+      value when is_binary(value) and value != "" -> value
+      _other -> nil
+    end
+  end
+
+  defp auth_headers(api_key) when is_binary(api_key), do: [{"authorization", "Bearer #{api_key}"}]
+  defp auth_headers(_api_key), do: []
 
   defp parse_embeddings(body) when is_map(body) do
     case Map.get(body, "data") do

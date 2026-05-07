@@ -1248,8 +1248,8 @@ defmodule LemmingsOs.Knowledge do
       id = Map.fetch!(row, :id)
 
       case Repo.query(
-             "update knowledge_source_file_chunks set embedding = $1, updated_at = $2 where id = '#{id}'::uuid",
-             [vector, now]
+             "update knowledge_source_file_chunks set embedding = $1, updated_at = $2 where id = $3::uuid",
+             [vector, now, Ecto.UUID.dump!(id)]
            ) do
         {:ok, _result} -> {:cont, :ok}
         {:error, _reason} -> {:halt, {:error, "embedding_invalid_response"}}
@@ -1329,6 +1329,7 @@ defmodule LemmingsOs.Knowledge do
              source_file_type,
              size_bytes
            ),
+         :ok <- validate_source_file_storage_ref(storage_ref, scope_data.world_id),
          {:ok, artifact_id} <- normalize_optional_artifact_id(fetch(attrs, :artifact_id)) do
       knowledge_item_attrs =
         %{
@@ -1380,6 +1381,14 @@ defmodule LemmingsOs.Knowledge do
          _size_bytes
        ),
        do: {:error, :invalid_attrs}
+
+  defp validate_source_file_storage_ref(storage_ref, world_id) do
+    case SourceFileStorageService.storage_ref_world_id(storage_ref) do
+      {:ok, ^world_id} -> :ok
+      {:ok, _other_world_id} -> {:error, :scope_mismatch}
+      {:error, _reason} -> {:error, :invalid_attrs}
+    end
+  end
 
   defp normalize_optional_artifact_id(nil), do: {:ok, nil}
 

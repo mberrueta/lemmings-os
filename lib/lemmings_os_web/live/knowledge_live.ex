@@ -421,7 +421,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     case Knowledge.list_scope_memories(socket.assigns.scope, opts) do
       {:ok, result} ->
         socket
-        |> assign(:entries, result.entries)
+        |> assign(:entries, decorate_memory_rows(result.entries, socket.assigns))
         |> assign(:total_count, result.total_count)
         |> assign(:offset, result.offset)
         |> assign(:limit, result.limit)
@@ -442,10 +442,21 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     {:ok, result} = Knowledge.list_all_memories(opts)
 
     socket
-    |> assign(:entries, result.entries)
+    |> assign(:entries, decorate_memory_rows(result.entries, socket.assigns))
     |> assign(:total_count, result.total_count)
     |> assign(:offset, result.offset)
     |> assign(:limit, result.limit)
+  end
+
+  defp decorate_memory_rows(entries, assigns) do
+    Enum.map(entries, fn row ->
+      memory = row.memory
+
+      row
+      |> Map.put(:city, Map.get(assigns.city_lookup, memory.city_id))
+      |> Map.put(:department, Map.get(assigns.department_lookup, memory.department_id))
+      |> Map.put(:lemming, Map.get(assigns.lemming_lookup, memory.lemming_id))
+    end)
   end
 
   defp resolve_scope(scope_options, "world", scope_id) do

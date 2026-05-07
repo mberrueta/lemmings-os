@@ -143,10 +143,6 @@ defmodule LemmingsOs.Knowledge.SourceFile do
     |> unique_constraint(:knowledge_item_id,
       name: :knowledge_source_files_knowledge_item_id_index
     )
-    |> check_constraint(:size_bytes, name: :knowledge_source_files_size_bytes_positive_check)
-    |> check_constraint(:source_file_type, name: :knowledge_source_files_source_file_type_check)
-    |> check_constraint(:extraction_status, name: :knowledge_source_files_extraction_status_check)
-    |> check_constraint(:indexing_status, name: :knowledge_source_files_indexing_status_check)
   end
 
   @doc """

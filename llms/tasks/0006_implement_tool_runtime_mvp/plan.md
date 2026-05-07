@@ -698,7 +698,7 @@ These items must not be implemented as part of this PR.
 
 ### Changes Made
 
-- Replaced the brief-only file with an implementation-ready staff-level plan
+- Replaced the brief-only file with an implementation-ready detailed plan
 - Validated the plan against the current runtime executor, session LiveView, tools registry placeholder, telemetry helper, and activity log patterns
 - Added explicit durable tool execution requirements and spawn-time work area creation requirements
 - Clarified how the executor, Tool Runtime, PubSub, and session transcript should interact without reopening broader architecture

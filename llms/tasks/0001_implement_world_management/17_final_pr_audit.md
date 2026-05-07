@@ -9,11 +9,11 @@
 
 ## Assigned Agent
 
-`audit-pr-elixir` - Staff-level PR reviewer for Elixir/Phoenix backends.
+`audit-pr-elixir` - Senior PR reviewer for Elixir/Phoenix backends.
 
 ## Agent Invocation
 
-Use `audit-pr-elixir` to perform the final staff-level review of the completed branch.
+Use `audit-pr-elixir` to perform the final technical review of the completed branch.
 
 ## Objective
 

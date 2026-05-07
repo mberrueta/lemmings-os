@@ -180,8 +180,8 @@ Feature documentation:
 
 - [Artifacts](docs/features/artifacts.md) — promoted durable file references,
   managed local storage, lifecycle/state model, and safe download/promotion flows.
-- [Knowledge Memories](docs/features/knowledge.md) — scoped memory notes,
-  operator CRUD, Lemming-created memories, and `knowledge.store` behavior.
+- [Knowledge](docs/features/knowledge.md) — scoped memories, source-file
+  indexing/retrieval, operator workflows, and Knowledge runtime tools.
 - [Tools Catalog](docs/features/tools.md) — human-readable runtime tool catalog, including Filesystem, Web, Knowledge, and Documents tools.
 - [Secret Bank](docs/features/secret_bank.md) — encrypted local runtime secrets,
   hierarchy resolution, env fallback, write-only operator flows, and safe audit
@@ -278,13 +278,13 @@ export LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER=openai_compatible
 export LEMMINGS_KNOWLEDGE_EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
 export LEMMINGS_KNOWLEDGE_EMBEDDING_MODEL=nomic-embed-text
 export LEMMINGS_KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
-export OPENAI_API_KEY=dummy
 ```
 
 Notes:
 
-- `OPENAI_API_KEY` is required by the current OpenAI-compatible embedder config path.
-  Ollama typically ignores this header, so `dummy` is acceptable.
+- Local Ollama does not require an embedding API key. For hosted providers that
+  require authorization, set `LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY_ENV` or
+  `LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY` in `.envrc.custom`.
 - Keep dimensions aligned with the current MVP default (`1536`) to avoid
   dimension validation failures in RAG indexing.
 

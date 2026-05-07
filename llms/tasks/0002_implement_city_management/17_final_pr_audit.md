@@ -9,7 +9,7 @@
 
 ## Assigned Agent
 
-`audit-pr-elixir` - Staff-level PR reviewer for Elixir/Phoenix backends.
+`audit-pr-elixir` - Senior PR reviewer for Elixir/Phoenix backends.
 
 ## Agent Invocation
 
@@ -99,4 +99,3 @@ Operator docs and ADRs accurately reflect the implemented system. No mismatches 
 ### Ready for Human Review
 - [x] APPROVE -- branch is ready
 - [ ] REQUEST_CHANGES -- issues must be fixed first
-

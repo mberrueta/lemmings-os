@@ -27,24 +27,10 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeSourceFilesAndChunks do
       timestamps(type: :utc_datetime)
     end
 
-    create index(:knowledge_source_files, [:knowledge_item_id])
+    create unique_index(:knowledge_source_files, [:knowledge_item_id])
     create index(:knowledge_source_files, [:source_file_type])
     create index(:knowledge_source_files, [:extraction_status])
     create index(:knowledge_source_files, [:indexing_status])
-
-    create constraint(
-             :knowledge_source_files,
-             :knowledge_source_files_extraction_status_check,
-             check:
-               "extraction_status in ('pending', 'extracting', 'ready', 'needs_ocr', 'failed', 'no_content')"
-           )
-
-    create constraint(
-             :knowledge_source_files,
-             :knowledge_source_files_indexing_status_check,
-             check:
-               "indexing_status in ('pending', 'chunking', 'embedding', 'ready', 'needs_ocr', 'failed', 'archived', 'deleted')"
-           )
 
     create table(:knowledge_source_file_chunks, primary_key: false) do
       add :id, :binary_id, primary_key: true
@@ -69,11 +55,11 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeSourceFilesAndChunks do
       timestamps(type: :utc_datetime)
     end
 
-    create index(:knowledge_source_file_chunks, [:knowledge_source_file_id, :chunk_index],
+    create unique_index(:knowledge_source_file_chunks, [:knowledge_source_file_id, :chunk_index],
              name: :knowledge_source_file_chunks_source_file_chunk_index_index
            )
 
-    create index(:knowledge_source_file_chunks, [:chunk_ref])
+    create unique_index(:knowledge_source_file_chunks, [:chunk_ref])
     create index(:knowledge_source_file_chunks, [:knowledge_item_id])
     create index(:knowledge_source_file_chunks, [:knowledge_source_file_id, :chunk_index, :id])
 
@@ -122,9 +108,6 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeSourceFilesAndChunks do
          )
 
     drop table(:knowledge_source_file_chunks)
-
-    drop constraint(:knowledge_source_files, :knowledge_source_files_indexing_status_check)
-    drop constraint(:knowledge_source_files, :knowledge_source_files_extraction_status_check)
 
     drop index(:knowledge_source_files, [:indexing_status])
     drop index(:knowledge_source_files, [:extraction_status])

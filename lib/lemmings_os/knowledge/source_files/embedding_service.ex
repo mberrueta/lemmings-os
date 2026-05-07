@@ -90,15 +90,10 @@ defmodule LemmingsOs.Knowledge.SourceFiles.EmbeddingService do
       end
 
     with {:ok, base_url} <- present(config.base_url),
-         {:ok, model} <- present(config.model),
-         {:ok, api_key} <- present(api_key) do
+         {:ok, model} <- present(config.model) do
       {:ok,
-       [
-         base_url: base_url,
-         model: model,
-         api_key: api_key,
-         timeout_ms: config.timeout_ms
-       ]}
+       [base_url: base_url, model: model, timeout_ms: config.timeout_ms]
+       |> maybe_put_api_key(api_key)}
     else
       _ -> {:error, :provider_not_configured}
     end
@@ -132,6 +127,11 @@ defmodule LemmingsOs.Knowledge.SourceFiles.EmbeddingService do
   end
 
   defp fetch_env(_env_var), do: nil
+
+  defp maybe_put_api_key(opts, value) when is_binary(value) and value != "",
+    do: Keyword.put(opts, :api_key, value)
+
+  defp maybe_put_api_key(opts, _value), do: opts
 
   defp present(value) when is_binary(value) and value != "", do: {:ok, value}
   defp present(_value), do: :error

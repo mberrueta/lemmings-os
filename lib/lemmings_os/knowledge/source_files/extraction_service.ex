@@ -27,29 +27,44 @@ defmodule LemmingsOs.Knowledge.SourceFiles.ExtractionService do
   """
   @spec extract_url(String.t()) :: extraction_success() | extraction_error()
   def extract_url(url) when is_binary(url) do
-    case ToolsRunner.run_capability(:trafilatura_extract_url, [url]) do
-      {:ok, %{exit_status: 0, stdout: text}} when is_binary(text) ->
-        trimmed = String.trim(text)
-
-        if trimmed == "",
-          do: {:error, :empty},
-          else: {:ok, %{text: clamp_text(trimmed), method: "trafilatura"}}
-
-      {:ok, _result} ->
-        {:error, :failed}
-
-      {:error, :timeout} ->
-        {:error, :timeout}
-
-      {:error, :unsupported_capability} ->
-        {:error, :unsupported}
-
-      {:error, _reason} ->
-        {:error, :failed}
+    with {:ok, validated_url} <- validate_extract_url(url) do
+      :trafilatura_extract_url
+      |> ToolsRunner.run_capability([validated_url])
+      |> normalize_url_extraction_result()
     end
   end
 
   def extract_url(_url), do: {:error, :failed}
+
+  defp validate_extract_url(url) do
+    trimmed = String.trim(url)
+    uri = URI.parse(trimmed)
+
+    cond do
+      trimmed == "" -> {:error, :unsupported}
+      uri.scheme not in ["http", "https"] -> {:error, :unsupported}
+      not is_binary(uri.host) or uri.host == "" -> {:error, :unsupported}
+      true -> {:ok, trimmed}
+    end
+  end
+
+  defp normalize_url_extraction_result({:ok, %{exit_status: 0, stdout: text}})
+       when is_binary(text) do
+    text
+    |> String.trim()
+    |> url_text_result()
+  end
+
+  defp normalize_url_extraction_result({:ok, _result}), do: {:error, :failed}
+  defp normalize_url_extraction_result({:error, :timeout}), do: {:error, :timeout}
+
+  defp normalize_url_extraction_result({:error, :unsupported_capability}),
+    do: {:error, :unsupported}
+
+  defp normalize_url_extraction_result({:error, _reason}), do: {:error, :failed}
+
+  defp url_text_result(""), do: {:error, :empty}
+  defp url_text_result(text), do: {:ok, %{text: clamp_text(text), method: "trafilatura"}}
 
   defp normalize_storage_result({:ok, result}), do: result
   defp normalize_storage_result({:error, :not_found}), do: {:error, :source_not_found}

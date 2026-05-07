@@ -176,9 +176,6 @@
             id={"knowledge-memory-row-#{row.memory.id}"}
             class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
           >
-            <% city = Map.get(@city_lookup, row.memory.city_id) %>
-            <% department = Map.get(@department_lookup, row.memory.department_id) %>
-            <% lemming = Map.get(@lemming_lookup, row.memory.lemming_id) %>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
               <div class="min-w-0">
                 <h3
@@ -224,35 +221,35 @@
 
                 <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
                   <.link
-                    :if={city}
+                    :if={row.city}
                     id={"knowledge-memory-city-link-#{row.memory.id}"}
-                    navigate={~p"/cities?#{%{city: city.id, tab: "knowledge"}}"}
+                    navigate={~p"/cities?#{%{city: row.city.id, tab: "knowledge"}}"}
                     target={if @embedded?, do: "_top", else: nil}
                     class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
                   >
-                    city: {city.slug}
+                    city: {row.city.slug}
                   </.link>
                   <.link
-                    :if={department}
+                    :if={row.department}
                     id={"knowledge-memory-department-link-#{row.memory.id}"}
                     navigate={
-                      ~p"/departments?#{%{city: department.city_id, dept: department.id, tab: "knowledge"}}"
+                      ~p"/departments?#{%{city: row.department.city_id, dept: row.department.id, tab: "knowledge"}}"
                     }
                     target={if @embedded?, do: "_top", else: nil}
                     class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
                   >
-                    department: {department.slug}
+                    department: {row.department.slug}
                   </.link>
                   <.link
-                    :if={lemming}
+                    :if={row.lemming}
                     id={"knowledge-memory-lemming-link-#{row.memory.id}"}
                     navigate={
-                      ~p"/lemmings/#{lemming.id}?#{%{city: lemming.city_id, dept: lemming.department_id, tab: "knowledge"}}"
+                      ~p"/lemmings/#{row.lemming.id}?#{%{city: row.lemming.city_id, dept: row.lemming.department_id, tab: "knowledge"}}"
                     }
                     target={if @embedded?, do: "_top", else: nil}
                     class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
                   >
-                    lemming: {lemming.slug}
+                    lemming: {row.lemming.slug}
                   </.link>
                 </div>
               </div>
@@ -400,6 +397,8 @@
                   type="button"
                   phx-click="cancel_source_file_upload"
                   phx-value-ref={entry.ref}
+                  aria-label={"Remove selected file #{entry.client_name}"}
+                  title={"Remove #{entry.client_name}"}
                   class="text-zinc-500 transition hover:text-red-400"
                 >
                   Remove
@@ -532,6 +531,8 @@
                   type="button"
                   phx-click="edit_source_file"
                   phx-value-id={source_file.id}
+                  aria-label="Edit source file metadata"
+                  title="Edit source file metadata"
                   class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
                 >
                   <.icon name="hero-pencil-square" class="size-4" />
@@ -541,6 +542,8 @@
                   type="button"
                   phx-click="retry_source_file"
                   phx-value-id={source_file.id}
+                  aria-label="Retry source file indexing"
+                  title="Retry source file indexing"
                   class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
                 >
                   <.icon name="hero-arrow-path" class="size-4" />
@@ -551,6 +554,8 @@
                   phx-click="archive_source_file"
                   phx-value-id={source_file.id}
                   data-confirm="Archive this source file?"
+                  aria-label="Archive source file"
+                  title="Archive source file"
                   class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-red-400 hover:text-red-300"
                 >
                   <.icon name="hero-archive-box" class="size-4" />

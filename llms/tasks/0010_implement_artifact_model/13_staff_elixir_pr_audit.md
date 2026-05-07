@@ -5,10 +5,10 @@
 - **Approved**: [x] Human sign-off
 
 ## Assigned Agent
-`audit-pr-elixir` - Staff-level PR reviewer for Elixir/Phoenix correctness, design quality, security, performance, logging, and tests.
+`audit-pr-elixir` - Senior PR reviewer for Elixir/Phoenix correctness, design quality, security, performance, logging, and tests.
 
 ## Agent Invocation
-Act as `audit-pr-elixir`. Perform a staff-level Elixir/Phoenix review of the full Artifact implementation and implement focused fixes for confirmed findings.
+Act as `audit-pr-elixir`. Perform a thorough Elixir/Phoenix review of the full Artifact implementation and implement focused fixes for confirmed findings.
 
 ## Objective
 Catch correctness, design, scope, performance, logging, and test-quality issues before release validation, explicitly checking constitution and Elixir style compliance.
@@ -71,7 +71,7 @@ After agent completes:
 
 ## Execution Summary
 ### Summary
-- Staff-level audit completed across Artifact context, promotion/storage, download controller, LiveView integration, migration, and artifact-specific tests.
+- Final audit completed across Artifact context, promotion/storage, download controller, LiveView integration, migration, and artifact-specific tests.
 - One **medium** issue was confirmed and fixed in-scope.
 - No blockers were found after fixes; all relevant checks are green.
 - Merge recommendation for this task scope: **APPROVE**.
