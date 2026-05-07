@@ -99,7 +99,8 @@ Open: [http://localhost:4000](http://localhost:4000) by default, or the port fro
 ### Docker
 
 ```bash
-docker compose up --build
+cp docker/compose/.env.example docker/compose/.env
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml up --build
 ```
 
 Open: [http://localhost:4000](http://localhost:4000) by default, or the port from `PORT` / `MIX_PORT`.

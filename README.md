@@ -222,9 +222,9 @@ Stopping a city container causes it to go stale in the UI after the heartbeat th
 ### Option A — you already have Postgres running
 
 ```bash
-cp .env.example .env
-# edit .env: set SECRET_KEY_BASE and DATABASE_URL pointing at your instance
-docker compose up --build
+cp docker/compose/.env.example docker/compose/.env
+# edit docker/compose/.env: set SECRET_KEY_BASE and DATABASE_URL pointing at your instance
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml up --build
 ```
 
 The `db` container is **not started** — it is gated behind the `db` profile and only runs when explicitly requested.
@@ -232,16 +232,16 @@ The `db` container is **not started** — it is gated behind the `db` profile an
 ### Option B — let Docker manage Postgres
 
 ```bash
-cp .env.example .env
-# edit .env: set SECRET_KEY_BASE only
-docker compose --profile db up --build
+cp docker/compose/.env.example docker/compose/.env
+# edit docker/compose/.env: set SECRET_KEY_BASE only
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml --profile db up --build
 ```
 
 ### Stale city demo
 
 ```bash
-docker compose stop city_a   # heartbeat stops → city_a goes stale after ~90s
-docker compose start city_a  # heartbeat resumes → city_a becomes alive again
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml stop city_a   # heartbeat stops → city_a goes stale after ~90s
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml start city_a  # heartbeat resumes → city_a becomes alive again
 ```
 
 The world UI is available at `http://localhost:${PHX_PORT:-4000}`.

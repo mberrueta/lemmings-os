@@ -1,9 +1,9 @@
-defmodule LemmingsOs.Knowledge.SourceFileStorageTest do
+defmodule LemmingsOs.Knowledge.SourceFileStorageServiceTest do
   use ExUnit.Case, async: false
 
-  alias LemmingsOs.Knowledge.SourceFileStorage
+  alias LemmingsOs.Knowledge.SourceFileStorageService
 
-  doctest SourceFileStorage
+  doctest SourceFileStorageService
 
   setup do
     old_storage = Application.get_env(:lemmings_os, :knowledge_source_file_storage)
@@ -42,7 +42,12 @@ defmodule LemmingsOs.Knowledge.SourceFileStorageTest do
       :ok = File.write(source_path, "hello\n")
 
       assert {:ok, stored} =
-               SourceFileStorage.put(world_id, knowledge_item_id, source_path, "policy.txt")
+               SourceFileStorageService.put(
+                 world_id,
+                 knowledge_item_id,
+                 source_path,
+                 "policy.txt"
+               )
 
       assert stored.storage_ref ==
                "local://knowledge_source_files/#{world_id}/#{knowledge_item_id}/policy.txt"
@@ -60,10 +65,20 @@ defmodule LemmingsOs.Knowledge.SourceFileStorageTest do
       :ok = File.write(source_path, "hello")
 
       assert {:error, :invalid_filename} =
-               SourceFileStorage.put(world_id, knowledge_item_id, source_path, "../secret.txt")
+               SourceFileStorageService.put(
+                 world_id,
+                 knowledge_item_id,
+                 source_path,
+                 "../secret.txt"
+               )
 
       assert {:error, :invalid_filename} =
-               SourceFileStorage.put(world_id, knowledge_item_id, source_path, "nested/file.txt")
+               SourceFileStorageService.put(
+                 world_id,
+                 knowledge_item_id,
+                 source_path,
+                 "nested/file.txt"
+               )
     end
 
     test "enforces max file size (10 MB default)", %{root_path: root_path} do
@@ -80,7 +95,12 @@ defmodule LemmingsOs.Knowledge.SourceFileStorageTest do
       )
 
       assert {:error, :file_too_large} =
-               SourceFileStorage.put(world_id, knowledge_item_id, source_path, "payload.bin")
+               SourceFileStorageService.put(
+                 world_id,
+                 knowledge_item_id,
+                 source_path,
+                 "payload.bin"
+               )
     end
   end
 
@@ -93,9 +113,9 @@ defmodule LemmingsOs.Knowledge.SourceFileStorageTest do
       :ok = File.write(source_path, "source-content")
 
       {:ok, stored} =
-        SourceFileStorage.put(world_id, knowledge_item_id, source_path, "policy.txt")
+        SourceFileStorageService.put(world_id, knowledge_item_id, source_path, "policy.txt")
 
-      assert {:ok, "source-content"} = SourceFileStorage.read_private(stored.storage_ref)
+      assert {:ok, "source-content"} = SourceFileStorageService.read_private(stored.storage_ref)
     end
 
     test "open_stream/2 and with_temp_file/2 expose private path only inside callback", %{
@@ -108,15 +128,15 @@ defmodule LemmingsOs.Knowledge.SourceFileStorageTest do
       :ok = File.write(source_path, "stream-me")
 
       {:ok, stored} =
-        SourceFileStorage.put(world_id, knowledge_item_id, source_path, "policy.txt")
+        SourceFileStorageService.put(world_id, knowledge_item_id, source_path, "policy.txt")
 
       assert {:ok, "stream-me"} =
-               SourceFileStorage.open_stream(stored.storage_ref, fn stream ->
+               SourceFileStorageService.open_stream(stored.storage_ref, fn stream ->
                  stream |> Enum.to_list() |> IO.iodata_to_binary()
                end)
 
       assert {:ok, true} =
-               SourceFileStorage.with_temp_file(stored.storage_ref, fn path ->
+               SourceFileStorageService.with_temp_file(stored.storage_ref, fn path ->
                  Path.type(path) == :absolute and String.contains?(path, root_path)
                end)
     end
@@ -134,7 +154,8 @@ defmodule LemmingsOs.Knowledge.SourceFileStorageTest do
             "local://wrong/#{world_id}/#{knowledge_item_id}/ok.txt",
             "s3://knowledge_source_files/#{world_id}/#{knowledge_item_id}/ok.txt"
           ] do
-        assert {:error, :invalid_storage_ref} = SourceFileStorage.resolve_storage_ref(storage_ref)
+        assert {:error, :invalid_storage_ref} =
+                 SourceFileStorageService.resolve_storage_ref(storage_ref)
       end
     end
   end

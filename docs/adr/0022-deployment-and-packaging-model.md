@@ -377,12 +377,12 @@ Configuration resolution occurs during release boot.
 Deployment requires the following artifacts:
 
 ```
-Dockerfile
+docker/images/app/Dockerfile
 mix release
 runtime.exs
 ```
 
-The project distributes a **reference `docker-compose.yml`** at the repo root
+The project distributes a **reference `docker/compose/docker-compose.yml`**
 that serves as the canonical local multi-City demo.
 
 Shipped compose stack:
@@ -451,7 +451,7 @@ Kubernetes can still be supported later as an optional deployment target.
   the relationship between architecture and infrastructure unambiguous.
 - Reproducible builds: the Mix Release + OCI image pipeline produces identical
   artifacts across environments.
-- Simplified self-hosting: a reference `docker-compose.yml` gives operators a
+- Simplified self-hosting: a reference `docker/compose/docker-compose.yml` gives operators a
   working stack without infrastructure expertise.
 - Container filesystem isolation reduces the blast radius if a tool process
   escapes its sandbox; the host filesystem remains inaccessible by default.
@@ -483,7 +483,7 @@ Kubernetes can still be supported later as an optional deployment target.
 - Distribution TLS should be configured using `:inet_tls_dist` with operator-
   managed certificates, and the Erlang cookie must be treated as a secret
   (injected via `RELEASE_COOKIE` env var, not committed to the repository).
-  The reference `docker-compose.yml` will document this as a required step for
+  The reference `docker/compose/docker-compose.yml` will document this as a required step for
   any non-localhost deployment.
 - The reference compose file bundles PostgreSQL for convenience. Operators who
   need managed Postgres (RDS, Supabase, etc.) substitute the `DATABASE_URL`

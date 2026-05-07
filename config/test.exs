@@ -41,6 +41,21 @@ config :lemmings_os, :knowledge_source_file_storage,
   root_path: Path.expand("../tmp/runtime/knowledge_storage", __DIR__),
   max_file_size_bytes: 10 * 1024 * 1024
 
+config :lemmings_os, :knowledge_chunking,
+  chunk_size: 1_200,
+  overlap: 200,
+  max_chunks: 500
+
+config :lemmings_os, :knowledge_tools_runner,
+  timeout_ms: 30_000,
+  max_extracted_chars: 500_000,
+  executor_module: LemmingsOs.Knowledge.SourceFiles.ToolsRunner.SystemExecutor,
+  capabilities: %{
+    markitdown_extract_file: "markitdown",
+    trafilatura_extract_url: "trafilatura",
+    pdftotext_extract_file: "pdftotext"
+  }
+
 config :lemmings_os, Oban, testing: :manual
 
 config :lemmings_os, :model_runtime,

@@ -1,4 +1,4 @@
-defmodule LemmingsOs.Knowledge.SourceFileStorage do
+defmodule LemmingsOs.Knowledge.SourceFileStorageService do
   @moduledoc """
   Local managed storage boundary for source-file Knowledge uploads.
 
@@ -35,7 +35,7 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
       iex> File.mkdir_p!(root)
       iex> Application.put_env(:lemmings_os, :knowledge_source_file_storage, backend: :local, root_path: root, max_file_size_bytes: 10 * 1024 * 1024)
       iex> :ok = File.write(source_path, "hello\\n")
-      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorage.put(world_id, knowledge_item_id, source_path, "policy.txt")
+      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorageService.put(world_id, knowledge_item_id, source_path, "policy.txt")
       iex> stored.storage_ref
       "local://knowledge_source_files/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/policy.txt"
       iex> stored.size_bytes
@@ -73,7 +73,7 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
 
       iex> world_id = "11111111-1111-4111-8111-111111111111"
       iex> knowledge_item_id = "22222222-2222-4222-8222-222222222222"
-      iex> {:ok, ref} = LemmingsOs.Knowledge.SourceFileStorage.build_storage_ref(world_id, knowledge_item_id, "policy.txt")
+      iex> {:ok, ref} = LemmingsOs.Knowledge.SourceFileStorageService.build_storage_ref(world_id, knowledge_item_id, "policy.txt")
       iex> ref
       "local://knowledge_source_files/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/policy.txt"
   """
@@ -105,7 +105,7 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
       iex> File.mkdir_p!(Path.dirname(path))
       iex> Application.put_env(:lemmings_os, :knowledge_source_file_storage, backend: :local, root_path: root, max_file_size_bytes: 10 * 1024 * 1024)
       iex> ref = "local://knowledge_source_files/\#{world_id}/\#{knowledge_item_id}/policy.txt"
-      iex> {:ok, resolved} = LemmingsOs.Knowledge.SourceFileStorage.resolve_storage_ref(ref)
+      iex> {:ok, resolved} = LemmingsOs.Knowledge.SourceFileStorageService.resolve_storage_ref(ref)
       iex> resolved == Path.join([Path.expand(root), world_id, knowledge_item_id, "policy.txt"])
       true
       iex> File.rm_rf!(root)
@@ -141,8 +141,8 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
       iex> File.mkdir_p!(root)
       iex> Application.put_env(:lemmings_os, :knowledge_source_file_storage, backend: :local, root_path: root, max_file_size_bytes: 10 * 1024 * 1024)
       iex> :ok = File.write(source_path, "read me")
-      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorage.put(world_id, knowledge_item_id, source_path, "policy.txt")
-      iex> {:ok, "read me"} = LemmingsOs.Knowledge.SourceFileStorage.read_private(stored.storage_ref)
+      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorageService.put(world_id, knowledge_item_id, source_path, "policy.txt")
+      iex> {:ok, "read me"} = LemmingsOs.Knowledge.SourceFileStorageService.read_private(stored.storage_ref)
       iex> File.rm_rf!(root)
       iex> if old_storage, do: Application.put_env(:lemmings_os, :knowledge_source_file_storage, old_storage), else: Application.delete_env(:lemmings_os, :knowledge_source_file_storage)
       :ok
@@ -174,9 +174,9 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
       iex> File.mkdir_p!(root)
       iex> Application.put_env(:lemmings_os, :knowledge_source_file_storage, backend: :local, root_path: root, max_file_size_bytes: 10 * 1024 * 1024)
       iex> :ok = File.write(source_path, "stream me")
-      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorage.put(world_id, knowledge_item_id, source_path, "policy.txt")
+      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorageService.put(world_id, knowledge_item_id, source_path, "policy.txt")
       iex> {:ok, "stream me"} =
-      ...>   LemmingsOs.Knowledge.SourceFileStorage.open_stream(stored.storage_ref, fn stream ->
+      ...>   LemmingsOs.Knowledge.SourceFileStorageService.open_stream(stored.storage_ref, fn stream ->
       ...>     stream |> Enum.to_list() |> IO.iodata_to_binary()
       ...>   end)
       iex> File.rm_rf!(root)
@@ -216,9 +216,9 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
       iex> File.mkdir_p!(root)
       iex> Application.put_env(:lemmings_os, :knowledge_source_file_storage, backend: :local, root_path: root, max_file_size_bytes: 10 * 1024 * 1024)
       iex> :ok = File.write(source_path, "private path")
-      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorage.put(world_id, knowledge_item_id, source_path, "policy.txt")
+      iex> {:ok, stored} = LemmingsOs.Knowledge.SourceFileStorageService.put(world_id, knowledge_item_id, source_path, "policy.txt")
       iex> {:ok, true} =
-      ...>   LemmingsOs.Knowledge.SourceFileStorage.with_temp_file(stored.storage_ref, fn path ->
+      ...>   LemmingsOs.Knowledge.SourceFileStorageService.with_temp_file(stored.storage_ref, fn path ->
       ...>     Path.type(path) == :absolute and String.contains?(path, root)
       ...>   end)
       iex> File.rm_rf!(root)
@@ -245,7 +245,7 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
       iex> old_storage = Application.get_env(:lemmings_os, :knowledge_source_file_storage)
       iex> root = Path.join(System.tmp_dir!(), "lemmings_source_file_storage_doctest_root")
       iex> Application.put_env(:lemmings_os, :knowledge_source_file_storage, backend: :local, root_path: root, max_file_size_bytes: 10 * 1024 * 1024)
-      iex> LemmingsOs.Knowledge.SourceFileStorage.root_path()
+      iex> LemmingsOs.Knowledge.SourceFileStorageService.root_path()
       Path.expand(root)
       iex> if old_storage, do: Application.put_env(:lemmings_os, :knowledge_source_file_storage, old_storage), else: Application.delete_env(:lemmings_os, :knowledge_source_file_storage)
       :ok
@@ -265,7 +265,7 @@ defmodule LemmingsOs.Knowledge.SourceFileStorage do
 
       iex> old_storage = Application.get_env(:lemmings_os, :knowledge_source_file_storage)
       iex> Application.put_env(:lemmings_os, :knowledge_source_file_storage, backend: :local, root_path: "/tmp/source-files", max_file_size_bytes: 1234)
-      iex> LemmingsOs.Knowledge.SourceFileStorage.max_file_size_bytes()
+      iex> LemmingsOs.Knowledge.SourceFileStorageService.max_file_size_bytes()
       1234
       iex> if old_storage, do: Application.put_env(:lemmings_os, :knowledge_source_file_storage, old_storage), else: Application.delete_env(:lemmings_os, :knowledge_source_file_storage)
       :ok

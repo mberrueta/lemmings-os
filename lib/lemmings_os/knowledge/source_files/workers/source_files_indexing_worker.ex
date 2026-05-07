@@ -1,4 +1,4 @@
-defmodule LemmingsOs.Knowledge.SourceFiles.IndexingWorker do
+defmodule LemmingsOs.Knowledge.SourceFiles.Workers.SourceFilesIndexingWorker do
   @moduledoc """
   Oban worker placeholder for the source-file indexing lifecycle.
 
@@ -8,12 +8,14 @@ defmodule LemmingsOs.Knowledge.SourceFiles.IndexingWorker do
   """
 
   use Oban.Worker, queue: :knowledge_indexing, max_attempts: 3
+  alias LemmingsOs.Knowledge
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"source_file_id" => source_file_id}})
       when is_binary(source_file_id) do
-    # TODO: Implement source-file indexing lifecycle: extract, chunk, embed, mark ready,
-    # mark failed, or mark needs_ocr. This intentionally raises until Task 04/05 wiring lands.
-    raise "source-file indexing worker is not implemented yet"
+    case Knowledge.run_source_file_indexing(source_file_id) do
+      :ok -> :ok
+      {:error, :not_found} -> :discard
+    end
   end
 end

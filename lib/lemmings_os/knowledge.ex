@@ -14,6 +14,11 @@ defmodule LemmingsOs.Knowledge do
   alias LemmingsOs.Events
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.SourceFile
+  alias LemmingsOs.Knowledge.SourceFileChunk
+  alias LemmingsOs.Knowledge.SourceFiles.ChunkingService
+  alias LemmingsOs.Knowledge.SourceFiles.ExtractionService
+  alias LemmingsOs.Knowledge.SourceFiles.Workers.SourceFilesIndexingWorker
   alias LemmingsOs.LemmingInstances.ToolExecution
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
@@ -357,6 +362,166 @@ defmodule LemmingsOs.Knowledge do
     KnowledgeItem.user_update_changeset(knowledge_item, attrs)
   end
 
+  @doc """
+  Creates a source-file knowledge item and enqueues non-blocking indexing.
+  """
+  @spec create_source_file(scope(), map()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch | :invalid_attrs}
+  def create_source_file(scope, attrs) when is_map(attrs) do
+    with {:ok, scope_data} <- scope_data(scope),
+         :ok <- validate_requested_scope(attrs, scope_data),
+         {:ok, knowledge_item_attrs, source_file_attrs} <-
+           source_file_create_attrs(attrs, scope_data) do
+      multi =
+        Ecto.Multi.new()
+        |> Ecto.Multi.insert(
+          :knowledge_item,
+          KnowledgeItem.changeset(%KnowledgeItem{}, knowledge_item_attrs)
+        )
+        |> Ecto.Multi.insert(:source_file, fn %{knowledge_item: knowledge_item} ->
+          SourceFile.changeset(
+            %SourceFile{},
+            Map.put(source_file_attrs, :knowledge_item_id, knowledge_item.id)
+          )
+        end)
+        |> Oban.insert(:index_job, fn %{source_file: source_file} ->
+          SourceFilesIndexingWorker.new(%{"source_file_id" => source_file.id})
+        end)
+
+      case Repo.transaction(multi) do
+        {:ok, %{knowledge_item: knowledge_item, source_file: source_file}} ->
+          {:ok, %{knowledge_item: knowledge_item, source_file: source_file}}
+
+        {:error, _step, reason, _changes_so_far} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  def create_source_file(_scope, _attrs), do: {:error, :invalid_attrs}
+
+  @doc """
+  Lists source-file rows local to the provided scope.
+  """
+  @spec list_source_files(scope(), keyword()) :: [SourceFile.t()]
+  def list_source_files(scope, opts \\ []) when is_list(opts) do
+    case scope_data(scope) do
+      {:ok, scope_data} ->
+        status = Keyword.get(opts, :status)
+
+        SourceFile
+        |> join(:inner, [source_file], knowledge_item in KnowledgeItem,
+          on: knowledge_item.id == source_file.knowledge_item_id
+        )
+        |> where([_source_file, knowledge_item], knowledge_item.world_id == ^scope_data.world_id)
+        |> maybe_scope_eq(:city_id, scope_data.city_id)
+        |> maybe_scope_eq(:department_id, scope_data.department_id)
+        |> maybe_scope_eq(:lemming_id, scope_data.lemming_id)
+        |> maybe_filter_source_file_status(status)
+        |> order_by([source_file, _knowledge_item],
+          desc: source_file.inserted_at,
+          desc: source_file.id
+        )
+        |> Repo.all()
+        |> Repo.preload(:knowledge_item)
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  @doc """
+  Archives a source file and excludes it from indexing/retrieval candidates.
+  """
+  @spec archive_source_file(scope(), SourceFile.t()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
+  def archive_source_file(scope, %SourceFile{} = source_file) do
+    with {:ok, scope_data} <- scope_data(scope),
+         %SourceFile{knowledge_item: %KnowledgeItem{} = knowledge_item} <-
+           Repo.preload(source_file, :knowledge_item),
+         :ok <- validate_exact_scope(knowledge_item, scope_data) do
+      set_source_file_status(source_file, :archived)
+    else
+      {:error, _reason} = error -> error
+      _other -> {:error, :scope_mismatch}
+    end
+  end
+
+  @doc """
+  Retries a source-file indexing run by resetting lifecycle and re-enqueueing work.
+  """
+  @spec retry_source_file_indexing(scope(), SourceFile.t()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
+  def retry_source_file_indexing(scope, %SourceFile{} = source_file) do
+    with {:ok, scope_data} <- scope_data(scope),
+         %SourceFile{knowledge_item: %KnowledgeItem{} = knowledge_item} = source_file <-
+           Repo.preload(source_file, :knowledge_item),
+         :ok <- validate_exact_scope(knowledge_item, scope_data) do
+      multi =
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete_all(
+          :delete_chunks,
+          from(chunk in SourceFileChunk, where: chunk.knowledge_source_file_id == ^source_file.id)
+        )
+        |> Ecto.Multi.update(
+          :knowledge_item,
+          KnowledgeItem.changeset(knowledge_item, %{status: "pending_index"})
+        )
+        |> Ecto.Multi.update(
+          :source_file,
+          SourceFile.changeset(source_file, %{
+            extraction_status: "pending",
+            indexing_status: "pending",
+            failure_reason: nil,
+            extracted_at: nil,
+            indexed_at: nil
+          })
+        )
+        |> Oban.insert(:index_job, fn %{source_file: refreshed_source_file} ->
+          SourceFilesIndexingWorker.new(%{"source_file_id" => refreshed_source_file.id})
+        end)
+
+      case Repo.transaction(multi) do
+        {:ok, %{knowledge_item: updated_knowledge_item, source_file: updated_source_file}} ->
+          {:ok, %{knowledge_item: updated_knowledge_item, source_file: updated_source_file}}
+
+        {:error, _step, reason, _changes_so_far} ->
+          {:error, reason}
+      end
+    else
+      {:error, _reason} = error -> error
+      _other -> {:error, :scope_mismatch}
+    end
+  end
+
+  @doc """
+  Executes source-file lifecycle transitions for one indexing run.
+  """
+  @spec run_source_file_indexing(Ecto.UUID.t()) :: :ok | {:error, :not_found}
+  def run_source_file_indexing(source_file_id) when is_binary(source_file_id) do
+    case Repo.get(SourceFile, source_file_id) do
+      nil ->
+        {:error, :not_found}
+
+      %SourceFile{} = source_file ->
+        _ = set_source_file_status(source_file, :extracting)
+        continue_indexing_after_extraction(source_file)
+    end
+  end
+
+  def run_source_file_indexing(_source_file_id), do: {:error, :not_found}
+
+  @doc """
+  Returns source files that are retrieval candidates (ready-only, non-failed).
+  """
+  @spec list_ready_source_files(scope()) :: [SourceFile.t()]
+  def list_ready_source_files(scope) do
+    list_source_files(scope, status: "ready")
+  end
+
   defp apply_memory_filters(query, opts) do
     query
     |> maybe_filter_source(Keyword.get(opts, :source))
@@ -393,6 +558,290 @@ defmodule LemmingsOs.Knowledge do
   end
 
   defp maybe_filter_query(query, _value), do: query
+
+  defp maybe_filter_source_file_status(query, status) when is_binary(status) do
+    if status in KnowledgeItem.statuses() do
+      from([source_file, knowledge_item] in query,
+        where: knowledge_item.status == ^status and source_file.indexing_status == ^status
+      )
+    else
+      query
+    end
+  end
+
+  defp maybe_filter_source_file_status(query, _status), do: query
+
+  defp maybe_scope_eq(query, field, nil) when field in [:city_id, :department_id, :lemming_id] do
+    from([_source_file, knowledge_item] in query, where: is_nil(field(knowledge_item, ^field)))
+  end
+
+  defp maybe_scope_eq(query, field, value)
+       when field in [:city_id, :department_id, :lemming_id] and is_binary(value) do
+    from([_source_file, knowledge_item] in query, where: field(knowledge_item, ^field) == ^value)
+  end
+
+  defp set_source_file_status(%SourceFile{} = source_file, :extracting) do
+    set_source_file_status(source_file, "extracting", "extracting")
+  end
+
+  defp set_source_file_status(%SourceFile{} = source_file, :chunking) do
+    set_source_file_status(source_file, "chunking", "chunking")
+  end
+
+  defp set_source_file_status(%SourceFile{} = source_file, :embedding) do
+    set_source_file_status(source_file, "embedding", "embedding")
+  end
+
+  defp set_source_file_status(%SourceFile{} = source_file, :archived) do
+    set_source_file_status(source_file, "archived", "archived")
+  end
+
+  defp set_source_file_status(%SourceFile{} = source_file, :needs_ocr, failure_reason) do
+    set_source_file_status(source_file, "needs_ocr", "needs_ocr", failure_reason)
+  end
+
+  defp set_source_file_status(%SourceFile{} = source_file, :failed, failure_reason) do
+    set_source_file_status(source_file, "failed", "failed", failure_reason)
+  end
+
+  defp continue_indexing_after_extraction(%SourceFile{} = source_file) do
+    case ExtractionService.extract(source_file) do
+      {:ok, result} ->
+        _ = set_source_file_status(source_file, :chunking)
+
+        replace_source_file_chunks(source_file, result.text, result.method)
+        |> handle_chunking_result(source_file)
+
+      {:error, reason} ->
+        handle_extraction_error(source_file, reason)
+    end
+  end
+
+  defp handle_chunking_result({:ok, _chunk_count}, %SourceFile{} = source_file) do
+    _ = set_source_file_status(source_file, :embedding)
+    _ = set_source_file_status(source_file, :failed, "indexing_not_implemented")
+    :ok
+  end
+
+  defp handle_chunking_result({:error, :empty_chunks}, %SourceFile{} = source_file) do
+    _ = set_source_file_status(source_file, :failed, "extraction_empty")
+    :ok
+  end
+
+  defp handle_chunking_result({:error, _reason}, %SourceFile{} = source_file) do
+    _ = set_source_file_status(source_file, :failed, "chunking_failed")
+    :ok
+  end
+
+  defp handle_extraction_error(%SourceFile{} = source_file, :needs_ocr) do
+    _ = set_source_file_status(source_file, :needs_ocr, "needs_ocr")
+    :ok
+  end
+
+  defp handle_extraction_error(%SourceFile{} = source_file, :source_not_found) do
+    _ = set_source_file_status(source_file, :failed, "source_not_found")
+    :ok
+  end
+
+  defp handle_extraction_error(%SourceFile{} = source_file, :timeout) do
+    _ = set_source_file_status(source_file, :failed, "extraction_timeout")
+    :ok
+  end
+
+  defp handle_extraction_error(%SourceFile{} = source_file, :unsupported) do
+    _ = set_source_file_status(source_file, :failed, "extraction_unsupported")
+    :ok
+  end
+
+  defp handle_extraction_error(%SourceFile{} = source_file, :empty) do
+    _ = set_source_file_status(source_file, :failed, "extraction_empty")
+    :ok
+  end
+
+  defp handle_extraction_error(%SourceFile{} = source_file, _reason) do
+    _ = set_source_file_status(source_file, :failed, "extraction_failed")
+    :ok
+  end
+
+  defp replace_source_file_chunks(%SourceFile{} = source_file, text, extraction_method)
+       when is_binary(text) and is_binary(extraction_method) do
+    chunks =
+      ChunkingService.chunk_text(source_file.id, text, %{
+        extraction_method: extraction_method
+      })
+
+    if chunks == [] do
+      {:error, :empty_chunks}
+    else
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      rows =
+        Enum.map(chunks, fn chunk ->
+          %{
+            id: Ecto.UUID.generate(),
+            knowledge_item_id: source_file.knowledge_item_id,
+            knowledge_source_file_id: source_file.id,
+            chunk_index: chunk.chunk_index,
+            chunk_ref: chunk.chunk_ref,
+            content: chunk.content,
+            content_hash: chunk.content_hash,
+            token_count: chunk.token_count,
+            char_count: chunk.char_count,
+            metadata: chunk.metadata,
+            inserted_at: now,
+            updated_at: now
+          }
+        end)
+
+      multi =
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete_all(
+          :delete_chunks,
+          from(chunk in SourceFileChunk, where: chunk.knowledge_source_file_id == ^source_file.id)
+        )
+        |> Ecto.Multi.insert_all(:insert_chunks, SourceFileChunk, rows)
+
+      case Repo.transaction(multi) do
+        {:ok, %{insert_chunks: {count, _rows}}} -> {:ok, count}
+        {:error, _step, _reason, _changes_so_far} -> {:error, :chunking_failed}
+      end
+    end
+  end
+
+  defp set_source_file_status(
+         %SourceFile{} = source_file,
+         knowledge_status,
+         source_file_status,
+         failure_reason \\ nil
+       ) do
+    source_file = Repo.preload(source_file, :knowledge_item)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    source_file_attrs =
+      %{
+        extraction_status: extraction_status_for(source_file_status),
+        indexing_status: source_file_status,
+        failure_reason: failure_reason
+      }
+      |> maybe_put(:extracted_at, extracted_at_for(source_file_status, now))
+      |> maybe_put(:indexed_at, indexed_at_for(source_file_status, now))
+
+    multi =
+      Ecto.Multi.new()
+      |> Ecto.Multi.update(
+        :knowledge_item,
+        KnowledgeItem.changeset(source_file.knowledge_item, %{status: knowledge_status})
+      )
+      |> Ecto.Multi.update(:source_file, SourceFile.changeset(source_file, source_file_attrs))
+
+    case Repo.transaction(multi) do
+      {:ok, %{knowledge_item: updated_knowledge_item, source_file: updated_source_file}} ->
+        {:ok, %{knowledge_item: updated_knowledge_item, source_file: updated_source_file}}
+
+      {:error, _step, reason, _changes_so_far} ->
+        {:error, reason}
+    end
+  end
+
+  defp extraction_status_for(status) when status in ["ready", "chunking", "embedding"],
+    do: "ready"
+
+  defp extraction_status_for("extracting"), do: "extracting"
+  defp extraction_status_for("needs_ocr"), do: "needs_ocr"
+  defp extraction_status_for("failed"), do: "failed"
+  defp extraction_status_for("archived"), do: "ready"
+
+  defp extracted_at_for(status, now)
+       when status in ["chunking", "embedding", "ready", "archived"],
+       do: now
+
+  defp extracted_at_for(_status, _now), do: nil
+
+  defp indexed_at_for(status, now) when status in ["ready", "archived"], do: now
+  defp indexed_at_for(_status, _now), do: nil
+
+  defp source_file_create_attrs(attrs, scope_data) do
+    filename = fetch(attrs, :original_filename)
+    content_type = fetch(attrs, :content_type)
+    storage_ref = fetch(attrs, :storage_ref)
+    source_file_type = fetch(attrs, :source_file_type)
+    size_bytes = fetch(attrs, :size_bytes)
+    checksum = fetch(attrs, :checksum)
+    metadata = fetch(attrs, :metadata) || %{}
+    title = fetch(attrs, :title) || filename || "Source file"
+    content = fetch(attrs, :content) || "Source file registered for indexing."
+    tags = fetch(attrs, :tags) || []
+
+    with :ok <-
+           validate_source_file_create_inputs(
+             filename,
+             content_type,
+             storage_ref,
+             source_file_type,
+             size_bytes
+           ),
+         {:ok, artifact_id} <- normalize_optional_artifact_id(fetch(attrs, :artifact_id)) do
+      knowledge_item_attrs =
+        %{
+          world_id: scope_data.world_id,
+          city_id: scope_data.city_id,
+          department_id: scope_data.department_id,
+          lemming_id: scope_data.lemming_id,
+          kind: "source_file",
+          source: "user",
+          status: "pending_index",
+          title: title,
+          content: content,
+          tags: tags
+        }
+        |> maybe_put(:artifact_id, artifact_id)
+
+      source_file_attrs = %{
+        source_file_type: source_file_type,
+        original_filename: filename,
+        content_type: content_type,
+        size_bytes: size_bytes,
+        checksum: checksum,
+        storage_ref: storage_ref,
+        extraction_status: "pending",
+        indexing_status: "pending",
+        metadata: metadata
+      }
+
+      {:ok, knowledge_item_attrs, source_file_attrs}
+    end
+  end
+
+  defp validate_source_file_create_inputs(
+         filename,
+         content_type,
+         storage_ref,
+         source_file_type,
+         size_bytes
+       )
+       when is_binary(filename) and is_binary(content_type) and is_binary(storage_ref) and
+              is_binary(source_file_type) and is_integer(size_bytes) and size_bytes > 0,
+       do: :ok
+
+  defp validate_source_file_create_inputs(
+         _filename,
+         _content_type,
+         _storage_ref,
+         _source_file_type,
+         _size_bytes
+       ),
+       do: {:error, :invalid_attrs}
+
+  defp normalize_optional_artifact_id(nil), do: {:ok, nil}
+
+  defp normalize_optional_artifact_id(artifact_id) when is_binary(artifact_id) do
+    case Ecto.UUID.cast(artifact_id) do
+      {:ok, _uuid} -> {:ok, artifact_id}
+      :error -> {:error, :invalid_attrs}
+    end
+  end
+
+  defp normalize_optional_artifact_id(_artifact_id), do: {:error, :invalid_attrs}
 
   defp to_effective_row(%KnowledgeItem{} = knowledge_item, scope_data) do
     owner_scope = owner_scope(knowledge_item)

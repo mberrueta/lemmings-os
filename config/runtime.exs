@@ -47,6 +47,47 @@ config :lemmings_os, :knowledge_source_file_storage,
   root_path: knowledge_source_file_storage_root_path,
   max_file_size_bytes: knowledge_source_file_storage_max_file_size_bytes
 
+knowledge_chunking = Application.get_env(:lemmings_os, :knowledge_chunking, [])
+
+# Runtime overrides for source-file chunking: size, overlap, and max chunks.
+knowledge_chunk_size =
+  System.get_env("LEMMINGS_KNOWLEDGE_CHUNK_SIZE") ||
+    Keyword.get(knowledge_chunking, :chunk_size, 1_200)
+
+knowledge_chunk_overlap =
+  System.get_env("LEMMINGS_KNOWLEDGE_CHUNK_OVERLAP") ||
+    Keyword.get(knowledge_chunking, :overlap, 200)
+
+knowledge_max_chunks =
+  System.get_env("LEMMINGS_KNOWLEDGE_MAX_CHUNKS") ||
+    Keyword.get(knowledge_chunking, :max_chunks, 500)
+
+config :lemmings_os, :knowledge_chunking,
+  chunk_size: knowledge_chunk_size,
+  overlap: knowledge_chunk_overlap,
+  max_chunks: knowledge_max_chunks
+
+knowledge_tools_runner = Application.get_env(:lemmings_os, :knowledge_tools_runner, [])
+
+config :lemmings_os, :knowledge_tools_runner,
+  timeout_ms:
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_KNOWLEDGE_EXTRACTION_TIMEOUT_MS",
+      Keyword.get(knowledge_tools_runner, :timeout_ms, 30_000)
+    ),
+  max_extracted_chars:
+    LemmingsOs.Helpers.env_or_default(
+      "LEMMINGS_KNOWLEDGE_MAX_EXTRACTED_CHARS",
+      Keyword.get(knowledge_tools_runner, :max_extracted_chars, 500_000)
+    ),
+  executor_module:
+    Keyword.get(
+      knowledge_tools_runner,
+      :executor_module,
+      LemmingsOs.Knowledge.SourceFiles.ToolsRunner.SystemExecutor
+    ),
+  capabilities: Keyword.get(knowledge_tools_runner, :capabilities, %{})
+
 documents = Application.get_env(:lemmings_os, :documents, [])
 
 config :lemmings_os, :documents,

@@ -7,8 +7,9 @@ _build
 .envrc_custom
 /doc/
 
-# Docker compose env file (contains secrets)
+# Docker compose env files (contain secrets)
 .env
+docker/compose/.env
 /cover/
 /tmp/
 *.dets

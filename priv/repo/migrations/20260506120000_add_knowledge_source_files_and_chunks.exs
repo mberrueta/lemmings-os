@@ -59,7 +59,7 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeSourceFilesAndChunks do
 
       add :chunk_index, :integer, null: false
       add :chunk_ref, :string, null: false
-      add :content, :string, null: false
+      add :content, :text, null: false
       add :content_hash, :string, null: false
       add :token_count, :integer
       add :char_count, :integer, null: false
