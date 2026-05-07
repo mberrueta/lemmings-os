@@ -458,6 +458,18 @@ defmodule LemmingsOs.ModelRuntime do
     "required `url` (http/https URL string)."
   end
 
+  defp tool_argument_contract("knowledge.search") do
+    "required `query` (string); optional `kind` (must be `source_file`); optional `source_file_type` (string); optional `tags` (list or comma-separated string); optional `scope` (`world|city|department|lemming` or scoped id map); optional `top_k` (positive integer, max 20)."
+  end
+
+  defp tool_argument_contract("knowledge.read") do
+    "required `chunk_ref` (string); optional `scope` (`world|city|department|lemming` or scoped id map); optional `max_chars` (positive integer, max 8000)."
+  end
+
+  defp tool_argument_contract("knowledge.store") do
+    "required `title` and `content`; optional `tags`; optional `scope` (`world|city|department|lemming` or scoped id map). Memory-only tool: does not accept source-file fields."
+  end
+
   defp tool_argument_contract("documents.markdown_to_html") do
     "required `source_path` (WorkArea-relative `.md`); compatibility alias: `markdown_path` when `source_path` is omitted; optional `output_path` (defaults to same path with `.html`); optional `overwrite` (boolean, default `true`)."
   end

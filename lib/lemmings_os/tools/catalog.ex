@@ -39,6 +39,23 @@ defmodule LemmingsOs.Tools.Catalog do
       risk: "medium"
     },
     %{
+      id: "knowledge.search",
+      name: "Search Knowledge",
+      description:
+        "Search ready source-file knowledge chunks with scope-safe vector retrieval and optional filters.",
+      icon: "hero-magnifying-glass-circle",
+      category: "knowledge",
+      risk: "medium"
+    },
+    %{
+      id: "knowledge.read",
+      name: "Read Knowledge Chunk",
+      description: "Read bounded content from one scoped source-file chunk by chunk reference.",
+      icon: "hero-document-magnifying-glass",
+      category: "knowledge",
+      risk: "medium"
+    },
+    %{
       id: "knowledge.store",
       name: "Store Memory",
       description:
@@ -83,7 +100,7 @@ defmodule LemmingsOs.Tools.Catalog do
 
       iex> tools = LemmingsOs.Tools.Catalog.list_tools()
       iex> Enum.map(tools, & &1.id)
-      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch", "knowledge.store", "documents.markdown_to_html", "documents.print_to_pdf"]
+      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch", "knowledge.search", "knowledge.read", "knowledge.store", "documents.markdown_to_html", "documents.print_to_pdf"]
   """
   @spec list_tools() :: [tool()]
   def list_tools, do: @tools

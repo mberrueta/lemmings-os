@@ -139,6 +139,36 @@ defmodule LemmingsOs.Tools.Runtime do
   defp dispatch_tool_call(
          _world,
          instance,
+         "knowledge.search",
+         args,
+         runtime_meta,
+         _trusted_config
+       ) do
+    normalize_tool_result(
+      "knowledge.search",
+      args,
+      Knowledge.search(instance, args, runtime_meta)
+    )
+  end
+
+  defp dispatch_tool_call(
+         _world,
+         instance,
+         "knowledge.read",
+         args,
+         runtime_meta,
+         _trusted_config
+       ) do
+    normalize_tool_result(
+      "knowledge.read",
+      args,
+      Knowledge.read(instance, args, runtime_meta)
+    )
+  end
+
+  defp dispatch_tool_call(
+         _world,
+         instance,
          "knowledge.store",
          args,
          runtime_meta,

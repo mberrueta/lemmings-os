@@ -5,9 +5,11 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   import Ecto.Query, only: [from: 2]
 
   alias LemmingsOs.Events.Event
+  alias LemmingsOs.Knowledge
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.PubSub
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
   alias LemmingsOs.Tools.Runtime
@@ -19,6 +21,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
     old_allow_private_hosts = Application.fetch_env(:lemmings_os, :tools_web_allow_private_hosts)
     old_trusted_tool_config = Application.fetch_env(:lemmings_os, :tools_runtime_trusted_config)
     old_github_token = System.get_env("GITHUB_TOKEN")
+    old_embeddings = Application.get_env(:lemmings_os, :knowledge_embeddings, [])
 
     work_areas_path =
       Path.join(
@@ -28,6 +31,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
     Application.put_env(:lemmings_os, :work_areas_path, work_areas_path)
     Application.put_env(:lemmings_os, :tools_web_allow_private_hosts, true)
+    Application.put_env(:lemmings_os, :knowledge_embeddings, provider: :fake, dimensions: 1536)
     File.mkdir_p!(work_areas_path)
 
     on_exit(fn ->
@@ -40,6 +44,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       restore_env(:tools_web_allow_private_hosts, old_allow_private_hosts)
       restore_env(:tools_runtime_trusted_config, old_trusted_tool_config)
       restore_system_env("GITHUB_TOKEN", old_github_token)
+      Application.put_env(:lemmings_os, :knowledge_embeddings, old_embeddings)
 
       File.rm_rf(work_areas_path)
     end)
@@ -362,6 +367,67 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       refute Map.has_key?(event.payload, "work_area_ref")
       refute Map.has_key?(event.payload, "path")
       refute Map.has_key?(event.payload, "runtime")
+    end
+
+    test "searches ready source-file chunks with safe payload", %{
+      world: world,
+      department: department,
+      instance: instance
+    } do
+      %{chunk_ref: chunk_ref} = create_ready_source_file_chunk!(world, department, "policy")
+
+      assert {:ok, result} =
+               Runtime.execute(world, instance, "knowledge.search", %{
+                 "query" => "payment terms",
+                 "kind" => "source_file",
+                 "source_file_type" => "policy",
+                 "tags" => ["customer:acme"],
+                 "top_k" => 3
+               })
+
+      assert result.tool_name == "knowledge.search"
+      assert result.result.kind == "source_file"
+      assert result.result.scope == "lemming"
+      assert result.result.count >= 1
+      assert [%{chunk_ref: ^chunk_ref} = first | _] = result.result.results
+      assert is_float(first.score)
+      assert is_binary(first.snippet)
+      refute Map.has_key?(first, :embedding)
+      refute Map.has_key?(first, :storage_ref)
+    end
+
+    test "reads one chunk with bounded content and returns not_found safely", %{
+      world: world,
+      department: department,
+      instance: instance
+    } do
+      %{chunk_ref: chunk_ref, content: content} =
+        create_ready_source_file_chunk!(
+          world,
+          department,
+          "policy",
+          String.duplicate("abc", 2_000)
+        )
+
+      assert {:ok, result} =
+               Runtime.execute(world, instance, "knowledge.read", %{
+                 "chunk_ref" => chunk_ref,
+                 "max_chars" => 250
+               })
+
+      assert result.tool_name == "knowledge.read"
+      assert result.result.chunk_ref == chunk_ref
+      assert result.result.content_length == 250
+      assert result.result.truncated == true
+      assert String.starts_with?(content, result.result.content)
+
+      assert {:error, error} =
+               Runtime.execute(world, instance, "knowledge.read", %{
+                 "chunk_ref" => "missing-chunk-ref"
+               })
+
+      assert error.tool_name == "knowledge.read"
+      assert error.code == "tool.knowledge.not_found"
     end
   end
 
@@ -970,6 +1036,53 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
   defp restore_system_env(key, nil), do: System.delete_env(key)
   defp restore_system_env(key, value), do: System.put_env(key, value)
+
+  defp create_ready_source_file_chunk!(
+         world,
+         scope,
+         source_file_type,
+         content \\ "Policy chunk text"
+       ) do
+    {:ok, %{source_file: source_file}} =
+      Knowledge.create_source_file(scope, %{
+        source_file_type: source_file_type,
+        original_filename: "#{source_file_type}.md",
+        content_type: "text/markdown",
+        size_bytes: 1_024,
+        storage_ref:
+          "local://knowledge_source_files/#{world.id}/#{Ecto.UUID.generate()}/#{source_file_type}.md",
+        title: "Source #{source_file_type}",
+        tags: ["customer:acme"]
+      })
+
+    source_file = Repo.preload(source_file, :knowledge_item)
+
+    source_file.knowledge_item
+    |> KnowledgeItem.changeset(%{status: "ready"})
+    |> Repo.update!()
+
+    source_file
+    |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "ready"})
+    |> Repo.update!()
+
+    chunk =
+      insert(:knowledge_source_file_chunk,
+        knowledge_item: source_file.knowledge_item,
+        knowledge_source_file: source_file,
+        chunk_ref: "chunk-#{System.unique_integer([:positive])}",
+        content: content,
+        content_hash: Base.encode16(:crypto.hash(:sha256, content), case: :lower),
+        char_count: String.length(content)
+      )
+
+    {:ok, _result} =
+      Repo.query(
+        "update knowledge_source_file_chunks set embedding = $1 where id = '#{chunk.id}'::uuid",
+        [List.duplicate(0.1, 1536)]
+      )
+
+    %{chunk_ref: chunk.chunk_ref, content: content}
+  end
 
   defp fetch_map(map, key) when is_map(map) do
     Map.get(map, key) || Map.get(map, Atom.to_string(key))

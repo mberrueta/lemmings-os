@@ -456,4 +456,204 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
       assert updated_item.status == "failed"
     end
   end
+
+  describe "search_source_file_chunks/3" do
+    test "returns only ready, scope-visible chunks and applies source-file filters" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+      sibling_department = insert(:department, world: world, city: city)
+      sibling_lemming = insert(:lemming, world: world, city: city, department: sibling_department)
+      other_world = insert(:world)
+
+      local_ready = create_source_file_for(department, "policy", "local.md")
+      sibling_ready = create_source_file_for(sibling_lemming, "policy", "sibling.md")
+      cross_world_ready = create_source_file_for(other_world, "policy", "cross.md")
+      wrong_status = create_source_file_for(department, "policy", "failed.md")
+
+      local_ready =
+        local_ready
+        |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "ready"})
+        |> Repo.update!()
+        |> Repo.preload(:knowledge_item)
+
+      local_ready.knowledge_item
+      |> KnowledgeItem.changeset(%{
+        world_id: world.id,
+        city_id: city.id,
+        department_id: department.id,
+        lemming_id: nil,
+        kind: "source_file",
+        status: "ready",
+        title: "Department policy",
+        tags: ["customer:acme", "region:br"]
+      })
+      |> Repo.update!()
+
+      [local_chunk] =
+        insert_ready_chunks_with_embedding(local_ready, [
+          {"chunk-local", "Payment terms for ACME invoices"}
+        ])
+
+      sibling_ready
+      |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "ready"})
+      |> Repo.update!()
+      |> Repo.preload(:knowledge_item)
+      |> then(fn source_file ->
+        source_file.knowledge_item
+        |> KnowledgeItem.changeset(%{
+          world_id: world.id,
+          city_id: city.id,
+          department_id: sibling_department.id,
+          lemming_id: sibling_lemming.id,
+          kind: "source_file",
+          status: "ready",
+          tags: ["customer:acme"]
+        })
+        |> Repo.update!()
+      end)
+
+      _sibling_chunks =
+        insert_ready_chunks_with_embedding(sibling_ready, [{"chunk-sibling", "Sibling secret"}])
+
+      cross_world_ready
+      |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "ready"})
+      |> Repo.update!()
+      |> Repo.preload(:knowledge_item)
+      |> then(fn source_file ->
+        source_file.knowledge_item
+        |> KnowledgeItem.changeset(%{
+          world_id: other_world.id,
+          city_id: nil,
+          department_id: nil,
+          lemming_id: nil,
+          kind: "source_file",
+          status: "ready",
+          tags: ["customer:acme"]
+        })
+        |> Repo.update!()
+      end)
+
+      _cross_chunks =
+        insert_ready_chunks_with_embedding(cross_world_ready, [
+          {"chunk-cross", "Cross world data"}
+        ])
+
+      wrong_status
+      |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "failed"})
+      |> Repo.update!()
+      |> Repo.preload(:knowledge_item)
+      |> then(fn source_file ->
+        source_file.knowledge_item
+        |> KnowledgeItem.changeset(%{
+          world_id: world.id,
+          city_id: city.id,
+          department_id: department.id,
+          lemming_id: nil,
+          kind: "source_file",
+          status: "failed",
+          tags: ["customer:acme"]
+        })
+        |> Repo.update!()
+      end)
+
+      _wrong_chunks =
+        insert_ready_chunks_with_embedding(wrong_status, [{"chunk-failed", "Failed indexing row"}])
+
+      query_vector = List.duplicate(0.1, 1536)
+
+      results =
+        Knowledge.search_source_file_chunks(lemming, query_vector,
+          source_file_type: "policy",
+          tags: ["customer:acme"],
+          top_k: 5
+        )
+
+      assert [%{chunk_ref: "chunk-local"} = result] = results
+      assert result.knowledge_item_id == local_ready.knowledge_item_id
+      assert result.knowledge_source_file_id == local_ready.id
+      assert result.chunk_id == local_chunk.id
+      assert result.source_file_type == "policy"
+      assert result.scope.type == "department"
+      assert result.snippet =~ "Payment terms for ACME"
+      assert is_float(result.score)
+    end
+
+    test "respects top_k max bound" do
+      world = insert(:world)
+
+      source_file =
+        create_source_file_for(world, "company_knowledge", "topk.md")
+
+      source_file
+      |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "ready"})
+      |> Repo.update!()
+
+      source_file.knowledge_item
+      |> KnowledgeItem.changeset(%{
+        world_id: world.id,
+        city_id: nil,
+        department_id: nil,
+        lemming_id: nil,
+        kind: "source_file",
+        status: "ready",
+        tags: ["topk:test"]
+      })
+      |> Repo.update!()
+
+      chunks =
+        Enum.map(0..29, fn index ->
+          {"chunk-topk-#{index}", "Chunk #{index} content"}
+        end)
+
+      _rows = insert_ready_chunks_with_embedding(source_file, chunks)
+
+      results =
+        Knowledge.search_source_file_chunks(world, List.duplicate(0.05, 1536),
+          source_file_type: "company_knowledge",
+          tags: ["topk:test"],
+          top_k: 999
+        )
+
+      assert length(results) == 20
+    end
+  end
+
+  defp insert_ready_chunks_with_embedding(source_file, chunks) do
+    Enum.with_index(chunks)
+    |> Enum.map(fn {{chunk_ref, content}, index} ->
+      chunk =
+        insert(:knowledge_source_file_chunk,
+          knowledge_item: source_file.knowledge_item,
+          knowledge_source_file: source_file,
+          chunk_index: index,
+          chunk_ref: chunk_ref,
+          content: content,
+          content_hash: Base.encode16(:crypto.hash(:sha256, content), case: :lower),
+          char_count: String.length(content)
+        )
+
+      {:ok, _result} =
+        Repo.query(
+          "update knowledge_source_file_chunks set embedding = $1 where id = '#{chunk.id}'::uuid",
+          [List.duplicate(0.1, 1536)]
+        )
+
+      chunk
+    end)
+  end
+
+  defp create_source_file_for(scope, source_file_type, original_filename) do
+    {:ok, %{source_file: source_file}} =
+      Knowledge.create_source_file(scope, %{
+        source_file_type: source_file_type,
+        original_filename: original_filename,
+        content_type: "text/markdown",
+        size_bytes: 512,
+        storage_ref: "local://knowledge_source_files/#{Ecto.UUID.generate()}/#{original_filename}"
+      })
+
+    Repo.preload(source_file, :knowledge_item)
+  end
 end

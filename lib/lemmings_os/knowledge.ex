@@ -27,6 +27,10 @@ defmodule LemmingsOs.Knowledge do
 
   @default_limit 25
   @max_limit 100
+  @default_top_k 5
+  @max_top_k 20
+  @default_read_max_chars 4_000
+  @max_read_max_chars 8_000
 
   @type scope :: World.t() | City.t() | Department.t() | Lemming.t()
 
@@ -61,8 +65,27 @@ defmodule LemmingsOs.Knowledge do
           required(:offset) => non_neg_integer()
         }
 
+  @type source_file_chunk_search_result :: %{
+          required(:knowledge_item_id) => Ecto.UUID.t(),
+          required(:knowledge_source_file_id) => Ecto.UUID.t(),
+          required(:chunk_id) => Ecto.UUID.t(),
+          required(:chunk_ref) => String.t(),
+          required(:chunk_index) => non_neg_integer(),
+          required(:title) => String.t(),
+          required(:source_file_type) => String.t(),
+          required(:tags) => [String.t()],
+          required(:score) => float(),
+          required(:snippet) => String.t(),
+          required(:scope) => %{required(:type) => String.t()}
+        }
+
   @doc """
   Lists memories at the exact requested scope (local-only).
+
+  `opts` supports:
+  - `:source` (`"user"` or `"llm"`)
+  - `:status` (`"active"`)
+  - `:q` or `:query` (text match over title and tags)
 
   ## Examples
 
@@ -136,6 +159,13 @@ defmodule LemmingsOs.Knowledge do
   This read is intentionally unscoped and intended for operator-facing global
   memory inventory surfaces.
 
+  `opts` supports:
+  - `:source` (`"user"` or `"llm"`)
+  - `:status` (`"active"`)
+  - `:q` or `:query` (text match over title and tags)
+  - `:limit` (default `25`, max `100`)
+  - `:offset` (default `0`)
+
   ## Examples
 
       iex> {:ok, page} = LemmingsOs.Knowledge.list_all_memories(limit: 5, offset: 0)
@@ -171,6 +201,13 @@ defmodule LemmingsOs.Knowledge do
   - city: all memories in city (city + department + lemming owned)
   - department: all memories in department (department + lemming owned)
   - lemming: only lemming-owned memories
+
+  `opts` supports:
+  - `:source` (`"user"` or `"llm"`)
+  - `:status` (`"active"`)
+  - `:q` or `:query` (text match over title and tags)
+  - `:limit` (default `25`, max `100`)
+  - `:offset` (default `0`)
 
   ## Examples
 
@@ -208,6 +245,9 @@ defmodule LemmingsOs.Knowledge do
   - city sees world + city memories
   - department sees world + city + department + department lemming memories
   - lemming sees world + city + department + own lemming memories
+
+  `opts` supports:
+  - `:mode` (`:visible` default, or `:local`)
 
   ## Examples
 
@@ -271,6 +311,17 @@ defmodule LemmingsOs.Knowledge do
   - `status = "active"`
 
   Optional creator metadata can be passed via `opts[:creator]`.
+
+  `opts` supports:
+  - `:creator` map:
+    - `:creator_type`
+    - `:creator_id`
+    - `:creator_lemming_id`
+    - `:creator_lemming_instance_id`
+    - `:creator_tool_execution_id`
+  - `:source` (validated but currently forced by runtime defaults)
+  - `:status` (validated but currently forced by runtime defaults)
+  - `:kind` (validated but currently forced by runtime defaults)
 
   ## Examples
 
@@ -365,6 +416,11 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Creates a source-file knowledge item and enqueues non-blocking indexing.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.create_source_file(%{}, %{})
+      {:error, :invalid_scope}
   """
   @spec create_source_file(scope(), map()) ::
           {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
@@ -404,6 +460,14 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Lists source-file rows local to the provided scope.
+
+  `opts` supports:
+  - `:status` (source-file lifecycle status; matches both knowledge and source-file status fields)
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.list_source_files(%{})
+      []
   """
   @spec list_source_files(scope(), keyword()) :: [SourceFile.t()]
   def list_source_files(scope, opts \\ []) when is_list(opts) do
@@ -434,6 +498,11 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Archives a source file and excludes it from indexing/retrieval candidates.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.archive_source_file(%{}, %LemmingsOs.Knowledge.SourceFile{})
+      {:error, :invalid_scope}
   """
   @spec archive_source_file(scope(), SourceFile.t()) ::
           {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
@@ -452,6 +521,11 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Retries a source-file indexing run by resetting lifecycle and re-enqueueing work.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.retry_source_file_indexing(%{}, %LemmingsOs.Knowledge.SourceFile{})
+      {:error, :invalid_scope}
   """
   @spec retry_source_file_indexing(scope(), SourceFile.t()) ::
           {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
@@ -500,6 +574,11 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Executes source-file lifecycle transitions for one indexing run.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.run_source_file_indexing(Ecto.UUID.generate())
+      {:error, :not_found}
   """
   @spec run_source_file_indexing(Ecto.UUID.t()) :: :ok | {:error, :not_found}
   def run_source_file_indexing(source_file_id) when is_binary(source_file_id) do
@@ -517,10 +596,177 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Returns source files that are retrieval candidates (ready-only, non-failed).
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.list_ready_source_files(%{})
+      []
   """
   @spec list_ready_source_files(scope()) :: [SourceFile.t()]
   def list_ready_source_files(scope) do
     list_source_files(scope, status: "ready")
+  end
+
+  @doc """
+  Performs scope-safe vector retrieval over ready source-file chunks.
+
+  `opts` supports:
+  - `:source_file_type` (must be one of `LemmingsOs.Knowledge.SourceFile.types/0`)
+  - `:tags` (list of required tags; containment match)
+  - `:top_k` (result cap, default `5`, max `20`)
+  - `:snippet_length` (snippet char cap, default `240`, max `1000`)
+
+  Returns ranked chunk rows with safe metadata for retrieval surfaces:
+  - `knowledge_item_id`, `knowledge_source_file_id`, `chunk_id`, `chunk_ref`, `chunk_index`
+  - `title`, `source_file_type`, `tags`, `score`, `snippet`
+  - `scope` (`%{type: "world" | "city" | "department" | "lemming"}`)
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.search_source_file_chunks(%{}, [0.1, 0.2], top_k: 5)
+      []
+  """
+  @spec search_source_file_chunks(scope(), [number()], keyword()) ::
+          [source_file_chunk_search_result()]
+  def search_source_file_chunks(scope, query_embedding, opts \\ [])
+
+  def search_source_file_chunks(scope, query_embedding, opts)
+      when is_list(query_embedding) and is_list(opts) do
+    with {:ok, scope_data} <- scope_data(scope),
+         :ok <- validate_query_embedding(query_embedding) do
+      top_k = top_k_value(opts)
+      snippet_length = snippet_length_value(opts)
+
+      source_file_chunk_search_query(scope_data, query_embedding, opts, top_k, snippet_length)
+      |> Repo.all()
+      |> map_source_file_chunk_search_results()
+    else
+      _error -> []
+    end
+  end
+
+  def search_source_file_chunks(_scope, _query_embedding, _opts), do: []
+
+  @doc """
+  Reads one ready source-file chunk by `chunk_ref` with scope enforcement.
+
+  `opts` supports:
+  - `:max_chars` (content cap, default `4000`, max `8000`)
+
+  Returns safe chunk/read metadata and bounded content.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.read_source_file_chunk(%{}, "missing")
+      {:error, :invalid_scope}
+  """
+  @spec read_source_file_chunk(scope(), String.t(), keyword()) ::
+          {:ok, map()} | {:error, :invalid_scope | :scope_mismatch | :not_found}
+  def read_source_file_chunk(scope, chunk_ref, opts \\ [])
+
+  def read_source_file_chunk(scope, chunk_ref, opts)
+      when is_binary(chunk_ref) and is_list(opts) do
+    with {:ok, scope_data} <- scope_data(scope) do
+      max_chars = read_max_chars_value(opts)
+
+      SourceFileChunk
+      |> join(:inner, [chunk], source_file in SourceFile,
+        on: source_file.id == chunk.knowledge_source_file_id
+      )
+      |> join(:inner, [_chunk, _source_file], knowledge_item in KnowledgeItem,
+        on: knowledge_item.id == _chunk.knowledge_item_id
+      )
+      |> filter_ready_source_file_chunks()
+      |> filter_scope_relevance_joined(scope_data)
+      |> where([chunk, _source_file, _knowledge_item], chunk.chunk_ref == ^chunk_ref)
+      |> select([chunk, source_file, knowledge_item], %{
+        chunk_ref: chunk.chunk_ref,
+        chunk_index: chunk.chunk_index,
+        knowledge_item_id: knowledge_item.id,
+        title: knowledge_item.title,
+        source_file_type: source_file.source_file_type,
+        content:
+          fragment(
+            "left(?, ?)",
+            chunk.content,
+            ^max_chars
+          ),
+        content_length: fragment("char_length(?)", chunk.content),
+        metadata: chunk.metadata
+      })
+      |> Repo.one()
+      |> read_source_file_chunk_result(max_chars)
+    end
+  end
+
+  def read_source_file_chunk(_scope, _chunk_ref, _opts), do: {:error, :not_found}
+
+  defp source_file_chunk_search_query(scope_data, query_embedding, opts, top_k, snippet_length) do
+    SourceFileChunk
+    |> join(:inner, [chunk], source_file in SourceFile,
+      on: source_file.id == chunk.knowledge_source_file_id
+    )
+    |> join(:inner, [_chunk, _source_file], knowledge_item in KnowledgeItem,
+      on: knowledge_item.id == _chunk.knowledge_item_id
+    )
+    |> filter_ready_source_file_chunks()
+    |> filter_scope_relevance_joined(scope_data)
+    |> maybe_filter_source_file_type(Keyword.get(opts, :source_file_type))
+    |> maybe_filter_source_file_tags(Keyword.get(opts, :tags))
+    |> order_by(
+      [chunk, _source_file, _knowledge_item],
+      asc: fragment("? <=> ?", chunk.embedding, ^query_embedding)
+    )
+    |> limit(^top_k)
+    |> select_source_file_chunk_search_fields(query_embedding, snippet_length)
+  end
+
+  defp filter_ready_source_file_chunks(query) do
+    from([chunk, source_file, knowledge_item] in query,
+      where:
+        knowledge_item.kind == "source_file" and
+          knowledge_item.status == "ready" and
+          source_file.indexing_status == "ready" and
+          source_file.extraction_status == "ready" and
+          not is_nil(chunk.embedding)
+    )
+  end
+
+  defp select_source_file_chunk_search_fields(query, query_embedding, snippet_length) do
+    from([chunk, source_file, knowledge_item] in query,
+      select: %{
+        knowledge_item_id: knowledge_item.id,
+        knowledge_source_file_id: source_file.id,
+        chunk_id: chunk.id,
+        chunk_ref: chunk.chunk_ref,
+        chunk_index: chunk.chunk_index,
+        title: knowledge_item.title,
+        source_file_type: source_file.source_file_type,
+        tags: knowledge_item.tags,
+        score: fragment("(1 - (? <=> ?))::float", chunk.embedding, ^query_embedding),
+        snippet:
+          fragment(
+            "left(regexp_replace(?, E'[\\n\\r\\t]+', ' ', 'g'), ?)",
+            chunk.content,
+            ^snippet_length
+          ),
+        scope_type:
+          fragment(
+            "case when ? is not null then 'lemming' when ? is not null then 'department' when ? is not null then 'city' else 'world' end",
+            knowledge_item.lemming_id,
+            knowledge_item.department_id,
+            knowledge_item.city_id
+          )
+      }
+    )
+  end
+
+  defp map_source_file_chunk_search_results(rows) do
+    Enum.map(rows, fn %{scope_type: scope_type} = row ->
+      row
+      |> Map.delete(:scope_type)
+      |> Map.put(:scope, %{type: scope_type})
+    end)
   end
 
   defp apply_memory_filters(query, opts) do
@@ -559,6 +805,31 @@ defmodule LemmingsOs.Knowledge do
   end
 
   defp maybe_filter_query(query, _value), do: query
+
+  defp read_max_chars_value(opts) do
+    case Keyword.get(opts, :max_chars, @default_read_max_chars) do
+      value when is_integer(value) and value > 0 -> min(value, @max_read_max_chars)
+      _value -> @default_read_max_chars
+    end
+  end
+
+  defp read_source_file_chunk_result(nil, _max_chars), do: {:error, :not_found}
+
+  defp read_source_file_chunk_result(row, max_chars) when is_map(row) do
+    content_length = fetch(row, :content_length) || 0
+
+    {:ok,
+     %{
+       chunk_ref: fetch(row, :chunk_ref),
+       chunk_index: fetch(row, :chunk_index),
+       knowledge_item_id: fetch(row, :knowledge_item_id),
+       title: fetch(row, :title),
+       source_file_type: fetch(row, :source_file_type),
+       content: fetch(row, :content) || "",
+       metadata: fetch(row, :metadata) || %{},
+       truncated: is_integer(content_length) and content_length > max_chars
+     }}
+  end
 
   defp maybe_filter_source_file_status(query, status) when is_binary(status) do
     if status in KnowledgeItem.statuses() do
@@ -734,7 +1005,7 @@ defmodule LemmingsOs.Knowledge do
 
     case EmbeddingService.embed_texts(texts) do
       {:ok, vectors} when length(vectors) == length(rows) ->
-        :ok
+        persist_chunk_embeddings(rows, vectors)
 
       {:ok, _vectors} ->
         {:error, "embedding_invalid_response"}
@@ -751,6 +1022,24 @@ defmodule LemmingsOs.Knowledge do
   defp embedding_failure_reason(:provider_invalid_dimension), do: "embedding_invalid_dimension"
   defp embedding_failure_reason(:provider_invalid_input), do: "embedding_invalid_input"
   defp embedding_failure_reason(:provider_invalid_response), do: "embedding_invalid_response"
+
+  defp persist_chunk_embeddings(rows, vectors) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    rows
+    |> Enum.zip(vectors)
+    |> Enum.reduce_while(:ok, fn {row, vector}, :ok ->
+      id = Map.fetch!(row, :id)
+
+      case Repo.query(
+             "update knowledge_source_file_chunks set embedding = $1, updated_at = $2 where id = '#{id}'::uuid",
+             [vector, now]
+           ) do
+        {:ok, _result} -> {:cont, :ok}
+        {:error, _reason} -> {:halt, {:error, "embedding_invalid_response"}}
+      end
+    end)
+  end
 
   defp set_source_file_status(
          %SourceFile{} = source_file,
@@ -1345,6 +1634,67 @@ defmodule LemmingsOs.Knowledge do
     )
   end
 
+  defp filter_scope_relevance_joined(
+         query,
+         %{
+           world_id: world_id,
+           city_id: nil,
+           department_id: nil,
+           lemming_id: nil
+         }
+       ) do
+    from([_chunk, _source_file, knowledge_item] in query,
+      where:
+        knowledge_item.world_id == ^world_id and is_nil(knowledge_item.city_id) and
+          is_nil(knowledge_item.department_id) and is_nil(knowledge_item.lemming_id)
+    )
+  end
+
+  defp filter_scope_relevance_joined(
+         query,
+         %{world_id: world_id, city_id: city_id, department_id: nil, lemming_id: nil}
+       )
+       when is_binary(city_id) do
+    from([_chunk, _source_file, knowledge_item] in query,
+      where:
+        knowledge_item.world_id == ^world_id and
+          (is_nil(knowledge_item.city_id) or knowledge_item.city_id == ^city_id) and
+          is_nil(knowledge_item.department_id) and is_nil(knowledge_item.lemming_id)
+    )
+  end
+
+  defp filter_scope_relevance_joined(
+         query,
+         %{world_id: world_id, city_id: city_id, department_id: department_id, lemming_id: nil}
+       )
+       when is_binary(city_id) and is_binary(department_id) do
+    from([_chunk, _source_file, knowledge_item] in query,
+      where:
+        knowledge_item.world_id == ^world_id and
+          (is_nil(knowledge_item.city_id) or knowledge_item.city_id == ^city_id) and
+          (is_nil(knowledge_item.department_id) or knowledge_item.department_id == ^department_id)
+    )
+  end
+
+  defp filter_scope_relevance_joined(
+         query,
+         %{
+           world_id: world_id,
+           city_id: city_id,
+           department_id: department_id,
+           lemming_id: lemming_id
+         }
+       )
+       when is_binary(city_id) and is_binary(department_id) and is_binary(lemming_id) do
+    from([_chunk, _source_file, knowledge_item] in query,
+      where:
+        knowledge_item.world_id == ^world_id and
+          (is_nil(knowledge_item.city_id) or knowledge_item.city_id == ^city_id) and
+          (is_nil(knowledge_item.department_id) or knowledge_item.department_id == ^department_id) and
+          (is_nil(knowledge_item.lemming_id) or knowledge_item.lemming_id == ^lemming_id)
+    )
+  end
+
   defp world_scope_exists?(world_id) do
     World
     |> where([world], world.id == ^world_id)
@@ -1487,6 +1837,60 @@ defmodule LemmingsOs.Knowledge do
 
   defp filter_query(query, [_unknown | rest]), do: filter_query(query, rest)
   defp filter_query(query, []), do: query
+
+  defp maybe_filter_source_file_type(query, type) when is_binary(type) do
+    if type in SourceFile.types() do
+      from([_chunk, source_file, _knowledge_item] in query,
+        where: source_file.source_file_type == ^type
+      )
+    else
+      query
+    end
+  end
+
+  defp maybe_filter_source_file_type(query, _type), do: query
+
+  defp maybe_filter_source_file_tags(query, tags) when is_list(tags) do
+    normalized =
+      tags
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    if normalized == [] do
+      query
+    else
+      from([_chunk, _source_file, knowledge_item] in query,
+        where: fragment("? @> ?", knowledge_item.tags, type(^normalized, {:array, :string}))
+      )
+    end
+  end
+
+  defp maybe_filter_source_file_tags(query, _tags), do: query
+
+  defp validate_query_embedding(values) when is_list(values) and values != [] do
+    if Enum.all?(values, &(is_float(&1) or is_integer(&1))) do
+      :ok
+    else
+      {:error, :invalid_embedding}
+    end
+  end
+
+  defp validate_query_embedding(_values), do: {:error, :invalid_embedding}
+
+  defp top_k_value(opts) do
+    case Keyword.get(opts, :top_k, @default_top_k) do
+      value when is_integer(value) and value > 0 -> min(value, @max_top_k)
+      _value -> @default_top_k
+    end
+  end
+
+  defp snippet_length_value(opts) do
+    case Keyword.get(opts, :snippet_length, 240) do
+      value when is_integer(value) and value > 0 -> min(value, 1_000)
+      _value -> 240
+    end
+  end
 
   defp safe_reason(%Ecto.Changeset{}), do: "changeset_error"
   defp safe_reason(:invalid_scope), do: "invalid_scope"

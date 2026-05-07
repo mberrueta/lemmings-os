@@ -1,6 +1,7 @@
 defmodule LemmingsOs.Tools.Adapters.Knowledge do
   @moduledoc """
-  Tool Runtime adapter for memory storage (`knowledge.store`).
+  Tool Runtime adapter for knowledge tools (`knowledge.store`, `knowledge.search`,
+  and `knowledge.read`).
 
   This module is the boundary between model-generated tool arguments and the
   `LemmingsOs.Knowledge` context.
@@ -23,6 +24,7 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge, as: KnowledgeContext
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.SourceFiles.EmbeddingService
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.PubSub
@@ -31,6 +33,19 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   alias LemmingsOs.Worlds.World
 
   @allowed_fields MapSet.new(["title", "content", "tags", "scope"])
+  @search_allowed_fields MapSet.new([
+                           "query",
+                           "kind",
+                           "source_file_type",
+                           "tags",
+                           "scope",
+                           "top_k"
+                         ])
+  @read_allowed_fields MapSet.new(["chunk_ref", "scope", "max_chars"])
+  @search_top_k_default 5
+  @search_top_k_max 20
+  @read_max_chars_default 4_000
+  @read_max_chars_max 8_000
 
   @type runtime_meta :: %{
           optional(:actor_instance_id) => String.t(),
@@ -149,6 +164,85 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
     args
     |> unsupported_fields()
     |> validate_unsupported_fields()
+  end
+
+  @doc """
+  Executes `knowledge.search` for source-file chunk retrieval.
+  """
+  @spec search(LemmingInstance.t(), map(), runtime_meta()) ::
+          {:ok, success_result()} | {:error, error_result()}
+  def search(%LemmingInstance{} = instance, args, runtime_meta \\ %{})
+      when is_map(args) and is_map(runtime_meta) do
+    with :ok <- validate_allowed_fields(args, @search_allowed_fields, "knowledge.search"),
+         {:ok, query} <- validate_required_text(args, :query),
+         {:ok, "source_file"} <- normalize_search_kind(fetch(args, :kind)),
+         {:ok, tags} <- validate_optional_tags(args),
+         {:ok, scope_name, scope} <- resolve_scope_hint(instance, args),
+         {:ok, top_k} <- normalize_top_k(fetch(args, :top_k)),
+         {:ok, query_embedding} <- query_embedding(query),
+         results <-
+           KnowledgeContext.search_source_file_chunks(
+             scope,
+             query_embedding,
+             source_file_type: fetch(args, :source_file_type),
+             tags: tags,
+             top_k: top_k
+           ) do
+      {:ok,
+       %{
+         summary: "Found #{length(results)} source-file chunks",
+         preview: search_preview(results),
+         result: %{
+           kind: "source_file",
+           scope: scope_name,
+           count: length(results),
+           results: results
+         }
+       }}
+    else
+      {:error, %{} = error} -> {:error, error}
+    end
+  end
+
+  @doc """
+  Executes `knowledge.read` for bounded source-file chunk content retrieval.
+  """
+  @spec read(LemmingInstance.t(), map(), runtime_meta()) ::
+          {:ok, success_result()} | {:error, error_result()}
+  def read(%LemmingInstance{} = instance, args, _runtime_meta \\ %{}) when is_map(args) do
+    with :ok <- validate_allowed_fields(args, @read_allowed_fields, "knowledge.read"),
+         {:ok, chunk_ref} <- validate_required_text(args, :chunk_ref),
+         {:ok, scope_name, scope} <- resolve_scope_hint(instance, args),
+         {:ok, max_chars} <- normalize_max_chars(fetch(args, :max_chars)),
+         {:ok, chunk} <-
+           KnowledgeContext.read_source_file_chunk(scope, chunk_ref, max_chars: max_chars) do
+      {:ok,
+       %{
+         summary: "Read chunk #{chunk.chunk_ref}",
+         preview: String.slice(chunk.content, 0, 280),
+         result: %{
+           scope: scope_name,
+           chunk_ref: chunk.chunk_ref,
+           knowledge_item_id: chunk.knowledge_item_id,
+           source_file_type: chunk.source_file_type,
+           title: chunk.title,
+           chunk_index: chunk.chunk_index,
+           content: chunk.content,
+           content_length: String.length(chunk.content),
+           truncated: chunk.truncated,
+           metadata: chunk.metadata
+         }
+       }}
+    else
+      {:error, :not_found} ->
+        {:error, not_found_error("Chunk not found")}
+
+      {:error, :invalid_scope} ->
+        {:error, invalid_scope_error()}
+
+      {:error, %{} = error} ->
+        {:error, error}
+    end
   end
 
   defp validate_required_text(args, field) do
@@ -335,10 +429,14 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   defp runtime_instance_exists?(_instance_id, _world_id), do: false
 
   defp unsupported_fields(args) do
+    unsupported_fields(args, @allowed_fields)
+  end
+
+  defp unsupported_fields(args, allowed_fields) do
     args
     |> Map.keys()
     |> Enum.map(&normalize_key/1)
-    |> Enum.reject(&MapSet.member?(@allowed_fields, &1))
+    |> Enum.reject(&MapSet.member?(allowed_fields, &1))
     |> Enum.uniq()
     |> Enum.sort()
   end
@@ -353,6 +451,90 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
        details: %{fields: fields}
      }}
   end
+
+  defp validate_allowed_fields(args, allowed_fields, tool_name)
+       when is_map(args) and is_map(allowed_fields) and is_binary(tool_name) do
+    case unsupported_fields(args, allowed_fields) do
+      [] ->
+        :ok
+
+      fields ->
+        {:error,
+         %{
+           code: "tool.knowledge.unsupported_fields",
+           message: "Unsupported #{tool_name} fields",
+           details: %{fields: fields}
+         }}
+    end
+  end
+
+  defp normalize_search_kind(nil), do: {:ok, "source_file"}
+  defp normalize_search_kind("source_file"), do: {:ok, "source_file"}
+
+  defp normalize_search_kind(_other) do
+    {:error,
+     %{
+       code: "tool.validation.invalid_args",
+       message: "Invalid tool arguments",
+       details: %{field: "kind", allowed: ["source_file"]}
+     }}
+  end
+
+  defp normalize_top_k(nil), do: {:ok, @search_top_k_default}
+
+  defp normalize_top_k(value) do
+    case parse_positive_integer(value) do
+      {:ok, top_k} -> {:ok, min(top_k, @search_top_k_max)}
+      :error -> {:error, invalid_args_error(["top_k"])}
+    end
+  end
+
+  defp normalize_max_chars(nil), do: {:ok, @read_max_chars_default}
+
+  defp normalize_max_chars(value) do
+    case parse_positive_integer(value) do
+      {:ok, max_chars} -> {:ok, min(max_chars, @read_max_chars_max)}
+      :error -> {:error, invalid_args_error(["max_chars"])}
+    end
+  end
+
+  defp parse_positive_integer(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_integer(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _other -> :error
+    end
+  end
+
+  defp parse_positive_integer(_value), do: :error
+
+  defp query_embedding(query) do
+    case EmbeddingService.embed_texts([query]) do
+      {:ok, [embedding]} when is_list(embedding) -> {:ok, embedding}
+      {:ok, _other} -> {:error, search_unavailable_error()}
+      {:error, _reason} -> {:error, search_unavailable_error()}
+    end
+  end
+
+  defp search_unavailable_error do
+    %{
+      code: "tool.knowledge.search_unavailable",
+      message: "Knowledge search is unavailable",
+      details: %{}
+    }
+  end
+
+  defp not_found_error(message) when is_binary(message) do
+    %{
+      code: "tool.knowledge.not_found",
+      message: message,
+      details: %{}
+    }
+  end
+
+  defp search_preview([]), do: nil
+  defp search_preview([first | _rest]), do: Map.get(first, :snippet) || Map.get(first, "snippet")
 
   defp normalize_required_text(value, field) when is_binary(value),
     do: normalize_required_text_trimmed(String.trim(value), field)

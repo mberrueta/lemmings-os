@@ -57,6 +57,7 @@ defmodule LemmingsOs.Knowledge.SourceFileChunk do
           content_hash: String.t() | nil,
           token_count: integer() | nil,
           char_count: integer() | nil,
+          embedding: [float()] | nil,
           metadata: map() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
@@ -69,6 +70,7 @@ defmodule LemmingsOs.Knowledge.SourceFileChunk do
     field :content_hash, :string
     field :token_count, :integer
     field :char_count, :integer
+    field :embedding, Pgvector.Ecto.Vector
     field :metadata, :map, default: %{}
 
     belongs_to :knowledge_item, KnowledgeItem

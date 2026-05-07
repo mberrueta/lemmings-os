@@ -71,6 +71,7 @@ defmodule LemmingsOs.MixProject do
       {:ecto_sql, "~> 3.13"},
       {:scrivener_ecto, "~> 3.1"},
       {:postgrex, ">= 0.0.0"},
+      {:pgvector, "~> 0.3.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
