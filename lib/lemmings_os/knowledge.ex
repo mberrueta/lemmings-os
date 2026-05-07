@@ -16,6 +16,7 @@ defmodule LemmingsOs.Knowledge do
   alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.Knowledge.SourceFileChunk
+  alias LemmingsOs.Knowledge.SourceFileStorageService
   alias LemmingsOs.Knowledge.SourceFiles.ChunkingService
   alias LemmingsOs.Knowledge.SourceFiles.EmbeddingService
   alias LemmingsOs.Knowledge.SourceFiles.ExtractionService
@@ -82,6 +83,11 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Lists memories at the exact requested scope (local-only).
 
+  ## Parameters
+
+  - `scope` - one hierarchy scope struct (`%World{}`, `%City{}`, `%Department{}`, `%Lemming{}`).
+  - `opts` - optional filters and pagination controls.
+
   `opts` supports:
   - `:source` (`"user"` or `"llm"`)
   - `:status` (`"active"`)
@@ -109,6 +115,11 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Lists effective visible memories with filters and local Ecto pagination.
+
+  ## Parameters
+
+  - `scope` - visibility anchor scope (`%World{}`, `%City{}`, `%Department{}`, `%Lemming{}`).
+  - `opts` - optional filters and pagination controls.
 
   `opts` supports:
   - `:q` (single text query over title and tags)
@@ -156,6 +167,10 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Lists all memories across scopes with filters and local Ecto pagination.
 
+  ## Parameters
+
+  - `opts` - optional filters and pagination controls.
+
   This read is intentionally unscoped and intended for operator-facing global
   memory inventory surfaces.
 
@@ -195,6 +210,11 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Lists memories filtered by concrete scope identifiers (including descendants
   for broader scopes).
+
+  ## Parameters
+
+  - `scope` - hierarchy scope that determines local and descendant rows.
+  - `opts` - optional filters and pagination controls.
 
   Scope semantics:
   - world: all memories in world
@@ -241,6 +261,12 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Returns one memory visible from the requested scope.
 
+  ## Parameters
+
+  - `scope` - caller scope used for visibility checks.
+  - `id` - memory `knowledge_items.id`.
+  - `opts` - optional read settings (`:mode`).
+
   Visibility follows hierarchy inheritance:
   - city sees world + city memories
   - department sees world + city + department + department lemming memories
@@ -284,6 +310,10 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Returns one memory by ID without scope visibility filtering.
 
+  ## Parameters
+
+  - `id` - memory `knowledge_items.id`.
+
   This helper is intended for internal wiring flows that need to infer the
   owning scope before applying visibility checks.
 
@@ -304,6 +334,12 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Creates one user memory at the exact requested scope.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope for the new memory.
+  - `attrs` - user-writable fields (`:title`, `:content`, `:tags`).
+  - `opts` - optional creator/runtime metadata.
 
   Runtime-owned fields are assigned by this context:
   - `kind = "memory"`
@@ -359,6 +395,12 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Updates mutable user fields on a memory at exact scope.
 
+  ## Parameters
+
+  - `scope` - exact ownership scope expected for the target memory.
+  - `knowledge_item` - memory row (`kind = "memory"`).
+  - `attrs` - user-writable updates (`:title`, `:content`, `:tags`).
+
   Only `title`, `content`, and `tags` are mutable through this API.
 
   ## Examples
@@ -384,6 +426,11 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Hard deletes a memory at exact scope.
 
+  ## Parameters
+
+  - `scope` - exact ownership scope expected for the target memory.
+  - `knowledge_item` - memory row (`kind = "memory"`).
+
   ## Examples
 
       iex> LemmingsOs.Knowledge.delete_memory(%{}, %LemmingsOs.Knowledge.KnowledgeItem{})
@@ -403,6 +450,11 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Returns a changeset for memory form handling.
 
+  ## Parameters
+
+  - `knowledge_item` - memory struct to validate.
+  - `attrs` - optional pending form values.
+
   ## Examples
 
       iex> changeset = LemmingsOs.Knowledge.change_memory(%LemmingsOs.Knowledge.KnowledgeItem{})
@@ -416,6 +468,11 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Creates a source-file knowledge item and enqueues non-blocking indexing.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope for the source file.
+  - `attrs` - source-file creation attributes (including storage info).
 
   ## Examples
 
@@ -459,7 +516,62 @@ defmodule LemmingsOs.Knowledge do
   def create_source_file(_scope, _attrs), do: {:error, :invalid_attrs}
 
   @doc """
+  Creates a source file from an uploaded local temp path.
+
+  The file is first copied into Knowledge-managed storage and then persisted as
+  a source-file knowledge item using the generated storage reference.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope for the source file.
+  - `attrs` - source-file creation fields (`:title`, `:source_file_type`, tags, etc.).
+  - `source_path` - trusted absolute temp path from upload consumption.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.create_source_file_upload(%{}, %{}, "/tmp/missing")
+      {:error, :invalid_scope}
+  """
+  @spec create_source_file_upload(scope(), map(), String.t()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch | :invalid_attrs}
+  def create_source_file_upload(scope, attrs, source_path)
+      when is_map(attrs) and is_binary(source_path) do
+    with {:ok, scope_data} <- scope_data(scope),
+         :ok <- validate_requested_scope(attrs, scope_data),
+         filename when is_binary(filename) <- fetch(attrs, :original_filename),
+         {:ok, storage_id} <- Ecto.UUID.cast(Ecto.UUID.generate()),
+         {:ok, stored} <-
+           SourceFileStorageService.put(scope_data.world_id, storage_id, source_path, filename) do
+      attrs =
+        attrs
+        |> Map.put(:storage_ref, stored.storage_ref)
+        |> Map.put(:size_bytes, stored.size_bytes)
+        |> Map.put(:checksum, stored.checksum)
+
+      create_source_file(scope, attrs)
+    else
+      {:error, reason}
+      when reason in [:invalid_source_path, :source_not_found, :file_too_large] ->
+        {:error, :invalid_attrs}
+
+      {:error, _reason} = error ->
+        error
+
+      _other ->
+        {:error, :invalid_attrs}
+    end
+  end
+
+  def create_source_file_upload(_scope, _attrs, _source_path), do: {:error, :invalid_attrs}
+
+  @doc """
   Lists source-file rows local to the provided scope.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope for source-file rows.
+  - `opts` - optional lifecycle filters.
 
   `opts` supports:
   - `:status` (source-file lifecycle status; matches both knowledge and source-file status fields)
@@ -499,6 +611,11 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Archives a source file and excludes it from indexing/retrieval candidates.
 
+  ## Parameters
+
+  - `scope` - exact ownership scope expected for the target row.
+  - `source_file` - source-file row to archive.
+
   ## Examples
 
       iex> LemmingsOs.Knowledge.archive_source_file(%{}, %LemmingsOs.Knowledge.SourceFile{})
@@ -521,6 +638,11 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Retries a source-file indexing run by resetting lifecycle and re-enqueueing work.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope expected for the target row.
+  - `source_file` - source-file row to reset and re-enqueue.
 
   ## Examples
 
@@ -575,6 +697,10 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Executes source-file lifecycle transitions for one indexing run.
 
+  ## Parameters
+
+  - `source_file_id` - source-file UUID to process.
+
   ## Examples
 
       iex> LemmingsOs.Knowledge.run_source_file_indexing(Ecto.UUID.generate())
@@ -597,6 +723,10 @@ defmodule LemmingsOs.Knowledge do
   @doc """
   Returns source files that are retrieval candidates (ready-only, non-failed).
 
+  ## Parameters
+
+  - `scope` - exact ownership scope used to select ready rows.
+
   ## Examples
 
       iex> LemmingsOs.Knowledge.list_ready_source_files(%{})
@@ -608,7 +738,67 @@ defmodule LemmingsOs.Knowledge do
   end
 
   @doc """
+  Updates editable source-file metadata in both knowledge item and source-file rows.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope expected for the target row.
+  - `source_file` - source-file row to update.
+  - `attrs` - editable fields (`:title`, `:tags`, `:source_file_type`, optional `:metadata`).
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.update_source_file_metadata(%{}, %LemmingsOs.Knowledge.SourceFile{}, %{})
+      {:error, :invalid_scope}
+  """
+  @spec update_source_file_metadata(scope(), SourceFile.t(), map()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), source_file: SourceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch | :invalid_attrs}
+  def update_source_file_metadata(scope, %SourceFile{} = source_file, attrs) when is_map(attrs) do
+    with {:ok, scope_data} <- scope_data(scope),
+         %SourceFile{knowledge_item: %KnowledgeItem{} = knowledge_item} = source_file <-
+           Repo.preload(source_file, :knowledge_item),
+         :ok <- validate_exact_scope(knowledge_item, scope_data) do
+      knowledge_attrs =
+        attrs
+        |> Map.take([:title, :tags])
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        |> Map.new()
+
+      source_file_attrs =
+        attrs
+        |> Map.take([:source_file_type, :metadata])
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        |> Map.new()
+
+      multi =
+        Ecto.Multi.new()
+        |> maybe_update_knowledge_item(knowledge_item, knowledge_attrs)
+        |> maybe_update_source_file(source_file, source_file_attrs)
+
+      case Repo.transaction(multi) do
+        {:ok, %{source_file: updated_source_file, knowledge_item: updated_knowledge_item}} ->
+          {:ok, %{knowledge_item: updated_knowledge_item, source_file: updated_source_file}}
+
+        {:error, _step, reason, _changes_so_far} ->
+          {:error, reason}
+      end
+    else
+      {:error, _reason} = error -> error
+      _other -> {:error, :scope_mismatch}
+    end
+  end
+
+  def update_source_file_metadata(_scope, _source_file, _attrs), do: {:error, :invalid_attrs}
+
+  @doc """
   Performs scope-safe vector retrieval over ready source-file chunks.
+
+  ## Parameters
+
+  - `scope` - caller scope used for visibility filtering.
+  - `query_embedding` - numeric embedding vector for nearest-neighbor search.
+  - `opts` - optional retrieval filters and caps.
 
   `opts` supports:
   - `:source_file_type` (must be one of `LemmingsOs.Knowledge.SourceFile.types/0`)
@@ -649,6 +839,12 @@ defmodule LemmingsOs.Knowledge do
 
   @doc """
   Reads one ready source-file chunk by `chunk_ref` with scope enforcement.
+
+  ## Parameters
+
+  - `scope` - caller scope used for visibility filtering.
+  - `chunk_ref` - stable chunk reference (`ksf:...`).
+  - `opts` - optional read caps.
 
   `opts` supports:
   - `:max_chars` (content cap, default `4000`, max `8000`)
@@ -850,6 +1046,26 @@ defmodule LemmingsOs.Knowledge do
   defp maybe_scope_eq(query, field, value)
        when field in [:city_id, :department_id, :lemming_id] and is_binary(value) do
     from([_source_file, knowledge_item] in query, where: field(knowledge_item, ^field) == ^value)
+  end
+
+  defp maybe_update_knowledge_item(multi, knowledge_item, attrs) when map_size(attrs) == 0 do
+    Ecto.Multi.put(multi, :knowledge_item, knowledge_item)
+  end
+
+  defp maybe_update_knowledge_item(multi, knowledge_item, attrs) do
+    Ecto.Multi.update(
+      multi,
+      :knowledge_item,
+      KnowledgeItem.user_update_changeset(knowledge_item, attrs)
+    )
+  end
+
+  defp maybe_update_source_file(multi, source_file, attrs) when map_size(attrs) == 0 do
+    Ecto.Multi.put(multi, :source_file, source_file)
+  end
+
+  defp maybe_update_source_file(multi, source_file, attrs) do
+    Ecto.Multi.update(multi, :source_file, SourceFile.changeset(source_file, attrs))
   end
 
   defp set_source_file_status(%SourceFile{} = source_file, :extracting) do

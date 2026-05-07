@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.Repo
 
   test "creates, edits, deletes memories and supports filtered empty states", %{conn: conn} do
@@ -246,5 +247,91 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
     |> render_click()
 
     assert has_element?(view, "#knowledge-page-range", "Showing 1 to 25")
+  end
+
+  test "source-file list supports metadata edit, retry and archive actions", %{conn: conn} do
+    world = insert(:world, name: "Ops World", slug: "ops")
+
+    source_file =
+      insert(:knowledge_source_file,
+        knowledge_item:
+          build(:knowledge_item,
+            world: world,
+            city: nil,
+            department: nil,
+            lemming: nil,
+            kind: "source_file",
+            status: "ready",
+            title: "Pricing Handbook",
+            tags: ["pricing", "customer:acme"]
+          ),
+        source_file_type: "company_knowledge",
+        extraction_status: "ready",
+        indexing_status: "ready",
+        original_filename: "pricing.md"
+      )
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/knowledge?#{%{scope_type: "world", scope_id: world.id, status: "active"}}"
+      )
+
+    assert has_element?(view, "#knowledge-source-file-row-#{source_file.id}")
+
+    assert has_element?(
+             view,
+             "#knowledge-source-file-title-text-#{source_file.id}",
+             "Pricing Handbook"
+           )
+
+    view
+    |> element("#knowledge-source-file-edit-#{source_file.id}")
+    |> render_click()
+
+    assert has_element?(view, "#knowledge-source-file-edit-form-#{source_file.id}")
+
+    view
+    |> element("#knowledge-source-file-edit-form-#{source_file.id}")
+    |> render_submit(%{
+      "source_file_id" => source_file.id,
+      "source_file_edit" => %{
+        "title" => "Pricing Handbook Updated",
+        "tags" => "pricing, customer:globex",
+        "source_file_type" => "policy"
+      }
+    })
+
+    assert has_element?(
+             view,
+             "#knowledge-source-file-title-text-#{source_file.id}",
+             "Pricing Handbook Updated"
+           )
+
+    updated_item = Repo.get!(KnowledgeItem, source_file.knowledge_item_id)
+    updated_source_file = Repo.get!(SourceFile, source_file.id)
+
+    assert updated_item.tags == ["pricing", "customer:globex"]
+    assert updated_source_file.source_file_type == "policy"
+
+    view
+    |> element("#knowledge-source-file-retry-#{source_file.id}")
+    |> render_click()
+
+    retried_item = Repo.get!(KnowledgeItem, source_file.knowledge_item_id)
+    retried_source_file = Repo.get!(SourceFile, source_file.id)
+
+    assert retried_item.status == "pending_index"
+    assert retried_source_file.indexing_status == "pending"
+
+    view
+    |> element("#knowledge-source-file-archive-#{source_file.id}")
+    |> render_click()
+
+    archived_item = Repo.get!(KnowledgeItem, source_file.knowledge_item_id)
+    archived_source_file = Repo.get!(SourceFile, source_file.id)
+
+    assert archived_item.status == "archived"
+    assert archived_source_file.indexing_status == "archived"
   end
 end

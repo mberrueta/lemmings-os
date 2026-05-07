@@ -317,6 +317,308 @@
           </.button>
         </div>
       </.panel>
+
+      <.panel id="knowledge-source-file-create-panel" tone="accent">
+        <:title>Source Files</:title>
+        <:subtitle>Upload retrieval files and manage indexing lifecycle.</:subtitle>
+
+        <.form
+          id="knowledge-source-file-form"
+          for={@source_file_form}
+          phx-change="validate_source_file"
+          phx-submit="create_source_file"
+          class="space-y-3"
+        >
+          <div class="grid gap-3 sm:grid-cols-2">
+            <.input
+              id="knowledge-source-file-title"
+              field={@source_file_form[:title]}
+              type="text"
+              label="Title"
+              required
+            />
+            <.input
+              id="knowledge-source-file-type"
+              field={@source_file_form[:source_file_type]}
+              type="select"
+              label="Type"
+              options={[
+                {"Price List", "price_list"},
+                {"Contract", "contract"},
+                {"Policy", "policy"},
+                {"Branding", "branding"},
+                {"Product Catalog", "product_catalog"},
+                {"Company Knowledge", "company_knowledge"},
+                {"Client Material", "client_material"},
+                {"Example Email", "example_email"},
+                {"Book", "book"},
+                {"Other", "other"}
+              ]}
+            />
+          </div>
+
+          <.input
+            id="knowledge-source-file-tags"
+            field={@source_file_form[:tags]}
+            type="text"
+            label="Tags (comma separated)"
+            value={@source_file_tags_value}
+            placeholder="customer:acme, source:pricing"
+          />
+
+          <.input
+            id="knowledge-source-file-content"
+            field={@source_file_form[:content]}
+            type="textarea"
+            label="Description"
+          />
+
+          <div id="knowledge-source-file-upload-field" class="space-y-2">
+            <label
+              for={@uploads.source_file.ref}
+              class="text-xs font-bold uppercase tracking-widest text-zinc-500"
+            >
+              Upload File
+            </label>
+            <.live_file_input
+              upload={@uploads.source_file}
+              class="block w-full border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:border-0 file:bg-zinc-800 file:px-3 file:py-1 file:text-xs file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
+            />
+            <ul
+              :if={@uploads.source_file.entries != []}
+              id="knowledge-source-file-upload-list"
+              class="space-y-1"
+            >
+              <li
+                :for={entry <- @uploads.source_file.entries}
+                id={"knowledge-source-file-upload-entry-#{entry.ref}"}
+                class="flex items-center gap-2 border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-300"
+              >
+                <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
+                <button
+                  id={"knowledge-source-file-upload-cancel-#{entry.ref}"}
+                  type="button"
+                  phx-click="cancel_source_file_upload"
+                  phx-value-ref={entry.ref}
+                  class="text-zinc-500 transition hover:text-red-400"
+                >
+                  Remove
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <.button id="knowledge-source-file-submit" type="submit" variant="secondary">
+            Upload Source File
+          </.button>
+        </.form>
+      </.panel>
+
+      <.panel id="knowledge-source-file-list-panel" tone="accent">
+        <:title>Source File Inventory</:title>
+        <:subtitle>
+          <span id="knowledge-source-file-total-count">{length(@source_file_entries)} files</span>
+        </:subtitle>
+
+        <.form
+          id="knowledge-source-file-filter-form"
+          for={@source_file_filter_form}
+          phx-change="change_source_file_filters"
+        >
+          <div class="grid gap-3 sm:grid-cols-3">
+            <.input
+              id="knowledge-source-file-filter-query"
+              field={@source_file_filter_form[:query]}
+              type="text"
+              label="Search"
+              placeholder="title, tags, filename"
+            />
+            <.input
+              id="knowledge-source-file-filter-status"
+              field={@source_file_filter_form[:status]}
+              type="select"
+              label="Status"
+              options={[
+                {"All", ""},
+                {"Pending", "pending_index"},
+                {"Extracting", "extracting"},
+                {"Chunking", "chunking"},
+                {"Embedding", "embedding"},
+                {"Ready", "ready"},
+                {"Needs OCR", "needs_ocr"},
+                {"Failed", "failed"},
+                {"Archived", "archived"}
+              ]}
+            />
+            <.input
+              id="knowledge-source-file-filter-type"
+              field={@source_file_filter_form[:source_file_type]}
+              type="select"
+              label="Type"
+              options={[
+                {"All", ""},
+                {"Price List", "price_list"},
+                {"Contract", "contract"},
+                {"Policy", "policy"},
+                {"Branding", "branding"},
+                {"Product Catalog", "product_catalog"},
+                {"Company Knowledge", "company_knowledge"},
+                {"Client Material", "client_material"},
+                {"Example Email", "example_email"},
+                {"Book", "book"},
+                {"Other", "other"}
+              ]}
+            />
+          </div>
+        </.form>
+
+        <.empty_state
+          :if={@source_file_entries == []}
+          id="knowledge-source-file-empty-state"
+          title="No source files found"
+          copy="Upload files to build searchable retrieval context."
+        />
+
+        <div :if={@source_file_entries != []} id="knowledge-source-file-list" class="space-y-3">
+          <article
+            :for={source_file <- @source_file_entries}
+            id={"knowledge-source-file-row-#{source_file.id}"}
+            class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
+          >
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div class="min-w-0">
+                <h3
+                  id={"knowledge-source-file-title-text-#{source_file.id}"}
+                  class="text-sm font-semibold text-zinc-100"
+                >
+                  {source_file.knowledge_item.title}
+                </h3>
+                <p
+                  id={"knowledge-source-file-name-#{source_file.id}"}
+                  class="text-xs text-zinc-400"
+                >
+                  {source_file.original_filename}
+                </p>
+                <div class="mt-2 flex flex-wrap gap-2 text-xs text-zinc-400">
+                  <.badge id={"knowledge-source-file-status-#{source_file.id}"} tone="info">
+                    {source_file.knowledge_item.status}
+                  </.badge>
+                  <.badge id={"knowledge-source-file-type-#{source_file.id}"} tone="muted">
+                    {source_file.source_file_type}
+                  </.badge>
+                  <.badge id={"knowledge-source-file-size-#{source_file.id}"} tone="muted">
+                    {Float.round(source_file.size_bytes / 1024, 1)} KB
+                  </.badge>
+                  <.badge
+                    :if={source_file.failure_reason}
+                    id={"knowledge-source-file-failure-#{source_file.id}"}
+                    tone="danger"
+                  >
+                    {source_file.failure_reason}
+                  </.badge>
+                  <.badge
+                    :for={{tag, index} <- Enum.with_index(source_file.knowledge_item.tags || [])}
+                    id={"knowledge-source-file-tag-#{source_file.id}-#{index}"}
+                    tone="success"
+                  >
+                    #{tag}
+                  </.badge>
+                </div>
+              </div>
+
+              <div class="flex items-start justify-end gap-2">
+                <button
+                  id={"knowledge-source-file-edit-#{source_file.id}"}
+                  type="button"
+                  phx-click="edit_source_file"
+                  phx-value-id={source_file.id}
+                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
+                >
+                  <.icon name="hero-pencil-square" class="size-4" />
+                </button>
+                <button
+                  id={"knowledge-source-file-retry-#{source_file.id}"}
+                  type="button"
+                  phx-click="retry_source_file"
+                  phx-value-id={source_file.id}
+                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
+                >
+                  <.icon name="hero-arrow-path" class="size-4" />
+                </button>
+                <button
+                  id={"knowledge-source-file-archive-#{source_file.id}"}
+                  type="button"
+                  phx-click="archive_source_file"
+                  phx-value-id={source_file.id}
+                  data-confirm="Archive this source file?"
+                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-red-400 hover:text-red-300"
+                >
+                  <.icon name="hero-archive-box" class="size-4" />
+                </button>
+              </div>
+            </div>
+
+            <.form
+              :if={@editing_source_file_id == source_file.id}
+              id={"knowledge-source-file-edit-form-#{source_file.id}"}
+              for={@source_file_edit_form}
+              phx-change="validate_edit_source_file"
+              phx-submit="save_source_file_metadata"
+              class="mt-3 space-y-2 border-t border-zinc-800 pt-3"
+            >
+              <input type="hidden" name="source_file_id" value={source_file.id} />
+              <.input
+                id={"knowledge-source-file-edit-title-#{source_file.id}"}
+                field={@source_file_edit_form[:title]}
+                type="text"
+                label="Title"
+              />
+              <.input
+                id={"knowledge-source-file-edit-type-#{source_file.id}"}
+                field={@source_file_edit_form[:source_file_type]}
+                type="select"
+                label="Type"
+                options={[
+                  {"Price List", "price_list"},
+                  {"Contract", "contract"},
+                  {"Policy", "policy"},
+                  {"Branding", "branding"},
+                  {"Product Catalog", "product_catalog"},
+                  {"Company Knowledge", "company_knowledge"},
+                  {"Client Material", "client_material"},
+                  {"Example Email", "example_email"},
+                  {"Book", "book"},
+                  {"Other", "other"}
+                ]}
+              />
+              <.input
+                id={"knowledge-source-file-edit-tags-#{source_file.id}"}
+                field={@source_file_edit_form[:tags]}
+                type="text"
+                label="Tags"
+                value={@source_file_edit_tags_value}
+              />
+              <div class="flex gap-2">
+                <.button
+                  id={"knowledge-source-file-edit-save-#{source_file.id}"}
+                  type="submit"
+                  variant="secondary"
+                >
+                  Save
+                </.button>
+                <.button
+                  id={"knowledge-source-file-edit-cancel-#{source_file.id}"}
+                  type="button"
+                  variant="neutral"
+                  phx-click="cancel_edit_source_file"
+                >
+                  Cancel
+                </.button>
+              </div>
+            </.form>
+          </article>
+        </div>
+      </.panel>
     </div>
   </.content_container>
 </Layouts.app>

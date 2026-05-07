@@ -474,4 +474,92 @@ defmodule LemmingsOs.KnowledgeTest do
       assert {:error, :invalid_scope} = Knowledge.list_effective_memories(%{})
     end
   end
+
+  describe "create_source_file_upload/3" do
+    test "stores upload and creates source-file knowledge item" do
+      old_storage = Application.get_env(:lemmings_os, :knowledge_source_file_storage)
+      storage_root = Path.join(System.tmp_dir!(), "knowledge_upload_test_#{Ecto.UUID.generate()}")
+      source_path = Path.join(storage_root, "source.txt")
+
+      on_exit(fn ->
+        File.rm_rf!(storage_root)
+
+        if old_storage do
+          Application.put_env(:lemmings_os, :knowledge_source_file_storage, old_storage)
+        else
+          Application.delete_env(:lemmings_os, :knowledge_source_file_storage)
+        end
+      end)
+
+      File.mkdir_p!(storage_root)
+      File.write!(source_path, "hello source file upload")
+
+      Application.put_env(:lemmings_os, :knowledge_source_file_storage,
+        backend: :local,
+        root_path: storage_root,
+        max_file_size_bytes: 1024 * 1024
+      )
+
+      world = insert(:world)
+
+      assert {:ok, %{knowledge_item: knowledge_item, source_file: source_file}} =
+               Knowledge.create_source_file_upload(
+                 world,
+                 %{
+                   title: "Uploaded Source",
+                   content: "Source file registered for indexing.",
+                   tags: ["customer:acme"],
+                   source_file_type: "company_knowledge",
+                   original_filename: "source.txt",
+                   content_type: "text/plain"
+                 },
+                 source_path
+               )
+
+      assert knowledge_item.kind == "source_file"
+      assert knowledge_item.status == "pending_index"
+      assert source_file.knowledge_item_id == knowledge_item.id
+      assert source_file.size_bytes > 0
+      assert String.starts_with?(source_file.storage_ref, "local://knowledge_source_files/")
+      assert source_file.extraction_status == "pending"
+      assert source_file.indexing_status == "pending"
+    end
+  end
+
+  describe "update_source_file_metadata/3" do
+    test "updates editable source-file and knowledge item metadata at exact scope" do
+      world = insert(:world)
+
+      source_file =
+        insert(:knowledge_source_file,
+          knowledge_item:
+            build(:knowledge_item,
+              world: world,
+              city: nil,
+              department: nil,
+              lemming: nil,
+              kind: "source_file",
+              status: "ready",
+              title: "Old title",
+              tags: ["old"]
+            ),
+          source_file_type: "company_knowledge",
+          extraction_status: "ready",
+          indexing_status: "ready"
+        )
+
+      assert {:ok, %{knowledge_item: updated_item, source_file: updated_source_file}} =
+               Knowledge.update_source_file_metadata(world, source_file, %{
+                 title: "New title",
+                 tags: ["new", "customer:acme"],
+                 source_file_type: "policy",
+                 metadata: %{"origin" => "edited"}
+               })
+
+      assert updated_item.title == "New title"
+      assert updated_item.tags == ["new", "customer:acme"]
+      assert updated_source_file.source_file_type == "policy"
+      assert updated_source_file.metadata == %{"origin" => "edited"}
+    end
+  end
 end

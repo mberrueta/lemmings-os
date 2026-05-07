@@ -9,6 +9,8 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.SourceFile
+  alias LemmingsOs.Knowledge.SourceFileStorageService
   alias LemmingsOs.Lemmings
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Worlds.World
@@ -27,7 +29,25 @@ defmodule LemmingsOsWeb.KnowledgeLive do
         to_form(%{"query" => "", "source" => "", "status" => "active"}, as: :filter)
       )
       |> assign(:memory_form, to_form(Knowledge.change_memory(%KnowledgeItem{}), as: :memory))
+      |> assign(:source_file_form, to_form(default_source_file_form(), as: :source_file))
+      |> assign(
+        :source_file_edit_form,
+        to_form(default_source_file_edit_form(), as: :source_file_edit)
+      )
       |> assign(:memory_tags_value, "")
+      |> assign(:source_file_tags_value, "")
+      |> assign(:source_file_edit_tags_value, "")
+      |> assign(:source_file_entries, [])
+      |> assign(:source_file_query, "")
+      |> assign(:source_file_status, "")
+      |> assign(:source_file_type_filter, "")
+      |> assign(:editing_source_file_id, nil)
+      |> assign(
+        :source_file_filter_form,
+        to_form(%{"query" => "", "status" => "", "source_file_type" => ""},
+          as: :source_file_filter
+        )
+      )
       |> assign(:scope_options, %{worlds: [], cities: [], departments: [], lemmings: []})
       |> assign(:city_lookup, %{})
       |> assign(:department_lookup, %{})
@@ -47,8 +67,150 @@ defmodule LemmingsOsWeb.KnowledgeLive do
       |> assign(:form_mode, :new)
       |> assign(:editing_memory, nil)
       |> assign(:form_open?, false)
+      |> allow_upload(:source_file,
+        accept: ~w(.txt .md .pdf .doc .docx .html .htm .csv .json .xml),
+        max_entries: 1,
+        max_file_size: SourceFileStorageService.max_file_size_bytes()
+      )
 
     {:ok, hydrate_from_params(socket, mount_params(params, session))}
+  end
+
+  def handle_event("change_source_file_filters", %{"source_file_filter" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(:source_file_query, String.trim(Map.get(params, "query", "")))
+     |> assign(:source_file_status, normalize_source_file_status(Map.get(params, "status")))
+     |> assign(
+       :source_file_type_filter,
+       normalize_source_file_type(Map.get(params, "source_file_type"))
+     )
+     |> assign(:source_file_filter_form, to_form(params, as: :source_file_filter))
+     |> load_source_files()}
+  end
+
+  def handle_event("validate_source_file", %{"source_file" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(:source_file_tags_value, Map.get(params, "tags", ""))
+     |> assign(:source_file_form, to_form(params, as: :source_file))}
+  end
+
+  def handle_event("cancel_source_file_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :source_file, ref)}
+  end
+
+  def handle_event("create_source_file", %{"source_file" => params}, socket) do
+    attrs = normalize_source_file_create_params(params)
+
+    case selected_create_scope(socket) do
+      nil ->
+        {:noreply,
+         put_flash(socket, :error, "Select a valid scope before registering a source file.")}
+
+      scope ->
+        create_source_file_from_upload(socket, scope, attrs)
+    end
+  end
+
+  def handle_event("edit_source_file", %{"id" => source_file_id}, socket) do
+    case Enum.find(socket.assigns.source_file_entries, &(&1.id == source_file_id)) do
+      %SourceFile{} = source_file ->
+        knowledge_item = source_file.knowledge_item || %KnowledgeItem{}
+        tags_value = knowledge_item.tags |> List.wrap() |> Enum.join(", ")
+
+        form =
+          to_form(
+            %{
+              "title" => knowledge_item.title || "",
+              "tags" => tags_value,
+              "source_file_type" => source_file.source_file_type || "other"
+            },
+            as: :source_file_edit
+          )
+
+        {:noreply,
+         socket
+         |> assign(:editing_source_file_id, source_file_id)
+         |> assign(:source_file_edit_tags_value, tags_value)
+         |> assign(:source_file_edit_form, form)}
+
+      _other ->
+        {:noreply, put_flash(socket, :error, "Source file not found in current list.")}
+    end
+  end
+
+  def handle_event("cancel_edit_source_file", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:editing_source_file_id, nil)
+     |> assign(:source_file_edit_tags_value, "")
+     |> assign(
+       :source_file_edit_form,
+       to_form(default_source_file_edit_form(), as: :source_file_edit)
+     )}
+  end
+
+  def handle_event("validate_edit_source_file", %{"source_file_edit" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(:source_file_edit_tags_value, Map.get(params, "tags", ""))
+     |> assign(:source_file_edit_form, to_form(params, as: :source_file_edit))}
+  end
+
+  def handle_event(
+        "save_source_file_metadata",
+        %{"source_file_id" => id, "source_file_edit" => params},
+        socket
+      ) do
+    scope = selected_create_scope(socket)
+
+    with %SourceFile{} = source_file <-
+           Enum.find(socket.assigns.source_file_entries, &(&1.id == id)),
+         %{} <- scope do
+      attrs = %{
+        title: Map.get(params, "title", ""),
+        tags: normalize_tags(Map.get(params, "tags", "")),
+        source_file_type: normalize_source_file_type(Map.get(params, "source_file_type"))
+      }
+
+      case Knowledge.update_source_file_metadata(scope, source_file, attrs) do
+        {:ok, _updated} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Source file metadata updated.")
+           |> assign(:editing_source_file_id, nil)
+           |> assign(:source_file_edit_tags_value, "")
+           |> assign(
+             :source_file_edit_form,
+             to_form(default_source_file_edit_form(), as: :source_file_edit)
+           )
+           |> load_source_files()}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          {:noreply,
+           assign(socket, :source_file_edit_form, to_form(changeset, as: :source_file_edit))}
+
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, "Unable to update source file metadata.")}
+      end
+    else
+      _other ->
+        {:noreply, put_flash(socket, :error, "Unable to update source file metadata.")}
+    end
+  end
+
+  def handle_event("retry_source_file", %{"id" => id}, socket) do
+    run_source_file_action(
+      socket,
+      id,
+      &Knowledge.retry_source_file_indexing/2,
+      "Source file queued for retry."
+    )
+  end
+
+  def handle_event("archive_source_file", %{"id" => id}, socket) do
+    run_source_file_action(socket, id, &Knowledge.archive_source_file/2, "Source file archived.")
   end
 
   def handle_event("change_scope", %{"scope" => params}, socket) do
@@ -208,6 +370,30 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     |> assign(:lemming_lookup, Map.new(lemmings, &{&1.id, &1}))
   end
 
+  defp load_source_files(socket) do
+    case selected_create_scope(socket) do
+      nil ->
+        assign(socket, :source_file_entries, [])
+
+      scope ->
+        status =
+          case socket.assigns.source_file_status do
+            "" -> nil
+            value -> value
+          end
+
+        entries =
+          scope
+          |> Knowledge.list_source_files(status: status)
+          |> Enum.filter(fn source_file ->
+            source_file_matches_query?(source_file, socket.assigns.source_file_query) and
+              source_file_matches_type?(source_file, socket.assigns.source_file_type_filter)
+          end)
+
+        assign(socket, :source_file_entries, entries)
+    end
+  end
+
   defp load_memories(%{assigns: %{scope: nil}} = socket) do
     if socket.assigns.scoped_mode? do
       socket
@@ -294,6 +480,40 @@ defmodule LemmingsOsWeb.KnowledgeLive do
 
   defp normalize_status("active"), do: "active"
   defp normalize_status(_status), do: "active"
+
+  defp normalize_source_file_status(status)
+       when status in [
+              "",
+              "pending_index",
+              "extracting",
+              "chunking",
+              "embedding",
+              "ready",
+              "needs_ocr",
+              "failed",
+              "archived"
+            ],
+       do: status
+
+  defp normalize_source_file_status(_status), do: ""
+
+  defp normalize_source_file_type(value)
+       when value in [
+              "",
+              "price_list",
+              "contract",
+              "policy",
+              "branding",
+              "product_catalog",
+              "company_knowledge",
+              "client_material",
+              "example_email",
+              "book",
+              "other"
+            ],
+       do: value
+
+  defp normalize_source_file_type(_value), do: "other"
 
   defp normalize_offset(offset) when is_binary(offset) do
     case Integer.parse(offset) do
@@ -494,6 +714,131 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   defp normalize_tags(value) when is_list(value), do: value
   defp normalize_tags(_value), do: []
 
+  defp normalize_source_file_create_params(params) when is_map(params) do
+    %{
+      title: Map.get(params, "title", ""),
+      source_file_type: normalize_source_file_type(Map.get(params, "source_file_type")),
+      content: Map.get(params, "content", "Source file registered for indexing."),
+      tags: normalize_tags(Map.get(params, "tags", "")),
+      metadata: %{}
+    }
+  end
+
+  defp create_source_file_from_upload(socket, scope, attrs) do
+    case socket.assigns.uploads.source_file.entries do
+      [] ->
+        {:noreply, put_flash(socket, :error, "Select a file to upload.")}
+
+      [%{valid?: false} | _rest] ->
+        {:noreply,
+         put_flash(socket, :error, "Invalid file upload. Check file size and extension.")}
+
+      [entry | _rest] ->
+        case persist_uploaded_source_file(socket, entry, scope, attrs) do
+          :created ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Source file uploaded and queued for indexing.")
+             |> assign(:source_file_form, to_form(default_source_file_form(), as: :source_file))
+             |> assign(:source_file_tags_value, "")
+             |> load_source_files()}
+
+          :invalid_attrs ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               "Unable to register source file. Please validate form fields."
+             )}
+
+          _other ->
+            {:noreply, put_flash(socket, :error, "Unable to register source file upload.")}
+        end
+    end
+  end
+
+  defp persist_uploaded_source_file(socket, entry, scope, attrs) do
+    consume_uploaded_entry(socket, entry, fn %{path: path, client_name: client_name} ->
+      merged_attrs =
+        attrs
+        |> Map.put(:original_filename, client_name)
+        |> Map.put(:content_type, upload_content_type(entry))
+
+      {:ok, persist_source_file_upload(scope, merged_attrs, path)}
+    end)
+  end
+
+  defp persist_source_file_upload(scope, attrs, path) do
+    case Knowledge.create_source_file_upload(scope, attrs, path) do
+      {:ok, _created} -> :created
+      {:error, :invalid_attrs} -> :invalid_attrs
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp upload_content_type(entry) do
+    entry.client_type || MIME.from_path(entry.client_name || "upload.bin") ||
+      "application/octet-stream"
+  end
+
+  defp source_file_matches_query?(_source_file, ""), do: true
+
+  defp source_file_matches_query?(%SourceFile{} = source_file, query) do
+    candidate =
+      [
+        source_file.original_filename,
+        source_file.source_file_type,
+        source_file.failure_reason,
+        source_file.knowledge_item && source_file.knowledge_item.title,
+        (source_file.knowledge_item &&
+           source_file.knowledge_item.tags |> List.wrap() |> Enum.join(" ")) || ""
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" ")
+      |> String.downcase()
+
+    String.contains?(candidate, String.downcase(query))
+  end
+
+  defp source_file_matches_type?(_source_file, ""), do: true
+  defp source_file_matches_type?(%SourceFile{source_file_type: type}, value), do: type == value
+
+  defp run_source_file_action(socket, id, action, success_message) do
+    scope = selected_create_scope(socket)
+    source_file = Enum.find(socket.assigns.source_file_entries, &(&1.id == id))
+
+    case {scope, source_file} do
+      {%{} = resolved_scope, %SourceFile{} = resolved_source_file} ->
+        case action.(resolved_scope, resolved_source_file) do
+          {:ok, _updated} ->
+            {:noreply, socket |> put_flash(:info, success_message) |> load_source_files()}
+
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, "Unable to update source file status.")}
+        end
+
+      _other ->
+        {:noreply, put_flash(socket, :error, "Source file not found in current list.")}
+    end
+  end
+
+  defp default_source_file_form do
+    %{
+      "title" => "",
+      "source_file_type" => "other",
+      "tags" => "",
+      "content" => "Source file registered for indexing."
+    }
+  end
+
+  defp default_source_file_edit_form do
+    %{
+      "title" => "",
+      "source_file_type" => "other",
+      "tags" => ""
+    }
+  end
+
   defp resolve_scoped_mode(socket, params) do
     scope_type = normalize_scope_type(params["scope_type"])
     scope_id = params["scope_id"]
@@ -572,5 +917,6 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     |> maybe_assign_scope_form_for_scoped_mode(scoped_mode?, scope_id)
     |> maybe_open_linked_memory(resolved.linked_memory)
     |> load_memories()
+    |> load_source_files()
   end
 end
