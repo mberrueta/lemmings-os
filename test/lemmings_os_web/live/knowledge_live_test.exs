@@ -9,7 +9,7 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
   alias LemmingsOs.Repo
 
   test "creates, edits, deletes memories and supports filtered empty states", %{conn: conn} do
-    world = insert(:world, name: "Ops World", slug: "ops")
+    world = insert(:world)
 
     {:ok, view, _html} = live(conn, ~p"/knowledge")
 
@@ -333,5 +333,87 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
 
     assert archived_item.status == "archived"
     assert archived_source_file.indexing_status == "archived"
+  end
+
+  test "source-file filters narrow by query, status, and type with stable selectors", %{
+    conn: conn
+  } do
+    world = insert(:world)
+
+    policy_file =
+      insert(:knowledge_source_file,
+        knowledge_item:
+          build(:knowledge_item,
+            world: world,
+            city: nil,
+            department: nil,
+            lemming: nil,
+            kind: "source_file",
+            status: "ready",
+            title: "Policy Guide",
+            tags: ["policy", "customer:acme"]
+          ),
+        source_file_type: "policy",
+        extraction_status: "ready",
+        indexing_status: "ready",
+        original_filename: "policy.md"
+      )
+
+    failed_file =
+      insert(:knowledge_source_file,
+        knowledge_item:
+          build(:knowledge_item,
+            world: world,
+            city: nil,
+            department: nil,
+            lemming: nil,
+            kind: "source_file",
+            status: "failed",
+            title: "Pricing Catalog",
+            tags: ["pricing"]
+          ),
+        source_file_type: "company_knowledge",
+        extraction_status: "failed",
+        indexing_status: "failed",
+        failure_reason: "extraction_failed",
+        original_filename: "pricing.md"
+      )
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/knowledge?#{%{scope_type: "world", scope_id: world.id, status: "active"}}"
+      )
+
+    assert has_element?(view, "#knowledge-source-file-row-#{policy_file.id}")
+    assert has_element?(view, "#knowledge-source-file-row-#{failed_file.id}")
+
+    assert has_element?(
+             view,
+             "#knowledge-source-file-failure-#{failed_file.id}",
+             "extraction_failed"
+           )
+
+    view
+    |> element("#knowledge-source-file-filter-form")
+    |> render_change(%{
+      "source_file_filter" => %{"query" => "pricing", "status" => "", "source_file_type" => ""}
+    })
+
+    assert has_element?(view, "#knowledge-source-file-row-#{failed_file.id}")
+    refute has_element?(view, "#knowledge-source-file-row-#{policy_file.id}")
+
+    view
+    |> element("#knowledge-source-file-filter-form")
+    |> render_change(%{
+      "source_file_filter" => %{
+        "query" => "",
+        "status" => "ready",
+        "source_file_type" => "policy"
+      }
+    })
+
+    assert has_element?(view, "#knowledge-source-file-row-#{policy_file.id}")
+    refute has_element?(view, "#knowledge-source-file-row-#{failed_file.id}")
   end
 end

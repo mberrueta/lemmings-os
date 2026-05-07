@@ -429,6 +429,37 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert error.tool_name == "knowledge.read"
       assert error.code == "tool.knowledge.not_found"
     end
+
+    test "denies cross-scope reads and invalid scope hints safely", %{
+      world: world,
+      city: city,
+      instance: instance
+    } do
+      sibling_department = insert(:department, world: world, city: city)
+
+      %{chunk_ref: sibling_chunk_ref} =
+        create_ready_source_file_chunk!(world, sibling_department, "policy", "Sibling-only chunk")
+
+      assert {:error, read_error} =
+               Runtime.execute(world, instance, "knowledge.read", %{
+                 "chunk_ref" => sibling_chunk_ref
+               })
+
+      assert read_error.tool_name == "knowledge.read"
+      assert read_error.code == "tool.knowledge.not_found"
+
+      other_city = insert(:city, world: world)
+
+      assert {:error, search_error} =
+               Runtime.execute(world, instance, "knowledge.search", %{
+                 "query" => "policy",
+                 "kind" => "source_file",
+                 "scope" => %{"world_id" => world.id, "city_id" => other_city.id}
+               })
+
+      assert search_error.tool_name == "knowledge.search"
+      assert search_error.code == "tool.knowledge.invalid_scope"
+    end
   end
 
   describe "execute/4 with web tools" do
