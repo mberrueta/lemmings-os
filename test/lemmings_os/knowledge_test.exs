@@ -562,4 +562,130 @@ defmodule LemmingsOs.KnowledgeTest do
       assert updated_source_file.metadata == %{"origin" => "edited"}
     end
   end
+
+  describe "reference file lifecycle APIs" do
+    test "create_reference_file/2 persists reference file and keeps summary-only knowledge content" do
+      world = insert(:world)
+
+      assert {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}} =
+               Knowledge.create_reference_file(world, %{
+                 title: "Quote template",
+                 content: "Reusable quote template summary.",
+                 tags: ["quote", "template"],
+                 reference_file_type: "quote_template",
+                 original_filename: "quote.md",
+                 content_type: "text/markdown",
+                 size_bytes: 128,
+                 checksum: String.duplicate("a", 64),
+                 storage_ref:
+                   "local://knowledge_reference_files/#{world.id}/#{Ecto.UUID.generate()}/quote.md"
+               })
+
+      assert knowledge_item.kind == "reference_file"
+      assert knowledge_item.status == "active"
+      assert knowledge_item.content == "Reusable quote template summary."
+      assert reference_file.knowledge_item_id == knowledge_item.id
+      assert reference_file.reference_file_type == "quote_template"
+      assert String.starts_with?(reference_file.reference_ref, "kref:")
+    end
+
+    test "create_reference_file_upload/3 stores bytes and creates managed rows" do
+      old_storage = Application.get_env(:lemmings_os, :knowledge_reference_file_storage)
+      storage_root = Path.join(System.tmp_dir!(), "reference_upload_test_#{Ecto.UUID.generate()}")
+      source_path = Path.join(storage_root, "template.md")
+
+      on_exit(fn ->
+        File.rm_rf!(storage_root)
+
+        if old_storage do
+          Application.put_env(:lemmings_os, :knowledge_reference_file_storage, old_storage)
+        else
+          Application.delete_env(:lemmings_os, :knowledge_reference_file_storage)
+        end
+      end)
+
+      File.mkdir_p!(storage_root)
+      File.write!(source_path, "hello reference file upload")
+
+      Application.put_env(:lemmings_os, :knowledge_reference_file_storage,
+        backend: :local,
+        root_path: storage_root,
+        max_file_size_bytes: 1024 * 1024
+      )
+
+      world = insert(:world)
+
+      assert {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}} =
+               Knowledge.create_reference_file_upload(
+                 world,
+                 %{
+                   title: "Uploaded template",
+                   content: "Uploaded template summary.",
+                   tags: ["template"],
+                   reference_file_type: "quote_template",
+                   original_filename: "template.md",
+                   content_type: "text/markdown"
+                 },
+                 source_path
+               )
+
+      assert knowledge_item.kind == "reference_file"
+      assert reference_file.size_bytes > 0
+      assert String.starts_with?(reference_file.storage_ref, "local://knowledge_reference_files/")
+    end
+
+    test "update/archive/list/descriptor enforce scope and active availability" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+
+      reference_file =
+        insert(:knowledge_reference_file,
+          knowledge_item:
+            build(:knowledge_item,
+              world: world,
+              city: nil,
+              department: nil,
+              lemming: nil,
+              kind: "reference_file",
+              status: "active",
+              title: "Old title",
+              tags: ["old"]
+            ),
+          storage_ref:
+            "local://knowledge_reference_files/#{world.id}/#{Ecto.UUID.generate()}/reference.md"
+        )
+
+      assert {:ok, %{knowledge_item: updated_item, reference_file: updated_reference}} =
+               Knowledge.update_reference_file_metadata(world, reference_file, %{
+                 title: "New title",
+                 content: "New summary",
+                 tags: ["new"],
+                 reference_file_type: "style_guide",
+                 metadata: %{"origin" => "edited"},
+                 safe_to_pass_to_tools: false
+               })
+
+      assert updated_item.title == "New title"
+      assert updated_reference.reference_file_type == "style_guide"
+      assert updated_reference.safe_to_pass_to_tools == false
+
+      assert {:error, :scope_mismatch} =
+               Knowledge.update_reference_file_metadata(city, reference_file, %{title: "nope"})
+
+      descriptor = Knowledge.build_reference_file_descriptor(updated_reference)
+      assert descriptor.knowledge_item_id == updated_item.id
+      refute Map.has_key?(descriptor, :storage_ref)
+
+      assert {:ok, effective_before_archive} = Knowledge.list_effective_reference_files(city)
+      assert Enum.any?(effective_before_archive, &(&1.reference_file.id == reference_file.id))
+
+      assert {:ok, %{knowledge_item: archived_item}} =
+               Knowledge.archive_reference_file(world, updated_reference)
+
+      assert archived_item.status == "archived"
+
+      assert {:ok, effective_after_archive} = Knowledge.list_effective_reference_files(city)
+      refute Enum.any?(effective_after_archive, &(&1.reference_file.id == reference_file.id))
+    end
+  end
 end

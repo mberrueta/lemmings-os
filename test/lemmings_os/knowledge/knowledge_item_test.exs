@@ -3,6 +3,8 @@ defmodule LemmingsOs.Knowledge.KnowledgeItemTest do
 
   alias LemmingsOs.Knowledge.KnowledgeItem
 
+  doctest LemmingsOs.Knowledge.KnowledgeItem
+
   describe "changeset/2 kind and status rules" do
     test "accepts memory with active status" do
       world = insert(:world)
@@ -72,6 +74,44 @@ defmodule LemmingsOs.Knowledge.KnowledgeItemTest do
         })
 
       assert changeset.valid?
+    end
+
+    test "accepts reference_file with active and archived statuses" do
+      world = insert(:world)
+
+      for status <- ["active", "archived"] do
+        changeset =
+          KnowledgeItem.changeset(%KnowledgeItem{}, %{
+            world_id: world.id,
+            kind: "reference_file",
+            title: "Reference file title",
+            content: "Reference file description",
+            source: "user",
+            status: status,
+            artifact_id: Ecto.UUID.generate(),
+            tags: []
+          })
+
+        assert changeset.valid?
+      end
+    end
+
+    test "rejects reference_file with source-file lifecycle status" do
+      world = insert(:world)
+
+      changeset =
+        KnowledgeItem.changeset(%KnowledgeItem{}, %{
+          world_id: world.id,
+          kind: "reference_file",
+          title: "Reference file title",
+          content: "Reference file description",
+          source: "user",
+          status: "ready",
+          tags: []
+        })
+
+      refute changeset.valid?
+      assert {".invalid_choice", _details} = Keyword.fetch!(changeset.errors, :status)
     end
 
     test "rejects memory rows with artifact provenance" do

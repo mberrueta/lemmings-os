@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status**: PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETE
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 
@@ -43,16 +43,25 @@ Extend the Knowledge data model so reference files are first-class Knowledge ite
 
 ## Expected Outputs
 
-- A single PR migration for reference-file metadata, allowed references/unique guarantees, and indexes.
-- Schema/changeset support for reference-file metadata.
-- Knowledge item kind/status support for reference files.
-- Factory support for later tests.
+- [x] A single PR migration for reference-file metadata, allowed references/unique guarantees, and indexes.
+- [x] Schema/changeset support for reference-file metadata.
+- [x] Knowledge item kind/status support for reference files.
+- [x] Factory support for later tests.
 
 ## Suggested Checks
 
-- `mix format`
-- Narrow schema/migration tests once added
-- Existing Knowledge item tests
+- [x] `mix format`
+- [x] `mix test test/lemmings_os/knowledge/knowledge_item_test.exs test/lemmings_os/knowledge/reference_file_test.exs test/lemmings_os/knowledge/source_file_test.exs`
+- [x] `mix precommit`
+
+## Completion Notes
+
+- Added `reference_file` to the Knowledge item discriminator contract.
+- Added reference-file `active` and `archived` status validation in schema/changeset logic.
+- Added `knowledge_reference_files` metadata persistence with one migration file.
+- Kept DB constraints limited to references, unique constraints, and indexes.
+- Did not add DB CHECK constraints, DB enums, chunks, embeddings, pgvector indexes, or background indexing.
+- Added public API docs and doctests for the new/updated schema APIs.
 
 ## Human Approval Gate
 

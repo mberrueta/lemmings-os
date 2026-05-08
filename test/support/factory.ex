@@ -15,6 +15,7 @@ defmodule LemmingsOs.Factory do
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Helpers
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.ReferenceFile
   alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.Knowledge.SourceFileChunk
   alias LemmingsOs.LemmingCalls.LemmingCall
@@ -315,6 +316,25 @@ defmodule LemmingsOs.Factory do
       extracted_at: nil,
       indexed_at: nil,
       metadata: %{"origin" => "upload"}
+    }
+  end
+
+  def knowledge_reference_file_factory do
+    knowledge_item = build(:knowledge_item, kind: "reference_file", status: "active")
+    unique_value = sequence(:knowledge_reference_file_unique, & &1)
+
+    %ReferenceFile{
+      knowledge_item: knowledge_item,
+      reference_ref: "kref:#{Ecto.UUID.generate()}",
+      reference_file_type: "quote_template",
+      original_filename: "reference-#{unique_value}.md",
+      content_type: "text/markdown",
+      size_bytes: 1_024,
+      checksum: String.duplicate("d", 64),
+      storage_ref: "knowledge://local/reference_files/#{Ecto.UUID.generate()}/reference.md",
+      metadata: %{"origin" => "upload"},
+      safe_to_read: true,
+      safe_to_pass_to_tools: true
     }
   end
 

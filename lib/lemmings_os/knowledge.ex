@@ -14,6 +14,8 @@ defmodule LemmingsOs.Knowledge do
   alias LemmingsOs.Events
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.ReferenceFile
+  alias LemmingsOs.Knowledge.ReferenceFileStorageService
   alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.Knowledge.SourceFileChunk
   alias LemmingsOs.Knowledge.SourceFileStorageService
@@ -78,6 +80,20 @@ defmodule LemmingsOs.Knowledge do
           required(:score) => float(),
           required(:snippet) => String.t(),
           required(:scope) => %{required(:type) => String.t()}
+        }
+
+  @type reference_file_descriptor :: %{
+          required(:reference_ref) => String.t(),
+          required(:knowledge_item_id) => Ecto.UUID.t(),
+          required(:kind) => String.t(),
+          required(:reference_file_type) => String.t(),
+          required(:title) => String.t(),
+          required(:tags) => [String.t()],
+          required(:status) => String.t(),
+          required(:content_type) => String.t(),
+          required(:safe_to_read) => boolean(),
+          required(:safe_to_pass_to_tools) => boolean(),
+          required(:metadata) => map()
         }
 
   @doc """
@@ -795,6 +811,488 @@ defmodule LemmingsOs.Knowledge do
   def update_source_file_metadata(_scope, _source_file, _attrs), do: {:error, :invalid_attrs}
 
   @doc """
+  Creates a reference-file knowledge item using an existing managed `storage_ref`.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope (`%World{}`, `%City{}`, `%Department{}`, `%Lemming{}`).
+  - `attrs` - reference-file attributes.
+
+  `attrs` supports:
+  - required: `:reference_file_type`, `:original_filename`, `:content_type`, `:size_bytes`, `:storage_ref`
+  - optional: `:title`, `:content` (short summary), `:tags`, `:metadata`, `:checksum`,
+    `:safe_to_read` (default `true`), `:safe_to_pass_to_tools` (default `true`),
+    `:artifact_id`, `:reference_ref` (auto-generated when omitted)
+  - optional explicit scope IDs are allowed only when they match `scope`
+
+  Runtime-owned defaults:
+  - `kind = "reference_file"`
+  - `source = "user"`
+  - `status = "active"`
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.create_reference_file(%{}, %{})
+      {:error, :invalid_scope}
+
+  Happy-path (integration-style):
+
+      world = insert(:world)
+
+      {:ok, %{knowledge_item: item, reference_file: file}} =
+        LemmingsOs.Knowledge.create_reference_file(world, %{
+          title: "Quote template",
+          content: "Reusable quote summary.",
+          tags: ["quote", "template"],
+          reference_file_type: "quote_template",
+          original_filename: "quote.md",
+          content_type: "text/markdown",
+          size_bytes: 128,
+          storage_ref:
+            "local://knowledge_reference_files/\#{world.id}/\#{Ecto.UUID.generate()}/quote.md"
+        })
+
+      item.kind == "reference_file"
+      file.knowledge_item_id == item.id
+  """
+  @spec create_reference_file(scope(), map()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), reference_file: ReferenceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch | :invalid_attrs}
+  def create_reference_file(scope, attrs) when is_map(attrs) do
+    with {:ok, scope_data} <- scope_data(scope),
+         :ok <- validate_requested_scope(attrs, scope_data),
+         {:ok, knowledge_item_attrs, reference_file_attrs} <-
+           reference_file_create_attrs(attrs, scope_data) do
+      multi =
+        Ecto.Multi.new()
+        |> Ecto.Multi.insert(
+          :knowledge_item,
+          KnowledgeItem.changeset(%KnowledgeItem{}, knowledge_item_attrs)
+        )
+        |> Ecto.Multi.insert(:reference_file, fn %{knowledge_item: knowledge_item} ->
+          reference_ref =
+            fetch(reference_file_attrs, :reference_ref) ||
+              build_reference_ref!(knowledge_item.id)
+
+          attrs =
+            reference_file_attrs
+            |> Map.put(:reference_ref, reference_ref)
+            |> Map.put(:knowledge_item_id, knowledge_item.id)
+
+          ReferenceFile.changeset(%ReferenceFile{}, attrs)
+        end)
+
+      case Repo.transaction(multi) do
+        {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}} ->
+          {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}}
+
+        {:error, _step, reason, _changes_so_far} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  def create_reference_file(_scope, _attrs), do: {:error, :invalid_attrs}
+
+  @doc """
+  Copies an uploaded file into managed reference-file storage and creates rows.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope.
+  - `attrs` - metadata/create attributes.
+  - `source_path` - trusted absolute upload temp path.
+
+  `attrs` supports:
+  - required for upload path: `:original_filename`, `:reference_file_type`, `:content_type`
+  - optional: `:title`, `:content` (short summary), `:tags`, `:metadata`,
+    `:safe_to_read`, `:safe_to_pass_to_tools`, `:artifact_id`, `:reference_ref`
+
+  Defaults:
+  - `:safe_to_read` defaults to `true`
+  - `:safe_to_pass_to_tools` defaults to `true`
+  - `:reference_ref` is generated when omitted
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.create_reference_file_upload(%{}, %{}, "/tmp/missing")
+      {:error, :invalid_scope}
+
+  Happy-path (integration-style):
+
+      world = insert(:world)
+      source_path = "/tmp/uploaded-template.md"
+
+      {:ok, %{knowledge_item: item, reference_file: file}} =
+        LemmingsOs.Knowledge.create_reference_file_upload(
+          world,
+          %{
+            title: "Uploaded template",
+            content: "Short summary.",
+            reference_file_type: "quote_template",
+            original_filename: "template.md",
+            content_type: "text/markdown"
+          },
+          source_path
+        )
+
+      item.kind == "reference_file"
+      file.size_bytes > 0
+  """
+  @spec create_reference_file_upload(scope(), map(), String.t()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), reference_file: ReferenceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch | :invalid_attrs}
+  def create_reference_file_upload(scope, attrs, source_path)
+      when is_map(attrs) and is_binary(source_path) do
+    with {:ok, scope_data} <- scope_data(scope),
+         :ok <- validate_requested_scope(attrs, scope_data),
+         filename when is_binary(filename) <- fetch(attrs, :original_filename),
+         {:ok, knowledge_item_id} <- Ecto.UUID.cast(Ecto.UUID.generate()),
+         {:ok, stored} <-
+           ReferenceFileStorageService.put(
+             scope_data.world_id,
+             knowledge_item_id,
+             source_path,
+             filename
+           ) do
+      attrs =
+        attrs
+        |> Map.put(:storage_ref, stored.storage_ref)
+        |> Map.put(:size_bytes, stored.size_bytes)
+        |> Map.put(:checksum, stored.checksum)
+        |> Map.put_new(:reference_ref, build_reference_ref!(knowledge_item_id))
+
+      create_reference_file(scope, attrs)
+    else
+      {:error, reason}
+      when reason in [:invalid_source_path, :source_not_found, :file_too_large] ->
+        {:error, :invalid_attrs}
+
+      {:error, _reason} = error ->
+        error
+
+      _other ->
+        {:error, :invalid_attrs}
+    end
+  end
+
+  def create_reference_file_upload(_scope, _attrs, _source_path), do: {:error, :invalid_attrs}
+
+  @doc """
+  Lists reference files local to the exact scope.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope.
+  - `opts` - optional filters.
+
+  `opts` supports:
+  - `:status` - `"active"` or `"archived"`; when omitted, returns both
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.list_reference_files(%{})
+      []
+
+  Happy-path (integration-style):
+
+      world = insert(:world)
+      files = LemmingsOs.Knowledge.list_reference_files(world, status: "active")
+      is_list(files)
+  """
+  @spec list_reference_files(scope(), keyword()) :: [ReferenceFile.t()]
+  def list_reference_files(scope, opts \\ []) when is_list(opts) do
+    case scope_data(scope) do
+      {:ok, scope_data} ->
+        status = Keyword.get(opts, :status)
+
+        ReferenceFile
+        |> join(:inner, [reference_file], knowledge_item in KnowledgeItem,
+          on: knowledge_item.id == reference_file.knowledge_item_id
+        )
+        |> where(
+          [_reference_file, knowledge_item],
+          knowledge_item.world_id == ^scope_data.world_id
+        )
+        |> maybe_scope_eq(:city_id, scope_data.city_id)
+        |> maybe_scope_eq(:department_id, scope_data.department_id)
+        |> maybe_scope_eq(:lemming_id, scope_data.lemming_id)
+        |> maybe_filter_reference_file_status(status)
+        |> order_by([reference_file, _knowledge_item],
+          desc: reference_file.inserted_at,
+          desc: reference_file.id
+        )
+        |> Repo.all()
+        |> Repo.preload(:knowledge_item)
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  @doc """
+  Lists reference files visible from scope (local + inherited + descendants).
+
+  Returns read-model rows with:
+  - `:reference_file`
+  - `:descriptor` (safe descriptor)
+  - `:owner_scope`, `:owner_scope_label`
+  - `:local?`, `:inherited?`, `:descendant?`
+
+  ## Parameters
+
+  - `scope` - visibility anchor scope.
+  - `opts` - optional filters.
+
+  `opts` supports:
+  - `:status` - `"active"` or `"archived"` (default `"active"`)
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.list_effective_reference_files(%{})
+      {:error, :invalid_scope}
+
+  Happy-path (integration-style):
+
+      city = insert(:city, world: insert(:world))
+      {:ok, rows} = LemmingsOs.Knowledge.list_effective_reference_files(city)
+      Enum.all?(rows, &Map.has_key?(&1, :descriptor))
+  """
+  @spec list_effective_reference_files(scope(), keyword()) ::
+          {:ok, [map()]} | {:error, :invalid_scope | :scope_mismatch}
+  def list_effective_reference_files(scope, opts \\ []) when is_list(opts) do
+    with {:ok, scope_data} <- scope_data(scope) do
+      status = Keyword.get(opts, :status, "active")
+
+      rows =
+        KnowledgeItem
+        |> where([knowledge_item], knowledge_item.kind == "reference_file")
+        |> filter_scope_relevance(scope_data)
+        |> maybe_filter_status(status)
+        |> join(:inner, [knowledge_item], reference_file in ReferenceFile,
+          on: reference_file.knowledge_item_id == knowledge_item.id
+        )
+        |> order_by([_knowledge_item, reference_file],
+          desc: reference_file.inserted_at,
+          desc: reference_file.id
+        )
+        |> select([_knowledge_item, reference_file], reference_file)
+        |> Repo.all()
+        |> Repo.preload(:knowledge_item)
+
+      {:ok,
+       Enum.map(rows, fn %ReferenceFile{knowledge_item: knowledge_item} = reference_file ->
+         owner_scope = owner_scope(knowledge_item)
+         local? = knowledge_item_in_scope?(knowledge_item, scope_data)
+         inherited? = inherited_owner?(knowledge_item, scope_data, local?)
+
+         %{
+           reference_file: reference_file,
+           descriptor: build_reference_file_descriptor(reference_file),
+           owner_scope: owner_scope,
+           owner_scope_label: String.capitalize(owner_scope),
+           local?: local?,
+           inherited?: inherited?,
+           descendant?: not local? and not inherited?
+         }
+       end)}
+    end
+  end
+
+  @doc """
+  Updates editable metadata for a reference file at exact scope.
+
+  ## Parameters
+
+  - `scope` - exact ownership scope expected for the target row.
+  - `reference_file` - persisted `%ReferenceFile{}` to update.
+  - `attrs` - editable fields.
+
+  `attrs` supports:
+  - knowledge fields: `:title`, `:content` (short summary), `:tags`
+  - reference fields: `:reference_file_type`, `:metadata`, `:safe_to_read`, `:safe_to_pass_to_tools`
+
+  Unknown or nil fields are ignored. Scope mismatch is rejected.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.update_reference_file_metadata(%{}, %LemmingsOs.Knowledge.ReferenceFile{}, %{})
+      {:error, :invalid_scope}
+
+  Happy-path (integration-style):
+
+      world = insert(:world)
+      reference_file = insert(:knowledge_reference_file, knowledge_item: build(:knowledge_item, world: world))
+
+      {:ok, %{knowledge_item: item, reference_file: file}} =
+        LemmingsOs.Knowledge.update_reference_file_metadata(world, reference_file, %{
+          title: "Updated title",
+          content: "Updated summary",
+          tags: ["updated"],
+          reference_file_type: "style_guide",
+          metadata: %{"origin" => "operator_edit"}
+        })
+
+      item.title == "Updated title"
+      file.reference_file_type == "style_guide"
+  """
+  @spec update_reference_file_metadata(scope(), ReferenceFile.t(), map()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), reference_file: ReferenceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch | :invalid_attrs}
+  def update_reference_file_metadata(scope, %ReferenceFile{} = reference_file, attrs)
+      when is_map(attrs) do
+    with {:ok, scope_data} <- scope_data(scope),
+         %ReferenceFile{knowledge_item: %KnowledgeItem{} = knowledge_item} = reference_file <-
+           Repo.preload(reference_file, :knowledge_item),
+         :ok <- validate_exact_scope(knowledge_item, scope_data) do
+      knowledge_attrs =
+        attrs
+        |> Map.take([:title, :content, :tags])
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        |> Map.new()
+
+      reference_file_attrs =
+        attrs
+        |> Map.take([:reference_file_type, :metadata, :safe_to_read, :safe_to_pass_to_tools])
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        |> Map.new()
+
+      multi =
+        Ecto.Multi.new()
+        |> maybe_update_knowledge_item(knowledge_item, knowledge_attrs)
+        |> maybe_update_reference_file(reference_file, reference_file_attrs)
+
+      case Repo.transaction(multi) do
+        {:ok, %{reference_file: updated_reference_file, knowledge_item: updated_knowledge_item}} ->
+          {:ok, %{knowledge_item: updated_knowledge_item, reference_file: updated_reference_file}}
+
+        {:error, _step, reason, _changes_so_far} ->
+          {:error, reason}
+      end
+    else
+      {:error, _reason} = error -> error
+      _other -> {:error, :scope_mismatch}
+    end
+  end
+
+  def update_reference_file_metadata(_scope, _reference_file, _attrs),
+    do: {:error, :invalid_attrs}
+
+  @doc """
+  Archives a reference file at exact scope.
+
+  This performs a soft lifecycle transition only:
+  - `knowledge_items.status` is set to `"archived"`
+  - no restore/recover or hard delete is performed here
+
+  ## Parameters
+
+  - `scope` - exact ownership scope expected for the target row.
+  - `reference_file` - persisted `%ReferenceFile{}` to archive.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.archive_reference_file(%{}, %LemmingsOs.Knowledge.ReferenceFile{})
+      {:error, :invalid_scope}
+
+  Happy-path (integration-style):
+
+      world = insert(:world)
+      reference_file = insert(:knowledge_reference_file, knowledge_item: build(:knowledge_item, world: world, kind: "reference_file", status: "active"))
+
+      {:ok, %{knowledge_item: item}} =
+        LemmingsOs.Knowledge.archive_reference_file(world, reference_file)
+
+      item.status == "archived"
+  """
+  @spec archive_reference_file(scope(), ReferenceFile.t()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), reference_file: ReferenceFile.t()}}
+          | {:error, Ecto.Changeset.t() | :invalid_scope | :scope_mismatch}
+  def archive_reference_file(scope, %ReferenceFile{} = reference_file) do
+    with {:ok, scope_data} <- scope_data(scope),
+         %ReferenceFile{knowledge_item: %KnowledgeItem{} = knowledge_item} = reference_file <-
+           Repo.preload(reference_file, :knowledge_item),
+         :ok <- validate_exact_scope(knowledge_item, scope_data) do
+      multi =
+        Ecto.Multi.new()
+        |> Ecto.Multi.update(
+          :knowledge_item,
+          KnowledgeItem.changeset(knowledge_item, %{status: "archived"})
+        )
+        |> Ecto.Multi.put(:reference_file, reference_file)
+
+      case Repo.transaction(multi) do
+        {:ok, %{knowledge_item: updated_knowledge_item, reference_file: updated_reference_file}} ->
+          {:ok, %{knowledge_item: updated_knowledge_item, reference_file: updated_reference_file}}
+
+        {:error, _step, reason, _changes_so_far} ->
+          {:error, reason}
+      end
+    else
+      {:error, _reason} = error -> error
+      _other -> {:error, :scope_mismatch}
+    end
+  end
+
+  @doc """
+  Builds a safe public descriptor for a reference file.
+
+  The descriptor intentionally excludes internal storage details like
+  `storage_ref`, filesystem paths, checksum, and byte size.
+
+  ## Parameters
+
+  - `reference_file` - persisted `%ReferenceFile{}`; `knowledge_item` is preloaded as needed.
+
+  ## Examples
+
+      iex> descriptor = LemmingsOs.Knowledge.build_reference_file_descriptor(%LemmingsOs.Knowledge.ReferenceFile{
+      ...>   knowledge_item_id: Ecto.UUID.generate(),
+      ...>   reference_ref: "kref:test",
+      ...>   reference_file_type: "template",
+      ...>   original_filename: "template.md",
+      ...>   content_type: "text/markdown",
+      ...>   metadata: %{},
+      ...>   safe_to_read: true,
+      ...>   safe_to_pass_to_tools: true,
+      ...>   knowledge_item: %LemmingsOs.Knowledge.KnowledgeItem{
+      ...>     kind: "reference_file",
+      ...>     title: "Template",
+      ...>     tags: [],
+      ...>     status: "active"
+      ...>   }
+      ...> })
+      iex> Map.has_key?(descriptor, :storage_ref)
+      false
+
+  Happy-path (integration-style):
+
+      reference_file = insert(:knowledge_reference_file)
+      descriptor = LemmingsOs.Knowledge.build_reference_file_descriptor(reference_file)
+      descriptor.kind == "reference_file"
+  """
+  @spec build_reference_file_descriptor(ReferenceFile.t()) :: reference_file_descriptor()
+  def build_reference_file_descriptor(%ReferenceFile{} = reference_file) do
+    reference_file = Repo.preload(reference_file, :knowledge_item)
+    knowledge_item = fetch(reference_file, :knowledge_item)
+    public = ReferenceFileStorageService.public_descriptor(reference_file)
+
+    %{
+      reference_ref: fetch(public, :reference_ref),
+      knowledge_item_id: fetch(reference_file, :knowledge_item_id),
+      kind: fetch(knowledge_item, :kind),
+      reference_file_type: fetch(public, :reference_file_type),
+      title: fetch(knowledge_item, :title),
+      tags: fetch(knowledge_item, :tags) || [],
+      status: fetch(knowledge_item, :status),
+      content_type: fetch(public, :content_type),
+      safe_to_read: fetch(public, :safe_to_read),
+      safe_to_pass_to_tools: fetch(public, :safe_to_pass_to_tools),
+      metadata: fetch(public, :metadata) || %{}
+    }
+  end
+
+  @doc """
   Performs scope-safe vector retrieval over ready source-file chunks.
 
   ## Parameters
@@ -1054,6 +1552,16 @@ defmodule LemmingsOs.Knowledge do
   defp source_file_status_filter_pair("pending_index"), do: {"pending_index", "pending"}
   defp source_file_status_filter_pair(status), do: {status, status}
 
+  defp maybe_filter_reference_file_status(query, status) when is_binary(status) do
+    if status in ["active", "archived"] do
+      from([_reference_file, knowledge_item] in query, where: knowledge_item.status == ^status)
+    else
+      query
+    end
+  end
+
+  defp maybe_filter_reference_file_status(query, _status), do: query
+
   defp maybe_scope_eq(query, field, nil) when field in [:city_id, :department_id, :lemming_id] do
     from([_source_file, knowledge_item] in query, where: is_nil(field(knowledge_item, ^field)))
   end
@@ -1081,6 +1589,14 @@ defmodule LemmingsOs.Knowledge do
 
   defp maybe_update_source_file(multi, source_file, attrs) do
     Ecto.Multi.update(multi, :source_file, SourceFile.changeset(source_file, attrs))
+  end
+
+  defp maybe_update_reference_file(multi, reference_file, attrs) when map_size(attrs) == 0 do
+    Ecto.Multi.put(multi, :reference_file, reference_file)
+  end
+
+  defp maybe_update_reference_file(multi, reference_file, attrs) do
+    Ecto.Multi.update(multi, :reference_file, ReferenceFile.changeset(reference_file, attrs))
   end
 
   defp set_source_file_status(%SourceFile{} = source_file, :extracting) do
@@ -1377,6 +1893,67 @@ defmodule LemmingsOs.Knowledge do
     end
   end
 
+  defp reference_file_create_attrs(attrs, scope_data) do
+    filename = fetch(attrs, :original_filename)
+    content_type = fetch(attrs, :content_type)
+    storage_ref = fetch(attrs, :storage_ref)
+    reference_file_type = fetch(attrs, :reference_file_type)
+    size_bytes = fetch(attrs, :size_bytes)
+    checksum = fetch(attrs, :checksum)
+    metadata = fetch(attrs, :metadata) || %{}
+    safe_to_read = fetch(attrs, :safe_to_read)
+    safe_to_pass_to_tools = fetch(attrs, :safe_to_pass_to_tools)
+    reference_ref = fetch(attrs, :reference_ref)
+    title = fetch(attrs, :title) || filename || "Reference file"
+    content = fetch(attrs, :content) || "Reference file metadata summary."
+    tags = fetch(attrs, :tags) || []
+
+    with :ok <-
+           validate_reference_file_create_inputs(
+             filename,
+             content_type,
+             storage_ref,
+             reference_file_type,
+             size_bytes,
+             metadata
+           ),
+         :ok <- validate_reference_file_storage_ref(storage_ref, scope_data.world_id),
+         :ok <- validate_optional_reference_ref(reference_ref),
+         {:ok, artifact_id} <- normalize_optional_artifact_id(fetch(attrs, :artifact_id)) do
+      knowledge_item_attrs =
+        %{
+          world_id: scope_data.world_id,
+          city_id: scope_data.city_id,
+          department_id: scope_data.department_id,
+          lemming_id: scope_data.lemming_id,
+          kind: "reference_file",
+          source: "user",
+          status: "active",
+          title: title,
+          content: content,
+          tags: tags
+        }
+        |> maybe_put(:artifact_id, artifact_id)
+
+      reference_file_attrs =
+        %{
+          reference_file_type: reference_file_type,
+          original_filename: filename,
+          content_type: content_type,
+          size_bytes: size_bytes,
+          checksum: checksum,
+          storage_ref: storage_ref,
+          metadata: metadata,
+          safe_to_read: if(is_boolean(safe_to_read), do: safe_to_read, else: true),
+          safe_to_pass_to_tools:
+            if(is_boolean(safe_to_pass_to_tools), do: safe_to_pass_to_tools, else: true)
+        }
+        |> maybe_put(:reference_ref, reference_ref)
+
+      {:ok, knowledge_item_attrs, reference_file_attrs}
+    end
+  end
+
   defp validate_source_file_create_inputs(
          filename,
          content_type,
@@ -1402,6 +1979,56 @@ defmodule LemmingsOs.Knowledge do
       {:ok, ^world_id} -> :ok
       {:ok, _other_world_id} -> {:error, :scope_mismatch}
       {:error, _reason} -> {:error, :invalid_attrs}
+    end
+  end
+
+  defp validate_reference_file_create_inputs(
+         filename,
+         content_type,
+         storage_ref,
+         reference_file_type,
+         size_bytes,
+         metadata
+       )
+       when is_binary(filename) and is_binary(content_type) and is_binary(storage_ref) and
+              is_binary(reference_file_type) and is_integer(size_bytes) and size_bytes > 0 and
+              is_map(metadata),
+       do: :ok
+
+  defp validate_reference_file_create_inputs(
+         _filename,
+         _content_type,
+         _storage_ref,
+         _reference_file_type,
+         _size_bytes,
+         _metadata
+       ),
+       do: {:error, :invalid_attrs}
+
+  defp validate_reference_file_storage_ref(storage_ref, world_id) do
+    case ReferenceFileStorageService.storage_ref_world_id(storage_ref) do
+      {:ok, ^world_id} -> :ok
+      {:ok, _other_world_id} -> {:error, :scope_mismatch}
+      {:error, _reason} -> {:error, :invalid_attrs}
+    end
+  end
+
+  defp validate_optional_reference_ref(nil), do: :ok
+
+  defp validate_optional_reference_ref(reference_ref) when is_binary(reference_ref) do
+    if String.match?(reference_ref, ~r/\A[A-Za-z0-9][A-Za-z0-9:_-]*\z/) do
+      :ok
+    else
+      {:error, :invalid_attrs}
+    end
+  end
+
+  defp validate_optional_reference_ref(_reference_ref), do: {:error, :invalid_attrs}
+
+  defp build_reference_ref!(knowledge_item_id) do
+    case ReferenceFileStorageService.build_reference_ref(knowledge_item_id) do
+      {:ok, reference_ref} -> reference_ref
+      {:error, _reason} -> raise ArgumentError, "invalid knowledge_item_id for reference_ref"
     end
   end
 

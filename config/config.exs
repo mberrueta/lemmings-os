@@ -25,6 +25,11 @@ config :lemmings_os, :knowledge_source_file_storage,
   root_path: Path.expand("../priv/runtime/knowledge_storage", __DIR__),
   max_file_size_bytes: 10 * 1024 * 1024
 
+config :lemmings_os, :knowledge_reference_file_storage,
+  backend: :local,
+  root_path: Path.expand("../priv/runtime/knowledge_reference_storage", __DIR__),
+  max_file_size_bytes: 10 * 1024 * 1024
+
 config :lemmings_os, :knowledge_chunking,
   chunk_size: 1_200,
   overlap: 200,
