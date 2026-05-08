@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status**: PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETE
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 
@@ -47,3 +47,19 @@ Make the Knowledge category boundaries clear for operators and Lemmings.
 ## Human Approval Gate
 
 Human reviewer validates documentation accuracy and terminology, then approves Task 14.
+
+## Completion Notes
+
+- Updated feature docs to clearly distinguish Knowledge categories and reference
+  file semantics:
+  - `docs/features/knowledge.md`
+  - `docs/features/tools.md`
+  - `docs/features/artifacts.md`
+- Documentation now reflects implemented behavior:
+  - Knowledge families: `memory`, `source_file`, `reference_file`
+  - Artifact is separate from Knowledge unless explicitly promoted
+  - reference-file lifecycle (`active`/`archived`), metadata-first lookup, and bounded read behavior
+  - optional Artifact provenance and no path/storage-ref exposure guarantees
+  - no chunk/embedding/vector indexing for reference files
+- Added release validation artifact:
+  - release validation content captured in Task 19 notes

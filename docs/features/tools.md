@@ -97,6 +97,51 @@ Safety notes:
 
 See [Knowledge Memories](knowledge.md) for scope semantics and operator behavior.
 
+### `knowledge.search`
+
+Searches scoped Knowledge.
+
+Supported modes:
+
+- `kind: "source_file"`: retrieval over ready source-file chunks.
+- `kind: "reference_file"`: metadata-first lookup for fixed reference assets.
+
+Reference-file search inputs:
+
+- `query` or `q`
+- `reference_file_type` (or `type`)
+- `tags`
+- `status` (`active`, `archived`, `all`)
+- `owner_scope`
+- `limit`, `offset`
+
+Safety notes:
+
+- Scope is enforced server-side from runtime ancestry.
+- Results omit raw storage paths/refs, checksums, and private file details.
+- Search events record safe metadata and result counts, not full query text.
+
+### `knowledge.read`
+
+Reads one scoped Knowledge resource with bounded output.
+
+Supported modes:
+
+- Source-file read by `chunk_ref`.
+- Reference-file read by `reference_ref` or `knowledge_item_id`.
+
+Reference-file read behavior:
+
+- Returns bounded direct text for readable text files.
+- Returns bounded converted text for supported non-text files when conversion succeeds.
+- Returns descriptor-only safe output (`content_status`) when unreadable/unavailable.
+
+Safety notes:
+
+- Never returns raw storage refs/paths.
+- Does not reveal inaccessible sibling/cross-world resource existence.
+- Reference-file reads do not create source-file chunks or embeddings.
+
 ## Documents
 
 ### `documents.markdown_to_html`

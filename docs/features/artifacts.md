@@ -9,6 +9,10 @@ Artifacts are durable references to promoted runtime output files.
 
 A workspace file does not become an Artifact automatically.
 
+Artifacts are separate from Knowledge by default. If an operator needs a
+generated Artifact as a reusable template/example/style asset, they must
+explicitly promote that Artifact into a Knowledge reference file.
+
 ## Implemented creation model
 
 Current implementation supports manual promotion only.

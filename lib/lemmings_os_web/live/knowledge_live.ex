@@ -1310,37 +1310,42 @@ defmodule LemmingsOsWeb.KnowledgeLive do
          %ReferenceFile{knowledge_item: %KnowledgeItem{} = item},
          assigns
        ) do
-    cond do
-      is_binary(item.lemming_id) ->
-        case Map.get(assigns.lemming_lookup, item.lemming_id) do
-          %{name: name} when is_binary(name) and name != "" -> "LEMMING: #{name}"
-          _other -> "LEMMING"
-        end
+    case reference_file_owner_scope(item) do
+      {:lemming, id} ->
+        scope_label_from_lookup(assigns.lemming_lookup, id, "LEMMING", :name)
 
-      is_binary(item.department_id) ->
-        case Map.get(assigns.department_lookup, item.department_id) do
-          %{slug: slug} when is_binary(slug) and slug != "" -> "DEPARTMENT: #{slug}"
-          _other -> "DEPARTMENT"
-        end
+      {:department, id} ->
+        scope_label_from_lookup(assigns.department_lookup, id, "DEPARTMENT", :slug)
 
-      is_binary(item.city_id) ->
-        case Map.get(assigns.city_lookup, item.city_id) do
-          %{slug: slug} when is_binary(slug) and slug != "" -> "CITY: #{slug}"
-          _other -> "CITY"
-        end
+      {:city, id} ->
+        scope_label_from_lookup(assigns.city_lookup, id, "CITY", :slug)
 
-      is_binary(item.world_id) ->
-        case Map.get(assigns.world_lookup, item.world_id) do
-          %{slug: slug} when is_binary(slug) and slug != "" -> "WORLD: #{slug}"
-          _other -> "WORLD"
-        end
+      {:world, id} ->
+        scope_label_from_lookup(assigns.world_lookup, id, "WORLD", :slug)
 
-      true ->
+      :world ->
         "WORLD"
     end
   end
 
   defp reference_file_owner_scope_label(_reference_file, _assigns), do: "WORLD"
+
+  defp reference_file_owner_scope(%KnowledgeItem{} = item) do
+    cond do
+      is_binary(item.lemming_id) -> {:lemming, item.lemming_id}
+      is_binary(item.department_id) -> {:department, item.department_id}
+      is_binary(item.city_id) -> {:city, item.city_id}
+      is_binary(item.world_id) -> {:world, item.world_id}
+      true -> :world
+    end
+  end
+
+  defp scope_label_from_lookup(lookup, id, base_label, key) when is_map(lookup) do
+    case Map.get(lookup, id) do
+      %{^key => value} when is_binary(value) and value != "" -> "#{base_label}: #{value}"
+      _other -> base_label
+    end
+  end
 
   defp reference_file_detail_state(_scope, %{status: "archived"}), do: "archived"
 

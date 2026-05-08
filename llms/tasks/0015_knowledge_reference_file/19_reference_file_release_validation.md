@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Status**: PENDING
+- **Status**: COMPLETE
 - **Approved**: [ ] Human sign-off
 
 ## Assigned Agent
@@ -47,3 +47,15 @@ Document what changed, how to validate it, how to roll it back, and which limita
 ## Human Approval Gate
 
 Human reviewer performs final release sign-off. Implementation sequence is complete after this approval.
+
+## Completion Notes
+
+- Documented in this task file:
+  - feature scope and non-goals
+  - migration + rollback path
+  - operator/runtime validation checklist
+  - configuration keys/env vars
+  - final validation evidence commands
+- Final quality gate evidence captured:
+  - `mix test` -> pass
+  - `mix precommit` -> pass

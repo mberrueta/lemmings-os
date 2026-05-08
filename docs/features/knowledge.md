@@ -2,21 +2,22 @@
 
 ## Purpose
 
-Knowledge has two implemented families:
+Knowledge has three implemented families:
 
 - `memory`: durable notes for facts, preferences, and rules.
-- `source_file`: operator-managed files indexed for scoped retrieval.
+- `source_file`: operator-managed files indexed for scoped retrieval (RAG path).
+- `reference_file`: operator-managed fixed files used as templates, examples, headers, footers, and style assets.
 
-Knowledge is managed directly by the Knowledge domain. Source files are not
-required Artifacts.
+Knowledge is managed directly by the Knowledge domain. Source files and
+reference files are not required Artifacts.
 
 Primary operator surface: `/knowledge`.
 
 ## Who Uses It
 
 - Operators use the Knowledge UI to create, edit, filter, and delete memories.
-- Operators upload and manage source files in the same Knowledge surface.
-- Lemmings use `knowledge.store` (memory-only), `knowledge.search`, and `knowledge.read`.
+- Operators upload and manage source files and reference files in the same Knowledge surface.
+- Lemmings use `knowledge.store` (memory-only), `knowledge.search`, and `knowledge.read` for scoped retrieval and reads.
 - Developers use `LemmingsOs.Knowledge` for scoped CRUD/index/retrieval.
 
 ## Scope Model
@@ -53,6 +54,7 @@ Current UI behavior:
 
 - The global `/knowledge` page lists all active memories across scopes.
 - Source-file management appears on the same page with dedicated list/filter/actions.
+- Reference-file management appears on the same page with dedicated list/filter/actions.
 - Scoped embedded views list memories under the selected scope, including descendants for broader scopes.
 - Operators can create a memory after selecting a valid scope.
 - The global page can edit or delete any listed memory by resolving the memory's owning scope.
@@ -70,6 +72,78 @@ Rows show:
 - ownership relationship (`Local`, `Inherited`, or `Descendant`)
 - timestamp and tags
 - links back to owning City, Department, or Lemming when available
+
+## Reference Files
+
+Reference files are fixed reusable inputs for generation workflows. They are
+selected by metadata and scope availability, not by chunk embeddings.
+
+### Ingestion Paths
+
+Implemented entry points:
+
+- Upload from Knowledge UI (`create_reference_file_upload/3` stores managed bytes + metadata).
+- Registration from existing managed references (`create_reference_file/2` with `storage_ref`).
+- Explicit operator-approved Artifact promotion (`promote_artifact_to_reference_file/3`).
+
+Reference-file rows are created as:
+
+- `knowledge_items.kind = "reference_file"`
+- `knowledge_items.source = "user"`
+- `knowledge_items.status = "active"`
+- `knowledge_reference_files.reference_ref` as stable safe identifier (`kref:<knowledge_item_id>` by default)
+
+### Metadata and Lifecycle
+
+Reference-file metadata includes:
+
+- `title` and optional summary/description in `knowledge_items.content`
+- flexible `reference_file_type` (not DB enum)
+- optional `tags`
+- scope ownership (`world/city/department/lemming`)
+- optional `artifact_id` provenance when explicitly promoted from an Artifact
+
+Lifecycle statuses:
+
+- `active`
+- `archived`
+
+Archived reference files remain persisted but are excluded from normal Lemming
+availability/search/read results.
+
+### Retrieval Tools
+
+- `knowledge.search`:
+  - supports `kind: "reference_file"` for metadata-first lookup.
+  - supports filters: `query`/`q`, `reference_file_type`/`type`, `tags`, `status`, `owner_scope`, `limit`, `offset`.
+  - defaults to caller effective scope and enforces hierarchy visibility.
+  - returns safe descriptor-oriented rows without storage refs/paths/checksums.
+- `knowledge.read`:
+  - supports reference identifiers by `reference_ref` or `knowledge_item_id`.
+  - returns bounded text when directly readable.
+  - uses existing safe extraction path for supported non-text formats (for example PDF/Office-like content).
+  - returns descriptor-only safe output (`content_status`) when content is unavailable/unreadable.
+
+Reference-file reads do not create source-file chunks, embeddings, or vector
+records.
+
+### Availability Guidance
+
+Reference-file availability is metadata-only:
+
+- use `search_reference_files/2` (or `list_available_reference_files/2`) to
+  list what is currently in scope.
+- prefer matching by `reference_file_type`, tags, and title before generating
+  structure/style from scratch.
+
+### Knowledge Boundary vs Artifacts
+
+- Artifacts are durable generated outputs in the Artifacts domain.
+- Reference files are Knowledge-managed reusable inputs.
+- An Artifact becomes a reference file only through explicit operator-approved
+  promotion.
+- After promotion, reference-file reads/searches use Knowledge-managed storage.
+  Optional Artifact provenance does not become the storage contract.
 
 ## Source Files
 
@@ -278,6 +352,12 @@ Source-file data spans filesystem + Postgres:
 - Metadata/status: `knowledge_items` and `knowledge_source_files`.
 - Retrieval chunks/embeddings: `knowledge_source_file_chunks`.
 
+Reference-file data spans filesystem + Postgres:
+
+- Bytes: configured `knowledge_reference_file_storage.root_path` tree.
+- Metadata: `knowledge_items` and `knowledge_reference_files`.
+- No retrieval chunk/embedding table is created for reference files.
+
 Operational guidance:
 
 - Back up storage bytes and DB metadata/chunks together.
@@ -290,9 +370,10 @@ Primary modules:
 
 - `LemmingsOs.Knowledge` owns memory CRUD, effective listing, exact-scope validation, and lifecycle events.
 - `LemmingsOs.Knowledge` also owns source-file lifecycle, chunk retrieval, retry/archive actions.
+- `LemmingsOs.Knowledge` also owns reference-file create/upload/edit/archive, availability/search/read, and Artifact promotion.
 - `LemmingsOs.Knowledge.KnowledgeItem` defines the shared `knowledge_items` schema for memory rows.
 - `LemmingsOs.Tools.Adapters.Knowledge` validates model-provided `knowledge.store` arguments and delegates persistence to `LemmingsOs.Knowledge`.
-- `LemmingsOsWeb.KnowledgeLive` renders global and embedded memory management surfaces.
+- `LemmingsOsWeb.KnowledgeLive` renders global and embedded memories/source-files/reference-files management surfaces.
 
 Context APIs:
 
@@ -352,4 +433,5 @@ the stored memory remains committed and the tool still returns success.
 - Source-file OCR is not implemented (`needs_ocr` is terminal in v1).
 - No Apache Tika integration in v1.
 - No source-file soft-delete restore flow (`archived` exists; hard delete flow is limited).
+- No reference-file hard-delete or restore/recover workflow in v1.
 - Memory list filters remain title/tag oriented (no semantic memory retrieval path).
