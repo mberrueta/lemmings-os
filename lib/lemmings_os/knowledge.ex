@@ -803,6 +803,7 @@ defmodule LemmingsOs.Knowledge do
   `opts` supports:
   - `:source_file_type` (must be one of `LemmingsOs.Knowledge.SourceFile.types/0`)
   - `:tags` (list of required tags; containment match)
+  - `:query_text` (optional raw query for query-centered snippet extraction)
   - `:top_k` (result cap, default `5`, max `20`)
   - `:snippet_length` (snippet char cap, default `240`, max `1000`)
 
@@ -826,10 +827,11 @@ defmodule LemmingsOs.Knowledge do
          :ok <- validate_query_embedding(query_embedding) do
       top_k = top_k_value(opts)
       snippet_length = snippet_length_value(opts)
+      query_text = normalize_query_text(Keyword.get(opts, :query_text))
 
-      source_file_chunk_search_query(scope_data, query_embedding, opts, top_k, snippet_length)
+      source_file_chunk_search_query(scope_data, query_embedding, opts, top_k)
       |> Repo.all()
-      |> map_source_file_chunk_search_results()
+      |> map_source_file_chunk_search_results(query_text, snippet_length)
     else
       _error -> []
     end
@@ -897,7 +899,7 @@ defmodule LemmingsOs.Knowledge do
 
   def read_source_file_chunk(_scope, _chunk_ref, _opts), do: {:error, :not_found}
 
-  defp source_file_chunk_search_query(scope_data, query_embedding, opts, top_k, snippet_length) do
+  defp source_file_chunk_search_query(scope_data, query_embedding, opts, top_k) do
     SourceFileChunk
     |> join(:inner, [chunk], source_file in SourceFile,
       on: source_file.id == chunk.knowledge_source_file_id
@@ -914,7 +916,7 @@ defmodule LemmingsOs.Knowledge do
       asc: fragment("? <=> ?", chunk.embedding, ^query_embedding)
     )
     |> limit(^top_k)
-    |> select_source_file_chunk_search_fields(query_embedding, snippet_length)
+    |> select_source_file_chunk_search_fields(query_embedding)
   end
 
   defp filter_ready_source_file_chunks(query) do
@@ -928,7 +930,7 @@ defmodule LemmingsOs.Knowledge do
     )
   end
 
-  defp select_source_file_chunk_search_fields(query, query_embedding, snippet_length) do
+  defp select_source_file_chunk_search_fields(query, query_embedding) do
     from([chunk, source_file, knowledge_item] in query,
       select: %{
         knowledge_item_id: knowledge_item.id,
@@ -940,12 +942,7 @@ defmodule LemmingsOs.Knowledge do
         source_file_type: source_file.source_file_type,
         tags: knowledge_item.tags,
         score: fragment("(1 - (? <=> ?))::float", chunk.embedding, ^query_embedding),
-        snippet:
-          fragment(
-            "left(regexp_replace(?, E'[\\n\\r\\t]+', ' ', 'g'), ?)",
-            chunk.content,
-            ^snippet_length
-          ),
+        content: chunk.content,
         scope_type:
           fragment(
             "case when ? is not null then 'lemming' when ? is not null then 'department' when ? is not null then 'city' else 'world' end",
@@ -957,10 +954,17 @@ defmodule LemmingsOs.Knowledge do
     )
   end
 
-  defp map_source_file_chunk_search_results(rows) do
+  defp map_source_file_chunk_search_results(rows, query_text, snippet_length) do
     Enum.map(rows, fn %{scope_type: scope_type} = row ->
+      snippet =
+        row
+        |> fetch(:content)
+        |> snippet_from_content(query_text, snippet_length)
+
       row
       |> Map.delete(:scope_type)
+      |> Map.delete(:content)
+      |> Map.put(:snippet, snippet)
       |> Map.put(:scope, %{type: scope_type})
     end)
   end
@@ -2114,6 +2118,89 @@ defmodule LemmingsOs.Knowledge do
     case Keyword.get(opts, :snippet_length, 240) do
       value when is_integer(value) and value > 0 -> min(value, 1_000)
       _value -> 240
+    end
+  end
+
+  defp normalize_query_text(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalize_query_text(_value), do: nil
+
+  defp snippet_from_content(content, query_text, snippet_length) when is_binary(content) do
+    normalized = String.replace(content, ~r/[\n\r\t]+/u, " ")
+    default_snippet = String.slice(normalized, 0, snippet_length)
+
+    case query_text do
+      nil ->
+        default_snippet
+
+      query ->
+        query
+        |> query_candidates()
+        |> Enum.find_value(&excerpt_around_query(normalized, &1, snippet_length))
+        |> case do
+          nil -> default_snippet
+          excerpt -> excerpt
+        end
+    end
+  end
+
+  defp snippet_from_content(_content, _query_text, _snippet_length), do: ""
+
+  defp query_candidates(query) when is_binary(query) do
+    trimmed = String.trim(query)
+    tokens = query_tokens(trimmed)
+    token_count = length(tokens)
+    max_phrase_size = min(token_count, 4)
+
+    phrase_candidates =
+      if max_phrase_size > 0 do
+        Enum.reduce(max_phrase_size..1//-1, [], fn phrase_size, acc ->
+          acc ++ phrase_candidates_for_size(tokens, token_count, phrase_size)
+        end)
+      else
+        []
+      end
+
+    [trimmed | phrase_candidates]
+    |> Enum.map(&String.trim/1)
+    |> Enum.filter(&(String.length(&1) >= 3))
+    |> Enum.uniq()
+  end
+
+  defp query_tokens(value) when is_binary(value) do
+    String.split(value, ~r/[^\p{L}\p{N}\-]+/u, trim: true)
+  end
+
+  defp phrase_candidates_for_size(_tokens, token_count, phrase_size)
+       when token_count <= 0 or phrase_size <= 0 or token_count < phrase_size,
+       do: []
+
+  defp phrase_candidates_for_size(tokens, token_count, phrase_size) do
+    0..(token_count - phrase_size)
+    |> Enum.map(fn start ->
+      tokens
+      |> Enum.slice(start, phrase_size)
+      |> Enum.join(" ")
+    end)
+  end
+
+  defp excerpt_around_query(content, query, snippet_length) do
+    trailing = max(snippet_length - String.length(query) - 80, 0)
+
+    regex =
+      Regex.compile!(
+        "(.{0,80}#{Regex.escape(query)}.{0,#{trailing}})",
+        "iu"
+      )
+
+    case Regex.run(regex, content, capture: :all_but_first) do
+      [excerpt | _rest] -> String.slice(excerpt, 0, snippet_length)
+      _other -> nil
     end
   end
 

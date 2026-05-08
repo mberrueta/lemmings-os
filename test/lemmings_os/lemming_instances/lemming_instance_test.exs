@@ -38,12 +38,12 @@ defmodule LemmingsOs.LemmingInstances.LemmingInstanceTest do
 
     errors = errors_on(changeset)
 
-    assert errors.lemming_id == [".required"]
-    assert errors.world_id == [".required"]
-    assert errors.city_id == [".required"]
-    assert errors.department_id == [".required"]
-    assert ".required" in errors.config_snapshot
-    assert errors.config_snapshot == [".required"]
+    assert errors.lemming_id == ["is required"]
+    assert errors.world_id == ["is required"]
+    assert errors.city_id == ["is required"]
+    assert errors.department_id == ["is required"]
+    assert "is required" in errors.config_snapshot
+    assert errors.config_snapshot == ["is required"]
 
     assert {".invalid_choice", _details} = Keyword.fetch!(changeset.errors, :status)
   end

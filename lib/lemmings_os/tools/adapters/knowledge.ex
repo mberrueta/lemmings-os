@@ -184,6 +184,7 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
            KnowledgeContext.search_source_file_chunks(
              scope,
              query_embedding,
+             query_text: query,
              source_file_type: fetch(args, :source_file_type),
              tags: tags,
              top_k: top_k

@@ -98,6 +98,7 @@ defmodule LemmingsOs.MixProject do
       {:bandit, "~> 1.5"},
       {:req, "~> 0.5"},
       {:oban, "~> 2.19"},
+      {:oban_web, "~> 2.12"},
       {:earmark, "~> 1.4"},
 
       # Dev tooling

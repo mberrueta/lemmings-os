@@ -308,8 +308,8 @@ msgstr ""
 #: lib/lemmings_os/events/event.ex:128
 #: lib/lemmings_os/knowledge/knowledge_item.ex:186
 #: lib/lemmings_os/knowledge/knowledge_item.ex:190
-#: lib/lemmings_os/knowledge/source_file.ex:176
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:139
+#: lib/lemmings_os/knowledge/source_file.ex:172
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:132
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:102
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:142
 #, elixir-autogen, elixir-format
@@ -322,7 +322,7 @@ msgstr ""
 #: lib/lemmings_os/knowledge/knowledge_item.ex:122
 #: lib/lemmings_os/knowledge/knowledge_item.ex:152
 #: lib/lemmings_os/knowledge/source_file.ex:112
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:87
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:89
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:107
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:121
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:133
@@ -335,7 +335,7 @@ msgstr ""
 #: lib/lemmings_os_web/live/instance_live.ex:748
 #, elixir-autogen, elixir-format
 msgid ".required"
-msgstr ""
+msgstr "es obligatorio"
 
 #: lib/lemmings_os/artifacts/artifact.ex:111
 #: lib/lemmings_os/artifacts/artifact.ex:153
@@ -354,12 +354,12 @@ msgstr ""
 #: lib/lemmings_os/knowledge/source_file.ex:129
 #: lib/lemmings_os/knowledge/source_file.ex:134
 #: lib/lemmings_os/knowledge/source_file.ex:139
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:90
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:94
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:98
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:103
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:108
-#: lib/lemmings_os/knowledge/source_file_chunk.ex:113
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:92
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:96
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:100
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:105
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:110
+#: lib/lemmings_os/knowledge/source_file_chunk.ex:115
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:156
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:88
 #: lib/lemmings_os/lemming_instances/tool_execution.ex:117

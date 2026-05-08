@@ -68,7 +68,7 @@ defmodule LemmingsOs.Knowledge.SourceFileChunkTest do
       assert ".invalid_value" in errors_on(changeset).chunk_index
       assert ".invalid_value" in errors_on(changeset).token_count
       assert ".invalid_value" in errors_on(changeset).char_count
-      assert ".required" in errors_on(changeset).content
+      assert "is required" in errors_on(changeset).content
     end
   end
 end

@@ -16,14 +16,14 @@ defmodule LemmingsOs.Artifacts.ArtifactTest do
 
       errors = errors_on(changeset)
 
-      assert ".required" in errors.world_id
-      assert ".required" in errors.filename
-      assert ".required" in errors.type
-      assert ".required" in errors.content_type
-      assert ".required" in errors.storage_ref
-      assert ".required" in errors.size_bytes
-      assert ".required" in errors.checksum
-      assert ".required" in errors.status
+      assert "is required" in errors.world_id
+      assert "is required" in errors.filename
+      assert "is required" in errors.type
+      assert "is required" in errors.content_type
+      assert "is required" in errors.storage_ref
+      assert "is required" in errors.size_bytes
+      assert "is required" in errors.checksum
+      assert "is required" in errors.status
       refute Map.has_key?(errors, :metadata)
     end
 

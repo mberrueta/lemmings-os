@@ -210,7 +210,7 @@ Source-file defaults and runtime controls:
 | `:knowledge_chunking.max_chunks` | `500` (`LEMMINGS_KNOWLEDGE_MAX_CHUNKS`) |
 | `:knowledge_tools_runner.timeout_ms` | `30000` (`LEMMINGS_KNOWLEDGE_EXTRACTION_TIMEOUT_MS`) |
 | `:knowledge_tools_runner.max_extracted_chars` | `500000` (`LEMMINGS_KNOWLEDGE_MAX_EXTRACTED_CHARS`) |
-| `:knowledge_embeddings.provider` | `openai_compatible` (`LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER`) |
+| `:knowledge_embeddings.provider` | `ollama` (`LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER`) |
 | `:knowledge_embeddings.base_url` | `http://127.0.0.1:11434/v1` (`LEMMINGS_KNOWLEDGE_EMBEDDING_BASE_URL`) |
 | `:knowledge_embeddings.model` | `nomic-embed-text` (`LEMMINGS_KNOWLEDGE_EMBEDDING_MODEL`) |
 | `:knowledge_embeddings.dimensions` | `1536` (`LEMMINGS_KNOWLEDGE_EMBEDDING_DIMENSIONS`) |
@@ -221,6 +221,10 @@ Source-file defaults and runtime controls:
 The OpenAI-compatible embedder sends an authorization header only when an API
 key value is configured. Local Ollama can run without one; hosted providers
 usually require one through environment configuration.
+
+When `:knowledge_embeddings.provider` is `ollama`, vectors are auto-aligned to
+the configured `:dimensions` (padding/truncating as needed) so indexing remains
+compatible with the fixed pgvector column size.
 
 Oban queue:
 

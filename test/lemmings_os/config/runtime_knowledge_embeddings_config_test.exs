@@ -41,7 +41,13 @@ defmodule LemmingsOs.Config.RuntimeKnowledgeEmbeddingsConfigTest do
         },
         fn ->
           embeddings = runtime_embeddings_config()
-          assert Keyword.get(embeddings, :provider) in ["openai_compatible", :openai_compatible]
+
+          assert Keyword.get(embeddings, :provider) in [
+                   "ollama",
+                   :ollama,
+                   "openai_compatible",
+                   :openai_compatible
+                 ]
 
           assert {:ok, 1536} =
                    Helpers.parse_positive_integer(Keyword.get(embeddings, :dimensions))

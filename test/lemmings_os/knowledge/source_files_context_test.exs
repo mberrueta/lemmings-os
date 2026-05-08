@@ -633,6 +633,92 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
 
       assert length(results) == 20
     end
+
+    test "builds query-centered snippet when query text is provided" do
+      world = insert(:world)
+
+      source_file =
+        create_source_file_for(world, "price_list", "price_test.md")
+
+      source_file
+      |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "ready"})
+      |> Repo.update!()
+
+      source_file.knowledge_item
+      |> KnowledgeItem.changeset(%{
+        world_id: world.id,
+        city_id: nil,
+        department_id: nil,
+        lemming_id: nil,
+        kind: "source_file",
+        status: "ready",
+        tags: ["catalog:test"]
+      })
+      |> Repo.update!()
+
+      long_prefix = String.duplicate("x", 320)
+      target = "ITM-025 | Dish Drying Rack | Kitchen | $17.90"
+
+      _rows =
+        insert_ready_chunks_with_embedding(source_file, [
+          {"chunk-price-test", "#{long_prefix}\n#{target}\nend"}
+        ])
+
+      [result] =
+        Knowledge.search_source_file_chunks(world, List.duplicate(0.05, 1536),
+          source_file_type: "price_list",
+          tags: ["catalog:test"],
+          query_text: "ITM-025",
+          top_k: 5
+        )
+
+      assert result.chunk_ref == "chunk-price-test"
+      assert result.snippet =~ "ITM-025"
+      assert result.snippet =~ "Dish Drying Rack"
+    end
+
+    test "builds query-centered snippet from multi-term query text" do
+      world = insert(:world)
+
+      source_file =
+        create_source_file_for(world, "price_list", "price_test.md")
+
+      source_file
+      |> SourceFile.changeset(%{extraction_status: "ready", indexing_status: "ready"})
+      |> Repo.update!()
+
+      source_file.knowledge_item
+      |> KnowledgeItem.changeset(%{
+        world_id: world.id,
+        city_id: nil,
+        department_id: nil,
+        lemming_id: nil,
+        kind: "source_file",
+        status: "ready",
+        tags: ["catalog:test"]
+      })
+      |> Repo.update!()
+
+      long_prefix = String.duplicate("x", 320)
+      target = "ITM-025 | Dish Drying Rack | Kitchen | $17.90"
+
+      _rows =
+        insert_ready_chunks_with_embedding(source_file, [
+          {"chunk-price-test-multi", "#{long_prefix}\n#{target}\nend"}
+        ])
+
+      [result] =
+        Knowledge.search_source_file_chunks(world, List.duplicate(0.05, 1536),
+          source_file_type: "price_list",
+          tags: ["catalog:test"],
+          query_text: "Dish Drying Rack price list SKU catalog",
+          top_k: 5
+        )
+
+      assert result.chunk_ref == "chunk-price-test-multi"
+      assert result.snippet =~ "Dish Drying Rack"
+      assert result.snippet =~ "$17.90"
+    end
   end
 
   defp insert_ready_chunks_with_embedding(source_file, chunks) do

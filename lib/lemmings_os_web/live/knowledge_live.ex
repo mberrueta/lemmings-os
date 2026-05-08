@@ -17,7 +17,9 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   alias LemmingsOs.Worlds
 
   @page_limit 25
+  @knowledge_tabs ~w(memories source_files templates)
 
+  @impl true
   def mount(params, session, socket) do
     socket =
       socket
@@ -41,6 +43,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
       |> assign(:source_file_query, "")
       |> assign(:source_file_status, "")
       |> assign(:source_file_type_filter, "")
+      |> assign(:source_file_scope_selected?, false)
       |> assign(:editing_source_file_id, nil)
       |> assign(
         :source_file_filter_form,
@@ -67,6 +70,8 @@ defmodule LemmingsOsWeb.KnowledgeLive do
       |> assign(:form_mode, :new)
       |> assign(:editing_memory, nil)
       |> assign(:form_open?, false)
+      |> assign(:active_tab, "memories")
+      |> assign(:source_file_form_open?, false)
       |> allow_upload(:source_file,
         accept: ~w(.txt .md .pdf .doc .docx .html .htm .csv .json .xml),
         max_entries: 1,
@@ -76,6 +81,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     {:ok, hydrate_from_params(socket, mount_params(params, session))}
   end
 
+  @impl true
   def handle_event("change_source_file_filters", %{"source_file_filter" => params}, socket) do
     {:noreply,
      socket
@@ -87,6 +93,22 @@ defmodule LemmingsOsWeb.KnowledgeLive do
      )
      |> assign(:source_file_filter_form, to_form(params, as: :source_file_filter))
      |> load_source_files()}
+  end
+
+  def handle_event("switch_tab", %{"tab" => tab}, socket) do
+    normalized_tab = normalize_knowledge_tab(tab)
+
+    {:noreply,
+     push_navigate(socket,
+       to: ~p"/knowledge?#{knowledge_query_params(socket, %{"k_tab" => normalized_tab})}"
+     )}
+  end
+
+  def handle_event("open_source_file_form", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:source_file_form_open?, true)
+     |> assign(:editing_source_file_id, nil)}
   end
 
   def handle_event("validate_source_file", %{"source_file" => params}, socket) do
@@ -113,6 +135,10 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     end
   end
 
+  def handle_event("close_source_file_form", _params, socket) do
+    {:noreply, reset_source_file_form(socket)}
+  end
+
   def handle_event("edit_source_file", %{"id" => source_file_id}, socket) do
     case Enum.find(socket.assigns.source_file_entries, &(&1.id == source_file_id)) do
       %SourceFile{} = source_file ->
@@ -131,6 +157,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
 
         {:noreply,
          socket
+         |> assign(:source_file_form_open?, false)
          |> assign(:editing_source_file_id, source_file_id)
          |> assign(:source_file_edit_tags_value, tags_value)
          |> assign(:source_file_edit_form, form)}
@@ -223,14 +250,28 @@ defmodule LemmingsOsWeb.KnowledgeLive do
         value -> value
       end
 
-    {:noreply,
-     socket
-     |> assign(:scope_type, scope_type)
-     |> assign(:scope_id, scope_id)
-     |> assign(
-       :scope_form,
-       to_form(%{"scope_type" => scope_type, "scope_id" => scope_id || ""}, as: :scope)
-     )}
+    updated_socket =
+      socket
+      |> assign(:scope_type, scope_type)
+      |> assign(:scope_id, scope_id)
+      |> assign(
+        :scope_form,
+        to_form(%{"scope_type" => scope_type, "scope_id" => scope_id || ""}, as: :scope)
+      )
+      |> clear_pristine_memory_form_feedback()
+
+    if socket.assigns.scoped_mode? or socket.assigns.active_tab != "source_files" do
+      {:noreply, updated_socket}
+    else
+      create_scope_params =
+        %{"create_scope_type" => scope_type}
+        |> maybe_put_scope_id_param(scope_id)
+
+      {:noreply,
+       push_navigate(updated_socket,
+         to: ~p"/knowledge?#{knowledge_query_params(updated_socket, create_scope_params)}"
+       )}
+    end
   end
 
   def handle_event("change_filters", %{"filter" => params}, socket) do
@@ -254,6 +295,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   def handle_event("new_memory", _params, socket) do
     {:noreply,
      socket
+     |> assign(:active_tab, "memories")
      |> assign(:form_open?, true)
      |> assign(:form_mode, :new)
      |> assign(:editing_memory, nil)
@@ -277,7 +319,11 @@ defmodule LemmingsOsWeb.KnowledgeLive do
         {:noreply, put_flash(socket, :error, "Memory not found in current page.")}
 
       row ->
-        {:noreply, socket |> assign(:form_open?, true) |> open_memory_for_edit(row.memory)}
+        {:noreply,
+         socket
+         |> assign(:active_tab, "memories")
+         |> assign(:form_open?, true)
+         |> open_memory_for_edit(row.memory)}
     end
   end
 
@@ -373,7 +419,9 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   defp load_source_files(socket) do
     case selected_create_scope(socket) do
       nil ->
-        assign(socket, :source_file_entries, [])
+        socket
+        |> assign(:source_file_scope_selected?, false)
+        |> assign(:source_file_entries, [])
 
       scope ->
         status =
@@ -390,7 +438,9 @@ defmodule LemmingsOsWeb.KnowledgeLive do
               source_file_matches_type?(source_file, socket.assigns.source_file_type_filter)
           end)
 
-        assign(socket, :source_file_entries, entries)
+        socket
+        |> assign(:source_file_scope_selected?, true)
+        |> assign(:source_file_entries, entries)
     end
   end
 
@@ -535,6 +585,13 @@ defmodule LemmingsOsWeb.KnowledgeLive do
 
   defp normalize_offset(offset) when is_integer(offset) and offset >= 0, do: offset
   defp normalize_offset(_offset), do: 0
+  defp normalize_scope_id(""), do: nil
+  defp normalize_scope_id(nil), do: nil
+  defp normalize_scope_id(scope_id) when is_binary(scope_id), do: scope_id
+  defp normalize_scope_id(_scope_id), do: nil
+
+  defp normalize_knowledge_tab(tab) when tab in @knowledge_tabs, do: tab
+  defp normalize_knowledge_tab(_tab), do: "memories"
 
   defp maybe_id(nil), do: nil
   defp maybe_id(%{id: id}), do: id
@@ -544,6 +601,11 @@ defmodule LemmingsOsWeb.KnowledgeLive do
 
   defp maybe_put_source(opts, ""), do: opts
   defp maybe_put_source(opts, source), do: Keyword.put(opts, :source, source)
+
+  defp maybe_put_scope_id_param(params, nil), do: Map.put(params, "create_scope_id", "")
+
+  defp maybe_put_scope_id_param(params, scope_id),
+    do: Map.put(params, "create_scope_id", scope_id)
 
   defp resolve_params(_socket, params) do
     memory_id = normalize_memory_id(params["memory_id"])
@@ -558,7 +620,8 @@ defmodule LemmingsOsWeb.KnowledgeLive do
       query: if(linked_memory, do: "", else: raw_query),
       source: if(linked_memory, do: "", else: raw_source),
       status: normalize_status(params["status"]),
-      offset: if(linked_memory, do: 0, else: raw_offset)
+      offset: if(linked_memory, do: 0, else: raw_offset),
+      active_tab: normalize_knowledge_tab(params["k_tab"])
     }
   end
 
@@ -643,6 +706,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
 
   defp maybe_open_linked_memory(socket, %KnowledgeItem{} = memory) do
     socket
+    |> assign(:active_tab, "memories")
     |> assign(:memory_id, memory.id)
     |> assign(:form_open?, true)
     |> open_memory_for_edit(memory)
@@ -750,8 +814,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
             {:noreply,
              socket
              |> put_flash(:info, "Source file uploaded and queued for indexing.")
-             |> assign(:source_file_form, to_form(default_source_file_form(), as: :source_file))
-             |> assign(:source_file_tags_value, "")
+             |> reset_source_file_form()
              |> load_source_files()}
 
           :invalid_attrs ->
@@ -769,10 +832,12 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   end
 
   defp persist_uploaded_source_file(socket, entry, scope, attrs) do
-    consume_uploaded_entry(socket, entry, fn %{path: path, client_name: client_name} ->
+    consume_uploaded_entry(socket, entry, fn %{path: path} = meta ->
+      original_filename = upload_original_filename(entry, meta)
+
       merged_attrs =
         attrs
-        |> Map.put(:original_filename, client_name)
+        |> Map.put(:original_filename, original_filename)
         |> Map.put(:content_type, upload_content_type(entry))
 
       {:ok, persist_source_file_upload(scope, merged_attrs, path)}
@@ -790,6 +855,16 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   defp upload_content_type(entry) do
     entry.client_type || MIME.from_path(entry.client_name || "upload.bin") ||
       "application/octet-stream"
+  end
+
+  defp upload_original_filename(_entry, %{client_name: client_name}) when is_binary(client_name),
+    do: client_name
+
+  defp upload_original_filename(_entry, %{filename: filename}) when is_binary(filename),
+    do: filename
+
+  defp upload_original_filename(entry, _meta) do
+    entry.client_name || "upload.bin"
   end
 
   defp source_file_matches_query?(_source_file, ""), do: true
@@ -850,6 +925,92 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     }
   end
 
+  defp reset_source_file_form(socket) do
+    socket
+    |> assign(:source_file_form_open?, false)
+    |> assign(:source_file_tags_value, "")
+    |> assign(:source_file_form, to_form(default_source_file_form(), as: :source_file))
+    |> clear_source_file_upload_entries()
+  end
+
+  defp clear_source_file_upload_entries(socket) do
+    Enum.reduce(socket.assigns.uploads.source_file.entries, socket, fn entry, socket_acc ->
+      safe_cancel_source_file_upload(socket_acc, entry.ref)
+    end)
+  end
+
+  defp safe_cancel_source_file_upload(socket, entry_ref) do
+    cancel_upload(socket, :source_file, entry_ref)
+  catch
+    :exit, _reason -> socket
+  end
+
+  defp clear_pristine_memory_form_feedback(
+         %{
+           assigns: %{
+             form_mode: :new,
+             editing_memory: nil,
+             memory_form: %Phoenix.HTML.Form{source: %Ecto.Changeset{} = changeset}
+           }
+         } = socket
+       ) do
+    if blank_memory_params?(changeset.params) do
+      assign(socket, :memory_form, to_form(%{changeset | action: nil}, as: :memory))
+    else
+      socket
+    end
+  end
+
+  defp clear_pristine_memory_form_feedback(socket), do: socket
+
+  defp blank_memory_params?(nil), do: true
+  defp blank_memory_params?(%{} = params), do: Enum.all?(params, &blank_memory_param?/1)
+  defp blank_memory_params?(_params), do: false
+
+  defp blank_memory_param?({_key, value}) when value in [nil, "", []], do: true
+
+  defp blank_memory_param?({key, _value}) when is_binary(key) do
+    String.starts_with?(key, "_unused_")
+  end
+
+  defp blank_memory_param?({_key, %{} = nested}), do: blank_memory_params?(nested)
+  defp blank_memory_param?(_other), do: false
+
+  defp knowledge_query_params(socket, overrides) do
+    params =
+      %{
+        "k_tab" => socket.assigns.active_tab,
+        "status" => socket.assigns.status
+      }
+      |> maybe_put_param("q", socket.assigns.query)
+      |> maybe_put_param("source", socket.assigns.source)
+      |> maybe_put_param("offset", socket.assigns.offset > 0 && socket.assigns.offset)
+      |> maybe_put_param(
+        "create_scope_type",
+        !socket.assigns.scoped_mode? && socket.assigns.scope_type
+      )
+      |> maybe_put_param(
+        "create_scope_id",
+        !socket.assigns.scoped_mode? && socket.assigns.scope_id
+      )
+      |> maybe_put_param(
+        "scope_type",
+        socket.assigns.scoped_mode? && socket.assigns.scope_id && socket.assigns.scope_type
+      )
+      |> maybe_put_param(
+        "scope_id",
+        socket.assigns.scoped_mode? && socket.assigns.scope_id
+      )
+      |> maybe_put_param("embedded", socket.assigns.embedded? && "true")
+
+    Map.merge(params, overrides)
+  end
+
+  defp maybe_put_param(params, _key, false), do: params
+  defp maybe_put_param(params, _key, nil), do: params
+  defp maybe_put_param(params, _key, ""), do: params
+  defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
+
   defp resolve_scoped_mode(socket, params) do
     scope_type = normalize_scope_type(params["scope_type"])
     scope_id = params["scope_id"]
@@ -864,24 +1025,14 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     end
   end
 
-  defp maybe_assign_scope_form_for_scoped_mode(socket, false, _scope_id), do: socket
-
-  defp maybe_assign_scope_form_for_scoped_mode(socket, true, scope_id) do
-    assign(
-      socket,
-      :scope_form,
-      to_form(%{"scope_type" => socket.assigns.scope_type, "scope_id" => scope_id || ""},
-        as: :scope
-      )
-    )
-  end
-
   defp mount_params(:not_mounted_at_router, session), do: session_params(session)
   defp mount_params(params, _session) when is_map(params), do: params
   defp mount_params(_params, _session), do: %{}
 
   defp session_params(session) when is_map(session) do
     Map.take(session, [
+      "create_scope_type",
+      "create_scope_id",
       "scope_type",
       "scope_id",
       "q",
@@ -889,6 +1040,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
       "status",
       "offset",
       "memory_id",
+      "k_tab",
       "embedded"
     ])
   end
@@ -899,25 +1051,35 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     embedded? = params["embedded"] in ["1", "true"]
     socket = load_scope_options(socket)
     resolved = resolve_params(socket, params)
-    {scope, scope_id, scoped_mode?} = resolve_scoped_mode(socket, params)
+    {scope, resolved_scope_id, scoped_mode?} = resolve_scoped_mode(socket, params)
+    create_scope_type = normalize_scope_type(params["create_scope_type"])
+
+    create_scope_id =
+      normalize_create_scope_id(
+        socket.assigns.scope_options,
+        create_scope_type,
+        normalize_scope_id(params["create_scope_id"])
+      )
+
+    scope_type =
+      if scoped_mode?,
+        do: normalize_scope_type(params["scope_type"]),
+        else: create_scope_type
+
+    scope_id = if(scoped_mode?, do: resolved_scope_id, else: create_scope_id)
 
     socket
     |> assign(:scope, scope)
     |> assign(:embedded?, embedded?)
     |> assign(:scope_id, scope_id)
-    |> assign(
-      :scope_type,
-      if(scoped_mode?,
-        do: normalize_scope_type(params["scope_type"]),
-        else: socket.assigns.scope_type
-      )
-    )
+    |> assign(:scope_type, scope_type)
     |> assign(:scoped_mode?, scoped_mode?)
     |> assign(:memory_id, resolved.memory_id)
     |> assign(:query, resolved.query)
     |> assign(:source, resolved.source)
     |> assign(:status, resolved.status)
     |> assign(:offset, resolved.offset)
+    |> assign(:active_tab, resolved.active_tab)
     |> assign(
       :filter_form,
       to_form(
@@ -925,9 +1087,31 @@ defmodule LemmingsOsWeb.KnowledgeLive do
         as: :filter
       )
     )
-    |> maybe_assign_scope_form_for_scoped_mode(scoped_mode?, scope_id)
+    |> assign(
+      :scope_form,
+      to_form(%{"scope_type" => scope_type, "scope_id" => scope_id || ""}, as: :scope)
+    )
     |> maybe_open_linked_memory(resolved.linked_memory)
     |> load_memories()
     |> load_source_files()
+  end
+
+  defp normalize_create_scope_id(scope_options, "world", scope_id) do
+    case resolve_scope(scope_options, "world", scope_id) do
+      {%World{} = world, _resolved_scope_id} ->
+        world.id
+
+      _other ->
+        scope_options.worlds
+        |> List.first()
+        |> maybe_id()
+    end
+  end
+
+  defp normalize_create_scope_id(scope_options, scope_type, scope_id) do
+    case resolve_scope(scope_options, scope_type, scope_id) do
+      {_scope, nil} -> nil
+      {_scope, resolved_scope_id} -> resolved_scope_id
+    end
   end
 end

@@ -209,6 +209,8 @@ cities:
             tools_config:
               allowed_tools:
                 - "lemming.call"
+                - "knowledge.search"
+                - "knowledge.read"
           quote_builder:
             slug: "quote_builder"
             name: "Quinn Quote Builder"
@@ -224,6 +226,8 @@ cities:
             tools_config:
               allowed_tools:
                 - "text.compose"
+                - "knowledge.search"
+                - "knowledge.read"
           proposal_writer:
             slug: "proposal_writer"
             name: "Priya Proposal Writer"
@@ -239,6 +243,8 @@ cities:
             tools_config:
               allowed_tools:
                 - "text.compose"
+                - "knowledge.search"
+                - "knowledge.read"
 
 tools: {}
 

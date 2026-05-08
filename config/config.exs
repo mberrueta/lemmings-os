@@ -41,7 +41,7 @@ config :lemmings_os, :knowledge_tools_runner,
   }
 
 config :lemmings_os, :knowledge_embeddings,
-  provider: :openai_compatible,
+  provider: :ollama,
   dimensions: 1536,
   timeout_ms: 30_000,
   base_url: "http://127.0.0.1:11434/v1",

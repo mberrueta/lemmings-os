@@ -45,8 +45,8 @@ defmodule LemmingsOs.LemmingInstances.ToolExecutionTest do
 
     errors = errors_on(changeset)
 
-    assert errors.lemming_instance_id == [".required"]
-    assert errors.world_id == [".required"]
+    assert errors.lemming_instance_id == ["is required"]
+    assert errors.world_id == ["is required"]
     assert {".invalid_choice", _details} = Keyword.fetch!(changeset.errors, :status)
     assert "is invalid" in errors.args
     assert "is invalid" in errors.result

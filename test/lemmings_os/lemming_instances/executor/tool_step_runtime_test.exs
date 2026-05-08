@@ -186,6 +186,35 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntimeTest do
     assert updated.started_execution? == true
   end
 
+  test "continue_after_tool_outcome/2 continues tool loop when remaining work exists" do
+    deps = %{
+      put_runtime_state: &Map.put(&1, :persisted?, true),
+      start_execution: &Map.put(&1, :started_execution?, true),
+      handle_model_retry: fn state, reason -> Map.put(state, :retry_reason, reason) end,
+      max_tool_iterations: fn _config -> 8 end
+    }
+
+    state = %{
+      tool_iteration_count: 0,
+      config_snapshot: %{},
+      finalization_context: %{
+        tool_status: "ok",
+        remaining_work: ["Use knowledge.read with returned chunk_ref values."]
+      },
+      phase: :action_selection,
+      retry_count: 2,
+      last_error: "boom",
+      internal_error_details: %{kind: :x}
+    }
+
+    updated = ToolStepRuntime.continue_after_tool_outcome(state, deps)
+
+    assert updated.phase == :action_selection
+    assert updated.tool_iteration_count == 1
+    assert updated.persisted? == true
+    assert updated.started_execution? == true
+  end
+
   test "continue_tool_loop/2 retries when iteration limit is reached" do
     deps = %{
       put_runtime_state: &Map.put(&1, :persisted?, true),

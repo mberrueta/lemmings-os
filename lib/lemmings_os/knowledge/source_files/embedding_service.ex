@@ -29,9 +29,10 @@ defmodule LemmingsOs.Knowledge.SourceFiles.EmbeddingService do
     with {:ok, config} <- provider_config(),
          {:ok, provider_opts} <- provider_opts(config),
          {:ok, vectors} <- config.module.embed_texts(texts, provider_opts),
-         :ok <- validate_dimensions(vectors, config.dimensions),
-         true <- length(vectors) == length(texts) do
-      {:ok, vectors}
+         {:ok, normalized_vectors} <- maybe_align_dimensions(vectors, config),
+         :ok <- validate_dimensions(normalized_vectors, config.dimensions),
+         true <- length(normalized_vectors) == length(texts) do
+      {:ok, normalized_vectors}
     else
       false -> {:error, :provider_invalid_response}
       {:error, :invalid_input} -> {:error, :provider_invalid_input}
@@ -82,7 +83,8 @@ defmodule LemmingsOs.Knowledge.SourceFiles.EmbeddingService do
   defp provider_opts(%{provider: :fake, dimensions: dimensions}),
     do: {:ok, [dimensions: dimensions]}
 
-  defp provider_opts(%{provider: :openai_compatible} = config) do
+  defp provider_opts(%{provider: provider} = config)
+       when provider in [:openai_compatible, "openai_compatible", :ollama, "ollama"] do
     api_key =
       case config.api_key do
         value when is_binary(value) and value != "" -> value
@@ -105,6 +107,8 @@ defmodule LemmingsOs.Knowledge.SourceFiles.EmbeddingService do
   defp provider_module("fake"), do: Fake
   defp provider_module(:openai_compatible), do: OpenAiCompatible
   defp provider_module("openai_compatible"), do: OpenAiCompatible
+  defp provider_module(:ollama), do: OpenAiCompatible
+  defp provider_module("ollama"), do: OpenAiCompatible
   defp provider_module(_other), do: Fake
 
   defp validate_dimensions(vectors, dimensions) do
@@ -114,6 +118,30 @@ defmodule LemmingsOs.Knowledge.SourceFiles.EmbeddingService do
       {:error, :provider_invalid_dimension}
     end
   end
+
+  defp maybe_align_dimensions(vectors, %{provider: provider, dimensions: dimensions})
+       when provider in [:ollama, "ollama", :openai_compatible, "openai_compatible"] do
+    {:ok, Enum.map(vectors, &align_vector_dimensions(&1, dimensions))}
+  end
+
+  defp maybe_align_dimensions(vectors, _config), do: {:ok, vectors}
+
+  defp align_vector_dimensions(values, dimensions) when is_list(values) do
+    current = length(values)
+
+    cond do
+      current == dimensions ->
+        values
+
+      current > dimensions ->
+        Enum.take(values, dimensions)
+
+      true ->
+        values ++ List.duplicate(0.0, dimensions - current)
+    end
+  end
+
+  defp align_vector_dimensions(_values, _dimensions), do: []
 
   defp parse_positive_integer(value, fallback) do
     case Helpers.parse_positive_integer(value) do

@@ -38,7 +38,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
   @doc """
   Chooses the next runtime path after tool outcome persistence.
 
-  - `tool_status == "ok"` starts finalization phase.
+  - `tool_status == "ok"` starts finalization phase when no remaining work is declared.
   - other statuses continue the tool loop with iteration controls.
 
   ## Examples
@@ -57,8 +57,15 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
   @spec continue_after_tool_outcome(map(), post_tool_deps()) :: map()
   def continue_after_tool_outcome(state, deps) when is_map(state) and is_map(deps) do
     case state.finalization_context do
-      %{tool_status: "ok"} -> start_finalization_phase(state, deps)
-      _finalization_context -> continue_tool_loop(state, deps)
+      %{tool_status: "ok"} = context ->
+        if finalization_ready?(context) do
+          start_finalization_phase(state, deps)
+        else
+          continue_tool_loop(state, deps)
+        end
+
+      _finalization_context ->
+        continue_tool_loop(state, deps)
     end
   end
 
@@ -215,4 +222,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
       :ok
     end).(state, tool_name, tool_execution_id, tool_args)
   end
+
+  defp finalization_ready?(%{remaining_work: remaining_work}) when is_list(remaining_work) do
+    remaining_work == []
+  end
+
+  defp finalization_ready?(_context), do: true
 end

@@ -11,8 +11,8 @@ defmodule LemmingsOs.Connections.ConnectionTest do
 
       errors = errors_on(changeset)
 
-      assert ".required" in errors.world_id
-      assert ".required" in errors.type
+      assert "is required" in errors.world_id
+      assert "is required" in errors.type
       refute Map.has_key?(errors, :status)
     end
 

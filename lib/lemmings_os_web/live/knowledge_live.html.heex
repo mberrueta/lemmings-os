@@ -12,575 +12,468 @@
 >
   <.content_container>
     <div id="knowledge-page" class="grid gap-4">
-      <.panel :if={@form_open?} id="knowledge-memory-form-panel" tone="accent">
-        <:title>
-          <span class="flex items-center gap-2">
-            <.icon name="hero-book-open" class="size-5" /> Knowledge Memory
-          </span>
-        </:title>
-        <:subtitle>Create and maintain memory notes by scope.</:subtitle>
+      <.panel id="knowledge-tabs-panel" tone="default">
+        <:title>Knowledge</:title>
+        <:subtitle>Manage memories, retrieval files, and reusable templates by scope.</:subtitle>
 
-        <.form id="knowledge-scope-form" for={@scope_form} phx-change="change_scope">
-          <div class="grid gap-3 sm:grid-cols-2">
-            <.input
-              id="knowledge-scope-type"
-              field={@scope_form[:scope_type]}
-              type="select"
-              label="Scope Type"
-              options={[
-                {"World", "world"},
-                {"City", "city"},
-                {"Department", "department"},
-                {"Lemming", "lemming"}
-              ]}
-            />
-            <.input
-              id="knowledge-scope-id"
-              field={@scope_form[:scope_id]}
-              type="select"
-              label="Scope"
-              prompt="Select scope"
-              options={
-                case @scope_type do
-                  "world" ->
-                    Enum.map(@scope_options.worlds, &{"#{&1.name} (#{&1.slug})", &1.id})
-
-                  "city" ->
-                    Enum.map(@scope_options.cities, &{"#{&1.name} (#{&1.slug})", &1.id})
-
-                  "department" ->
-                    Enum.map(@scope_options.departments, &{"#{&1.name} (#{&1.slug})", &1.id})
-
-                  "lemming" ->
-                    Enum.map(@scope_options.lemmings, &{"#{&1.name} (#{&1.slug})", &1.id})
-                end
-              }
-            />
-          </div>
-        </.form>
-
-        <.form
-          id="knowledge-memory-form"
-          for={@memory_form}
-          phx-change="validate_memory"
-          phx-submit="save_memory"
-          class="mt-4 space-y-3"
+        <div
+          id="knowledge-tablist"
+          role="tablist"
+          aria-label="Knowledge sections"
+          class="flex flex-wrap gap-2"
         >
-          <.input
-            id="knowledge-memory-title"
-            field={@memory_form[:title]}
-            type="text"
-            label="Title"
-            required
-          />
-          <.input
-            id="knowledge-memory-content"
-            field={@memory_form[:content]}
-            type="textarea"
-            label="Content"
-            required
-          />
-          <.input
-            id="knowledge-memory-tags"
-            field={@memory_form[:tags]}
-            type="text"
-            label="Tags (comma separated)"
-            placeholder="customer:acme, language:pt-BR"
-            value={@memory_tags_value}
-          />
+          <button
+            id="knowledge-tab-memories"
+            type="button"
+            role="tab"
+            aria-controls="knowledge-tab-panel-memories"
+            aria-selected={@active_tab == "memories"}
+            phx-click="switch_tab"
+            phx-value-tab="memories"
+            class={[
+              "inline-flex items-center gap-2 border px-3 py-2 text-xs font-bold uppercase tracking-widest transition",
+              @active_tab == "memories" &&
+                "border-emerald-400 bg-emerald-950/40 text-emerald-300",
+              @active_tab != "memories" &&
+                "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500"
+            ]}
+          >
+            <.icon name="hero-book-open" class="size-4" /> Memories
+          </button>
 
-          <div class="flex flex-wrap gap-2 pt-1">
-            <.button id="knowledge-memory-save" type="submit" variant="secondary">
-              {if @form_mode == :edit, do: "Update Memory", else: "Create Memory"}
-            </.button>
-            <.button
-              :if={@form_mode == :edit}
-              id="knowledge-memory-new"
-              type="button"
-              variant="neutral"
-              phx-click="new_memory"
-            >
-              New Memory
-            </.button>
-            <.button
-              id="knowledge-memory-close"
-              type="button"
-              variant="neutral"
-              phx-click="close_memory_form"
-            >
-              Close
-            </.button>
-          </div>
-        </.form>
+          <button
+            id="knowledge-tab-source-files"
+            type="button"
+            role="tab"
+            aria-controls="knowledge-tab-panel-source-files"
+            aria-selected={@active_tab == "source_files"}
+            phx-click="switch_tab"
+            phx-value-tab="source_files"
+            class={[
+              "inline-flex items-center gap-2 border px-3 py-2 text-xs font-bold uppercase tracking-widest transition",
+              @active_tab == "source_files" &&
+                "border-emerald-400 bg-emerald-950/40 text-emerald-300",
+              @active_tab != "source_files" &&
+                "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500"
+            ]}
+          >
+            <.icon name="hero-document-text" class="size-4" /> Source Files
+          </button>
+
+          <button
+            id="knowledge-tab-templates"
+            type="button"
+            role="tab"
+            aria-controls="knowledge-tab-panel-templates"
+            aria-selected={@active_tab == "templates"}
+            phx-click="switch_tab"
+            phx-value-tab="templates"
+            class={[
+              "inline-flex items-center gap-2 border px-3 py-2 text-xs font-bold uppercase tracking-widest transition",
+              @active_tab == "templates" &&
+                "border-emerald-400 bg-emerald-950/40 text-emerald-300",
+              @active_tab != "templates" &&
+                "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500"
+            ]}
+          >
+            <.icon name="hero-rectangle-stack" class="size-4" /> Templates
+          </button>
+        </div>
       </.panel>
 
-      <.panel id="knowledge-memory-list-panel" tone="accent">
-        <:title>Effective Memories</:title>
-        <:subtitle>
-          <span id="knowledge-total-count">{@total_count} total</span>
-        </:subtitle>
-        <:actions>
-          <.button
-            id="knowledge-memory-open"
-            type="button"
-            variant="secondary"
-            phx-click="new_memory"
-          >
-            <.icon name="hero-plus" class="size-4" /> New Memory
-          </.button>
-        </:actions>
+      <div
+        :if={@active_tab == "memories"}
+        id="knowledge-tab-panel-memories"
+        role="tabpanel"
+        aria-labelledby="knowledge-tab-memories"
+        class="grid gap-4"
+      >
+        <.panel :if={@form_open?} id="knowledge-memory-form-panel" tone="accent">
+          <:title>
+            <span class="flex items-center gap-2">
+              <.icon name="hero-book-open" class="size-5" /> Knowledge Memory
+            </span>
+          </:title>
+          <:subtitle>Create and maintain memory notes by scope.</:subtitle>
 
-        <.form id="knowledge-filters-form" for={@filter_form} phx-change="change_filters">
-          <div class="grid gap-3 sm:grid-cols-3">
-            <.input
-              id="knowledge-filter-query"
-              field={@filter_form[:query]}
-              type="text"
-              label="Search"
-              placeholder="title or tag"
-            />
-            <.input
-              id="knowledge-filter-source"
-              field={@filter_form[:source]}
-              type="select"
-              label="Source"
-              options={[{"All", ""}, {"User", "user"}, {"LLM", "llm"}]}
-            />
-            <.input
-              id="knowledge-filter-status"
-              field={@filter_form[:status]}
-              type="select"
-              label="Status"
-              options={[{"Active", "active"}]}
-            />
-          </div>
-        </.form>
+          <.form id="knowledge-scope-form" for={@scope_form} phx-change="change_scope">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.input
+                id="knowledge-scope-type"
+                field={@scope_form[:scope_type]}
+                type="select"
+                label="Scope Type"
+                options={[
+                  {"World", "world"},
+                  {"City", "city"},
+                  {"Department", "department"},
+                  {"Lemming", "lemming"}
+                ]}
+              />
+              <.input
+                id="knowledge-scope-id"
+                field={@scope_form[:scope_id]}
+                type="select"
+                label="Scope"
+                prompt="Select scope"
+                options={
+                  case @scope_type do
+                    "world" ->
+                      Enum.map(@scope_options.worlds, &{"#{&1.name} (#{&1.slug})", &1.id})
 
-        <.empty_state
-          :if={@entries == [] && @query == "" && @source == ""}
-          id="knowledge-list-empty-state"
-          title="No memories found"
-          copy="Create the first memory in this scope."
-        />
+                    "city" ->
+                      Enum.map(@scope_options.cities, &{"#{&1.name} (#{&1.slug})", &1.id})
 
-        <.empty_state
-          :if={@entries == [] && (@query != "" || @source != "")}
-          id="knowledge-filter-empty-state"
-          title="No filtered results"
-          copy="Adjust filters to broaden the result set."
-        />
+                    "department" ->
+                      Enum.map(@scope_options.departments, &{"#{&1.name} (#{&1.slug})", &1.id})
 
-        <div :if={@entries != []} id="knowledge-memory-list" class="mt-3 flex flex-col gap-3">
-          <article
-            :for={row <- @entries}
-            id={"knowledge-memory-row-#{row.memory.id}"}
-            class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
-          >
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-              <div class="min-w-0">
-                <h3
-                  id={"knowledge-memory-title-#{row.memory.id}"}
-                  class="text-sm font-semibold text-zinc-100"
-                >
-                  {row.memory.title}
-                </h3>
-
-                <p
-                  id={"knowledge-memory-content-#{row.memory.id}"}
-                  class="mt-2 text-sm text-zinc-300"
-                >
-                  {LemmingsOs.Helpers.truncate_value(row.memory.content, max_length: 200)}
-                </p>
-
-                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                  <.badge id={"knowledge-memory-owner-#{row.memory.id}"} tone="default">
-                    {row.owner_scope_label}
-                  </.badge>
-                  <.badge id={"knowledge-memory-source-#{row.memory.id}"} tone="info">
-                    {String.upcase(row.memory.source)}
-                  </.badge>
-                  <.badge id={"knowledge-memory-local-#{row.memory.id}"} tone="muted">
-                    {if row.local?,
-                      do: "Local",
-                      else: if(row.inherited?, do: "Inherited", else: "Descendant")}
-                  </.badge>
-                  <.badge id={"knowledge-memory-timestamp-#{row.memory.id}"} tone="muted">
-                    {Calendar.strftime(
-                      row.memory.updated_at || row.memory.inserted_at,
-                      "%Y-%m-%d %H:%M"
-                    )}
-                  </.badge>
-                  <.badge
-                    :for={{tag, index} <- Enum.with_index(row.memory.tags)}
-                    id={"knowledge-memory-tag-#{row.memory.id}-#{index}"}
-                    tone="success"
-                  >
-                    #{tag}
-                  </.badge>
-                </div>
-
-                <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                  <.link
-                    :if={row.city}
-                    id={"knowledge-memory-city-link-#{row.memory.id}"}
-                    navigate={~p"/cities?#{%{city: row.city.id, tab: "knowledge"}}"}
-                    target={if @embedded?, do: "_top", else: nil}
-                    class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
-                  >
-                    city: {row.city.slug}
-                  </.link>
-                  <.link
-                    :if={row.department}
-                    id={"knowledge-memory-department-link-#{row.memory.id}"}
-                    navigate={
-                      ~p"/departments?#{%{city: row.department.city_id, dept: row.department.id, tab: "knowledge"}}"
-                    }
-                    target={if @embedded?, do: "_top", else: nil}
-                    class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
-                  >
-                    department: {row.department.slug}
-                  </.link>
-                  <.link
-                    :if={row.lemming}
-                    id={"knowledge-memory-lemming-link-#{row.memory.id}"}
-                    navigate={
-                      ~p"/lemmings/#{row.lemming.id}?#{%{city: row.lemming.city_id, dept: row.lemming.department_id, tab: "knowledge"}}"
-                    }
-                    target={if @embedded?, do: "_top", else: nil}
-                    class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
-                  >
-                    lemming: {row.lemming.slug}
-                  </.link>
-                </div>
-              </div>
-
-              <div class="flex items-start justify-end gap-2">
-                <button
-                  id={"knowledge-memory-edit-#{row.memory.id}"}
-                  type="button"
-                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition duration-150 hover:border-emerald-400 hover:text-emerald-300 disabled:opacity-40"
-                  phx-click="edit_memory"
-                  phx-value-id={row.memory.id}
-                  disabled={!row.local?}
-                  title="Edit memory"
-                  aria-label="Edit memory"
-                >
-                  <.icon name="hero-pencil-square" class="size-4" />
-                </button>
-                <button
-                  id={"knowledge-memory-delete-#{row.memory.id}"}
-                  type="button"
-                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition duration-150 hover:border-red-400 hover:text-red-300 disabled:opacity-40"
-                  phx-click="delete_memory"
-                  phx-value-id={row.memory.id}
-                  data-confirm="Delete this memory permanently?"
-                  disabled={!row.local?}
-                  title="Delete memory"
-                  aria-label="Delete memory"
-                >
-                  <.icon name="hero-trash" class="size-4" />
-                </button>
-              </div>
+                    "lemming" ->
+                      Enum.map(@scope_options.lemmings, &{"#{&1.name} (#{&1.slug})", &1.id})
+                  end
+                }
+              />
             </div>
-          </article>
-        </div>
+          </.form>
 
-        <div id="knowledge-pagination" class="mt-4 flex items-center justify-between gap-3">
-          <.button
-            id="knowledge-page-prev"
-            type="button"
-            variant="neutral"
-            phx-click="page_prev"
-            disabled={@offset <= 0}
+          <.form
+            id="knowledge-memory-form"
+            for={@memory_form}
+            phx-change="validate_memory"
+            phx-submit="save_memory"
+            class="mt-4 space-y-3"
           >
-            Previous
-          </.button>
-
-          <p id="knowledge-page-range" class="text-xs text-zinc-400">
-            Showing {if @total_count == 0, do: 0, else: @offset + 1} to {min(
-              @offset + @limit,
-              @total_count
-            )}
-          </p>
-
-          <.button
-            id="knowledge-page-next"
-            type="button"
-            variant="neutral"
-            phx-click="page_next"
-            disabled={@offset + @limit >= @total_count}
-          >
-            Next
-          </.button>
-        </div>
-      </.panel>
-
-      <.panel id="knowledge-source-file-create-panel" tone="accent">
-        <:title>Source Files</:title>
-        <:subtitle>Upload retrieval files and manage indexing lifecycle.</:subtitle>
-
-        <.form
-          id="knowledge-source-file-form"
-          for={@source_file_form}
-          phx-change="validate_source_file"
-          phx-submit="create_source_file"
-          class="space-y-3"
-        >
-          <div class="grid gap-3 sm:grid-cols-2">
             <.input
-              id="knowledge-source-file-title"
-              field={@source_file_form[:title]}
+              id="knowledge-memory-title"
+              field={@memory_form[:title]}
               type="text"
               label="Title"
               required
             />
             <.input
-              id="knowledge-source-file-type"
-              field={@source_file_form[:source_file_type]}
-              type="select"
-              label="Type"
-              options={[
-                {"Price List", "price_list"},
-                {"Contract", "contract"},
-                {"Policy", "policy"},
-                {"Branding", "branding"},
-                {"Product Catalog", "product_catalog"},
-                {"Company Knowledge", "company_knowledge"},
-                {"Client Material", "client_material"},
-                {"Example Email", "example_email"},
-                {"Book", "book"},
-                {"Other", "other"}
-              ]}
+              id="knowledge-memory-content"
+              field={@memory_form[:content]}
+              type="textarea"
+              label="Content"
+              required
             />
-          </div>
-
-          <.input
-            id="knowledge-source-file-tags"
-            field={@source_file_form[:tags]}
-            type="text"
-            label="Tags (comma separated)"
-            value={@source_file_tags_value}
-            placeholder="customer:acme, source:pricing"
-          />
-
-          <.input
-            id="knowledge-source-file-content"
-            field={@source_file_form[:content]}
-            type="textarea"
-            label="Description"
-          />
-
-          <div id="knowledge-source-file-upload-field" class="space-y-2">
-            <label
-              for={@uploads.source_file.ref}
-              class="text-xs font-bold uppercase tracking-widest text-zinc-500"
-            >
-              Upload File
-            </label>
-            <.live_file_input
-              upload={@uploads.source_file}
-              class="block w-full border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:border-0 file:bg-zinc-800 file:px-3 file:py-1 file:text-xs file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
-            />
-            <ul
-              :if={@uploads.source_file.entries != []}
-              id="knowledge-source-file-upload-list"
-              class="space-y-1"
-            >
-              <li
-                :for={entry <- @uploads.source_file.entries}
-                id={"knowledge-source-file-upload-entry-#{entry.ref}"}
-                class="flex items-center gap-2 border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-300"
-              >
-                <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
-                <button
-                  id={"knowledge-source-file-upload-cancel-#{entry.ref}"}
-                  type="button"
-                  phx-click="cancel_source_file_upload"
-                  phx-value-ref={entry.ref}
-                  aria-label={"Remove selected file #{entry.client_name}"}
-                  title={"Remove #{entry.client_name}"}
-                  class="text-zinc-500 transition hover:text-red-400"
-                >
-                  Remove
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          <.button id="knowledge-source-file-submit" type="submit" variant="secondary">
-            Upload Source File
-          </.button>
-        </.form>
-      </.panel>
-
-      <.panel id="knowledge-source-file-list-panel" tone="accent">
-        <:title>Source File Inventory</:title>
-        <:subtitle>
-          <span id="knowledge-source-file-total-count">{length(@source_file_entries)} files</span>
-        </:subtitle>
-
-        <.form
-          id="knowledge-source-file-filter-form"
-          for={@source_file_filter_form}
-          phx-change="change_source_file_filters"
-        >
-          <div class="grid gap-3 sm:grid-cols-3">
             <.input
-              id="knowledge-source-file-filter-query"
-              field={@source_file_filter_form[:query]}
+              id="knowledge-memory-tags"
+              field={@memory_form[:tags]}
               type="text"
-              label="Search"
-              placeholder="title, tags, filename"
+              label="Tags (comma separated)"
+              placeholder="customer:acme, language:pt-BR"
+              value={@memory_tags_value}
             />
-            <.input
-              id="knowledge-source-file-filter-status"
-              field={@source_file_filter_form[:status]}
-              type="select"
-              label="Status"
-              options={[
-                {"All", ""},
-                {"Pending", "pending_index"},
-                {"Extracting", "extracting"},
-                {"Chunking", "chunking"},
-                {"Embedding", "embedding"},
-                {"Ready", "ready"},
-                {"Needs OCR", "needs_ocr"},
-                {"Failed", "failed"},
-                {"Archived", "archived"}
-              ]}
-            />
-            <.input
-              id="knowledge-source-file-filter-type"
-              field={@source_file_filter_form[:source_file_type]}
-              type="select"
-              label="Type"
-              options={[
-                {"All", ""},
-                {"Price List", "price_list"},
-                {"Contract", "contract"},
-                {"Policy", "policy"},
-                {"Branding", "branding"},
-                {"Product Catalog", "product_catalog"},
-                {"Company Knowledge", "company_knowledge"},
-                {"Client Material", "client_material"},
-                {"Example Email", "example_email"},
-                {"Book", "book"},
-                {"Other", "other"}
-              ]}
-            />
-          </div>
-        </.form>
 
-        <.empty_state
-          :if={@source_file_entries == []}
-          id="knowledge-source-file-empty-state"
-          title="No source files found"
-          copy="Upload files to build searchable retrieval context."
-        />
-
-        <div :if={@source_file_entries != []} id="knowledge-source-file-list" class="space-y-3">
-          <article
-            :for={source_file <- @source_file_entries}
-            id={"knowledge-source-file-row-#{source_file.id}"}
-            class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
-          >
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-              <div class="min-w-0">
-                <h3
-                  id={"knowledge-source-file-title-text-#{source_file.id}"}
-                  class="text-sm font-semibold text-zinc-100"
-                >
-                  {source_file.knowledge_item.title}
-                </h3>
-                <p
-                  id={"knowledge-source-file-name-#{source_file.id}"}
-                  class="text-xs text-zinc-400"
-                >
-                  {source_file.original_filename}
-                </p>
-                <div class="mt-2 flex flex-wrap gap-2 text-xs text-zinc-400">
-                  <.badge id={"knowledge-source-file-status-#{source_file.id}"} tone="info">
-                    {source_file.knowledge_item.status}
-                  </.badge>
-                  <.badge id={"knowledge-source-file-type-#{source_file.id}"} tone="muted">
-                    {source_file.source_file_type}
-                  </.badge>
-                  <.badge id={"knowledge-source-file-size-#{source_file.id}"} tone="muted">
-                    {Float.round(source_file.size_bytes / 1024, 1)} KB
-                  </.badge>
-                  <.badge
-                    :if={source_file.failure_reason}
-                    id={"knowledge-source-file-failure-#{source_file.id}"}
-                    tone="danger"
-                  >
-                    {source_file.failure_reason}
-                  </.badge>
-                  <.badge
-                    :for={{tag, index} <- Enum.with_index(source_file.knowledge_item.tags || [])}
-                    id={"knowledge-source-file-tag-#{source_file.id}-#{index}"}
-                    tone="success"
-                  >
-                    #{tag}
-                  </.badge>
-                </div>
-              </div>
-
-              <div class="flex items-start justify-end gap-2">
-                <button
-                  id={"knowledge-source-file-edit-#{source_file.id}"}
-                  type="button"
-                  phx-click="edit_source_file"
-                  phx-value-id={source_file.id}
-                  aria-label="Edit source file metadata"
-                  title="Edit source file metadata"
-                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
-                >
-                  <.icon name="hero-pencil-square" class="size-4" />
-                </button>
-                <button
-                  id={"knowledge-source-file-retry-#{source_file.id}"}
-                  type="button"
-                  phx-click="retry_source_file"
-                  phx-value-id={source_file.id}
-                  aria-label="Retry source file indexing"
-                  title="Retry source file indexing"
-                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
-                >
-                  <.icon name="hero-arrow-path" class="size-4" />
-                </button>
-                <button
-                  id={"knowledge-source-file-archive-#{source_file.id}"}
-                  type="button"
-                  phx-click="archive_source_file"
-                  phx-value-id={source_file.id}
-                  data-confirm="Archive this source file?"
-                  aria-label="Archive source file"
-                  title="Archive source file"
-                  class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-red-400 hover:text-red-300"
-                >
-                  <.icon name="hero-archive-box" class="size-4" />
-                </button>
-              </div>
+            <div class="flex flex-wrap gap-2 pt-1">
+              <.button id="knowledge-memory-save" type="submit" variant="secondary">
+                {if @form_mode == :edit, do: "Update Memory", else: "Create Memory"}
+              </.button>
+              <.button
+                :if={@form_mode == :edit}
+                id="knowledge-memory-new"
+                type="button"
+                variant="neutral"
+                phx-click="new_memory"
+              >
+                New Memory
+              </.button>
+              <.button
+                id="knowledge-memory-close"
+                type="button"
+                variant="neutral"
+                phx-click="close_memory_form"
+              >
+                Close
+              </.button>
             </div>
+          </.form>
+        </.panel>
 
-            <.form
-              :if={@editing_source_file_id == source_file.id}
-              id={"knowledge-source-file-edit-form-#{source_file.id}"}
-              for={@source_file_edit_form}
-              phx-change="validate_edit_source_file"
-              phx-submit="save_source_file_metadata"
-              class="mt-3 space-y-2 border-t border-zinc-800 pt-3"
+        <.panel id="knowledge-memory-list-panel" tone="accent">
+          <:title>Effective Memories</:title>
+          <:subtitle>
+            <span id="knowledge-total-count">{@total_count} total</span>
+          </:subtitle>
+          <:actions>
+            <.button
+              id="knowledge-memory-open"
+              type="button"
+              variant="secondary"
+              phx-click="new_memory"
             >
-              <input type="hidden" name="source_file_id" value={source_file.id} />
+              <.icon name="hero-plus" class="size-4" /> New Memory
+            </.button>
+          </:actions>
+
+          <.form id="knowledge-filters-form" for={@filter_form} phx-change="change_filters">
+            <div class="grid gap-3 sm:grid-cols-3">
               <.input
-                id={"knowledge-source-file-edit-title-#{source_file.id}"}
-                field={@source_file_edit_form[:title]}
+                id="knowledge-filter-query"
+                field={@filter_form[:query]}
                 type="text"
-                label="Title"
+                label="Search"
+                placeholder="title or tag"
               />
               <.input
-                id={"knowledge-source-file-edit-type-#{source_file.id}"}
-                field={@source_file_edit_form[:source_file_type]}
+                id="knowledge-filter-source"
+                field={@filter_form[:source]}
+                type="select"
+                label="Source"
+                options={[{"All", ""}, {"User", "user"}, {"LLM", "llm"}]}
+              />
+              <.input
+                id="knowledge-filter-status"
+                field={@filter_form[:status]}
+                type="select"
+                label="Status"
+                options={[{"Active", "active"}]}
+              />
+            </div>
+          </.form>
+
+          <.empty_state
+            :if={@entries == [] && @query == "" && @source == ""}
+            id="knowledge-list-empty-state"
+            title="No memories found"
+            copy="Create the first memory in this scope."
+          />
+
+          <.empty_state
+            :if={@entries == [] && (@query != "" || @source != "")}
+            id="knowledge-filter-empty-state"
+            title="No filtered results"
+            copy="Adjust filters to broaden the result set."
+          />
+
+          <div :if={@entries != []} id="knowledge-memory-list" class="mt-3 flex flex-col gap-3">
+            <article
+              :for={row <- @entries}
+              id={"knowledge-memory-row-#{row.memory.id}"}
+              class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
+            >
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <div class="min-w-0">
+                  <h3
+                    id={"knowledge-memory-title-#{row.memory.id}"}
+                    class="text-sm font-semibold text-zinc-100"
+                  >
+                    {row.memory.title}
+                  </h3>
+
+                  <p
+                    id={"knowledge-memory-content-#{row.memory.id}"}
+                    class="mt-2 text-sm text-zinc-300"
+                  >
+                    {LemmingsOs.Helpers.truncate_value(row.memory.content, max_length: 200)}
+                  </p>
+
+                  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                    <.badge id={"knowledge-memory-owner-#{row.memory.id}"} tone="default">
+                      {row.owner_scope_label}
+                    </.badge>
+                    <.badge id={"knowledge-memory-source-#{row.memory.id}"} tone="info">
+                      {String.upcase(row.memory.source)}
+                    </.badge>
+                    <.badge id={"knowledge-memory-local-#{row.memory.id}"} tone="muted">
+                      {if row.local?,
+                        do: "Local",
+                        else: if(row.inherited?, do: "Inherited", else: "Descendant")}
+                    </.badge>
+                    <.badge id={"knowledge-memory-timestamp-#{row.memory.id}"} tone="muted">
+                      {Calendar.strftime(
+                        row.memory.updated_at || row.memory.inserted_at,
+                        "%Y-%m-%d %H:%M"
+                      )}
+                    </.badge>
+                    <.badge
+                      :for={{tag, index} <- Enum.with_index(row.memory.tags)}
+                      id={"knowledge-memory-tag-#{row.memory.id}-#{index}"}
+                      tone="success"
+                    >
+                      #{tag}
+                    </.badge>
+                  </div>
+
+                  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                    <.link
+                      :if={row.city}
+                      id={"knowledge-memory-city-link-#{row.memory.id}"}
+                      navigate={~p"/cities?#{%{city: row.city.id, tab: "knowledge"}}"}
+                      target={if @embedded?, do: "_top", else: nil}
+                      class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
+                    >
+                      city: {row.city.slug}
+                    </.link>
+                    <.link
+                      :if={row.department}
+                      id={"knowledge-memory-department-link-#{row.memory.id}"}
+                      navigate={
+                        ~p"/departments?#{%{city: row.department.city_id, dept: row.department.id, tab: "knowledge"}}"
+                      }
+                      target={if @embedded?, do: "_top", else: nil}
+                      class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
+                    >
+                      department: {row.department.slug}
+                    </.link>
+                    <.link
+                      :if={row.lemming}
+                      id={"knowledge-memory-lemming-link-#{row.memory.id}"}
+                      navigate={
+                        ~p"/lemmings/#{row.lemming.id}?#{%{city: row.lemming.city_id, dept: row.lemming.department_id, tab: "knowledge"}}"
+                      }
+                      target={if @embedded?, do: "_top", else: nil}
+                      class="inline-flex items-center border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs uppercase tracking-widest text-zinc-300 transition hover:border-emerald-400 hover:text-emerald-300"
+                    >
+                      lemming: {row.lemming.slug}
+                    </.link>
+                  </div>
+                </div>
+
+                <div class="flex items-start justify-end gap-2">
+                  <button
+                    id={"knowledge-memory-edit-#{row.memory.id}"}
+                    type="button"
+                    class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition duration-150 hover:border-emerald-400 hover:text-emerald-300 disabled:opacity-40"
+                    phx-click="edit_memory"
+                    phx-value-id={row.memory.id}
+                    disabled={!row.local?}
+                    title="Edit memory"
+                    aria-label="Edit memory"
+                  >
+                    <.icon name="hero-pencil-square" class="size-4" />
+                  </button>
+                  <button
+                    id={"knowledge-memory-delete-#{row.memory.id}"}
+                    type="button"
+                    class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition duration-150 hover:border-red-400 hover:text-red-300 disabled:opacity-40"
+                    phx-click="delete_memory"
+                    phx-value-id={row.memory.id}
+                    data-confirm="Delete this memory permanently?"
+                    disabled={!row.local?}
+                    title="Delete memory"
+                    aria-label="Delete memory"
+                  >
+                    <.icon name="hero-trash" class="size-4" />
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div id="knowledge-pagination" class="mt-4 flex items-center justify-between gap-3">
+            <.button
+              id="knowledge-page-prev"
+              type="button"
+              variant="neutral"
+              phx-click="page_prev"
+              disabled={@offset <= 0}
+            >
+              Previous
+            </.button>
+
+            <p id="knowledge-page-range" class="text-xs text-zinc-400">
+              Showing {if @total_count == 0, do: 0, else: @offset + 1} to {min(
+                @offset + @limit,
+                @total_count
+              )}
+            </p>
+
+            <.button
+              id="knowledge-page-next"
+              type="button"
+              variant="neutral"
+              phx-click="page_next"
+              disabled={@offset + @limit >= @total_count}
+            >
+              Next
+            </.button>
+          </div>
+        </.panel>
+      </div>
+
+      <div
+        :if={@active_tab == "source_files"}
+        id="knowledge-tab-panel-source-files"
+        role="tabpanel"
+        aria-labelledby="knowledge-tab-source-files"
+        class="grid gap-4"
+      >
+        <.panel
+          :if={@source_file_form_open?}
+          id="knowledge-source-file-create-panel"
+          tone="accent"
+        >
+          <:title>Source Files</:title>
+          <:subtitle>Upload retrieval files and manage indexing lifecycle.</:subtitle>
+          <:actions>
+            <.button
+              id="knowledge-source-file-close"
+              type="button"
+              variant="neutral"
+              phx-click="close_source_file_form"
+            >
+              Close
+            </.button>
+          </:actions>
+
+          <.form id="knowledge-scope-form" for={@scope_form} phx-change="change_scope">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.input
+                id="knowledge-scope-type"
+                field={@scope_form[:scope_type]}
+                type="select"
+                label="Scope Type"
+                options={[
+                  {"World", "world"},
+                  {"City", "city"},
+                  {"Department", "department"},
+                  {"Lemming", "lemming"}
+                ]}
+              />
+              <.input
+                id="knowledge-scope-id"
+                field={@scope_form[:scope_id]}
+                type="select"
+                label="Scope"
+                prompt="Select scope"
+                options={
+                  case @scope_type do
+                    "world" ->
+                      Enum.map(@scope_options.worlds, &{"#{&1.name} (#{&1.slug})", &1.id})
+
+                    "city" ->
+                      Enum.map(@scope_options.cities, &{"#{&1.name} (#{&1.slug})", &1.id})
+
+                    "department" ->
+                      Enum.map(@scope_options.departments, &{"#{&1.name} (#{&1.slug})", &1.id})
+
+                    "lemming" ->
+                      Enum.map(@scope_options.lemmings, &{"#{&1.name} (#{&1.slug})", &1.id})
+                  end
+                }
+              />
+            </div>
+          </.form>
+
+          <.form
+            id="knowledge-source-file-form"
+            for={@source_file_form}
+            phx-change="validate_source_file"
+            phx-submit="create_source_file"
+            class="mt-4 space-y-3"
+          >
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.input
+                id="knowledge-source-file-title"
+                field={@source_file_form[:title]}
+                type="text"
+                label="Title"
+                required
+              />
+              <.input
+                id="knowledge-source-file-type"
+                field={@source_file_form[:source_file_type]}
                 type="select"
                 label="Type"
                 options={[
@@ -596,34 +489,322 @@
                   {"Other", "other"}
                 ]}
               />
-              <.input
-                id={"knowledge-source-file-edit-tags-#{source_file.id}"}
-                field={@source_file_edit_form[:tags]}
-                type="text"
-                label="Tags"
-                value={@source_file_edit_tags_value}
+            </div>
+
+            <.input
+              id="knowledge-source-file-tags"
+              field={@source_file_form[:tags]}
+              type="text"
+              label="Tags (comma separated)"
+              value={@source_file_tags_value}
+              placeholder="customer:acme, source:pricing"
+            />
+
+            <.input
+              id="knowledge-source-file-content"
+              field={@source_file_form[:content]}
+              type="textarea"
+              label="Description"
+            />
+
+            <div id="knowledge-source-file-upload-field" class="space-y-2">
+              <label
+                for={@uploads.source_file.ref}
+                class="text-xs font-bold uppercase tracking-widest text-zinc-500"
+              >
+                Upload File
+              </label>
+              <.live_file_input
+                upload={@uploads.source_file}
+                class="block w-full border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:border-0 file:bg-zinc-800 file:px-3 file:py-1 file:text-xs file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
               />
-              <div class="flex gap-2">
-                <.button
-                  id={"knowledge-source-file-edit-save-#{source_file.id}"}
-                  type="submit"
-                  variant="secondary"
+              <ul
+                :if={@uploads.source_file.entries != []}
+                id="knowledge-source-file-upload-list"
+                class="space-y-1"
+              >
+                <li
+                  :for={entry <- @uploads.source_file.entries}
+                  id={"knowledge-source-file-upload-entry-#{entry.ref}"}
+                  class="flex items-center gap-2 border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-300"
                 >
-                  Save
-                </.button>
-                <.button
-                  id={"knowledge-source-file-edit-cancel-#{source_file.id}"}
-                  type="button"
-                  variant="neutral"
-                  phx-click="cancel_edit_source_file"
-                >
-                  Cancel
-                </.button>
+                  <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
+                  <button
+                    id={"knowledge-source-file-upload-cancel-#{entry.ref}"}
+                    type="button"
+                    phx-click="cancel_source_file_upload"
+                    phx-value-ref={entry.ref}
+                    aria-label={"Remove selected file #{entry.client_name}"}
+                    title={"Remove #{entry.client_name}"}
+                    class="text-zinc-500 transition hover:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <.button id="knowledge-source-file-submit" type="submit" variant="secondary">
+              Upload Source File
+            </.button>
+          </.form>
+        </.panel>
+
+        <.panel id="knowledge-source-file-list-panel" tone="accent">
+          <:title>Source File Inventory</:title>
+          <:subtitle>
+            <span id="knowledge-source-file-total-count">
+              {length(@source_file_entries)} files
+            </span>
+          </:subtitle>
+          <:actions>
+            <.button
+              id="knowledge-source-file-open"
+              type="button"
+              variant="secondary"
+              phx-click="open_source_file_form"
+            >
+              <.icon name="hero-plus" class="size-4" /> Upload Source File
+            </.button>
+          </:actions>
+
+          <.form
+            id="knowledge-source-file-filter-form"
+            for={@source_file_filter_form}
+            phx-change="change_source_file_filters"
+          >
+            <div class="grid gap-3 sm:grid-cols-3">
+              <.input
+                id="knowledge-source-file-filter-query"
+                field={@source_file_filter_form[:query]}
+                type="text"
+                label="Search"
+                placeholder="title, tags, filename"
+              />
+              <.input
+                id="knowledge-source-file-filter-status"
+                field={@source_file_filter_form[:status]}
+                type="select"
+                label="Status"
+                options={[
+                  {"All", ""},
+                  {"Pending", "pending_index"},
+                  {"Extracting", "extracting"},
+                  {"Chunking", "chunking"},
+                  {"Embedding", "embedding"},
+                  {"Ready", "ready"},
+                  {"Needs OCR", "needs_ocr"},
+                  {"Failed", "failed"},
+                  {"Archived", "archived"}
+                ]}
+              />
+              <.input
+                id="knowledge-source-file-filter-type"
+                field={@source_file_filter_form[:source_file_type]}
+                type="select"
+                label="Type"
+                options={[
+                  {"All", ""},
+                  {"Price List", "price_list"},
+                  {"Contract", "contract"},
+                  {"Policy", "policy"},
+                  {"Branding", "branding"},
+                  {"Product Catalog", "product_catalog"},
+                  {"Company Knowledge", "company_knowledge"},
+                  {"Client Material", "client_material"},
+                  {"Example Email", "example_email"},
+                  {"Book", "book"},
+                  {"Other", "other"}
+                ]}
+              />
+            </div>
+          </.form>
+
+          <.empty_state
+            :if={!@source_file_scope_selected?}
+            id="knowledge-source-file-scope-empty-state"
+            title="Select a scope to view source files"
+            copy="Choose World, City, Department, or Lemming in the scope selector to see upload status and failures."
+          />
+
+          <.empty_state
+            :if={@source_file_scope_selected? && @source_file_entries == []}
+            id="knowledge-source-file-empty-state"
+            title="No source files found"
+            copy="Upload files to build searchable retrieval context."
+          />
+
+          <div
+            :if={@source_file_scope_selected? && @source_file_entries != []}
+            id="knowledge-source-file-list"
+            class="space-y-3"
+          >
+            <article
+              :for={source_file <- @source_file_entries}
+              id={"knowledge-source-file-row-#{source_file.id}"}
+              class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
+            >
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <div class="min-w-0">
+                  <h3
+                    id={"knowledge-source-file-title-text-#{source_file.id}"}
+                    class="text-sm font-semibold text-zinc-100"
+                  >
+                    {source_file.knowledge_item.title}
+                  </h3>
+                  <p
+                    id={"knowledge-source-file-name-#{source_file.id}"}
+                    class="text-xs text-zinc-400"
+                  >
+                    {source_file.original_filename}
+                  </p>
+                  <div class="mt-2 flex flex-wrap gap-2 text-xs text-zinc-400">
+                    <.badge id={"knowledge-source-file-status-#{source_file.id}"} tone="info">
+                      {source_file.knowledge_item.status}
+                    </.badge>
+                    <.badge id={"knowledge-source-file-type-#{source_file.id}"} tone="muted">
+                      {source_file.source_file_type}
+                    </.badge>
+                    <.badge id={"knowledge-source-file-size-#{source_file.id}"} tone="muted">
+                      {Float.round(source_file.size_bytes / 1024, 1)} KB
+                    </.badge>
+                    <.badge
+                      :if={source_file.failure_reason}
+                      id={"knowledge-source-file-failure-#{source_file.id}"}
+                      tone="danger"
+                    >
+                      {source_file.failure_reason}
+                    </.badge>
+                    <.badge
+                      :for={
+                        {tag, index} <- Enum.with_index(source_file.knowledge_item.tags || [])
+                      }
+                      id={"knowledge-source-file-tag-#{source_file.id}-#{index}"}
+                      tone="success"
+                    >
+                      #{tag}
+                    </.badge>
+                  </div>
+                </div>
+
+                <div class="flex items-start justify-end gap-2">
+                  <button
+                    id={"knowledge-source-file-edit-#{source_file.id}"}
+                    type="button"
+                    phx-click="edit_source_file"
+                    phx-value-id={source_file.id}
+                    aria-label="Edit source file metadata"
+                    title="Edit source file metadata"
+                    class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    <.icon name="hero-pencil-square" class="size-4" />
+                  </button>
+                  <button
+                    id={"knowledge-source-file-retry-#{source_file.id}"}
+                    type="button"
+                    phx-click="retry_source_file"
+                    phx-value-id={source_file.id}
+                    aria-label="Retry source file indexing"
+                    title="Retry source file indexing"
+                    class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    <.icon name="hero-arrow-path" class="size-4" />
+                  </button>
+                  <button
+                    id={"knowledge-source-file-archive-#{source_file.id}"}
+                    type="button"
+                    phx-click="archive_source_file"
+                    phx-value-id={source_file.id}
+                    data-confirm="Archive this source file?"
+                    aria-label="Archive source file"
+                    title="Archive source file"
+                    class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-red-400 hover:text-red-300"
+                  >
+                    <.icon name="hero-archive-box" class="size-4" />
+                  </button>
+                </div>
               </div>
-            </.form>
-          </article>
-        </div>
-      </.panel>
+
+              <.form
+                :if={@editing_source_file_id == source_file.id}
+                id={"knowledge-source-file-edit-form-#{source_file.id}"}
+                for={@source_file_edit_form}
+                phx-change="validate_edit_source_file"
+                phx-submit="save_source_file_metadata"
+                class="mt-3 space-y-2 border-t border-zinc-800 pt-3"
+              >
+                <input type="hidden" name="source_file_id" value={source_file.id} />
+                <.input
+                  id={"knowledge-source-file-edit-title-#{source_file.id}"}
+                  field={@source_file_edit_form[:title]}
+                  type="text"
+                  label="Title"
+                />
+                <.input
+                  id={"knowledge-source-file-edit-type-#{source_file.id}"}
+                  field={@source_file_edit_form[:source_file_type]}
+                  type="select"
+                  label="Type"
+                  options={[
+                    {"Price List", "price_list"},
+                    {"Contract", "contract"},
+                    {"Policy", "policy"},
+                    {"Branding", "branding"},
+                    {"Product Catalog", "product_catalog"},
+                    {"Company Knowledge", "company_knowledge"},
+                    {"Client Material", "client_material"},
+                    {"Example Email", "example_email"},
+                    {"Book", "book"},
+                    {"Other", "other"}
+                  ]}
+                />
+                <.input
+                  id={"knowledge-source-file-edit-tags-#{source_file.id}"}
+                  field={@source_file_edit_form[:tags]}
+                  type="text"
+                  label="Tags"
+                  value={@source_file_edit_tags_value}
+                />
+                <div class="flex gap-2">
+                  <.button
+                    id={"knowledge-source-file-edit-save-#{source_file.id}"}
+                    type="submit"
+                    variant="secondary"
+                  >
+                    Save
+                  </.button>
+                  <.button
+                    id={"knowledge-source-file-edit-cancel-#{source_file.id}"}
+                    type="button"
+                    variant="neutral"
+                    phx-click="cancel_edit_source_file"
+                  >
+                    Cancel
+                  </.button>
+                </div>
+              </.form>
+            </article>
+          </div>
+        </.panel>
+      </div>
+
+      <div
+        :if={@active_tab == "templates"}
+        id="knowledge-tab-panel-templates"
+        role="tabpanel"
+        aria-labelledby="knowledge-tab-templates"
+      >
+        <.panel id="knowledge-templates-panel" tone="accent">
+          <:title>Templates</:title>
+          <:subtitle>Reusable prompt and response templates will land here.</:subtitle>
+
+          <.empty_state
+            id="knowledge-templates-empty-state"
+            title="Templates are coming soon"
+            copy="Use Memories and Source Files for now while we ship reusable templates."
+          />
+        </.panel>
+      </div>
     </div>
   </.content_container>
 </Layouts.app>

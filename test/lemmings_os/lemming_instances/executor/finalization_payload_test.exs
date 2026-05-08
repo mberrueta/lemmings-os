@@ -64,6 +64,53 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayloadTest do
     assert payload.important_details == []
     assert payload.remaining_work == ["Review tool error and decide the next step."]
     assert payload.error == %{"code" => "tool.web.request_failed"}
+    assert payload.references == %{}
+  end
+
+  test "tool_result_payload/1 includes chunk references for knowledge.search results" do
+    tool_execution = %{
+      status: "ok",
+      tool_name: "knowledge.search",
+      summary: "Found 2 source-file chunks",
+      preview: "snippet preview",
+      result: %{
+        "result" => %{
+          "kind" => "source_file",
+          "count" => 2,
+          "results" => [
+            %{
+              "chunk_ref" => "ksf:abc:0:deadbeef",
+              "title" => "Company price list",
+              "source_file_type" => "price_list",
+              "snippet" => "ITM-025 | Dish Drying Rack | Kitchen | $17.90"
+            },
+            %{
+              "chunk_ref" => "ksf:abc:1:cafebabe",
+              "title" => "Company price list",
+              "source_file_type" => "price_list",
+              "snippet" => "ITM-024 | Electric Kettle | Kitchen | $29.99"
+            }
+          ]
+        }
+      }
+    }
+
+    payload = FinalizationPayload.tool_result_payload(tool_execution)
+
+    assert payload.references.kind == "source_file"
+    assert payload.references.count == 2
+    assert payload.preview == nil
+
+    assert payload.remaining_work == [
+             "Use knowledge.read with returned chunk_ref values before concluding exact factual answers."
+           ]
+
+    assert Enum.map(payload.references.chunks, & &1.chunk_ref) == [
+             "ksf:abc:0:deadbeef",
+             "ksf:abc:1:cafebabe"
+           ]
+
+    assert Enum.any?(payload.references.chunks, &String.contains?(&1.snippet, "Dish Drying Rack"))
   end
 
   test "build_finalization_context/3 normalizes context fields" do

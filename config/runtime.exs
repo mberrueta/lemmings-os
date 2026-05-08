@@ -93,7 +93,7 @@ knowledge_embeddings = Application.get_env(:lemmings_os, :knowledge_embeddings, 
 config :lemmings_os, :knowledge_embeddings,
   provider:
     System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER") ||
-      Keyword.get(knowledge_embeddings, :provider, :openai_compatible),
+      Keyword.get(knowledge_embeddings, :provider, :ollama),
   dimensions:
     System.get_env("LEMMINGS_KNOWLEDGE_EMBEDDING_DIMENSIONS") ||
       Keyword.get(knowledge_embeddings, :dimensions, 1536),
