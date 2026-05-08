@@ -12,6 +12,7 @@ defmodule LemmingsOs.Knowledge do
 
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Events
+  alias LemmingsOs.Artifacts
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge.KnowledgeItem
   alias LemmingsOs.Knowledge.ReferenceFile
@@ -94,6 +95,23 @@ defmodule LemmingsOs.Knowledge do
           required(:safe_to_read) => boolean(),
           required(:safe_to_pass_to_tools) => boolean(),
           required(:metadata) => map()
+        }
+
+  @type reference_file_row :: %{
+          required(:reference_file) => ReferenceFile.t(),
+          required(:descriptor) => reference_file_descriptor(),
+          required(:owner_scope) => String.t(),
+          required(:owner_scope_label) => String.t(),
+          required(:local?) => boolean(),
+          required(:inherited?) => boolean(),
+          required(:descendant?) => boolean()
+        }
+
+  @type paginated_reference_files :: %{
+          required(:entries) => [reference_file_row()],
+          required(:total_count) => non_neg_integer(),
+          required(:limit) => pos_integer(),
+          required(:offset) => non_neg_integer()
         }
 
   @doc """
@@ -979,6 +997,58 @@ defmodule LemmingsOs.Knowledge do
   def create_reference_file_upload(_scope, _attrs, _source_path), do: {:error, :invalid_attrs}
 
   @doc """
+  Promotes an existing Artifact into Knowledge-managed reference-file storage.
+
+  Promotion is explicit operator action and requires `:operator_approved` to be
+  true. Artifact provenance (`artifact_id`) is recorded when promotion succeeds,
+  but reference-file storage and reads remain Knowledge-managed.
+
+  Safe failures:
+  - inaccessible, missing, archived, deleted, or unreadable Artifacts return
+    `{:error, :artifact_unavailable}`.
+  - scope mismatch between the requested target scope and selected Artifact
+    returns `{:error, :artifact_unavailable}`.
+  """
+  @spec promote_artifact_to_reference_file(scope(), Ecto.UUID.t(), map()) ::
+          {:ok, %{knowledge_item: KnowledgeItem.t(), reference_file: ReferenceFile.t()}}
+          | {:error,
+             Ecto.Changeset.t()
+             | :invalid_scope
+             | :scope_mismatch
+             | :invalid_attrs
+             | :operator_approval_required
+             | :artifact_unavailable}
+  def promote_artifact_to_reference_file(scope, artifact_id, attrs)
+      when is_binary(artifact_id) and is_map(attrs) do
+    with {:ok, scope_data} <- scope_data(scope),
+         :ok <- validate_requested_scope(attrs, scope_data),
+         :ok <- require_operator_approval(attrs),
+         {:ok, artifact} <- Artifacts.get_artifact(scope, artifact_id),
+         :ok <- validate_promoted_artifact_scope(artifact, scope_data),
+         {:ok, opened} <- Artifacts.open_artifact_download(scope, artifact_id) do
+      upload_attrs =
+        attrs
+        |> Map.put_new(:original_filename, artifact.filename)
+        |> Map.put_new(:content_type, artifact.content_type)
+        |> Map.put(:artifact_id, artifact_id)
+
+      create_reference_file_upload(scope, upload_attrs, opened.path)
+    else
+      {:error, :not_found} ->
+        {:error, :artifact_unavailable}
+
+      {:error, :scope_mismatch} ->
+        {:error, :artifact_unavailable}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  def promote_artifact_to_reference_file(_scope, _artifact_id, _attrs),
+    do: {:error, :invalid_attrs}
+
+  @doc """
   Lists reference files local to the exact scope.
 
   ## Parameters
@@ -1288,9 +1358,117 @@ defmodule LemmingsOs.Knowledge do
       content_type: fetch(public, :content_type),
       safe_to_read: fetch(public, :safe_to_read),
       safe_to_pass_to_tools: fetch(public, :safe_to_pass_to_tools),
-      metadata: fetch(public, :metadata) || %{}
+      metadata: sanitize_reference_file_metadata(fetch(public, :metadata) || %{})
     }
   end
+
+  @doc """
+  Lists active reference files available to a caller's effective scope.
+
+  This is a metadata-only availability read. It never reads file bytes and never
+  consults source-file chunks, embeddings, vector indexes, or RAG records.
+
+  `opts` accepts the same metadata filters as `search_reference_files/2`, except
+  `:status` is forced to `"active"`.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.list_available_reference_files(%{})
+      {:error, :invalid_scope}
+  """
+  @spec list_available_reference_files(scope(), keyword()) ::
+          {:ok, [reference_file_row()]} | {:error, :invalid_scope | :scope_mismatch}
+  def list_available_reference_files(scope, opts \\ []) when is_list(opts) do
+    opts =
+      opts
+      |> Keyword.delete(:status)
+      |> Keyword.put(:status, "active")
+      |> Keyword.put_new(:limit, @max_limit)
+
+    with {:ok, page} <- search_reference_files(scope, opts) do
+      {:ok, page.entries}
+    end
+  end
+
+  @doc """
+  Searches authorized reference files by metadata only.
+
+  `opts` supports:
+  - `:kind` - only `"reference_file"` matches.
+  - `:reference_file_type` or `:type` - exact reference-file type.
+  - `:category` - exact match against safe metadata category.
+  - `:tags` - required tags; all requested tags must be present.
+  - `:status` - `"active"` (default), `"archived"`, or `"all"`.
+  - `:q` or `:query` - text match over title, summary, tags, type, ref, content type, and safe metadata values.
+  - `:owner_scope` or `:scope` - `"world"`, `"city"`, `"department"`, or `"lemming"`.
+  - `:limit` and `:offset` - bounded pagination.
+
+  Sorting is deterministic: nearer owner scopes are preferred first, then
+  stronger metadata matches, then newest rows.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.search_reference_files(%{})
+      {:error, :invalid_scope}
+  """
+  @spec search_reference_files(scope(), keyword()) ::
+          {:ok, paginated_reference_files()} | {:error, :invalid_scope | :scope_mismatch}
+  def search_reference_files(scope, opts \\ []) when is_list(opts) do
+    with {:ok, scope_data} <- scope_data(scope) do
+      limit = limit_value(opts)
+      offset = offset_value(opts)
+
+      entries =
+        scope_data
+        |> reference_file_search_rows(reference_search_status(opts))
+        |> Enum.filter(&reference_file_search_match?(&1, opts))
+        |> sort_reference_file_rows(scope_data, opts)
+
+      {:ok,
+       %{
+         entries: entries |> Enum.drop(offset) |> Enum.take(limit),
+         total_count: length(entries),
+         limit: limit,
+         offset: offset
+       }}
+    end
+  end
+
+  @doc """
+  Reads an authorized reference file by `knowledge_item_id` or `reference_ref`.
+
+  The read result always includes a safe descriptor. Text content is bounded by
+  `:max_chars` (default `4000`, max `8000`). Directly readable text files return
+  bounded direct text. Supported document-like files are converted through the
+  existing safe source-file conversion boundary at read time only; no chunks,
+  embeddings, vector indexes, or RAG records are created.
+
+  Unsupported, unsafe, missing, or conversion-failed content returns a descriptor
+  with a non-leaking `content_status` and no raw file bytes.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.read_reference_file(%{}, "kref:missing")
+      {:error, :invalid_scope}
+  """
+  @spec read_reference_file(scope(), String.t() | map() | keyword(), keyword()) ::
+          {:ok, map()} | {:error, :invalid_scope | :scope_mismatch | :not_found}
+  def read_reference_file(scope, identifier, opts \\ [])
+
+  def read_reference_file(scope, identifier, opts) when is_list(opts) do
+    with {:ok, scope_data} <- scope_data(scope),
+         {:ok, identifier} <- normalize_reference_file_identifier(identifier),
+         %ReferenceFile{} = reference_file <-
+           get_visible_active_reference_file(scope_data, identifier) do
+      {:ok, reference_file_read_result(reference_file, read_max_chars_value(opts))}
+    else
+      {:error, :invalid_scope} = error -> error
+      {:error, :scope_mismatch} = error -> error
+      _other -> {:error, :not_found}
+    end
+  end
+
+  def read_reference_file(_scope, _identifier, _opts), do: {:error, :not_found}
 
   @doc """
   Performs scope-safe vector retrieval over ready source-file chunks.
@@ -1399,6 +1577,462 @@ defmodule LemmingsOs.Knowledge do
   end
 
   def read_source_file_chunk(_scope, _chunk_ref, _opts), do: {:error, :not_found}
+
+  defp reference_file_search_rows(scope_data, status) do
+    KnowledgeItem
+    |> where([knowledge_item], knowledge_item.kind == "reference_file")
+    |> filter_scope_relevance(scope_data)
+    |> maybe_filter_reference_file_search_status(status)
+    |> join(:inner, [knowledge_item], reference_file in ReferenceFile,
+      on: reference_file.knowledge_item_id == knowledge_item.id
+    )
+    |> select([_knowledge_item, reference_file], reference_file)
+    |> Repo.all()
+    |> Repo.preload(:knowledge_item)
+    |> Enum.map(&reference_file_row(&1, scope_data))
+  end
+
+  defp reference_file_row(
+         %ReferenceFile{knowledge_item: %KnowledgeItem{} = knowledge_item} = file,
+         scope_data
+       ) do
+    owner_scope = owner_scope(knowledge_item)
+    local? = knowledge_item_in_scope?(knowledge_item, scope_data)
+    inherited? = inherited_owner?(knowledge_item, scope_data, local?)
+
+    %{
+      reference_file: file,
+      descriptor: build_reference_file_descriptor(file),
+      owner_scope: owner_scope,
+      owner_scope_label: String.capitalize(owner_scope),
+      local?: local?,
+      inherited?: inherited?,
+      descendant?: not local? and not inherited?
+    }
+  end
+
+  defp reference_file_search_match?(%{descriptor: descriptor, reference_file: file}, opts) do
+    reference_file_kind_match?(descriptor, Keyword.get(opts, :kind)) and
+      reference_file_type_match?(
+        descriptor,
+        Keyword.get(opts, :reference_file_type) || Keyword.get(opts, :type)
+      ) and
+      reference_file_category_match?(descriptor, Keyword.get(opts, :category)) and
+      reference_file_tags_match?(descriptor, Keyword.get(opts, :tags)) and
+      reference_file_owner_scope_match?(
+        file,
+        Keyword.get(opts, :owner_scope) || Keyword.get(opts, :scope)
+      ) and
+      reference_file_query_match?(
+        descriptor,
+        file,
+        Keyword.get(opts, :q) || Keyword.get(opts, :query)
+      )
+  end
+
+  defp reference_file_kind_match?(_descriptor, nil), do: true
+  defp reference_file_kind_match?(%{kind: kind}, kind), do: true
+  defp reference_file_kind_match?(_descriptor, _kind), do: false
+
+  defp reference_file_type_match?(_descriptor, nil), do: true
+
+  defp reference_file_type_match?(%{reference_file_type: reference_file_type}, type)
+       when is_binary(type),
+       do: reference_file_type == String.trim(type)
+
+  defp reference_file_type_match?(_descriptor, _type), do: true
+
+  defp reference_file_category_match?(_descriptor, nil), do: true
+
+  defp reference_file_category_match?(%{metadata: metadata}, category) when is_binary(category) do
+    metadata_category = fetch(metadata, :category)
+    is_binary(metadata_category) and metadata_category == String.trim(category)
+  end
+
+  defp reference_file_category_match?(_descriptor, _category), do: true
+
+  defp reference_file_tags_match?(_descriptor, nil), do: true
+
+  defp reference_file_tags_match?(%{tags: tags}, requested_tags) when is_list(requested_tags) do
+    normalized_tags =
+      requested_tags
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    normalized_tags == [] or Enum.all?(normalized_tags, &(&1 in tags))
+  end
+
+  defp reference_file_tags_match?(_descriptor, _requested_tags), do: true
+
+  defp reference_file_owner_scope_match?(_file, nil), do: true
+
+  defp reference_file_owner_scope_match?(
+         %ReferenceFile{knowledge_item: %KnowledgeItem{} = item},
+         scope
+       )
+       when scope in ["world", "city", "department", "lemming"],
+       do: owner_scope(item) == scope
+
+  defp reference_file_owner_scope_match?(_file, _scope), do: true
+
+  defp reference_file_query_match?(_descriptor, _file, nil), do: true
+
+  defp reference_file_query_match?(descriptor, %ReferenceFile{} = file, query)
+       when is_binary(query) do
+    normalized_query = normalize_search_text(query)
+
+    normalized_query == "" or
+      descriptor
+      |> reference_file_search_text(file)
+      |> String.contains?(normalized_query)
+  end
+
+  defp reference_file_query_match?(_descriptor, _file, _query), do: true
+
+  defp sort_reference_file_rows(rows, scope_data, opts) do
+    query = normalize_search_text(Keyword.get(opts, :q) || Keyword.get(opts, :query) || "")
+
+    Enum.sort_by(rows, fn %{reference_file: file, descriptor: descriptor} ->
+      knowledge_item = fetch(file, :knowledge_item)
+      inserted_at = fetch(file, :inserted_at) || fetch(knowledge_item, :inserted_at)
+
+      {
+        reference_file_scope_distance(knowledge_item, scope_data),
+        -scope_depth(knowledge_item),
+        -reference_file_match_score(descriptor, file, query),
+        -datetime_sort_value(inserted_at),
+        fetch(file, :id) || ""
+      }
+    end)
+  end
+
+  defp reference_file_match_score(_descriptor, _file, ""), do: 0
+
+  defp reference_file_match_score(descriptor, %ReferenceFile{} = file, query) do
+    title = normalize_search_text(fetch(descriptor, :title) || "")
+    type = normalize_search_text(fetch(descriptor, :reference_file_type) || "")
+    reference_ref = normalize_search_text(fetch(descriptor, :reference_ref) || "")
+    tags = fetch(descriptor, :tags) || []
+    metadata = fetch(descriptor, :metadata) || %{}
+
+    0
+    |> add_score(title == query, 50)
+    |> add_score(String.contains?(title, query), 35)
+    |> add_score(Enum.any?(tags, &(normalize_search_text(&1) == query)), 30)
+    |> add_score(Enum.any?(tags, &String.contains?(normalize_search_text(&1), query)), 20)
+    |> add_score(type == query, 25)
+    |> add_score(String.contains?(type, query), 15)
+    |> add_score(reference_ref == query, 20)
+    |> add_score(String.contains?(reference_file_search_text(descriptor, file), query), 5)
+    |> add_score(String.contains?(metadata_search_text(metadata), query), 5)
+  end
+
+  defp add_score(score, true, amount), do: score + amount
+  defp add_score(score, false, _amount), do: score
+
+  defp reference_file_scope_distance(%KnowledgeItem{} = knowledge_item, scope_data) do
+    abs(scope_depth(knowledge_item) - scope_data_depth(scope_data))
+  end
+
+  defp reference_file_scope_distance(_knowledge_item, _scope_data), do: 99
+
+  defp scope_depth(%KnowledgeItem{city_id: nil, department_id: nil, lemming_id: nil}), do: 0
+  defp scope_depth(%KnowledgeItem{department_id: nil, lemming_id: nil}), do: 1
+  defp scope_depth(%KnowledgeItem{lemming_id: nil}), do: 2
+  defp scope_depth(%KnowledgeItem{}), do: 3
+
+  defp scope_data_depth(%{city_id: nil, department_id: nil, lemming_id: nil}), do: 0
+  defp scope_data_depth(%{department_id: nil, lemming_id: nil}), do: 1
+  defp scope_data_depth(%{lemming_id: nil}), do: 2
+  defp scope_data_depth(%{}), do: 3
+
+  defp datetime_sort_value(%DateTime{} = datetime), do: DateTime.to_unix(datetime, :microsecond)
+
+  defp datetime_sort_value(%NaiveDateTime{} = datetime),
+    do: NaiveDateTime.to_gregorian_seconds(datetime)
+
+  defp datetime_sort_value(_datetime), do: 0
+
+  defp reference_file_search_text(descriptor, %ReferenceFile{} = file) do
+    [
+      fetch(descriptor, :title),
+      fetch(descriptor, :reference_ref),
+      fetch(descriptor, :reference_file_type),
+      fetch(descriptor, :content_type),
+      fetch(file, :original_filename),
+      fetch(fetch(file, :knowledge_item) || %{}, :content),
+      Enum.join(fetch(descriptor, :tags) || [], " "),
+      metadata_search_text(fetch(descriptor, :metadata) || %{})
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join(" ")
+    |> normalize_search_text()
+  end
+
+  defp metadata_search_text(metadata) when is_map(metadata) do
+    metadata
+    |> Enum.flat_map(fn {key, value} -> metadata_text_values([key, value]) end)
+    |> Enum.join(" ")
+    |> normalize_search_text()
+  end
+
+  defp metadata_search_text(_metadata), do: ""
+
+  defp metadata_text_values(values) when is_list(values),
+    do: Enum.flat_map(values, &metadata_text_values/1)
+
+  defp metadata_text_values(value) when is_binary(value), do: [value]
+
+  defp metadata_text_values(value) when is_number(value) or is_boolean(value),
+    do: [to_string(value)]
+
+  defp metadata_text_values(value) when is_map(value), do: metadata_text_values(Map.values(value))
+  defp metadata_text_values(_value), do: []
+
+  defp normalize_search_text(value) when is_binary(value) do
+    value
+    |> String.downcase()
+    |> String.trim()
+  end
+
+  defp normalize_search_text(_value), do: ""
+
+  defp reference_search_status(opts) do
+    case Keyword.get(opts, :status, "active") do
+      status when status in ["active", "archived", "all"] -> status
+      _status -> "active"
+    end
+  end
+
+  defp maybe_filter_reference_file_search_status(query, "all"), do: query
+
+  defp maybe_filter_reference_file_search_status(query, status)
+       when status in ["active", "archived"] do
+    from(knowledge_item in query, where: knowledge_item.status == ^status)
+  end
+
+  defp normalize_reference_file_identifier(identifier) when is_list(identifier) do
+    identifier
+    |> Map.new()
+    |> normalize_reference_file_identifier()
+  end
+
+  defp normalize_reference_file_identifier(%{} = identifier) do
+    knowledge_item_id = fetch(identifier, :knowledge_item_id)
+    reference_ref = fetch(identifier, :reference_ref)
+
+    cond do
+      is_binary(knowledge_item_id) and Ecto.UUID.cast(knowledge_item_id) != :error ->
+        {:ok, {:knowledge_item_id, knowledge_item_id}}
+
+      is_binary(reference_ref) and safe_reference_ref?(reference_ref) ->
+        {:ok, {:reference_ref, reference_ref}}
+
+      true ->
+        {:error, :not_found}
+    end
+  end
+
+  defp normalize_reference_file_identifier(identifier) when is_binary(identifier) do
+    cond do
+      Ecto.UUID.cast(identifier) != :error -> {:ok, {:knowledge_item_id, identifier}}
+      safe_reference_ref?(identifier) -> {:ok, {:reference_ref, identifier}}
+      true -> {:error, :not_found}
+    end
+  end
+
+  defp normalize_reference_file_identifier(_identifier), do: {:error, :not_found}
+
+  defp safe_reference_ref?(reference_ref) when is_binary(reference_ref) do
+    String.match?(reference_ref, ~r/\A[A-Za-z0-9][A-Za-z0-9:_-]*\z/)
+  end
+
+  defp get_visible_active_reference_file(scope_data, {:knowledge_item_id, knowledge_item_id}) do
+    visible_active_reference_file_query(scope_data)
+    |> where([knowledge_item, _reference_file], knowledge_item.id == ^knowledge_item_id)
+    |> select([_knowledge_item, reference_file], reference_file)
+    |> Repo.one()
+    |> Repo.preload(:knowledge_item)
+  end
+
+  defp get_visible_active_reference_file(scope_data, {:reference_ref, reference_ref}) do
+    visible_active_reference_file_query(scope_data)
+    |> where([_knowledge_item, reference_file], reference_file.reference_ref == ^reference_ref)
+    |> select([_knowledge_item, reference_file], reference_file)
+    |> Repo.one()
+    |> Repo.preload(:knowledge_item)
+  end
+
+  defp visible_active_reference_file_query(scope_data) do
+    KnowledgeItem
+    |> where([knowledge_item], knowledge_item.kind == "reference_file")
+    |> filter_scope_relevance(scope_data)
+    |> where([knowledge_item], knowledge_item.status == "active")
+    |> join(:inner, [knowledge_item], reference_file in ReferenceFile,
+      on: reference_file.knowledge_item_id == knowledge_item.id
+    )
+  end
+
+  defp reference_file_read_result(%ReferenceFile{} = reference_file, max_chars) do
+    descriptor = build_reference_file_descriptor(reference_file)
+
+    cond do
+      not fetch(reference_file, :safe_to_read) ->
+        reference_file_descriptor_result(descriptor, "unreadable")
+
+      direct_text_reference_file?(reference_file) ->
+        read_direct_reference_file_text(reference_file, descriptor, max_chars)
+
+      convertible_reference_file?(reference_file) ->
+        read_converted_reference_file_text(reference_file, descriptor, max_chars)
+
+      true ->
+        reference_file_descriptor_result(descriptor, "unreadable")
+    end
+  end
+
+  defp reference_file_descriptor_result(descriptor, content_status) do
+    %{
+      descriptor: descriptor,
+      content_status: content_status,
+      content: nil,
+      content_length: 0,
+      truncated: false
+    }
+  end
+
+  defp read_direct_reference_file_text(%ReferenceFile{} = reference_file, descriptor, max_chars) do
+    case ReferenceFileStorageService.read_private(reference_file.storage_ref) do
+      {:ok, binary} when is_binary(binary) ->
+        if String.valid?(binary) do
+          reference_file_content_result(descriptor, "readable", binary, max_chars, "direct")
+        else
+          reference_file_descriptor_result(descriptor, "unreadable")
+        end
+
+      {:error, _reason} ->
+        reference_file_descriptor_result(descriptor, "unavailable")
+    end
+  end
+
+  defp read_converted_reference_file_text(
+         %ReferenceFile{} = reference_file,
+         descriptor,
+         max_chars
+       ) do
+    reference_file.storage_ref
+    |> ReferenceFileStorageService.with_temp_file(fn path ->
+      ExtractionService.extract_path(reference_file.content_type, path)
+    end)
+    |> case do
+      {:ok, {:ok, %{text: text, method: method}}} when is_binary(text) ->
+        reference_file_content_result(descriptor, "converted", text, max_chars, method)
+
+      {:ok, {:error, :unsupported}} ->
+        reference_file_descriptor_result(descriptor, "unreadable")
+
+      {:ok, {:error, _reason}} ->
+        reference_file_descriptor_result(descriptor, "conversion_failed")
+
+      {:error, _reason} ->
+        reference_file_descriptor_result(descriptor, "unavailable")
+    end
+  end
+
+  defp reference_file_content_result(descriptor, content_status, text, max_chars, method) do
+    content_length = String.length(text)
+
+    %{
+      descriptor: descriptor,
+      content_status: content_status,
+      content: String.slice(text, 0, max_chars),
+      content_length: min(content_length, max_chars),
+      truncated: content_length > max_chars,
+      extraction_method: method
+    }
+  end
+
+  defp direct_text_reference_file?(%ReferenceFile{} = reference_file) do
+    content_type = reference_file.content_type || ""
+
+    String.starts_with?(content_type, "text/") or
+      content_type in [
+        "application/json",
+        "application/ld+json",
+        "application/xml",
+        "application/xhtml+xml",
+        "application/yaml",
+        "application/x-yaml",
+        "application/toml",
+        "application/csv"
+      ]
+  end
+
+  defp convertible_reference_file?(%ReferenceFile{} = reference_file) do
+    content_type = reference_file.content_type || ""
+
+    extension =
+      reference_file.original_filename |> to_string() |> Path.extname() |> String.downcase()
+
+    content_type in convertible_reference_file_content_types() or
+      extension in convertible_reference_file_extensions()
+  end
+
+  defp convertible_reference_file_content_types do
+    [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/rtf",
+      "application/vnd.oasis.opendocument.text",
+      "application/vnd.oasis.opendocument.spreadsheet",
+      "application/vnd.oasis.opendocument.presentation"
+    ]
+  end
+
+  defp convertible_reference_file_extensions do
+    ~w(.pdf .doc .docx .xls .xlsx .ppt .pptx .rtf .odt .ods .odp)
+  end
+
+  defp sanitize_reference_file_metadata(metadata) when is_map(metadata) do
+    metadata
+    |> Enum.reject(fn {key, value} ->
+      unsafe_reference_file_metadata_key?(key) or unsafe_reference_file_metadata_value?(value)
+    end)
+    |> Map.new()
+  end
+
+  defp sanitize_reference_file_metadata(_metadata), do: %{}
+
+  defp unsafe_reference_file_metadata_key?(key) do
+    key
+    |> to_string()
+    |> String.downcase()
+    |> then(fn key ->
+      String.contains?(key, [
+        "path",
+        "storage",
+        "checksum",
+        "secret",
+        "token",
+        "password",
+        "provider_response",
+        "raw_body",
+        "full_body"
+      ])
+    end)
+  end
+
+  defp unsafe_reference_file_metadata_value?(value) when is_map(value) do
+    value != sanitize_reference_file_metadata(value)
+  end
+
+  defp unsafe_reference_file_metadata_value?(_value), do: false
 
   defp source_file_chunk_search_query(scope_data, query_embedding, opts, top_k) do
     SourceFileChunk
@@ -2042,6 +2676,28 @@ defmodule LemmingsOs.Knowledge do
   end
 
   defp normalize_optional_artifact_id(_artifact_id), do: {:error, :invalid_attrs}
+
+  defp require_operator_approval(attrs) do
+    case fetch(attrs, :operator_approved) do
+      true -> :ok
+      _other -> {:error, :operator_approval_required}
+    end
+  end
+
+  defp validate_promoted_artifact_scope(artifact, scope_data) do
+    if map_scope_value(artifact, :world_id) == scope_data.world_id and
+         map_scope_value(artifact, :city_id) == scope_data.city_id and
+         map_scope_value(artifact, :department_id) == scope_data.department_id and
+         map_scope_value(artifact, :lemming_id) == scope_data.lemming_id do
+      :ok
+    else
+      {:error, :scope_mismatch}
+    end
+  end
+
+  defp map_scope_value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
 
   defp to_effective_row(%KnowledgeItem{} = knowledge_item, scope_data) do
     owner_scope = owner_scope(knowledge_item)
@@ -2846,6 +3502,11 @@ defmodule LemmingsOs.Knowledge do
   defp safe_reason(:invalid_scope), do: "invalid_scope"
   defp safe_reason(:invalid_event), do: "invalid_event"
 
-  defp fetch(map, key) when is_map(map),
-    do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp fetch(map, key) when is_map(map) do
+    case Map.fetch(map, key) do
+      {:ok, nil} -> Map.get(map, Atom.to_string(key))
+      {:ok, value} -> value
+      :error -> Map.get(map, Atom.to_string(key))
+    end
+  end
 end

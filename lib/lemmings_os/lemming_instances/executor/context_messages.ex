@@ -70,17 +70,33 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
   end
 
   defp tool_result_guidance("knowledge.search", tool_payload) when is_map(tool_payload) do
+    result = Map.get(tool_payload, :result) || Map.get(tool_payload, "result") || %{}
+    kind = Map.get(result, :kind) || Map.get(result, "kind")
     references = Map.get(tool_payload, :references) || Map.get(tool_payload, "references") || %{}
     chunks = Map.get(references, :chunks) || Map.get(references, "chunks") || []
 
-    if is_list(chunks) and chunks != [] do
-      "Search returned chunk references. For exact factual answers, call knowledge.read with a returned chunk_ref before concluding not found. Decide what to do next."
-    else
-      "Decide what to do next."
-    end
+    knowledge_search_guidance(kind, chunks, result)
   end
 
   defp tool_result_guidance(_tool_name, _tool_payload), do: "Decide what to do next."
+
+  defp knowledge_search_guidance(kind, chunks, result) do
+    cond do
+      is_list(chunks) and chunks != [] ->
+        "Search returned chunk references. For exact factual answers, call knowledge.read with a returned chunk_ref before concluding not found. Decide what to do next."
+
+      kind == "reference_file" and has_results?(result) ->
+        "Search returned reference-file descriptors. If file content is needed, call knowledge.read with a returned reference_ref or knowledge_item_id. Decide what to do next."
+
+      true ->
+        "Decide what to do next."
+    end
+  end
+
+  defp has_results?(result) when is_map(result) do
+    results = Map.get(result, :results) || Map.get(result, "results") || []
+    is_list(results) and results != []
+  end
 
   defp lemming_call_result_payload(call) do
     %{}

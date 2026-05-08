@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status**: PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETED
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 
@@ -54,3 +54,11 @@ Allow Lemmings and operator surfaces to discover, search, and read authorized re
 ## Human Approval Gate
 
 Human reviewer validates lookup/read semantics and no-RAG behavior, then approves Task 06.
+
+## Completion Notes
+
+- Added `LemmingsOs.Knowledge.list_available_reference_files/2` for scoped active availability.
+- Added `LemmingsOs.Knowledge.search_reference_files/2` for metadata-first filtering by kind, type, category, tags, status, query, and owner scope.
+- Added `LemmingsOs.Knowledge.read_reference_file/3` with independent scope enforcement, safe descriptors, bounded direct text reads, and bounded converted previews for supported document-like files.
+- Reused the existing source-file extraction tool boundary through `ExtractionService.extract_path/2`; no chunks, embeddings, vector indexes, or RAG records are created for reference-file reads.
+- Added context tests for scope filtering, deterministic sorting, direct read bounds, converted preview bounds, descriptor safety, archived/inaccessible denial, and no-RAG side effects.

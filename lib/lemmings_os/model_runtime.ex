@@ -452,18 +452,24 @@ defmodule LemmingsOs.ModelRuntime do
       has_knowledge_search? and has_knowledge_read? ->
         """
         Retrieval Decision Policy:
-        - For factual questions that depend on company memories or source files (pricing, SKUs, policies, contracts), do not guess.
+        - Knowledge has distinct categories: memories are stored notes, source files are indexed searchable documents, reference files are fixed operator-managed files, and artifacts are generated outputs outside Knowledge unless promoted by an operator.
+        - For factual questions that depend on company memories, source files, or reference files (pricing, SKUs, policies, contracts, templates, headers, footers, style assets), do not guess.
         - Prefer `knowledge.search` first with a focused query; include `kind: \"source_file\"` and relevant filters (for example `source_file_type` or `tags`) when useful.
+        - To discover reusable fixed files, call `knowledge.search` with `kind: \"reference_file\"`; this returns safe descriptors such as `reference_ref`, `knowledge_item_id`, type, title, tags, and metadata.
         - If search returns chunk references, you must call `knowledge.read` on candidate chunks before declaring "not found".
+        - If reference-file search returns candidate descriptors, call `knowledge.read` with `reference_ref` or `knowledge_item_id` when the task needs the file content; unsupported files return descriptor-only status instead of bytes.
         - For exact-value requests (price/SKU/contract term), do not finalize from snippets alone; verify with `knowledge.read`.
+        - `knowledge.store` stores memories only. It cannot create, edit, archive, delete, or promote source files, reference files, or artifacts.
         - If retrieval returns no relevant evidence, reply with that limitation and ask for clarifying scope or file details.
         """
 
       has_knowledge_search? ->
         """
         Retrieval Decision Policy:
-        - For factual questions that depend on company memories or source files (pricing, SKUs, policies, contracts), do not guess.
+        - Knowledge has distinct categories: memories are stored notes, source files are indexed searchable documents, reference files are fixed operator-managed files, and artifacts are generated outputs outside Knowledge unless promoted by an operator.
+        - For factual questions that depend on company memories, source files, or reference files (pricing, SKUs, policies, contracts, templates, headers, footers, style assets), do not guess.
         - Prefer `knowledge.search` first with a focused query and relevant filters when useful.
+        - Use `kind: \"reference_file\"` to discover reusable fixed files by safe metadata; no mutation tools are available for reference files.
         - If retrieval returns no relevant evidence, reply with that limitation and ask for clarifying scope or file details.
         """
 
@@ -489,15 +495,15 @@ defmodule LemmingsOs.ModelRuntime do
   end
 
   defp tool_argument_contract("knowledge.search") do
-    "required `query` (string); optional `kind` (must be `source_file`); optional `source_file_type` (string); optional `tags` (list or comma-separated string); optional `scope` (`world|city|department|lemming` or scoped id map); optional `top_k` (positive integer, max 20)."
+    "`kind` defaults to `source_file`. For source files: required `query`; optional `source_file_type`, `tags`, `scope` (`world|city|department|lemming` or scoped id map), `top_k` (positive integer, max 20). For reference files: use `kind: \"reference_file\"`; optional `query`/`q`, `reference_file_type`/`type`, `category`, `tags`, `status`, `owner_scope`, `scope`, `limit` (max 20), `offset`; returns descriptors only."
   end
 
   defp tool_argument_contract("knowledge.read") do
-    "required `chunk_ref` (string); optional `scope` (`world|city|department|lemming` or scoped id map); optional `max_chars` (positive integer, max 8000)."
+    "For source files: required `chunk_ref`. For reference files: required `reference_ref` or `knowledge_item_id` with optional `kind: \"reference_file\"`. Optional `scope` (`world|city|department|lemming` or scoped id map) and `max_chars` (positive integer, max 8000). Returns bounded text or descriptor-only status; never raw bytes or storage refs."
   end
 
   defp tool_argument_contract("knowledge.store") do
-    "required `title` and `content`; optional `tags`; optional `scope` (`world|city|department|lemming` or scoped id map). Memory-only tool: does not accept source-file fields."
+    "required `title` and `content`; optional `tags`; optional `scope` (`world|city|department|lemming` or scoped id map). Memory-only tool: does not accept source-file, reference-file, artifact, path, or mutation fields."
   end
 
   defp tool_argument_contract("documents.markdown_to_html") do
@@ -556,6 +562,7 @@ defmodule LemmingsOs.ModelRuntime do
     - Read the conversation messages below and decide the next action now.
     - If the latest tool result already satisfies the user request, return a final `reply`.
     - If the latest `knowledge.search` result includes chunk references and the task asks for an exact factual value, call `knowledge.read` before any "not found" conclusion.
+    - If the latest `knowledge.search` result includes reference-file descriptors and the task needs file content, call `knowledge.read` with a returned `reference_ref` or `knowledge_item_id`.
     - If the latest completed lemming call result already satisfies the user request, return a final `reply` or one next bounded `lemming_call`.
     - If another tool action is still required, return one `tool_call`.
     - Treat tool and lemming-call assistant-context messages as prior runtime execution history, not as new user input.

@@ -42,15 +42,16 @@ defmodule LemmingsOs.Tools.Catalog do
       id: "knowledge.search",
       name: "Search Knowledge",
       description:
-        "Search ready source-file knowledge chunks with scope-safe vector retrieval and optional filters.",
+        "Search scoped Knowledge: source-file chunks by retrieval query, or reference files by safe metadata.",
       icon: "hero-magnifying-glass-circle",
       category: "knowledge",
       risk: "medium"
     },
     %{
       id: "knowledge.read",
-      name: "Read Knowledge Chunk",
-      description: "Read bounded content from one scoped source-file chunk by chunk reference.",
+      name: "Read Knowledge",
+      description:
+        "Read bounded content from one scoped source-file chunk or reference-file descriptor/content.",
       icon: "hero-document-magnifying-glass",
       category: "knowledge",
       risk: "medium"

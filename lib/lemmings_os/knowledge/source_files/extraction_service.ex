@@ -23,6 +23,19 @@ defmodule LemmingsOs.Knowledge.SourceFiles.ExtractionService do
   end
 
   @doc """
+  Extracts bounded preview text from a trusted local managed file path.
+
+  This is intended for read-time previews that reuse the same safe conversion
+  tools as source-file indexing without creating chunks or embeddings.
+  """
+  @spec extract_path(String.t(), String.t()) :: extraction_success() | extraction_error()
+  def extract_path(content_type, path) when is_binary(content_type) and is_binary(path) do
+    run_extraction(%{content_type: content_type}, path)
+  end
+
+  def extract_path(_content_type, _path), do: {:error, :failed}
+
+  @doc """
   Extracts URL/HTML source content through the registered Trafilatura capability.
   """
   @spec extract_url(String.t()) :: extraction_success() | extraction_error()
@@ -70,7 +83,7 @@ defmodule LemmingsOs.Knowledge.SourceFiles.ExtractionService do
   defp normalize_storage_result({:error, :not_found}), do: {:error, :source_not_found}
   defp normalize_storage_result({:error, _reason}), do: {:error, :failed}
 
-  defp run_extraction(%SourceFile{content_type: "application/pdf"}, path) do
+  defp run_extraction(%{content_type: "application/pdf"}, path) do
     with {:ok, primary} <- run_markitdown(path),
          true <- sufficient_text?(primary) do
       {:ok, %{text: clamp_text(primary), method: "markitdown"}}

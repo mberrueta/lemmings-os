@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status**: PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETE
+- **Approved**: [x] Human sign-off
 
 ## Assigned Agent
 
@@ -40,11 +40,21 @@ Expose reference-file availability, search, and read behavior to Lemmings throug
 - Updated tool descriptions/guidance.
 - Regression coverage for existing source-file search/read and memory store behavior.
 
+## Implementation Notes
+
+- `knowledge.search` now supports `kind: "reference_file"` for scoped metadata lookup with safe descriptor-only rows.
+- `knowledge.read` now supports source-file chunks by `chunk_ref` and reference files by `reference_ref` or `knowledge_item_id`.
+- Reference-file reads return bounded direct text, bounded converted text through the existing safe extraction boundary, or descriptor-only output for unsupported/unreadable content.
+- Kind-specific argument validation rejects unsupported source-file/reference-file field combinations.
+- `knowledge.store` remains memory-only and rejects reference-file/artifact/path mutation fields.
+- Tool catalog, model runtime retrieval guidance, and executor follow-up guidance now distinguish memories, source files, reference files, and artifacts.
+
 ## Suggested Checks
 
-- `mix format`
-- `mix test test/lemmings_os/tools/adapters/knowledge_test.exs`
-- Relevant model runtime/tool catalog tests if present
+- [x] `mix format`
+- [x] `mix test test/lemmings_os/tools/adapters/knowledge_test.exs`
+- [x] `mix test test/lemmings_os/tools/runtime_test.exs test/lemmings_os/tools/catalog_test.exs test/lemmings_os/model_runtime_test.exs test/lemmings_os/lemming_instances/executor/context_messages_test.exs test/lemmings_os/lemming_instances/executor/finalization_payload_test.exs`
+- [x] `mix precommit`
 
 ## Human Approval Gate
 

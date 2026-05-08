@@ -5,10 +5,29 @@ defmodule LemmingsOs.KnowledgeTest do
 
   alias LemmingsOs.Knowledge
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.SourceFileChunk
   alias LemmingsOs.Events.Event
   alias LemmingsOs.Repo
 
   doctest LemmingsOs.Knowledge
+
+  defmodule StubReferenceExtractorExecutor do
+    def run(command, _args, _timeout_ms) do
+      output =
+        case command do
+          "markitdown" ->
+            Application.get_env(:lemmings_os, :knowledge_reference_markitdown_output, "")
+
+          "pdftotext" ->
+            Application.get_env(:lemmings_os, :knowledge_reference_pdftotext_output, "")
+
+          _command ->
+            ""
+        end
+
+      {:ok, %{stdout: output, exit_status: 0}}
+    end
+  end
 
   describe "create_memory/3" do
     test "persists user memory with runtime-owned defaults" do
@@ -687,5 +706,450 @@ defmodule LemmingsOs.KnowledgeTest do
       assert {:ok, effective_after_archive} = Knowledge.list_effective_reference_files(city)
       refute Enum.any?(effective_after_archive, &(&1.reference_file.id == reference_file.id))
     end
+
+    test "availability and search are metadata-first, scoped, filtered, and sorted by nearby scope" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+      sibling_department = insert(:department, world: world, city: city)
+      other_world = insert(:world)
+
+      world_file =
+        create_reference_file_for(world, %{
+          title: "World quote template",
+          tags: ["quote"],
+          reference_file_type: "quote_template",
+          metadata: %{"category" => "sales"}
+        })
+
+      city_file =
+        create_reference_file_for(city, %{
+          title: "City quote template",
+          tags: ["quote", "regional"],
+          reference_file_type: "quote_template",
+          metadata: %{"category" => "sales"}
+        })
+
+      department_file =
+        create_reference_file_for(department, %{
+          title: "Department quote template",
+          tags: ["quote", "preferred"],
+          reference_file_type: "quote_template",
+          metadata: %{"category" => "sales"}
+        })
+
+      lemming_file =
+        create_reference_file_for(lemming, %{
+          title: "Lemming quote template",
+          tags: ["quote", "variant"],
+          reference_file_type: "quote_template",
+          metadata: %{"category" => "sales"}
+        })
+
+      _sibling_file =
+        create_reference_file_for(sibling_department, %{
+          title: "Sibling quote template",
+          tags: ["quote"],
+          reference_file_type: "quote_template",
+          metadata: %{"category" => "sales"}
+        })
+
+      _cross_world_file =
+        create_reference_file_for(other_world, %{
+          title: "Cross-world quote template",
+          tags: ["quote"],
+          reference_file_type: "quote_template",
+          metadata: %{"category" => "sales"}
+        })
+
+      archived_file =
+        create_reference_file_for(department, %{
+          title: "Archived quote template",
+          tags: ["quote"],
+          reference_file_type: "quote_template",
+          metadata: %{"category" => "sales"}
+        })
+
+      {:ok, %{knowledge_item: archived_item}} =
+        Knowledge.archive_reference_file(department, archived_file)
+
+      assert archived_item.status == "archived"
+
+      assert {:ok, available} = Knowledge.list_available_reference_files(department)
+      available_ids = Enum.map(available, & &1.reference_file.id)
+
+      assert available_ids == [
+               department_file.id,
+               lemming_file.id,
+               city_file.id,
+               world_file.id
+             ]
+
+      assert {:ok, page} =
+               Knowledge.search_reference_files(department,
+                 type: "quote_template",
+                 tags: ["quote"],
+                 category: "sales",
+                 q: "quote",
+                 limit: 10
+               )
+
+      ids = Enum.map(page.entries, & &1.reference_file.id)
+      assert ids == available_ids
+      refute archived_file.id in ids
+      refute Enum.any?(page.entries, &(&1.reference_file.knowledge_item.title =~ "Sibling"))
+
+      refute Enum.any?(
+               page.entries,
+               &(&1.reference_file.knowledge_item.world_id == other_world.id)
+             )
+
+      assert Enum.all?(page.entries, &Map.has_key?(&1, :descriptor))
+      assert page.total_count == 4
+    end
+
+    test "read_reference_file/3 returns bounded direct text and safe descriptors" do
+      old_storage = Application.get_env(:lemmings_os, :knowledge_reference_file_storage)
+      storage_root = Path.join(System.tmp_dir!(), "reference_read_test_#{Ecto.UUID.generate()}")
+      source_path = Path.join(storage_root, "template.md")
+
+      on_exit(fn ->
+        File.rm_rf!(storage_root)
+
+        if old_storage do
+          Application.put_env(:lemmings_os, :knowledge_reference_file_storage, old_storage)
+        else
+          Application.delete_env(:lemmings_os, :knowledge_reference_file_storage)
+        end
+      end)
+
+      File.mkdir_p!(storage_root)
+      File.write!(source_path, "0123456789abcdef")
+
+      Application.put_env(:lemmings_os, :knowledge_reference_file_storage,
+        backend: :local,
+        root_path: storage_root,
+        max_file_size_bytes: 1024 * 1024
+      )
+
+      world = insert(:world)
+
+      assert {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}} =
+               Knowledge.create_reference_file_upload(
+                 world,
+                 %{
+                   title: "Readable template",
+                   content: "Readable template summary.",
+                   reference_file_type: "quote_template",
+                   original_filename: "template.md",
+                   content_type: "text/markdown",
+                   metadata: %{"origin" => "upload", "storage_path" => "/tmp/private.md"}
+                 },
+                 source_path
+               )
+
+      assert {:ok, result} =
+               Knowledge.read_reference_file(world, reference_file.reference_ref, max_chars: 6)
+
+      assert result.content_status == "readable"
+      assert result.content == "012345"
+      assert result.truncated
+      assert result.extraction_method == "direct"
+      assert result.descriptor.reference_ref == reference_file.reference_ref
+      assert result.descriptor.knowledge_item_id == knowledge_item.id
+      refute Map.has_key?(result.descriptor, :storage_ref)
+      refute Map.has_key?(result.descriptor.metadata, "storage_path")
+
+      assert {:ok, result_by_id} =
+               Knowledge.read_reference_file(world, %{knowledge_item_id: knowledge_item.id},
+                 max_chars: 4
+               )
+
+      assert result_by_id.content == "0123"
+    end
+
+    test "read_reference_file/3 converts supported non-text previews without RAG side effects" do
+      old_storage = Application.get_env(:lemmings_os, :knowledge_reference_file_storage)
+      old_runner = Application.get_env(:lemmings_os, :knowledge_tools_runner, [])
+
+      storage_root =
+        Path.join(System.tmp_dir!(), "reference_convert_test_#{Ecto.UUID.generate()}")
+
+      source_path = Path.join(storage_root, "template.pdf")
+
+      on_exit(fn ->
+        File.rm_rf!(storage_root)
+        Application.put_env(:lemmings_os, :knowledge_tools_runner, old_runner)
+        Application.delete_env(:lemmings_os, :knowledge_reference_markitdown_output)
+        Application.delete_env(:lemmings_os, :knowledge_reference_pdftotext_output)
+
+        if old_storage do
+          Application.put_env(:lemmings_os, :knowledge_reference_file_storage, old_storage)
+        else
+          Application.delete_env(:lemmings_os, :knowledge_reference_file_storage)
+        end
+      end)
+
+      File.mkdir_p!(storage_root)
+      File.write!(source_path, "%PDF test")
+
+      Application.put_env(:lemmings_os, :knowledge_reference_file_storage,
+        backend: :local,
+        root_path: storage_root,
+        max_file_size_bytes: 1024 * 1024
+      )
+
+      Application.put_env(
+        :lemmings_os,
+        :knowledge_tools_runner,
+        Keyword.merge(old_runner,
+          executor_module: StubReferenceExtractorExecutor,
+          capabilities: %{
+            markitdown_extract_file: "markitdown",
+            pdftotext_extract_file: "pdftotext",
+            trafilatura_extract_url: "trafilatura"
+          }
+        )
+      )
+
+      Application.put_env(:lemmings_os, :knowledge_reference_markitdown_output, "")
+
+      Application.put_env(
+        :lemmings_os,
+        :knowledge_reference_pdftotext_output,
+        "converted pdf text with enough preview content"
+      )
+
+      world = insert(:world)
+      chunks_before = Repo.aggregate(SourceFileChunk, :count, :id)
+
+      assert {:ok, %{reference_file: reference_file}} =
+               Knowledge.create_reference_file_upload(
+                 world,
+                 %{
+                   title: "PDF template",
+                   reference_file_type: "quote_template",
+                   original_filename: "template.pdf",
+                   content_type: "application/pdf"
+                 },
+                 source_path
+               )
+
+      assert {:ok, result} =
+               Knowledge.read_reference_file(world, reference_file.reference_ref, max_chars: 9)
+
+      assert result.content_status == "converted"
+      assert result.content == "converted"
+      assert result.truncated
+      assert result.extraction_method == "pdftotext"
+      assert Repo.aggregate(SourceFileChunk, :count, :id) == chunks_before
+    end
+
+    test "read_reference_file/3 fails closed for unsafe, archived, and inaccessible files" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      sibling_city = insert(:city, world: world)
+
+      unsafe_file =
+        create_reference_file_for(city, %{
+          title: "Unsafe template",
+          safe_to_read: false
+        })
+
+      archived_file =
+        create_reference_file_for(city, %{
+          title: "Archived template"
+        })
+
+      sibling_file =
+        create_reference_file_for(sibling_city, %{
+          title: "Sibling template"
+        })
+
+      {:ok, _archived} = Knowledge.archive_reference_file(city, archived_file)
+
+      assert {:ok, result} = Knowledge.read_reference_file(city, unsafe_file.reference_ref)
+      assert result.content_status == "unreadable"
+      assert is_nil(result.content)
+
+      assert {:error, :not_found} =
+               Knowledge.read_reference_file(city, archived_file.reference_ref)
+
+      assert {:error, :not_found} =
+               Knowledge.read_reference_file(city, sibling_file.reference_ref)
+    end
+
+    test "promote_artifact_to_reference_file/3 requires explicit approval and stores independent bytes" do
+      old_artifact_storage = Application.get_env(:lemmings_os, :artifact_storage)
+      old_reference_storage = Application.get_env(:lemmings_os, :knowledge_reference_file_storage)
+      root = Path.join(System.tmp_dir!(), "reference_artifact_promotion_#{Ecto.UUID.generate()}")
+      artifact_source = Path.join(root, "artifact-source.md")
+
+      on_exit(fn ->
+        File.rm_rf!(root)
+
+        if old_artifact_storage do
+          Application.put_env(:lemmings_os, :artifact_storage, old_artifact_storage)
+        else
+          Application.delete_env(:lemmings_os, :artifact_storage)
+        end
+
+        if old_reference_storage do
+          Application.put_env(
+            :lemmings_os,
+            :knowledge_reference_file_storage,
+            old_reference_storage
+          )
+        else
+          Application.delete_env(:lemmings_os, :knowledge_reference_file_storage)
+        end
+      end)
+
+      File.mkdir_p!(root)
+      File.write!(artifact_source, "artifact bytes for promotion")
+
+      Application.put_env(:lemmings_os, :artifact_storage,
+        backend: :local,
+        root_path: Path.join(root, "artifact_storage"),
+        max_file_size_bytes: 1024 * 1024
+      )
+
+      Application.put_env(:lemmings_os, :knowledge_reference_file_storage,
+        backend: :local,
+        root_path: Path.join(root, "reference_storage"),
+        max_file_size_bytes: 1024 * 1024
+      )
+
+      world = insert(:world)
+      artifact_id = Ecto.UUID.generate()
+
+      {:ok, stored} =
+        LemmingsOs.Artifacts.LocalStorage.store_copy(
+          world.id,
+          artifact_id,
+          artifact_source,
+          "promoted.md"
+        )
+
+      artifact =
+        insert(:artifact,
+          id: artifact_id,
+          world: world,
+          city: nil,
+          department: nil,
+          lemming: nil,
+          storage_ref: stored.storage_ref,
+          checksum: stored.checksum,
+          size_bytes: stored.size_bytes,
+          filename: "promoted.md",
+          content_type: "text/markdown",
+          status: "ready"
+        )
+
+      assert {:error, :operator_approval_required} =
+               Knowledge.promote_artifact_to_reference_file(world, artifact.id, %{
+                 title: "Promoted",
+                 content: "Summary",
+                 reference_file_type: "quote_template"
+               })
+
+      assert {:ok, %{knowledge_item: item, reference_file: reference_file}} =
+               Knowledge.promote_artifact_to_reference_file(world, artifact.id, %{
+                 operator_approved: true,
+                 title: "Promoted",
+                 content: "Summary",
+                 reference_file_type: "quote_template"
+               })
+
+      assert item.artifact_id == artifact.id
+      assert reference_file.original_filename == artifact.filename
+      assert reference_file.content_type == artifact.content_type
+      assert String.starts_with?(reference_file.storage_ref, "local://knowledge_reference_files/")
+
+      File.rm_rf!(Path.join(root, "artifact_storage"))
+
+      assert {:ok, result} = Knowledge.read_reference_file(world, reference_file.reference_ref)
+      assert result.content_status == "readable"
+      assert result.content == "artifact bytes for promotion"
+    end
+
+    test "promote_artifact_to_reference_file/3 returns safe unavailable errors" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      sibling_city = insert(:city, world: world)
+
+      artifact =
+        insert(:artifact, world: world, city: sibling_city, department: nil, lemming: nil)
+
+      assert {:error, :artifact_unavailable} =
+               Knowledge.promote_artifact_to_reference_file(city, artifact.id, %{
+                 operator_approved: true,
+                 title: "Scoped",
+                 content: "Scoped summary",
+                 reference_file_type: "quote_template"
+               })
+
+      assert {:error, :artifact_unavailable} =
+               Knowledge.promote_artifact_to_reference_file(world, Ecto.UUID.generate(), %{
+                 operator_approved: true,
+                 title: "Missing",
+                 content: "Missing summary",
+                 reference_file_type: "quote_template"
+               })
+    end
+  end
+
+  defp create_reference_file_for(scope, attrs) do
+    scope_data = reference_scope_data(scope)
+    knowledge_item_id = Ecto.UUID.generate()
+    filename = Map.get(attrs, :original_filename, "reference.md")
+
+    {:ok, storage_ref} =
+      LemmingsOs.Knowledge.ReferenceFileStorageService.build_storage_ref(
+        scope_data.world_id,
+        knowledge_item_id,
+        filename
+      )
+
+    {:ok, %{reference_file: reference_file}} =
+      Knowledge.create_reference_file(
+        scope,
+        Map.merge(
+          %{
+            title: "Reference file",
+            content: "Reference file summary.",
+            tags: [],
+            reference_file_type: "quote_template",
+            original_filename: filename,
+            content_type: "text/markdown",
+            size_bytes: 128,
+            checksum: String.duplicate("e", 64),
+            storage_ref: storage_ref,
+            safe_to_read: true,
+            safe_to_pass_to_tools: true,
+            reference_ref: "kref:#{knowledge_item_id}"
+          },
+          attrs
+        )
+      )
+
+    reference_file
+  end
+
+  defp reference_scope_data(%LemmingsOs.Worlds.World{id: world_id}) do
+    %{world_id: world_id}
+  end
+
+  defp reference_scope_data(%LemmingsOs.Cities.City{world_id: world_id}) do
+    %{world_id: world_id}
+  end
+
+  defp reference_scope_data(%LemmingsOs.Departments.Department{world_id: world_id}) do
+    %{world_id: world_id}
+  end
+
+  defp reference_scope_data(%LemmingsOs.Lemmings.Lemming{world_id: world_id}) do
+    %{world_id: world_id}
   end
 end

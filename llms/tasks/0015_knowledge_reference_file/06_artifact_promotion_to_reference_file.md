@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status**: PENDING
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETED
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 
@@ -35,9 +35,24 @@ Allow an existing Artifact to be copied or registered into Knowledge-managed ref
 
 ## Expected Outputs
 
-- Explicit promotion API with scope checks.
-- Safe handling for missing, archived, deleted, or inaccessible Artifacts.
-- Tests or test hooks for optional provenance and post-promotion Artifact unavailability.
+- [x] Explicit promotion API with scope checks.
+- [x] Safe handling for missing, archived, deleted, or inaccessible Artifacts.
+- [x] Tests or test hooks for optional provenance and post-promotion Artifact unavailability.
+
+## Implementation Notes
+
+- Added `Knowledge.promote_artifact_to_reference_file/3` as the explicit operator-managed promotion boundary.
+- Enforced explicit operator approval via `operator_approved: true`; otherwise returns `{:error, :operator_approval_required}`.
+- Enforced scope compatibility between requested Knowledge scope and promoted Artifact scope.
+- Promotion reads Artifact bytes through scoped Artifact APIs and writes copied bytes into Knowledge-managed reference-file storage.
+- Persisted optional Artifact provenance with nullable `artifact_id` on the resulting Knowledge item.
+- Returned safe Artifact availability errors as `{:error, :artifact_unavailable}` for inaccessible/missing/unavailable Artifact states.
+- Confirmed reference-file read behavior remains Knowledge-storage based after promotion, independent of Artifact availability.
+- Added backend tests in `test/lemmings_os/knowledge_test.exs` for:
+  - explicit approval requirement,
+  - optional provenance persistence,
+  - safe unavailable Artifact errors,
+  - post-promotion Artifact unavailability not breaking reference-file reads.
 
 ## Suggested Checks
 

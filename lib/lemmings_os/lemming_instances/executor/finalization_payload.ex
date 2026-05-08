@@ -186,19 +186,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
         results = map_value(payload, :results)
         count = map_value(payload, :count)
 
-        if kind == "source_file" and is_list(results) do
-          %{
-            kind: "source_file",
-            count: count || length(results),
-            chunks:
-              results
-              |> Enum.take(5)
-              |> Enum.map(&knowledge_search_chunk_reference/1)
-              |> Enum.reject(&(&1 == %{}))
-          }
-        else
-          %{}
-        end
+        knowledge_search_references(kind, results, count)
 
       _other ->
         %{}
@@ -210,15 +198,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   defp tool_remaining_work(%{tool_name: "knowledge.search"}, result) do
     case knowledge_search_result_payload(result) do
       payload when is_map(payload) ->
+        kind = map_value(payload, :kind)
         results = map_value(payload, :results)
 
-        if is_list(results) and results != [] do
-          [
-            "Use knowledge.read with returned chunk_ref values before concluding exact factual answers."
-          ]
-        else
-          []
-        end
+        knowledge_search_remaining_work(kind, results)
 
       _other ->
         []
@@ -238,6 +221,48 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
 
   defp knowledge_search_result_payload(_result), do: nil
 
+  defp knowledge_search_references("source_file", results, count) when is_list(results) do
+    %{
+      kind: "source_file",
+      count: count || length(results),
+      chunks:
+        results
+        |> Enum.take(5)
+        |> Enum.map(&knowledge_search_chunk_reference/1)
+        |> Enum.reject(&(&1 == %{}))
+    }
+  end
+
+  defp knowledge_search_references("reference_file", results, count) when is_list(results) do
+    %{
+      kind: "reference_file",
+      count: count || length(results),
+      reference_files:
+        results
+        |> Enum.take(5)
+        |> Enum.map(&knowledge_search_reference_file_reference/1)
+        |> Enum.reject(&(&1 == %{}))
+    }
+  end
+
+  defp knowledge_search_references(_kind, _results, _count), do: %{}
+
+  defp knowledge_search_remaining_work("source_file", results)
+       when is_list(results) and results != [] do
+    [
+      "Use knowledge.read with returned chunk_ref values before concluding exact factual answers."
+    ]
+  end
+
+  defp knowledge_search_remaining_work("reference_file", results)
+       when is_list(results) and results != [] do
+    [
+      "Use knowledge.read with returned reference_ref or knowledge_item_id values when file content is needed."
+    ]
+  end
+
+  defp knowledge_search_remaining_work(_kind, _results), do: []
+
   defp knowledge_search_chunk_reference(row) when is_map(row) do
     %{}
     |> maybe_put(:chunk_ref, map_value(row, :chunk_ref))
@@ -247,6 +272,16 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   end
 
   defp knowledge_search_chunk_reference(_row), do: %{}
+
+  defp knowledge_search_reference_file_reference(row) when is_map(row) do
+    %{}
+    |> maybe_put(:reference_ref, map_value(row, :reference_ref))
+    |> maybe_put(:knowledge_item_id, map_value(row, :knowledge_item_id))
+    |> maybe_put(:title, map_value(row, :title) |> redact_text())
+    |> maybe_put(:reference_file_type, map_value(row, :reference_file_type))
+  end
+
+  defp knowledge_search_reference_file_reference(_row), do: %{}
 
   defp present_detail?(value) when is_binary(value), do: value != ""
   defp present_detail?(_value), do: false
