@@ -66,6 +66,34 @@ defmodule LemmingsOs.Knowledge.ReferenceFileTest do
       assert changeset.valid?
     end
 
+    test "accepts nil checksum for metadata-only registration paths" do
+      world = insert(:world)
+
+      knowledge_item =
+        insert(:knowledge_item,
+          world: world,
+          city: nil,
+          department: nil,
+          lemming: nil,
+          kind: "reference_file",
+          status: "active"
+        )
+
+      changeset =
+        ReferenceFile.changeset(%ReferenceFile{}, %{
+          knowledge_item_id: knowledge_item.id,
+          reference_ref: "kref:checksum_optional",
+          reference_file_type: "quote_template",
+          original_filename: "quote-template.md",
+          content_type: "text/markdown",
+          size_bytes: 2048,
+          checksum: nil,
+          storage_ref: "knowledge://local/reference_files/template.md"
+        })
+
+      assert changeset.valid?
+    end
+
     test "rejects empty or oversized type and invalid descriptor refs" do
       world = insert(:world)
 
@@ -124,6 +152,60 @@ defmodule LemmingsOs.Knowledge.ReferenceFileTest do
       assert "is required" in errors_on(changeset).original_filename
       assert "is required" in errors_on(changeset).content_type
       assert "is required" in errors_on(changeset).storage_ref
+    end
+
+    test "enforces unique constraints for reference_ref and knowledge_item_id" do
+      world = insert(:world)
+
+      knowledge_item =
+        insert(:knowledge_item,
+          world: world,
+          city: nil,
+          department: nil,
+          lemming: nil,
+          kind: "reference_file",
+          status: "active"
+        )
+
+      existing = insert(:knowledge_reference_file, knowledge_item: knowledge_item)
+
+      second_item =
+        insert(:knowledge_item,
+          world: world,
+          city: nil,
+          department: nil,
+          lemming: nil,
+          kind: "reference_file",
+          status: "active"
+        )
+
+      duplicate_ref_changeset =
+        ReferenceFile.changeset(%ReferenceFile{}, %{
+          knowledge_item_id: second_item.id,
+          reference_ref: existing.reference_ref,
+          reference_file_type: "quote_template",
+          original_filename: "duplicate-ref.md",
+          content_type: "text/markdown",
+          size_bytes: 128,
+          storage_ref: "knowledge://local/reference_files/duplicate-ref.md"
+        })
+
+      assert {:error, duplicate_ref_changeset} = Repo.insert(duplicate_ref_changeset)
+      assert "has already been taken" in errors_on(duplicate_ref_changeset).reference_ref
+
+      duplicate_item_changeset =
+        ReferenceFile.changeset(%ReferenceFile{}, %{
+          knowledge_item_id: knowledge_item.id,
+          reference_ref: "kref:duplicate_knowledge_item",
+          reference_file_type: "quote_template",
+          original_filename: "duplicate-item.md",
+          content_type: "text/markdown",
+          size_bytes: 128,
+          storage_ref: "knowledge://local/reference_files/duplicate-item.md"
+        })
+
+      assert {:error, duplicate_item_changeset} = Repo.insert(duplicate_item_changeset)
+      assert "has already been taken" in errors_on(duplicate_item_changeset).knowledge_item_id
     end
   end
 end

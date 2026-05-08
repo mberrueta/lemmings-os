@@ -1,8 +1,11 @@
 defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
   use LemmingsOs.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
   alias LemmingsOs.Knowledge
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Events.Event
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.Adapters.Knowledge, as: KnowledgeAdapter
 
@@ -111,6 +114,21 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
       refute Map.has_key?(row, :checksum)
       refute inspect(result) =~ storage_root
       refute inspect(result) =~ reference_file.storage_ref
+
+      search_event =
+        Repo.one!(
+          from(event in Event,
+            where:
+              event.event_type == "knowledge.reference_file.search_performed" and
+                event.world_id == ^department.world_id,
+            order_by: [desc: event.inserted_at],
+            limit: 1
+          )
+        )
+
+      assert fetch_map(search_event.payload, :result_count) == 1
+      assert fetch_map(search_event.payload, :has_query) == true
+      refute inspect(search_event.payload) =~ "acme"
     end
 
     test "rejects kind-specific field mismatches safely", %{instance: instance} do
@@ -184,6 +202,22 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
                })
 
       assert by_id.result.content == "0123"
+
+      read_event =
+        Repo.one!(
+          from(event in Event,
+            where:
+              event.event_type == "knowledge.reference_file.read" and
+                event.world_id == ^department.world_id,
+            order_by: [desc: event.inserted_at],
+            limit: 1
+          )
+        )
+
+      assert fetch_map(read_event.payload, :knowledge_item_id) == knowledge_item.id
+      assert fetch_map(read_event.payload, :reference_ref) == reference_file.reference_ref
+      assert fetch_map(read_event.payload, :content_status) == "readable"
+      refute inspect(read_event.payload) =~ "0123456789abcdef"
     end
 
     test "returns descriptor-only output for unsupported binary files", %{
@@ -277,5 +311,9 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
       |> Map.put_new(:tags, [])
 
     Knowledge.create_reference_file_upload(scope, attrs, source_path)
+  end
+
+  defp fetch_map(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
   end
 end

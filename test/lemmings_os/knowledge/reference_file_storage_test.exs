@@ -197,6 +197,35 @@ defmodule LemmingsOs.Knowledge.ReferenceFileStorageServiceTest do
                  Path.type(path) == :absolute and String.contains?(path, root_path)
                end)
     end
+
+    test "missing private files return safe not_found errors without path leakage", %{
+      root_path: root_path
+    } do
+      world_id = Ecto.UUID.generate()
+      knowledge_item_id = Ecto.UUID.generate()
+      source_path = Path.join(root_path, "upload.md")
+      :ok = File.mkdir_p(root_path)
+      :ok = File.write(source_path, "ephemeral")
+
+      {:ok, stored} =
+        ReferenceFileStorageService.put(world_id, knowledge_item_id, source_path, "template.md")
+
+      assert {:ok, stored_path} =
+               ReferenceFileStorageService.resolve_storage_ref(stored.storage_ref)
+
+      :ok = File.rm(stored_path)
+
+      assert {:error, :not_found} = ReferenceFileStorageService.read_private(stored.storage_ref)
+
+      assert {:error, :not_found} =
+               ReferenceFileStorageService.open_stream(stored.storage_ref, & &1)
+
+      assert {:error, :not_found} =
+               ReferenceFileStorageService.with_temp_file(stored.storage_ref, & &1)
+
+      refute inspect({:error, :not_found}) =~ root_path
+      refute inspect({:error, :not_found}) =~ stored.storage_ref
+    end
   end
 
   describe "resolve_storage_ref/1" do

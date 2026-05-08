@@ -585,11 +585,12 @@ defmodule LemmingsOs.KnowledgeTest do
   describe "reference file lifecycle APIs" do
     test "create_reference_file/2 persists reference file and keeps summary-only knowledge content" do
       world = insert(:world)
+      content_sentinel = "SECRET_CONTENT_SHOULD_NOT_LEAK"
 
       assert {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}} =
                Knowledge.create_reference_file(world, %{
                  title: "Quote template",
-                 content: "Reusable quote template summary.",
+                 content: content_sentinel,
                  tags: ["quote", "template"],
                  reference_file_type: "quote_template",
                  original_filename: "quote.md",
@@ -602,10 +603,30 @@ defmodule LemmingsOs.KnowledgeTest do
 
       assert knowledge_item.kind == "reference_file"
       assert knowledge_item.status == "active"
-      assert knowledge_item.content == "Reusable quote template summary."
+      assert knowledge_item.content == content_sentinel
       assert reference_file.knowledge_item_id == knowledge_item.id
       assert reference_file.reference_file_type == "quote_template"
       assert String.starts_with?(reference_file.reference_ref, "kref:")
+
+      event =
+        Repo.one!(
+          from(event in Event,
+            where:
+              event.event_type == "knowledge.reference_file.created" and
+                event.resource_id == ^reference_file.id and
+                event.world_id == ^world.id
+          )
+        )
+
+      assert fetch_map(event.payload, :knowledge_item_id) == knowledge_item.id
+      assert fetch_map(event.payload, :reference_file_id) == reference_file.id
+      assert fetch_map(event.payload, :reference_ref) == reference_file.reference_ref
+      assert fetch_map(event.payload, :reference_file_type) == reference_file.reference_file_type
+      assert fetch_map(event.payload, :status) == "active"
+      refute Map.has_key?(event.payload, "content")
+      refute inspect(event.payload) =~ content_sentinel
+      refute inspect(event.payload) =~ reference_file.storage_ref
+      refute inspect(event.payload) =~ "knowledge_reference_files"
     end
 
     test "create_reference_file_upload/3 stores bytes and creates managed rows" do
@@ -685,6 +706,32 @@ defmodule LemmingsOs.KnowledgeTest do
       assert updated_item.title == "New title"
       assert updated_reference.reference_file_type == "style_guide"
 
+      assert Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.event_type == "knowledge.reference_file.updated" and
+                     event.resource_id == ^updated_reference.id and
+                     event.world_id == ^world.id
+               )
+             )
+
+      updated_event =
+        Repo.one!(
+          from(event in Event,
+            where:
+              event.event_type == "knowledge.reference_file.updated" and
+                event.resource_id == ^updated_reference.id and
+                event.world_id == ^world.id,
+            order_by: [desc: event.inserted_at],
+            limit: 1
+          )
+        )
+
+      assert fetch_map(updated_event.payload, :knowledge_item_id) == updated_item.id
+      assert fetch_map(updated_event.payload, :reference_file_id) == updated_reference.id
+      refute Map.has_key?(updated_event.payload, "storage_ref")
+      refute inspect(updated_event.payload) =~ updated_reference.storage_ref
+
       assert {:error, :scope_mismatch} =
                Knowledge.update_reference_file_metadata(city, reference_file, %{title: "nope"})
 
@@ -699,6 +746,31 @@ defmodule LemmingsOs.KnowledgeTest do
                Knowledge.archive_reference_file(world, updated_reference)
 
       assert archived_item.status == "archived"
+
+      assert Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.event_type == "knowledge.reference_file.archived" and
+                     event.resource_id == ^updated_reference.id and
+                     event.world_id == ^world.id
+               )
+             )
+
+      archived_event =
+        Repo.one!(
+          from(event in Event,
+            where:
+              event.event_type == "knowledge.reference_file.archived" and
+                event.resource_id == ^updated_reference.id and
+                event.world_id == ^world.id,
+            order_by: [desc: event.inserted_at],
+            limit: 1
+          )
+        )
+
+      assert fetch_map(archived_event.payload, :status) == "archived"
+      refute Map.has_key?(archived_event.payload, "content")
+      refute inspect(archived_event.payload) =~ updated_reference.storage_ref
 
       assert {:ok, effective_after_archive} = Knowledge.list_effective_reference_files(city)
       refute Enum.any?(effective_after_archive, &(&1.reference_file.id == reference_file.id))
@@ -796,6 +868,67 @@ defmodule LemmingsOs.KnowledgeTest do
 
       assert Enum.all?(page.entries, &Map.has_key?(&1, :descriptor))
       assert page.total_count == 4
+    end
+
+    test "scope enforcement keeps World/City/Department/Lemming views isolated from siblings and cross-world items" do
+      world = insert(:world)
+      city = insert(:city, world: world)
+      department = insert(:department, world: world, city: city)
+      lemming = insert(:lemming, world: world, city: city, department: department)
+      sibling_department = insert(:department, world: world, city: city)
+      other_world = insert(:world)
+
+      world_file = create_reference_file_for(world, %{title: "World template"})
+      city_file = create_reference_file_for(city, %{title: "City template"})
+      department_file = create_reference_file_for(department, %{title: "Department template"})
+      lemming_file = create_reference_file_for(lemming, %{title: "Lemming template"})
+
+      sibling_file =
+        create_reference_file_for(sibling_department, %{title: "Sibling department template"})
+
+      other_world_file = create_reference_file_for(other_world, %{title: "Other world template"})
+
+      assert {:ok, world_available} = Knowledge.list_available_reference_files(world)
+      assert Enum.map(world_available, & &1.reference_file.id) == [world_file.id]
+
+      assert {:ok, city_available} = Knowledge.list_available_reference_files(city)
+
+      assert Enum.map(city_available, & &1.reference_file.id) == [city_file.id, world_file.id]
+
+      assert {:ok, department_available} = Knowledge.list_available_reference_files(department)
+
+      assert Enum.map(department_available, & &1.reference_file.id) == [
+               department_file.id,
+               lemming_file.id,
+               city_file.id,
+               world_file.id
+             ]
+
+      assert {:ok, lemming_available} = Knowledge.list_available_reference_files(lemming)
+
+      assert Enum.map(lemming_available, & &1.reference_file.id) == [
+               lemming_file.id,
+               department_file.id,
+               city_file.id,
+               world_file.id
+             ]
+
+      assert {:ok, department_search} =
+               Knowledge.search_reference_files(department, q: "template")
+
+      department_ids = Enum.map(department_search.entries, & &1.reference_file.id)
+      assert department_file.id in department_ids
+      assert lemming_file.id in department_ids
+      assert city_file.id in department_ids
+      assert world_file.id in department_ids
+      refute sibling_file.id in department_ids
+      refute other_world_file.id in department_ids
+
+      assert {:error, :not_found} =
+               Knowledge.read_reference_file(department, sibling_file.reference_ref)
+
+      assert {:error, :not_found} =
+               Knowledge.read_reference_file(department, other_world_file.reference_ref)
     end
 
     test "read_reference_file/3 returns bounded direct text and safe descriptors" do
@@ -933,10 +1066,67 @@ defmodule LemmingsOs.KnowledgeTest do
       assert Repo.aggregate(SourceFileChunk, :count, :id) == chunks_before
     end
 
+    test "read_reference_file/3 returns descriptor-only output for unsupported binary files" do
+      old_storage = Application.get_env(:lemmings_os, :knowledge_reference_file_storage)
+      storage_root = Path.join(System.tmp_dir!(), "reference_binary_test_#{Ecto.UUID.generate()}")
+      source_path = Path.join(storage_root, "binary.bin")
+      bytes_sentinel = <<0, 159, 250, 17, 198, 33, 44, 255>>
+
+      on_exit(fn ->
+        File.rm_rf!(storage_root)
+
+        if old_storage do
+          Application.put_env(:lemmings_os, :knowledge_reference_file_storage, old_storage)
+        else
+          Application.delete_env(:lemmings_os, :knowledge_reference_file_storage)
+        end
+      end)
+
+      File.mkdir_p!(storage_root)
+      File.write!(source_path, bytes_sentinel)
+
+      Application.put_env(:lemmings_os, :knowledge_reference_file_storage,
+        backend: :local,
+        root_path: storage_root,
+        max_file_size_bytes: 1024 * 1024
+      )
+
+      world = insert(:world)
+      chunks_before = Repo.aggregate(SourceFileChunk, :count, :id)
+
+      assert {:ok, %{reference_file: reference_file}} =
+               Knowledge.create_reference_file_upload(
+                 world,
+                 %{
+                   title: "Binary template",
+                   content: "Descriptor only expected.",
+                   reference_file_type: "binary_asset",
+                   original_filename: "binary.bin",
+                   content_type: "application/octet-stream"
+                 },
+                 source_path
+               )
+
+      assert {:ok, result} =
+               Knowledge.read_reference_file(world, reference_file.reference_ref, max_chars: 128)
+
+      assert result.content_status == "unreadable"
+      assert result.content == nil
+      assert result.content_length == 0
+      refute result.truncated
+      assert result.descriptor.reference_ref == reference_file.reference_ref
+      refute Map.has_key?(result.descriptor, :storage_ref)
+      refute inspect(result) =~ reference_file.storage_ref
+      refute inspect(result) =~ storage_root
+      refute inspect(result) =~ source_path
+      assert Repo.aggregate(SourceFileChunk, :count, :id) == chunks_before
+    end
+
     test "read_reference_file/3 fails closed for archived and inaccessible files" do
       world = insert(:world)
       city = insert(:city, world: world)
       sibling_city = insert(:city, world: world)
+      other_world = insert(:world)
 
       archived_file =
         create_reference_file_for(city, %{
@@ -948,6 +1138,11 @@ defmodule LemmingsOs.KnowledgeTest do
           title: "Sibling template"
         })
 
+      cross_world_file =
+        create_reference_file_for(other_world, %{
+          title: "Cross world template"
+        })
+
       {:ok, _archived} = Knowledge.archive_reference_file(city, archived_file)
 
       assert {:error, :not_found} =
@@ -955,6 +1150,9 @@ defmodule LemmingsOs.KnowledgeTest do
 
       assert {:error, :not_found} =
                Knowledge.read_reference_file(city, sibling_file.reference_ref)
+
+      assert {:error, :not_found} =
+               Knowledge.read_reference_file(city, cross_world_file.reference_ref)
     end
 
     test "promote_artifact_to_reference_file/3 requires explicit approval and stores independent bytes" do
@@ -1044,6 +1242,36 @@ defmodule LemmingsOs.KnowledgeTest do
       assert reference_file.content_type == artifact.content_type
       assert String.starts_with?(reference_file.storage_ref, "local://knowledge_reference_files/")
 
+      assert Repo.exists?(
+               from(event in Event,
+                 where:
+                   event.event_type == "knowledge.reference_file.artifact_promoted" and
+                     event.resource_id == ^reference_file.id and
+                     event.world_id == ^world.id
+               )
+             )
+
+      promotion_event =
+        Repo.one!(
+          from(event in Event,
+            where:
+              event.event_type == "knowledge.reference_file.artifact_promoted" and
+                event.resource_id == ^reference_file.id and
+                event.world_id == ^world.id,
+            order_by: [desc: event.inserted_at],
+            limit: 1
+          )
+        )
+
+      assert fetch_map(promotion_event.payload, :artifact_id) == artifact.id
+      assert fetch_map(promotion_event.payload, :reference_file_id) == reference_file.id
+      assert fetch_map(promotion_event.payload, :knowledge_item_id) == item.id
+      refute Map.has_key?(promotion_event.payload, "content")
+      refute Map.has_key?(promotion_event.payload, "storage_ref")
+      refute inspect(promotion_event.payload) =~ "artifact bytes for promotion"
+      refute inspect(promotion_event.payload) =~ artifact_source
+      refute inspect(promotion_event.payload) =~ stored.storage_ref
+
       File.rm_rf!(Path.join(root, "artifact_storage"))
 
       assert {:ok, result} = Knowledge.read_reference_file(world, reference_file.reference_ref)
@@ -1126,5 +1354,9 @@ defmodule LemmingsOs.KnowledgeTest do
 
   defp reference_scope_data(%LemmingsOs.Lemmings.Lemming{world_id: world_id}) do
     %{world_id: world_id}
+  end
+
+  defp fetch_map(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
   end
 end

@@ -76,6 +76,24 @@ defmodule LemmingsOs.Knowledge.KnowledgeItemTest do
       assert changeset.valid?
     end
 
+    test "rejects source_file with memory-only status" do
+      world = insert(:world)
+
+      changeset =
+        KnowledgeItem.changeset(%KnowledgeItem{}, %{
+          world_id: world.id,
+          kind: "source_file",
+          title: "Source file title",
+          content: "Source file summary placeholder",
+          source: "user",
+          status: "active",
+          tags: []
+        })
+
+      refute changeset.valid?
+      assert {".invalid_choice", _details} = Keyword.fetch!(changeset.errors, :status)
+    end
+
     test "accepts reference_file with active and archived statuses" do
       world = insert(:world)
 
@@ -107,6 +125,24 @@ defmodule LemmingsOs.Knowledge.KnowledgeItemTest do
           content: "Reference file description",
           source: "user",
           status: "ready",
+          tags: []
+        })
+
+      refute changeset.valid?
+      assert {".invalid_choice", _details} = Keyword.fetch!(changeset.errors, :status)
+    end
+
+    test "rejects reference_file with deleted status" do
+      world = insert(:world)
+
+      changeset =
+        KnowledgeItem.changeset(%KnowledgeItem{}, %{
+          world_id: world.id,
+          kind: "reference_file",
+          title: "Reference file title",
+          content: "Reference file description",
+          source: "user",
+          status: "deleted",
           tags: []
         })
 

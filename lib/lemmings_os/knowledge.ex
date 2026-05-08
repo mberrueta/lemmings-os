@@ -899,6 +899,7 @@ defmodule LemmingsOs.Knowledge do
       case Repo.transaction(multi) do
         {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}} ->
           {:ok, %{knowledge_item: knowledge_item, reference_file: reference_file}}
+          |> maybe_record_reference_file_event("knowledge.reference_file.created", scope_data)
 
         {:error, _step, reason, _changes_so_far} ->
           {:error, reason}
@@ -1025,6 +1026,10 @@ defmodule LemmingsOs.Knowledge do
         |> Map.put(:artifact_id, artifact_id)
 
       create_reference_file_upload(scope, upload_attrs, opened.path)
+      |> maybe_record_reference_file_event(
+        "knowledge.reference_file.artifact_promoted",
+        scope_data
+      )
     else
       {:error, :not_found} ->
         {:error, :artifact_unavailable}
@@ -1227,6 +1232,7 @@ defmodule LemmingsOs.Knowledge do
       case Repo.transaction(multi) do
         {:ok, %{reference_file: updated_reference_file, knowledge_item: updated_knowledge_item}} ->
           {:ok, %{knowledge_item: updated_knowledge_item, reference_file: updated_reference_file}}
+          |> maybe_record_reference_file_event("knowledge.reference_file.updated", scope_data)
 
         {:error, _step, reason, _changes_so_far} ->
           {:error, reason}
@@ -1286,6 +1292,7 @@ defmodule LemmingsOs.Knowledge do
       case Repo.transaction(multi) do
         {:ok, %{knowledge_item: updated_knowledge_item, reference_file: updated_reference_file}} ->
           {:ok, %{knowledge_item: updated_knowledge_item, reference_file: updated_reference_file}}
+          |> maybe_record_reference_file_event("knowledge.reference_file.archived", scope_data)
 
         {:error, _step, reason, _changes_so_far} ->
           {:error, reason}
@@ -2852,10 +2859,91 @@ defmodule LemmingsOs.Knowledge do
 
   defp maybe_record_memory_event(result, _event_type, _scope_data, _message), do: result
 
+  defp maybe_record_reference_file_event(
+         {:ok,
+          %{
+            knowledge_item: %KnowledgeItem{} = knowledge_item,
+            reference_file: %ReferenceFile{} = reference_file
+          }} = result,
+         event_type,
+         scope_data
+       )
+       when is_binary(event_type) and is_map(scope_data) do
+    payload = reference_file_event_payload(knowledge_item, reference_file, scope_data)
+
+    case Events.record_event(
+           event_type,
+           scope_data,
+           reference_file_event_message(event_type, reference_file.reference_ref),
+           payload: payload,
+           event_family: "audit",
+           action: reference_file_event_action(event_type),
+           status: "succeeded",
+           resource_type: "knowledge_reference_file",
+           resource_id: reference_file.id
+         ) do
+      {:ok, _event} ->
+        result
+
+      {:error, reason} ->
+        Logger.warning("failed to record reference file lifecycle event",
+          event: "knowledge.reference_file.event_failed",
+          world_id: knowledge_item.world_id,
+          city_id: knowledge_item.city_id,
+          department_id: knowledge_item.department_id,
+          lemming_id: knowledge_item.lemming_id,
+          reason: safe_reason(reason)
+        )
+
+        result
+    end
+  end
+
+  defp maybe_record_reference_file_event(result, _event_type, _scope_data), do: result
+
   defp memory_event_action("knowledge.memory.created"), do: "create"
   defp memory_event_action("knowledge.memory.updated"), do: "update"
   defp memory_event_action("knowledge.memory.deleted"), do: "delete"
   defp memory_event_action(_event_type), do: "update"
+
+  defp reference_file_event_action("knowledge.reference_file.created"), do: "create"
+  defp reference_file_event_action("knowledge.reference_file.updated"), do: "update"
+  defp reference_file_event_action("knowledge.reference_file.archived"), do: "archive"
+  defp reference_file_event_action("knowledge.reference_file.artifact_promoted"), do: "promote"
+  defp reference_file_event_action(_event_type), do: "update"
+
+  defp reference_file_event_message(event_type, reference_ref) do
+    case event_type do
+      "knowledge.reference_file.created" -> "Reference file #{reference_ref} created"
+      "knowledge.reference_file.updated" -> "Reference file #{reference_ref} updated"
+      "knowledge.reference_file.archived" -> "Reference file #{reference_ref} archived"
+      "knowledge.reference_file.artifact_promoted" -> "Reference file #{reference_ref} promoted"
+      _other -> "Reference file #{reference_ref} updated"
+    end
+  end
+
+  defp reference_file_event_payload(
+         %KnowledgeItem{} = knowledge_item,
+         %ReferenceFile{} = reference_file,
+         scope_data
+       ) do
+    %{
+      world_id: scope_data.world_id,
+      city_id: scope_data.city_id,
+      department_id: scope_data.department_id,
+      lemming_id: scope_data.lemming_id,
+      knowledge_item_id: knowledge_item.id,
+      reference_file_id: reference_file.id,
+      reference_ref: reference_file.reference_ref,
+      kind: knowledge_item.kind,
+      source: knowledge_item.source,
+      status: knowledge_item.status,
+      reference_file_type: reference_file.reference_file_type,
+      artifact_id: knowledge_item.artifact_id
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
 
   defp memory_event_payload(%KnowledgeItem{} = memory) do
     %{

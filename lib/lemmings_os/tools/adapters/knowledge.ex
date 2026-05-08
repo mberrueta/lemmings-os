@@ -294,6 +294,7 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
            results: results
          }
        }}
+      |> maybe_record_reference_file_search_event(instance, scope, args)
     else
       {:error, :invalid_scope} -> {:error, invalid_scope_error()}
       {:error, :scope_mismatch} -> {:error, invalid_scope_error()}
@@ -347,6 +348,7 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
          preview: reference_file_read_preview(result),
          result: result
        }}
+      |> maybe_record_reference_file_read_event(instance, scope)
     else
       {:error, :not_found} -> {:error, not_found_error("Reference file not found")}
       {:error, :invalid_scope} -> {:error, invalid_scope_error()}
@@ -977,6 +979,176 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
         :ok
     end
   end
+
+  defp maybe_record_reference_file_search_event(
+         {:ok, %{result: %{kind: "reference_file"} = result}} = adapter_result,
+         %LemmingInstance{} = instance,
+         scope,
+         args
+       )
+       when is_map(args) do
+    payload =
+      %{
+        lemming_instance_id: instance.id,
+        actor_lemming_id: instance.lemming_id,
+        actor_world_id: instance.world_id,
+        actor_city_id: instance.city_id,
+        actor_department_id: instance.department_id,
+        kind: "reference_file",
+        status: fetch(args, :status) || "active",
+        owner_scope: fetch(args, :owner_scope) || fetch(args, :scope),
+        reference_file_type: fetch(args, :reference_file_type) || fetch(args, :type),
+        has_query: present?(fetch(args, :query) || fetch(args, :q)),
+        tags_count: tag_count(fetch(args, :tags)),
+        limit: fetch(result, :limit),
+        offset: fetch(result, :offset),
+        result_count: fetch(result, :count),
+        total_count: fetch(result, :total_count),
+        source: "llm"
+      }
+      |> Map.merge(scope_payload(scope))
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    record_reference_file_access_event(
+      "knowledge.reference_file.search_performed",
+      scope,
+      "Reference file search performed",
+      payload
+    )
+
+    adapter_result
+  end
+
+  defp maybe_record_reference_file_search_event(result, _instance, _scope, _args), do: result
+
+  defp maybe_record_reference_file_read_event(
+         {:ok,
+          %{result: %{kind: "reference_file", knowledge_item_id: knowledge_item_id} = result}} =
+           adapter_result,
+         %LemmingInstance{} = instance,
+         scope
+       ) do
+    payload =
+      %{
+        lemming_instance_id: instance.id,
+        actor_lemming_id: instance.lemming_id,
+        actor_world_id: instance.world_id,
+        actor_city_id: instance.city_id,
+        actor_department_id: instance.department_id,
+        knowledge_item_id: knowledge_item_id,
+        reference_ref: fetch(result, :reference_ref),
+        reference_file_type: fetch(result, :reference_file_type),
+        content_status: fetch(result, :content_status),
+        has_content: is_binary(fetch(result, :content)),
+        truncated: fetch(result, :truncated),
+        source: "llm"
+      }
+      |> Map.merge(scope_payload(scope))
+      |> maybe_put(:content_length, fetch(result, :content_length))
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    record_reference_file_access_event(
+      "knowledge.reference_file.read",
+      scope,
+      "Reference file read",
+      payload,
+      knowledge_item_id
+    )
+
+    adapter_result
+  end
+
+  defp maybe_record_reference_file_read_event(result, _instance, _scope), do: result
+
+  defp record_reference_file_access_event(event_type, scope, message, payload, resource_id \\ nil)
+       when is_binary(event_type) and is_binary(message) and is_map(payload) do
+    case Events.record_event(
+           event_type,
+           scope,
+           message,
+           payload: payload,
+           event_family: "audit",
+           action: reference_file_access_action(event_type),
+           status: "succeeded",
+           resource_type: "knowledge_reference_file_access",
+           resource_id: resource_id
+         ) do
+      {:ok, _event} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("failed to record reference file access event",
+          event: "knowledge.reference_file.access_event_failed",
+          instance_id: fetch(payload, :lemming_instance_id),
+          world_id: fetch(payload, :world_id),
+          department_id: fetch(payload, :department_id),
+          lemming_id: fetch(payload, :lemming_id),
+          reason: safe_reason(reason)
+        )
+
+        :ok
+    end
+  end
+
+  defp reference_file_access_action("knowledge.reference_file.search_performed"), do: "search"
+  defp reference_file_access_action("knowledge.reference_file.read"), do: "read"
+  defp reference_file_access_action(_event_type), do: "read"
+
+  defp tag_count(nil), do: 0
+  defp tag_count(tags) when is_list(tags), do: length(tags)
+
+  defp tag_count(tags) when is_binary(tags) do
+    tags
+    |> String.split(",", trim: true)
+    |> Enum.count()
+  end
+
+  defp tag_count(_tags), do: 0
+
+  defp scope_payload(%World{id: world_id}) do
+    %{
+      world_id: world_id,
+      city_id: nil,
+      department_id: nil,
+      lemming_id: nil
+    }
+  end
+
+  defp scope_payload(%City{id: city_id, world_id: world_id}) do
+    %{
+      world_id: world_id,
+      city_id: city_id,
+      department_id: nil,
+      lemming_id: nil
+    }
+  end
+
+  defp scope_payload(%Department{id: department_id, city_id: city_id, world_id: world_id}) do
+    %{
+      world_id: world_id,
+      city_id: city_id,
+      department_id: department_id,
+      lemming_id: nil
+    }
+  end
+
+  defp scope_payload(%Lemming{
+         id: lemming_id,
+         department_id: department_id,
+         city_id: city_id,
+         world_id: world_id
+       }) do
+    %{
+      world_id: world_id,
+      city_id: city_id,
+      department_id: department_id,
+      lemming_id: lemming_id
+    }
+  end
+
+  defp scope_payload(_scope), do: %{}
 
   defp memory_scope(%KnowledgeItem{} = memory) do
     %{
