@@ -712,6 +712,9 @@ defmodule LemmingsOs.Knowledge do
       nil ->
         {:error, :not_found}
 
+      %SourceFile{indexing_status: "archived"} ->
+        :ok
+
       %SourceFile{} = source_file ->
         _ = set_source_file_status(source_file, :extracting)
         continue_indexing_after_extraction(source_file)
@@ -1032,9 +1035,13 @@ defmodule LemmingsOs.Knowledge do
   end
 
   defp maybe_filter_source_file_status(query, status) when is_binary(status) do
-    if status in KnowledgeItem.statuses() do
+    if status in KnowledgeItem.statuses() or status == "pending" do
+      {knowledge_status, source_file_status} = source_file_status_filter_pair(status)
+
       from([source_file, knowledge_item] in query,
-        where: knowledge_item.status == ^status and source_file.indexing_status == ^status
+        where:
+          knowledge_item.status == ^knowledge_status and
+            source_file.indexing_status == ^source_file_status
       )
     else
       query
@@ -1042,6 +1049,10 @@ defmodule LemmingsOs.Knowledge do
   end
 
   defp maybe_filter_source_file_status(query, _status), do: query
+
+  defp source_file_status_filter_pair("pending"), do: {"pending_index", "pending"}
+  defp source_file_status_filter_pair("pending_index"), do: {"pending_index", "pending"}
+  defp source_file_status_filter_pair(status), do: {status, status}
 
   defp maybe_scope_eq(query, field, nil) when field in [:city_id, :department_id, :lemming_id] do
     from([_source_file, knowledge_item] in query, where: is_nil(field(knowledge_item, ^field)))

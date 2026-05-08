@@ -101,6 +101,35 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
       assert knowledge_item.status == "archived"
       assert archived_source_file.indexing_status == "archived"
     end
+
+    test "does not resume indexing for archived source files" do
+      world = insert(:world)
+
+      {:ok, %{source_file: source_file}} =
+        Knowledge.create_source_file(world, %{
+          source_file_type: "company_knowledge",
+          original_filename: "archived_skip.pdf",
+          content_type: "application/pdf",
+          size_bytes: 2_048,
+          storage_ref:
+            "local://knowledge_source_files/#{world.id}/#{Ecto.UUID.generate()}/archived_skip.pdf"
+        })
+
+      source_file = Repo.preload(source_file, :knowledge_item)
+
+      assert {:ok, %{knowledge_item: archived_item, source_file: archived_source_file}} =
+               Knowledge.archive_source_file(world, source_file)
+
+      assert :ok = Knowledge.run_source_file_indexing(source_file.id)
+
+      refreshed_source_file = Repo.get!(SourceFile, source_file.id)
+      refreshed_item = Repo.get!(KnowledgeItem, source_file.knowledge_item_id)
+
+      assert archived_item.status == "archived"
+      assert archived_source_file.indexing_status == "archived"
+      assert refreshed_source_file.indexing_status == "archived"
+      assert refreshed_item.status == "archived"
+    end
   end
 
   describe "retry_source_file_indexing/2" do
@@ -197,6 +226,29 @@ defmodule LemmingsOs.Knowledge.SourceFilesContextTest do
 
       [result] = Knowledge.list_ready_source_files(world)
       assert result.id == ready_source_file.id
+    end
+  end
+
+  describe "list_source_files/2 status filter" do
+    test "returns newly created source files for pending status" do
+      world = insert(:world)
+
+      {:ok, %{source_file: pending_source_file}} =
+        Knowledge.create_source_file(world, %{
+          source_file_type: "company_knowledge",
+          original_filename: "pending.pdf",
+          content_type: "application/pdf",
+          size_bytes: 1_000,
+          storage_ref:
+            "local://knowledge_source_files/#{world.id}/#{Ecto.UUID.generate()}/pending.pdf"
+        })
+
+      pending_ids =
+        world
+        |> Knowledge.list_source_files(status: "pending")
+        |> Enum.map(& &1.id)
+
+      assert pending_source_file.id in pending_ids
     end
   end
 
