@@ -58,7 +58,7 @@ Human reviewer validates lookup/read semantics and no-RAG behavior, then approve
 ## Completion Notes
 
 - Added `LemmingsOs.Knowledge.list_available_reference_files/2` for scoped active availability.
-- Added `LemmingsOs.Knowledge.search_reference_files/2` for metadata-first filtering by kind, type, category, tags, status, query, and owner scope.
+- Added `LemmingsOs.Knowledge.search_reference_files/2` for filtering by kind, type, tags, status, query, and owner scope.
 - Added `LemmingsOs.Knowledge.read_reference_file/3` with independent scope enforcement, safe descriptors, bounded direct text reads, and bounded converted previews for supported document-like files.
 - Reused the existing source-file extraction tool boundary through `ExtractionService.extract_path/2`; no chunks, embeddings, vector indexes, or RAG records are created for reference-file reads.
 - Added context tests for scope filtering, deterministic sorting, direct read bounds, converted preview bounds, descriptor safety, archived/inaccessible denial, and no-RAG side effects.

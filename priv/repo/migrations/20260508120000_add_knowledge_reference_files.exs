@@ -16,9 +16,6 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeReferenceFiles do
       add :size_bytes, :bigint, null: false
       add :checksum, :string
       add :storage_ref, :string, null: false
-      add :metadata, :map, null: false, default: %{}
-      add :safe_to_read, :boolean, null: false, default: true
-      add :safe_to_pass_to_tools, :boolean, null: false, default: true
 
       timestamps(type: :utc_datetime)
     end
@@ -26,13 +23,6 @@ defmodule LemmingsOs.Repo.Migrations.AddKnowledgeReferenceFiles do
     create unique_index(:knowledge_reference_files, [:knowledge_item_id])
     create unique_index(:knowledge_reference_files, [:reference_ref])
     create index(:knowledge_reference_files, [:reference_file_type, :inserted_at, :id])
-
-    create index(
-             :knowledge_reference_files,
-             [:metadata],
-             using: :gin,
-             name: :knowledge_reference_files_metadata_gin_index
-           )
 
     create index(
              :knowledge_items,

@@ -45,10 +45,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileStorageService do
           reference_ref: String.t(),
           reference_file_type: String.t(),
           original_filename: String.t(),
-          content_type: String.t(),
-          safe_to_read: boolean(),
-          safe_to_pass_to_tools: boolean(),
-          metadata: map()
+          content_type: String.t()
         }
 
   @doc """
@@ -212,10 +209,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileStorageService do
       ...>   content_type: "text/markdown",
       ...>   size_bytes: 123,
       ...>   checksum: String.duplicate("a", 64),
-      ...>   storage_ref: "local://knowledge_reference_files/internal/path/template.md",
-      ...>   metadata: %{"origin" => "upload"},
-      ...>   safe_to_read: true,
-      ...>   safe_to_pass_to_tools: false
+      ...>   storage_ref: "local://knowledge_reference_files/internal/path/template.md"
       ...> }
       iex> descriptor = LemmingsOs.Knowledge.ReferenceFileStorageService.public_descriptor(reference_file)
       iex> descriptor.reference_ref
@@ -233,10 +227,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileStorageService do
       reference_ref: reference_file.reference_ref,
       reference_file_type: reference_file.reference_file_type,
       original_filename: reference_file.original_filename,
-      content_type: reference_file.content_type,
-      safe_to_read: reference_file.safe_to_read,
-      safe_to_pass_to_tools: reference_file.safe_to_pass_to_tools,
-      metadata: reference_file.metadata || %{}
+      content_type: reference_file.content_type
     }
   end
 

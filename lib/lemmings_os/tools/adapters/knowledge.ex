@@ -765,9 +765,6 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
       tags: descriptor.tags || [],
       status: descriptor.status,
       content_type: descriptor.content_type,
-      safe_to_read: descriptor.safe_to_read,
-      safe_to_pass_to_tools: descriptor.safe_to_pass_to_tools,
-      metadata: descriptor.metadata || %{},
       scope: %{type: owner_scope, local: local?, inherited: inherited?}
     }
   end
@@ -805,9 +802,6 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
       title: descriptor.title,
       tags: descriptor.tags || [],
       content_type: descriptor.content_type,
-      safe_to_read: descriptor.safe_to_read,
-      safe_to_pass_to_tools: descriptor.safe_to_pass_to_tools,
-      metadata: descriptor.metadata || %{},
       descriptor: descriptor,
       content_status: read_result.content_status,
       content: read_result.content,

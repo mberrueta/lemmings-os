@@ -19,7 +19,7 @@ Expose reference-file availability, search, and read behavior to Lemmings throug
 
 ## Implementation Scope
 
-- Update `LemmingsOs.Tools.Adapters.Knowledge` so `knowledge.search` supports `kind: "reference_file"` metadata lookup.
+- Update `LemmingsOs.Tools.Adapters.Knowledge` so `knowledge.search` supports `kind: "reference_file"` descriptor lookup.
 - Update `knowledge.read` to read authorized reference files by `knowledge_item_id` or safe `reference_ref`, while preserving source-file chunk read support.
 - Ensure `knowledge.read` returns bounded text for directly readable reference files and bounded converted text for supported binary/structured reference files using the existing safe conversion tools.
 - Add or expose a compact scoped availability result if the existing tool shape needs a lightweight listing path.
@@ -42,7 +42,7 @@ Expose reference-file availability, search, and read behavior to Lemmings throug
 
 ## Implementation Notes
 
-- `knowledge.search` now supports `kind: "reference_file"` for scoped metadata lookup with safe descriptor-only rows.
+- `knowledge.search` now supports `kind: "reference_file"` for scoped descriptor lookup with safe descriptor-only rows.
 - `knowledge.read` now supports source-file chunks by `chunk_ref` and reference files by `reference_ref` or `knowledge_item_id`.
 - Reference-file reads return bounded direct text, bounded converted text through the existing safe extraction boundary, or descriptor-only output for unsupported/unreadable content.
 - Kind-specific argument validation rejects unsupported source-file/reference-file field combinations.

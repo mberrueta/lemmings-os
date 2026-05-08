@@ -26,8 +26,6 @@ defmodule LemmingsOs.Knowledge.ReferenceFileTest do
 
       assert reference_file.knowledge_item_id == knowledge_item.id
       assert reference_file.reference_file_type == "quote_template"
-      assert reference_file.safe_to_read
-      assert reference_file.safe_to_pass_to_tools
 
       reloaded =
         reference_file
@@ -62,10 +60,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileTest do
           content_type: "text/markdown",
           size_bytes: 2048,
           checksum: String.duplicate("a", 64),
-          storage_ref: "knowledge://local/reference_files/template.md",
-          metadata: %{"origin" => "upload"},
-          safe_to_read: true,
-          safe_to_pass_to_tools: true
+          storage_ref: "knowledge://local/reference_files/template.md"
         })
 
       assert changeset.valid?
@@ -92,9 +87,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileTest do
           original_filename: "quote-template.md",
           content_type: "text/markdown",
           size_bytes: 2048,
-          storage_ref: "knowledge://local/reference_files/template.md",
-          safe_to_read: true,
-          safe_to_pass_to_tools: true
+          storage_ref: "knowledge://local/reference_files/template.md"
         })
 
       refute changeset.valid?
@@ -102,7 +95,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileTest do
       assert ".invalid_value" in errors_on(changeset).reference_file_type
     end
 
-    test "rejects invalid file metadata and safety flags" do
+    test "rejects invalid file metadata" do
       world = insert(:world)
 
       knowledge_item =
@@ -123,20 +116,14 @@ defmodule LemmingsOs.Knowledge.ReferenceFileTest do
           original_filename: "",
           content_type: "",
           size_bytes: 0,
-          storage_ref: "",
-          metadata: ["not", "a", "map"],
-          safe_to_read: nil,
-          safe_to_pass_to_tools: nil
+          storage_ref: ""
         })
 
       refute changeset.valid?
       assert ".invalid_value" in errors_on(changeset).size_bytes
-      assert ".invalid_value_type" in errors_on(changeset).metadata
       assert "is required" in errors_on(changeset).original_filename
       assert "is required" in errors_on(changeset).content_type
       assert "is required" in errors_on(changeset).storage_ref
-      assert "is required" in errors_on(changeset).safe_to_read
-      assert "is required" in errors_on(changeset).safe_to_pass_to_tools
     end
   end
 end

@@ -455,7 +455,7 @@ defmodule LemmingsOs.ModelRuntime do
         - Knowledge has distinct categories: memories are stored notes, source files are indexed searchable documents, reference files are fixed operator-managed files, and artifacts are generated outputs outside Knowledge unless promoted by an operator.
         - For factual questions that depend on company memories, source files, or reference files (pricing, SKUs, policies, contracts, templates, headers, footers, style assets), do not guess.
         - Prefer `knowledge.search` first with a focused query; include `kind: \"source_file\"` and relevant filters (for example `source_file_type` or `tags`) when useful.
-        - To discover reusable fixed files, call `knowledge.search` with `kind: \"reference_file\"`; this returns safe descriptors such as `reference_ref`, `knowledge_item_id`, type, title, tags, and metadata.
+        - To discover reusable fixed files, call `knowledge.search` with `kind: \"reference_file\"`; this returns safe descriptors such as `reference_ref`, `knowledge_item_id`, type, title, and tags.
         - If search returns chunk references, you must call `knowledge.read` on candidate chunks before declaring "not found".
         - If reference-file search returns candidate descriptors, call `knowledge.read` with `reference_ref` or `knowledge_item_id` when the task needs the file content; unsupported files return descriptor-only status instead of bytes.
         - For exact-value requests (price/SKU/contract term), do not finalize from snippets alone; verify with `knowledge.read`.
@@ -469,7 +469,7 @@ defmodule LemmingsOs.ModelRuntime do
         - Knowledge has distinct categories: memories are stored notes, source files are indexed searchable documents, reference files are fixed operator-managed files, and artifacts are generated outputs outside Knowledge unless promoted by an operator.
         - For factual questions that depend on company memories, source files, or reference files (pricing, SKUs, policies, contracts, templates, headers, footers, style assets), do not guess.
         - Prefer `knowledge.search` first with a focused query and relevant filters when useful.
-        - Use `kind: \"reference_file\"` to discover reusable fixed files by safe metadata; no mutation tools are available for reference files.
+        - Use `kind: \"reference_file\"` to discover reusable fixed files by safe descriptors; no mutation tools are available for reference files.
         - If retrieval returns no relevant evidence, reply with that limitation and ask for clarifying scope or file details.
         """
 

@@ -12,9 +12,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
   Artifact provenance.
 
   Field defaults:
-  - `metadata` defaults to `%{}`.
-  - `safe_to_read` defaults to `true`.
-  - `safe_to_pass_to_tools` defaults to `true`.
+  - none beyond standard schema defaults.
   """
 
   use Ecto.Schema
@@ -35,13 +33,10 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
     content_type
     size_bytes
     storage_ref
-    safe_to_read
-    safe_to_pass_to_tools
   )a
 
   @optional ~w(
     checksum
-    metadata
   )a
 
   @type t :: %__MODULE__{
@@ -55,9 +50,6 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
           size_bytes: integer() | nil,
           checksum: String.t() | nil,
           storage_ref: String.t() | nil,
-          metadata: map() | nil,
-          safe_to_read: boolean() | nil,
-          safe_to_pass_to_tools: boolean() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -70,9 +62,6 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
     field :size_bytes, :integer
     field :checksum, :string
     field :storage_ref, :string
-    field :metadata, :map, default: %{}
-    field :safe_to_read, :boolean, default: true
-    field :safe_to_pass_to_tools, :boolean, default: true
 
     belongs_to :knowledge_item, KnowledgeItem
 
@@ -102,14 +91,9 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
   - `:content_type` - MIME/content type text, 1 to 255 characters.
   - `:size_bytes` - positive file size in bytes.
   - `:storage_ref` - internal managed-storage reference, 1 to 2,000 characters.
-  - `:safe_to_read` - boolean descriptor flag.
-  - `:safe_to_pass_to_tools` - boolean descriptor flag.
-
   ## Optional Attributes
 
   - `:checksum` - optional checksum string captured by the storage boundary.
-  - `:metadata` - arbitrary metadata map for future lookup/filtering. Defaults
-    to `%{}` when omitted from the struct.
 
   ## Examples
 
@@ -120,9 +104,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
       ...>   original_filename: "quote-template.md",
       ...>   content_type: "text/markdown",
       ...>   size_bytes: 2048,
-      ...>   storage_ref: "knowledge://local/reference_files/template.md",
-      ...>   safe_to_read: true,
-      ...>   safe_to_pass_to_tools: true
+      ...>   storage_ref: "knowledge://local/reference_files/template.md"
       ...> }
       iex> changeset = LemmingsOs.Knowledge.ReferenceFile.changeset(%LemmingsOs.Knowledge.ReferenceFile{}, attrs)
       iex> changeset.valid?
@@ -135,9 +117,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
       ...>   original_filename: "quote-template.md",
       ...>   content_type: "text/markdown",
       ...>   size_bytes: 2048,
-      ...>   storage_ref: "knowledge://local/reference_files/template.md",
-      ...>   safe_to_read: true,
-      ...>   safe_to_pass_to_tools: true
+      ...>   storage_ref: "knowledge://local/reference_files/template.md"
       ...> }
       iex> changeset = LemmingsOs.Knowledge.ReferenceFile.changeset(%LemmingsOs.Knowledge.ReferenceFile{}, attrs)
       iex> changeset.valid?
@@ -157,13 +137,6 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
       greater_than: 0,
       message: dgettext("errors", ".invalid_value")
     )
-    |> validate_inclusion(:safe_to_read, [true, false],
-      message: dgettext("errors", ".invalid_choice")
-    )
-    |> validate_inclusion(:safe_to_pass_to_tools, [true, false],
-      message: dgettext("errors", ".invalid_choice")
-    )
-    |> validate_metadata()
     |> assoc_constraint(:knowledge_item)
     |> unique_constraint(:knowledge_item_id,
       name: :knowledge_reference_files_knowledge_item_id_index
@@ -187,15 +160,5 @@ defmodule LemmingsOs.Knowledge.ReferenceFile do
       max: max,
       message: dgettext("errors", ".invalid_value")
     )
-  end
-
-  defp validate_metadata(changeset) do
-    validate_change(changeset, :metadata, fn
-      :metadata, value when is_map(value) ->
-        []
-
-      :metadata, _value ->
-        [metadata: dgettext("errors", ".invalid_value_type")]
-    end)
   end
 end

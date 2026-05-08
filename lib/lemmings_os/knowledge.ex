@@ -91,10 +91,7 @@ defmodule LemmingsOs.Knowledge do
           required(:title) => String.t(),
           required(:tags) => [String.t()],
           required(:status) => String.t(),
-          required(:content_type) => String.t(),
-          required(:safe_to_read) => boolean(),
-          required(:safe_to_pass_to_tools) => boolean(),
-          required(:metadata) => map()
+          required(:content_type) => String.t()
         }
 
   @type reference_file_row :: %{
@@ -838,8 +835,7 @@ defmodule LemmingsOs.Knowledge do
 
   `attrs` supports:
   - required: `:reference_file_type`, `:original_filename`, `:content_type`, `:size_bytes`, `:storage_ref`
-  - optional: `:title`, `:content` (short summary), `:tags`, `:metadata`, `:checksum`,
-    `:safe_to_read` (default `true`), `:safe_to_pass_to_tools` (default `true`),
+  - optional: `:title`, `:content` (short summary), `:tags`, `:checksum`,
     `:artifact_id`, `:reference_ref` (auto-generated when omitted)
   - optional explicit scope IDs are allowed only when they match `scope`
 
@@ -923,12 +919,8 @@ defmodule LemmingsOs.Knowledge do
 
   `attrs` supports:
   - required for upload path: `:original_filename`, `:reference_file_type`, `:content_type`
-  - optional: `:title`, `:content` (short summary), `:tags`, `:metadata`,
-    `:safe_to_read`, `:safe_to_pass_to_tools`, `:artifact_id`, `:reference_ref`
-
-  Defaults:
-  - `:safe_to_read` defaults to `true`
-  - `:safe_to_pass_to_tools` defaults to `true`
+  - optional: `:title`, `:content` (short summary), `:tags`,
+    `:artifact_id`, `:reference_ref`
   - `:reference_ref` is generated when omitted
 
   ## Examples
@@ -1180,7 +1172,7 @@ defmodule LemmingsOs.Knowledge do
 
   `attrs` supports:
   - knowledge fields: `:title`, `:content` (short summary), `:tags`
-  - reference fields: `:reference_file_type`, `:metadata`, `:safe_to_read`, `:safe_to_pass_to_tools`
+  - reference fields: `:reference_file_type`
 
   Unknown or nil fields are ignored. Scope mismatch is rejected.
 
@@ -1223,7 +1215,7 @@ defmodule LemmingsOs.Knowledge do
 
       reference_file_attrs =
         attrs
-        |> Map.take([:reference_file_type, :metadata, :safe_to_read, :safe_to_pass_to_tools])
+        |> Map.take([:reference_file_type])
         |> Enum.reject(fn {_key, value} -> is_nil(value) end)
         |> Map.new()
 
@@ -1322,9 +1314,6 @@ defmodule LemmingsOs.Knowledge do
       ...>   reference_file_type: "template",
       ...>   original_filename: "template.md",
       ...>   content_type: "text/markdown",
-      ...>   metadata: %{},
-      ...>   safe_to_read: true,
-      ...>   safe_to_pass_to_tools: true,
       ...>   knowledge_item: %LemmingsOs.Knowledge.KnowledgeItem{
       ...>     kind: "reference_file",
       ...>     title: "Template",
@@ -1355,10 +1344,7 @@ defmodule LemmingsOs.Knowledge do
       title: fetch(knowledge_item, :title),
       tags: fetch(knowledge_item, :tags) || [],
       status: fetch(knowledge_item, :status),
-      content_type: fetch(public, :content_type),
-      safe_to_read: fetch(public, :safe_to_read),
-      safe_to_pass_to_tools: fetch(public, :safe_to_pass_to_tools),
-      metadata: sanitize_reference_file_metadata(fetch(public, :metadata) || %{})
+      content_type: fetch(public, :content_type)
     }
   end
 
@@ -1617,7 +1603,6 @@ defmodule LemmingsOs.Knowledge do
         descriptor,
         Keyword.get(opts, :reference_file_type) || Keyword.get(opts, :type)
       ) and
-      reference_file_category_match?(descriptor, Keyword.get(opts, :category)) and
       reference_file_tags_match?(descriptor, Keyword.get(opts, :tags)) and
       reference_file_owner_scope_match?(
         file,
@@ -1637,19 +1622,14 @@ defmodule LemmingsOs.Knowledge do
   defp reference_file_type_match?(_descriptor, nil), do: true
 
   defp reference_file_type_match?(%{reference_file_type: reference_file_type}, type)
-       when is_binary(type),
-       do: reference_file_type == String.trim(type)
+       when is_binary(type) do
+    normalized_filter = normalize_search_text(type)
+    normalized_type = normalize_search_text(reference_file_type || "")
 
-  defp reference_file_type_match?(_descriptor, _type), do: true
-
-  defp reference_file_category_match?(_descriptor, nil), do: true
-
-  defp reference_file_category_match?(%{metadata: metadata}, category) when is_binary(category) do
-    metadata_category = fetch(metadata, :category)
-    is_binary(metadata_category) and metadata_category == String.trim(category)
+    normalized_filter == "" or String.contains?(normalized_type, normalized_filter)
   end
 
-  defp reference_file_category_match?(_descriptor, _category), do: true
+  defp reference_file_type_match?(_descriptor, _type), do: true
 
   defp reference_file_tags_match?(_descriptor, nil), do: true
 
@@ -1714,7 +1694,6 @@ defmodule LemmingsOs.Knowledge do
     type = normalize_search_text(fetch(descriptor, :reference_file_type) || "")
     reference_ref = normalize_search_text(fetch(descriptor, :reference_ref) || "")
     tags = fetch(descriptor, :tags) || []
-    metadata = fetch(descriptor, :metadata) || %{}
 
     0
     |> add_score(title == query, 50)
@@ -1725,7 +1704,6 @@ defmodule LemmingsOs.Knowledge do
     |> add_score(String.contains?(type, query), 15)
     |> add_score(reference_ref == query, 20)
     |> add_score(String.contains?(reference_file_search_text(descriptor, file), query), 5)
-    |> add_score(String.contains?(metadata_search_text(metadata), query), 5)
   end
 
   defp add_score(score, true, amount), do: score + amount
@@ -1762,33 +1740,12 @@ defmodule LemmingsOs.Knowledge do
       fetch(descriptor, :content_type),
       fetch(file, :original_filename),
       fetch(fetch(file, :knowledge_item) || %{}, :content),
-      Enum.join(fetch(descriptor, :tags) || [], " "),
-      metadata_search_text(fetch(descriptor, :metadata) || %{})
+      Enum.join(fetch(descriptor, :tags) || [], " ")
     ]
     |> Enum.filter(&is_binary/1)
     |> Enum.join(" ")
     |> normalize_search_text()
   end
-
-  defp metadata_search_text(metadata) when is_map(metadata) do
-    metadata
-    |> Enum.flat_map(fn {key, value} -> metadata_text_values([key, value]) end)
-    |> Enum.join(" ")
-    |> normalize_search_text()
-  end
-
-  defp metadata_search_text(_metadata), do: ""
-
-  defp metadata_text_values(values) when is_list(values),
-    do: Enum.flat_map(values, &metadata_text_values/1)
-
-  defp metadata_text_values(value) when is_binary(value), do: [value]
-
-  defp metadata_text_values(value) when is_number(value) or is_boolean(value),
-    do: [to_string(value)]
-
-  defp metadata_text_values(value) when is_map(value), do: metadata_text_values(Map.values(value))
-  defp metadata_text_values(_value), do: []
 
   defp normalize_search_text(value) when is_binary(value) do
     value
@@ -1878,9 +1835,6 @@ defmodule LemmingsOs.Knowledge do
     descriptor = build_reference_file_descriptor(reference_file)
 
     cond do
-      not fetch(reference_file, :safe_to_read) ->
-        reference_file_descriptor_result(descriptor, "unreadable")
-
       direct_text_reference_file?(reference_file) ->
         read_direct_reference_file_text(reference_file, descriptor, max_chars)
 
@@ -1998,41 +1952,6 @@ defmodule LemmingsOs.Knowledge do
   defp convertible_reference_file_extensions do
     ~w(.pdf .doc .docx .xls .xlsx .ppt .pptx .rtf .odt .ods .odp)
   end
-
-  defp sanitize_reference_file_metadata(metadata) when is_map(metadata) do
-    metadata
-    |> Enum.reject(fn {key, value} ->
-      unsafe_reference_file_metadata_key?(key) or unsafe_reference_file_metadata_value?(value)
-    end)
-    |> Map.new()
-  end
-
-  defp sanitize_reference_file_metadata(_metadata), do: %{}
-
-  defp unsafe_reference_file_metadata_key?(key) do
-    key
-    |> to_string()
-    |> String.downcase()
-    |> then(fn key ->
-      String.contains?(key, [
-        "path",
-        "storage",
-        "checksum",
-        "secret",
-        "token",
-        "password",
-        "provider_response",
-        "raw_body",
-        "full_body"
-      ])
-    end)
-  end
-
-  defp unsafe_reference_file_metadata_value?(value) when is_map(value) do
-    value != sanitize_reference_file_metadata(value)
-  end
-
-  defp unsafe_reference_file_metadata_value?(_value), do: false
 
   defp source_file_chunk_search_query(scope_data, query_embedding, opts, top_k) do
     SourceFileChunk
@@ -2534,9 +2453,6 @@ defmodule LemmingsOs.Knowledge do
     reference_file_type = fetch(attrs, :reference_file_type)
     size_bytes = fetch(attrs, :size_bytes)
     checksum = fetch(attrs, :checksum)
-    metadata = fetch(attrs, :metadata) || %{}
-    safe_to_read = fetch(attrs, :safe_to_read)
-    safe_to_pass_to_tools = fetch(attrs, :safe_to_pass_to_tools)
     reference_ref = fetch(attrs, :reference_ref)
     title = fetch(attrs, :title) || filename || "Reference file"
     content = fetch(attrs, :content) || "Reference file metadata summary."
@@ -2548,8 +2464,7 @@ defmodule LemmingsOs.Knowledge do
              content_type,
              storage_ref,
              reference_file_type,
-             size_bytes,
-             metadata
+             size_bytes
            ),
          :ok <- validate_reference_file_storage_ref(storage_ref, scope_data.world_id),
          :ok <- validate_optional_reference_ref(reference_ref),
@@ -2576,11 +2491,7 @@ defmodule LemmingsOs.Knowledge do
           content_type: content_type,
           size_bytes: size_bytes,
           checksum: checksum,
-          storage_ref: storage_ref,
-          metadata: metadata,
-          safe_to_read: if(is_boolean(safe_to_read), do: safe_to_read, else: true),
-          safe_to_pass_to_tools:
-            if(is_boolean(safe_to_pass_to_tools), do: safe_to_pass_to_tools, else: true)
+          storage_ref: storage_ref
         }
         |> maybe_put(:reference_ref, reference_ref)
 
@@ -2621,12 +2532,10 @@ defmodule LemmingsOs.Knowledge do
          content_type,
          storage_ref,
          reference_file_type,
-         size_bytes,
-         metadata
+         size_bytes
        )
        when is_binary(filename) and is_binary(content_type) and is_binary(storage_ref) and
-              is_binary(reference_file_type) and is_integer(size_bytes) and size_bytes > 0 and
-              is_map(metadata),
+              is_binary(reference_file_type) and is_integer(size_bytes) and size_bytes > 0,
        do: :ok
 
   defp validate_reference_file_create_inputs(
@@ -2634,8 +2543,7 @@ defmodule LemmingsOs.Knowledge do
          _content_type,
          _storage_ref,
          _reference_file_type,
-         _size_bytes,
-         _metadata
+         _size_bytes
        ),
        do: {:error, :invalid_attrs}
 

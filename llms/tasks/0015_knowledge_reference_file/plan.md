@@ -274,7 +274,7 @@ Acceptance points:
 
 - List reference files by accessible scope.
 - Filter by text, type, tags, status, and scope.
-- View reference file metadata and safe descriptor information.
+- View reference file details and safe descriptor information.
 - Edit title, description, type, tags, and metadata.
 - Archive active reference files.
 - Archived reference files are not provided to Lemmings as available references.
@@ -336,8 +336,7 @@ Conceptual output:
       "scope": {"type": "department"},
       "descriptor": {
         "kind": "reference_file",
-        "content_type": "text/markdown",
-        "safe_to_read": true
+        "content_type": "text/markdown"
       }
     }
   ]
@@ -349,7 +348,7 @@ Acceptance points:
 - Search supports kind/category filter for `reference_file`.
 - Search supports type, tags, status, text query, and scope filters.
 - Search defaults to the caller's effective scope.
-- Search returns metadata and safe descriptors, not raw file paths.
+- Search returns safe descriptors, not raw file paths.
 - Search respects hierarchy inheritance and rejects sibling/cross-World access.
 - Search can return multiple matches when several valid reference files exist.
 - Search sorts results predictably, preferring nearest scope and stronger metadata matches.
@@ -379,8 +378,7 @@ Conceptual output:
   "content": "...bounded content when available...",
   "descriptor": {
     "kind": "reference_file",
-    "content_type": "text/markdown",
-    "safe_to_pass_to_tools": true
+    "content_type": "text/markdown"
   }
 }
 ```
@@ -402,6 +400,7 @@ Acceptance points:
 
 - Each active reference file has a stable safe reference identifier.
 - The descriptor includes enough metadata for future tools to decide whether it can be used.
+- The descriptor includes enough detail for future tools to decide whether it can be used.
 - Descriptor shape remains generic instead of forcing separate fields for every future tool.
 - Future document/PDF tools should be able to accept a reference descriptor without needing raw filesystem paths.
 
@@ -415,9 +414,7 @@ Recommended conceptual descriptor:
   "type": "header",
   "title": "Default PDF header",
   "tags": ["default", "brand"],
-  "content_type": "text/html",
-  "safe_to_read": true,
-  "safe_to_pass_to_tools": true
+  "content_type": "text/html"
 }
 ```
 

@@ -61,7 +61,7 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
   end
 
   describe "knowledge.search reference files" do
-    test "returns scoped safe descriptors by metadata without exposing storage internals", %{
+    test "returns scoped safe descriptors without exposing storage internals", %{
       department: department,
       instance: instance,
       storage_root: storage_root
@@ -77,13 +77,7 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
             content: "Reusable quote summary.",
             tags: ["customer:acme", "quote"],
             reference_file_type: "quote_template",
-            content_type: "text/markdown",
-            metadata: %{
-              "category" => "sales",
-              "origin" => "upload",
-              "storage_path" => "/tmp/private.md",
-              "checksum_hint" => "private"
-            }
+            content_type: "text/markdown"
           }
         )
 
@@ -92,7 +86,6 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
                  "kind" => "reference_file",
                  "query" => "acme",
                  "reference_file_type" => "quote_template",
-                 "category" => "sales",
                  "tags" => ["customer:acme"],
                  "limit" => 5
                })
@@ -106,14 +99,12 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
                  reference_ref: reference_ref,
                  knowledge_item_id: knowledge_item_id,
                  reference_file_type: "quote_template",
-                 title: "ACME Quote Template",
-                 metadata: metadata
+                 title: "ACME Quote Template"
                } = row
              ] = result.result.results
 
       assert reference_ref == reference_file.reference_ref
       assert knowledge_item_id == knowledge_item.id
-      assert metadata == %{"category" => "sales", "origin" => "upload"}
       assert row.scope.type == "department"
       refute Map.has_key?(row, :storage_ref)
       refute Map.has_key?(row, :size_bytes)
@@ -284,7 +275,6 @@ defmodule LemmingsOs.Tools.Adapters.KnowledgeTest do
       attrs
       |> Map.put(:original_filename, filename)
       |> Map.put_new(:tags, [])
-      |> Map.put_new(:metadata, %{})
 
     Knowledge.create_reference_file_upload(scope, attrs, source_path)
   end

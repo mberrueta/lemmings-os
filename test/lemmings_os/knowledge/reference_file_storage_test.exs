@@ -154,10 +154,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileStorageServiceTest do
         content_type: "text/markdown",
         size_bytes: 123,
         checksum: String.duplicate("a", 64),
-        storage_ref: "local://knowledge_reference_files/world/item/template.md",
-        metadata: %{"origin" => "upload"},
-        safe_to_read: true,
-        safe_to_pass_to_tools: false
+        storage_ref: "local://knowledge_reference_files/world/item/template.md"
       }
 
       descriptor = ReferenceFileStorageService.public_descriptor(reference_file)
@@ -166,10 +163,7 @@ defmodule LemmingsOs.Knowledge.ReferenceFileStorageServiceTest do
                reference_ref: "kref:template",
                reference_file_type: "quote_template",
                original_filename: "template.md",
-               content_type: "text/markdown",
-               metadata: %{"origin" => "upload"},
-               safe_to_read: true,
-               safe_to_pass_to_tools: false
+               content_type: "text/markdown"
              }
 
       refute Map.has_key?(descriptor, :storage_ref)

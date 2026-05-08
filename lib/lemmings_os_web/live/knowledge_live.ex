@@ -5,10 +5,13 @@ defmodule LemmingsOsWeb.KnowledgeLive do
 
   alias LemmingsOs.Cities
   alias LemmingsOs.Cities.City
+  alias LemmingsOs.Artifacts
   alias LemmingsOs.Departments
   alias LemmingsOs.Departments.Department
   alias LemmingsOs.Knowledge
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.ReferenceFile
+  alias LemmingsOs.Knowledge.ReferenceFileStorageService
   alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.Knowledge.SourceFileStorageService
   alias LemmingsOs.Lemmings
@@ -17,7 +20,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   alias LemmingsOs.Worlds
 
   @page_limit 25
-  @knowledge_tabs ~w(memories source_files templates)
+  @knowledge_tabs ~w(memories source_files reference_files)
 
   @impl true
   def mount(params, session, socket) do
@@ -51,7 +54,36 @@ defmodule LemmingsOsWeb.KnowledgeLive do
           as: :source_file_filter
         )
       )
+      |> assign(:reference_file_form, to_form(default_reference_file_form(), as: :reference_file))
+      |> assign(
+        :reference_file_edit_form,
+        to_form(default_reference_file_edit_form(), as: :reference_file_edit)
+      )
+      |> assign(:reference_file_form_open?, false)
+      |> assign(:editing_reference_file_id, nil)
+      |> assign(:reference_file_tags_value, "")
+      |> assign(:reference_file_edit_tags_value, "")
+      |> assign(:reference_file_query, "")
+      |> assign(:reference_file_status, "active")
+      |> assign(:reference_file_type_filter, "")
+      |> assign(:reference_file_owner_scope_filter, "")
+      |> assign(:reference_file_entries, [])
+      |> assign(:reference_file_scope_selected?, false)
+      |> assign(
+        :reference_file_filter_form,
+        to_form(
+          %{
+            "query" => "",
+            "status" => "active",
+            "reference_file_type" => "",
+            "owner_scope" => "",
+            "tags" => ""
+          },
+          as: :reference_file_filter
+        )
+      )
       |> assign(:scope_options, %{worlds: [], cities: [], departments: [], lemmings: []})
+      |> assign(:world_lookup, %{})
       |> assign(:city_lookup, %{})
       |> assign(:department_lookup, %{})
       |> assign(:lemming_lookup, %{})
@@ -77,6 +109,11 @@ defmodule LemmingsOsWeb.KnowledgeLive do
         max_entries: 1,
         max_file_size: SourceFileStorageService.max_file_size_bytes()
       )
+      |> allow_upload(:reference_file,
+        accept: ~w(.txt .md .pdf .doc .docx .html .htm .csv .json .xml),
+        max_entries: 1,
+        max_file_size: ReferenceFileStorageService.max_file_size_bytes()
+      )
 
     {:ok, hydrate_from_params(socket, mount_params(params, session))}
   end
@@ -95,13 +132,34 @@ defmodule LemmingsOsWeb.KnowledgeLive do
      |> load_source_files()}
   end
 
+  def handle_event("change_reference_file_filters", %{"reference_file_filter" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(:reference_file_query, String.trim(Map.get(params, "query", "")))
+     |> assign(:reference_file_status, normalize_reference_file_status(Map.get(params, "status")))
+     |> assign(
+       :reference_file_type_filter,
+       normalize_reference_file_type(Map.get(params, "reference_file_type"))
+     )
+     |> assign(
+       :reference_file_owner_scope_filter,
+       normalize_reference_owner_scope(Map.get(params, "owner_scope"))
+     )
+     |> assign(:reference_file_filter_form, to_form(params, as: :reference_file_filter))
+     |> load_reference_files()}
+  end
+
   def handle_event("switch_tab", %{"tab" => tab}, socket) do
     normalized_tab = normalize_knowledge_tab(tab)
 
-    {:noreply,
-     push_navigate(socket,
-       to: ~p"/knowledge?#{knowledge_query_params(socket, %{"k_tab" => normalized_tab})}"
-     )}
+    if socket.assigns.embedded? do
+      {:noreply, assign(socket, :active_tab, normalized_tab)}
+    else
+      {:noreply,
+       push_navigate(socket,
+         to: ~p"/knowledge?#{knowledge_query_params(socket, %{"k_tab" => normalized_tab})}"
+       )}
+    end
   end
 
   def handle_event("open_source_file_form", _params, socket) do
@@ -111,6 +169,13 @@ defmodule LemmingsOsWeb.KnowledgeLive do
      |> assign(:editing_source_file_id, nil)}
   end
 
+  def handle_event("open_reference_file_form", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:reference_file_form_open?, true)
+     |> assign(:editing_reference_file_id, nil)}
+  end
+
   def handle_event("validate_source_file", %{"source_file" => params}, socket) do
     {:noreply,
      socket
@@ -118,8 +183,19 @@ defmodule LemmingsOsWeb.KnowledgeLive do
      |> assign(:source_file_form, to_form(params, as: :source_file))}
   end
 
+  def handle_event("validate_reference_file", %{"reference_file" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(:reference_file_tags_value, Map.get(params, "tags", ""))
+     |> assign(:reference_file_form, to_form(params, as: :reference_file))}
+  end
+
   def handle_event("cancel_source_file_upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :source_file, ref)}
+  end
+
+  def handle_event("cancel_reference_file_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :reference_file, ref)}
   end
 
   def handle_event("create_source_file", %{"source_file" => params}, socket) do
@@ -135,8 +211,25 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     end
   end
 
+  def handle_event("create_reference_file", %{"reference_file" => params}, socket) do
+    attrs = normalize_reference_file_create_params(params)
+
+    case selected_create_scope(socket) do
+      nil ->
+        {:noreply,
+         put_flash(socket, :error, "Select a valid scope before registering a reference file.")}
+
+      scope ->
+        create_reference_file_from_upload(socket, scope, attrs)
+    end
+  end
+
   def handle_event("close_source_file_form", _params, socket) do
     {:noreply, reset_source_file_form(socket)}
+  end
+
+  def handle_event("close_reference_file_form", _params, socket) do
+    {:noreply, reset_reference_file_form(socket)}
   end
 
   def handle_event("edit_source_file", %{"id" => source_file_id}, socket) do
@@ -167,6 +260,38 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     end
   end
 
+  def handle_event("edit_reference_file", %{"id" => reference_file_id}, socket) do
+    case Enum.find(
+           socket.assigns.reference_file_entries,
+           &(&1.reference_file.id == reference_file_id)
+         ) do
+      %{reference_file: %ReferenceFile{} = reference_file, descriptor: descriptor} ->
+        knowledge_item = reference_file.knowledge_item || %KnowledgeItem{}
+        tags_value = knowledge_item.tags |> List.wrap() |> Enum.join(", ")
+
+        form =
+          to_form(
+            %{
+              "title" => knowledge_item.title || "",
+              "content" => knowledge_item.content || "",
+              "tags" => tags_value,
+              "reference_file_type" => descriptor.reference_file_type || ""
+            },
+            as: :reference_file_edit
+          )
+
+        {:noreply,
+         socket
+         |> assign(:reference_file_form_open?, true)
+         |> assign(:editing_reference_file_id, reference_file_id)
+         |> assign(:reference_file_edit_tags_value, tags_value)
+         |> assign(:reference_file_edit_form, form)}
+
+      _other ->
+        {:noreply, put_flash(socket, :error, "Reference file not found in current list.")}
+    end
+  end
+
   def handle_event("cancel_edit_source_file", _params, socket) do
     {:noreply,
      socket
@@ -178,11 +303,30 @@ defmodule LemmingsOsWeb.KnowledgeLive do
      )}
   end
 
+  def handle_event("cancel_edit_reference_file", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:reference_file_form_open?, false)
+     |> assign(:editing_reference_file_id, nil)
+     |> assign(:reference_file_edit_tags_value, "")
+     |> assign(
+       :reference_file_edit_form,
+       to_form(default_reference_file_edit_form(), as: :reference_file_edit)
+     )}
+  end
+
   def handle_event("validate_edit_source_file", %{"source_file_edit" => params}, socket) do
     {:noreply,
      socket
      |> assign(:source_file_edit_tags_value, Map.get(params, "tags", ""))
      |> assign(:source_file_edit_form, to_form(params, as: :source_file_edit))}
+  end
+
+  def handle_event("validate_edit_reference_file", %{"reference_file_edit" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(:reference_file_edit_tags_value, Map.get(params, "tags", ""))
+     |> assign(:reference_file_edit_form, to_form(params, as: :reference_file_edit))}
   end
 
   def handle_event(
@@ -236,8 +380,61 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     )
   end
 
+  def handle_event(
+        "save_reference_file_metadata",
+        %{"reference_file_id" => id, "reference_file_edit" => params},
+        socket
+      ) do
+    scope = selected_create_scope(socket)
+
+    with %{reference_file: %ReferenceFile{} = reference_file} <-
+           Enum.find(socket.assigns.reference_file_entries, &(&1.reference_file.id == id)),
+         %{} <- scope do
+      attrs = %{
+        title: Map.get(params, "title", ""),
+        content: Map.get(params, "content", ""),
+        tags: normalize_tags(Map.get(params, "tags", "")),
+        reference_file_type: normalize_reference_file_type(Map.get(params, "reference_file_type"))
+      }
+
+      case Knowledge.update_reference_file_metadata(scope, reference_file, attrs) do
+        {:ok, _updated} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Reference file updated.")
+           |> assign(:reference_file_form_open?, false)
+           |> assign(:editing_reference_file_id, nil)
+           |> assign(:reference_file_edit_tags_value, "")
+           |> assign(
+             :reference_file_edit_form,
+             to_form(default_reference_file_edit_form(), as: :reference_file_edit)
+           )
+           |> load_reference_files()}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          {:noreply,
+           assign(socket, :reference_file_edit_form, to_form(changeset, as: :reference_file_edit))}
+
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, "Unable to update reference file.")}
+      end
+    else
+      _other ->
+        {:noreply, put_flash(socket, :error, "Unable to update reference file.")}
+    end
+  end
+
   def handle_event("archive_source_file", %{"id" => id}, socket) do
     run_source_file_action(socket, id, &Knowledge.archive_source_file/2, "Source file archived.")
+  end
+
+  def handle_event("archive_reference_file", %{"id" => id}, socket) do
+    run_reference_file_action(
+      socket,
+      id,
+      &Knowledge.archive_reference_file/2,
+      "Reference file archived."
+    )
   end
 
   def handle_event("change_scope", %{"scope" => params}, socket) do
@@ -411,6 +608,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
       departments: departments,
       lemmings: lemmings
     })
+    |> assign(:world_lookup, Map.new(worlds, &{&1.id, &1}))
     |> assign(:city_lookup, Map.new(cities, &{&1.id, &1}))
     |> assign(:department_lookup, Map.new(departments, &{&1.id, &1}))
     |> assign(:lemming_lookup, Map.new(lemmings, &{&1.id, &1}))
@@ -441,6 +639,56 @@ defmodule LemmingsOsWeb.KnowledgeLive do
         socket
         |> assign(:source_file_scope_selected?, true)
         |> assign(:source_file_entries, entries)
+    end
+  end
+
+  defp load_reference_files(socket) do
+    case selected_create_scope(socket) do
+      nil ->
+        socket
+        |> assign(:reference_file_scope_selected?, false)
+        |> assign(:reference_file_entries, [])
+
+      scope ->
+        owner_scope_filter =
+          if scoped_reference_scope?(socket.assigns) do
+            nil
+          else
+            normalize_blank_to_nil(socket.assigns.reference_file_owner_scope_filter)
+          end
+
+        tags =
+          socket.assigns.reference_file_filter_form.params
+          |> case do
+            %{} = params -> normalize_tags(Map.get(params, "tags", ""))
+            _other -> []
+          end
+
+        opts =
+          [
+            status: socket.assigns.reference_file_status,
+            q: socket.assigns.reference_file_query,
+            type: normalize_blank_to_nil(socket.assigns.reference_file_type_filter),
+            owner_scope: owner_scope_filter
+          ]
+          |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+
+        case Knowledge.search_reference_files(scope, opts) do
+          {:ok, page} ->
+            socket
+            |> assign(:reference_file_scope_selected?, true)
+            |> assign(
+              :reference_file_entries,
+              page.entries
+              |> Enum.filter(&reference_file_matches_tags?(&1, tags))
+              |> Enum.map(&decorate_reference_file_entry(scope, &1, socket.assigns))
+            )
+
+          {:error, _reason} ->
+            socket
+            |> assign(:reference_file_scope_selected?, true)
+            |> assign(:reference_file_entries, [])
+        end
     end
   end
 
@@ -575,6 +823,26 @@ defmodule LemmingsOsWeb.KnowledgeLive do
        do: value
 
   defp normalize_source_file_type(_value), do: "other"
+
+  defp normalize_reference_file_status(status) when status in ["active", "archived", "all"],
+    do: status
+
+  defp normalize_reference_file_status(_status), do: "active"
+
+  defp normalize_reference_file_type(value) when is_binary(value), do: String.trim(value)
+  defp normalize_reference_file_type(_value), do: ""
+
+  defp normalize_reference_owner_scope(value)
+       when value in ["", "world", "city", "department", "lemming"],
+       do: value
+
+  defp normalize_reference_owner_scope(_value), do: ""
+
+  defp scoped_reference_scope?(%{scoped_mode?: true, scope_type: scope_type})
+       when scope_type in ["city", "department", "lemming"],
+       do: true
+
+  defp scoped_reference_scope?(_assigns), do: false
 
   defp normalize_offset(offset) when is_binary(offset) do
     case Integer.parse(offset) do
@@ -889,6 +1157,13 @@ defmodule LemmingsOsWeb.KnowledgeLive do
   defp source_file_matches_type?(_source_file, ""), do: true
   defp source_file_matches_type?(%SourceFile{source_file_type: type}, value), do: type == value
 
+  defp reference_file_matches_tags?(_row, []), do: true
+
+  defp reference_file_matches_tags?(%{descriptor: descriptor}, tags) do
+    normalized_tags = descriptor.tags |> List.wrap() |> Enum.map(&String.downcase/1)
+    Enum.all?(tags, &(String.downcase(&1) in normalized_tags))
+  end
+
   defp run_source_file_action(socket, id, action, success_message) do
     scope = selected_create_scope(socket)
     source_file = Enum.find(socket.assigns.source_file_entries, &(&1.id == id))
@@ -908,6 +1183,28 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     end
   end
 
+  defp run_reference_file_action(socket, id, action, success_message) do
+    scope = selected_create_scope(socket)
+    row = Enum.find(socket.assigns.reference_file_entries, &(&1.reference_file.id == id))
+
+    case {scope, row} do
+      {%{} = resolved_scope, %{reference_file: %ReferenceFile{} = reference_file}} ->
+        case action.(resolved_scope, reference_file) do
+          {:ok, _updated} ->
+            {:noreply, socket |> put_flash(:info, success_message) |> load_reference_files()}
+
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, "Unable to update reference file status.")}
+        end
+
+      _other ->
+        {:noreply, put_flash(socket, :error, "Reference file not found in current list.")}
+    end
+  end
+
+  defp normalize_blank_to_nil(""), do: nil
+  defp normalize_blank_to_nil(value), do: value
+
   defp default_source_file_form do
     %{
       "title" => "",
@@ -925,6 +1222,24 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     }
   end
 
+  defp default_reference_file_form do
+    %{
+      "title" => "",
+      "content" => "",
+      "reference_file_type" => "",
+      "tags" => ""
+    }
+  end
+
+  defp default_reference_file_edit_form do
+    %{
+      "title" => "",
+      "content" => "",
+      "reference_file_type" => "",
+      "tags" => ""
+    }
+  end
+
   defp reset_source_file_form(socket) do
     socket
     |> assign(:source_file_form_open?, false)
@@ -933,9 +1248,23 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     |> clear_source_file_upload_entries()
   end
 
+  defp reset_reference_file_form(socket) do
+    socket
+    |> assign(:reference_file_form_open?, false)
+    |> assign(:reference_file_tags_value, "")
+    |> assign(:reference_file_form, to_form(default_reference_file_form(), as: :reference_file))
+    |> clear_reference_file_upload_entries()
+  end
+
   defp clear_source_file_upload_entries(socket) do
     Enum.reduce(socket.assigns.uploads.source_file.entries, socket, fn entry, socket_acc ->
       safe_cancel_source_file_upload(socket_acc, entry.ref)
+    end)
+  end
+
+  defp clear_reference_file_upload_entries(socket) do
+    Enum.reduce(socket.assigns.uploads.reference_file.entries, socket, fn entry, socket_acc ->
+      safe_cancel_reference_file_upload(socket_acc, entry.ref)
     end)
   end
 
@@ -943,6 +1272,167 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     cancel_upload(socket, :source_file, entry_ref)
   catch
     :exit, _reason -> socket
+  end
+
+  defp safe_cancel_reference_file_upload(socket, entry_ref) do
+    cancel_upload(socket, :reference_file, entry_ref)
+  catch
+    :exit, _reason -> socket
+  end
+
+  defp normalize_reference_file_create_params(params) when is_map(params) do
+    %{
+      title: Map.get(params, "title", ""),
+      content: Map.get(params, "content", ""),
+      reference_file_type: normalize_reference_file_type(Map.get(params, "reference_file_type")),
+      tags: normalize_tags(Map.get(params, "tags", "")),
+      metadata: %{}
+    }
+  end
+
+  defp decorate_reference_file_entry(scope, row, assigns) do
+    descriptor = Map.get(row, :descriptor, %{})
+    reference_file = Map.get(row, :reference_file, %ReferenceFile{})
+    artifact_id = reference_file.knowledge_item && reference_file.knowledge_item.artifact_id
+    detail_state = reference_file_detail_state(scope, descriptor)
+    provenance_state = reference_file_provenance_state(scope, artifact_id)
+    preview = reference_file_preview(scope, descriptor, detail_state)
+    owner_scope_label = reference_file_owner_scope_label(reference_file, assigns)
+
+    row
+    |> Map.put(:detail_state, detail_state)
+    |> Map.put(:provenance_state, provenance_state)
+    |> Map.put(:preview, preview)
+    |> Map.put(:owner_scope_label, owner_scope_label)
+  end
+
+  defp reference_file_owner_scope_label(
+         %ReferenceFile{knowledge_item: %KnowledgeItem{} = item},
+         assigns
+       ) do
+    cond do
+      is_binary(item.lemming_id) ->
+        case Map.get(assigns.lemming_lookup, item.lemming_id) do
+          %{name: name} when is_binary(name) and name != "" -> "LEMMING: #{name}"
+          _other -> "LEMMING"
+        end
+
+      is_binary(item.department_id) ->
+        case Map.get(assigns.department_lookup, item.department_id) do
+          %{slug: slug} when is_binary(slug) and slug != "" -> "DEPARTMENT: #{slug}"
+          _other -> "DEPARTMENT"
+        end
+
+      is_binary(item.city_id) ->
+        case Map.get(assigns.city_lookup, item.city_id) do
+          %{slug: slug} when is_binary(slug) and slug != "" -> "CITY: #{slug}"
+          _other -> "CITY"
+        end
+
+      is_binary(item.world_id) ->
+        case Map.get(assigns.world_lookup, item.world_id) do
+          %{slug: slug} when is_binary(slug) and slug != "" -> "WORLD: #{slug}"
+          _other -> "WORLD"
+        end
+
+      true ->
+        "WORLD"
+    end
+  end
+
+  defp reference_file_owner_scope_label(_reference_file, _assigns), do: "WORLD"
+
+  defp reference_file_detail_state(_scope, %{status: "archived"}), do: "archived"
+
+  defp reference_file_detail_state(scope, %{knowledge_item_id: knowledge_item_id}) do
+    case Knowledge.read_reference_file(scope, %{knowledge_item_id: knowledge_item_id},
+           max_chars: 240
+         ) do
+      {:ok, %{content_status: "readable"}} -> "active"
+      {:ok, %{content_status: "converted"}} -> "active"
+      {:ok, _result} -> "unreadable"
+      {:error, _reason} -> "unreadable"
+    end
+  end
+
+  defp reference_file_detail_state(_scope, _descriptor), do: "unreadable"
+
+  defp reference_file_preview(_scope, _descriptor, "archived"), do: nil
+  defp reference_file_preview(_scope, _descriptor, "unreadable"), do: nil
+
+  defp reference_file_preview(scope, %{knowledge_item_id: knowledge_item_id}, _detail_state) do
+    case Knowledge.read_reference_file(scope, %{knowledge_item_id: knowledge_item_id},
+           max_chars: 240
+         ) do
+      {:ok, %{content: content}} when is_binary(content) and content != "" -> content
+      _other -> nil
+    end
+  end
+
+  defp reference_file_preview(_scope, _descriptor, _detail_state), do: nil
+
+  defp reference_file_provenance_state(_scope, nil), do: "none"
+
+  defp reference_file_provenance_state(scope, artifact_id) when is_binary(artifact_id) do
+    case Artifacts.get_artifact(scope, artifact_id) do
+      {:ok, %{status: "ready"}} -> "available"
+      _other -> "unavailable"
+    end
+  end
+
+  defp reference_file_provenance_state(_scope, _artifact_id), do: "unavailable"
+
+  defp create_reference_file_from_upload(socket, scope, attrs) do
+    case socket.assigns.uploads.reference_file.entries do
+      [] ->
+        {:noreply, put_flash(socket, :error, "Select a file to upload.")}
+
+      [%{valid?: false} | _rest] ->
+        {:noreply,
+         put_flash(socket, :error, "Invalid file upload. Check file size and extension.")}
+
+      [entry | _rest] ->
+        case persist_uploaded_reference_file(socket, entry, scope, attrs) do
+          :created ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Reference file uploaded.")
+             |> reset_reference_file_form()
+             |> load_reference_files()}
+
+          :invalid_attrs ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               "Unable to register reference file. Please validate form fields."
+             )}
+
+          _other ->
+            {:noreply, put_flash(socket, :error, "Unable to register reference file upload.")}
+        end
+    end
+  end
+
+  defp persist_uploaded_reference_file(socket, entry, scope, attrs) do
+    consume_uploaded_entry(socket, entry, fn %{path: path} = meta ->
+      original_filename = upload_original_filename(entry, meta)
+
+      merged_attrs =
+        attrs
+        |> Map.put(:original_filename, original_filename)
+        |> Map.put(:content_type, upload_content_type(entry))
+
+      {:ok, persist_reference_file_upload(scope, merged_attrs, path)}
+    end)
+  end
+
+  defp persist_reference_file_upload(scope, attrs, path) do
+    case Knowledge.create_reference_file_upload(scope, attrs, path) do
+      {:ok, _created} -> :created
+      {:error, :invalid_attrs} -> :invalid_attrs
+      {:error, _reason} -> :error
+    end
   end
 
   defp clear_pristine_memory_form_feedback(
@@ -1094,6 +1584,7 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     |> maybe_open_linked_memory(resolved.linked_memory)
     |> load_memories()
     |> load_source_files()
+    |> load_reference_files()
   end
 
   defp normalize_create_scope_id(scope_options, "world", scope_id) do
@@ -1113,5 +1604,22 @@ defmodule LemmingsOsWeb.KnowledgeLive do
       {_scope, nil} -> nil
       {_scope, resolved_scope_id} -> resolved_scope_id
     end
+  end
+
+  attr :id, :string, required: true
+
+  defp reference_file_type_options(assigns) do
+    ~H"""
+    <datalist id={@id}>
+      <option value="quote_template" />
+      <option value="email_template" />
+      <option value="proposal_template" />
+      <option value="contract_template" />
+      <option value="playbook" />
+      <option value="brand_voice" />
+      <option value="style_guide" />
+      <option value="example_output" />
+    </datalist>
+    """
   end
 end

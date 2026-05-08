@@ -679,14 +679,11 @@ defmodule LemmingsOs.KnowledgeTest do
                  title: "New title",
                  content: "New summary",
                  tags: ["new"],
-                 reference_file_type: "style_guide",
-                 metadata: %{"origin" => "edited"},
-                 safe_to_pass_to_tools: false
+                 reference_file_type: "style_guide"
                })
 
       assert updated_item.title == "New title"
       assert updated_reference.reference_file_type == "style_guide"
-      assert updated_reference.safe_to_pass_to_tools == false
 
       assert {:error, :scope_mismatch} =
                Knowledge.update_reference_file_metadata(city, reference_file, %{title: "nope"})
@@ -707,7 +704,7 @@ defmodule LemmingsOs.KnowledgeTest do
       refute Enum.any?(effective_after_archive, &(&1.reference_file.id == reference_file.id))
     end
 
-    test "availability and search are metadata-first, scoped, filtered, and sorted by nearby scope" do
+    test "availability and search are scoped, filtered, and sorted by nearby scope" do
       world = insert(:world)
       city = insert(:city, world: world)
       department = insert(:department, world: world, city: city)
@@ -719,56 +716,49 @@ defmodule LemmingsOs.KnowledgeTest do
         create_reference_file_for(world, %{
           title: "World quote template",
           tags: ["quote"],
-          reference_file_type: "quote_template",
-          metadata: %{"category" => "sales"}
+          reference_file_type: "quote_template"
         })
 
       city_file =
         create_reference_file_for(city, %{
           title: "City quote template",
           tags: ["quote", "regional"],
-          reference_file_type: "quote_template",
-          metadata: %{"category" => "sales"}
+          reference_file_type: "quote_template"
         })
 
       department_file =
         create_reference_file_for(department, %{
           title: "Department quote template",
           tags: ["quote", "preferred"],
-          reference_file_type: "quote_template",
-          metadata: %{"category" => "sales"}
+          reference_file_type: "quote_template"
         })
 
       lemming_file =
         create_reference_file_for(lemming, %{
           title: "Lemming quote template",
           tags: ["quote", "variant"],
-          reference_file_type: "quote_template",
-          metadata: %{"category" => "sales"}
+          reference_file_type: "quote_template"
         })
 
       _sibling_file =
         create_reference_file_for(sibling_department, %{
           title: "Sibling quote template",
           tags: ["quote"],
-          reference_file_type: "quote_template",
-          metadata: %{"category" => "sales"}
+          reference_file_type: "quote_template"
         })
 
       _cross_world_file =
         create_reference_file_for(other_world, %{
           title: "Cross-world quote template",
           tags: ["quote"],
-          reference_file_type: "quote_template",
-          metadata: %{"category" => "sales"}
+          reference_file_type: "quote_template"
         })
 
       archived_file =
         create_reference_file_for(department, %{
           title: "Archived quote template",
           tags: ["quote"],
-          reference_file_type: "quote_template",
-          metadata: %{"category" => "sales"}
+          reference_file_type: "quote_template"
         })
 
       {:ok, %{knowledge_item: archived_item}} =
@@ -790,7 +780,6 @@ defmodule LemmingsOs.KnowledgeTest do
                Knowledge.search_reference_files(department,
                  type: "quote_template",
                  tags: ["quote"],
-                 category: "sales",
                  q: "quote",
                  limit: 10
                )
@@ -843,8 +832,7 @@ defmodule LemmingsOs.KnowledgeTest do
                    content: "Readable template summary.",
                    reference_file_type: "quote_template",
                    original_filename: "template.md",
-                   content_type: "text/markdown",
-                   metadata: %{"origin" => "upload", "storage_path" => "/tmp/private.md"}
+                   content_type: "text/markdown"
                  },
                  source_path
                )
@@ -859,7 +847,6 @@ defmodule LemmingsOs.KnowledgeTest do
       assert result.descriptor.reference_ref == reference_file.reference_ref
       assert result.descriptor.knowledge_item_id == knowledge_item.id
       refute Map.has_key?(result.descriptor, :storage_ref)
-      refute Map.has_key?(result.descriptor.metadata, "storage_path")
 
       assert {:ok, result_by_id} =
                Knowledge.read_reference_file(world, %{knowledge_item_id: knowledge_item.id},
@@ -946,16 +933,10 @@ defmodule LemmingsOs.KnowledgeTest do
       assert Repo.aggregate(SourceFileChunk, :count, :id) == chunks_before
     end
 
-    test "read_reference_file/3 fails closed for unsafe, archived, and inaccessible files" do
+    test "read_reference_file/3 fails closed for archived and inaccessible files" do
       world = insert(:world)
       city = insert(:city, world: world)
       sibling_city = insert(:city, world: world)
-
-      unsafe_file =
-        create_reference_file_for(city, %{
-          title: "Unsafe template",
-          safe_to_read: false
-        })
 
       archived_file =
         create_reference_file_for(city, %{
@@ -968,10 +949,6 @@ defmodule LemmingsOs.KnowledgeTest do
         })
 
       {:ok, _archived} = Knowledge.archive_reference_file(city, archived_file)
-
-      assert {:ok, result} = Knowledge.read_reference_file(city, unsafe_file.reference_ref)
-      assert result.content_status == "unreadable"
-      assert is_nil(result.content)
 
       assert {:error, :not_found} =
                Knowledge.read_reference_file(city, archived_file.reference_ref)
@@ -1126,8 +1103,6 @@ defmodule LemmingsOs.KnowledgeTest do
             size_bytes: 128,
             checksum: String.duplicate("e", 64),
             storage_ref: storage_ref,
-            safe_to_read: true,
-            safe_to_pass_to_tools: true,
             reference_ref: "kref:#{knowledge_item_id}"
           },
           attrs

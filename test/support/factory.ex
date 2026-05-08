@@ -331,10 +331,7 @@ defmodule LemmingsOs.Factory do
       content_type: "text/markdown",
       size_bytes: 1_024,
       checksum: String.duplicate("d", 64),
-      storage_ref: "knowledge://local/reference_files/#{Ecto.UUID.generate()}/reference.md",
-      metadata: %{"origin" => "upload"},
-      safe_to_read: true,
-      safe_to_pass_to_tools: true
+      storage_ref: "knowledge://local/reference_files/#{Ecto.UUID.generate()}/reference.md"
     }
   end
 
