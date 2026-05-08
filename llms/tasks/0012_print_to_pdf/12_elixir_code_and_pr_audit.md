@@ -5,7 +5,7 @@
 - **Approved**: [ ]
 
 ## Assigned Agent
-`audit-pr-elixir` - Staff-level PR reviewer for Elixir/Phoenix backends, correctness, design quality, security, performance, logging, and test coverage.
+`audit-pr-elixir` - Senior PR reviewer for Elixir/Phoenix backends, correctness, design quality, security, performance, logging, and test coverage.
 
 ## Agent Invocation
 Act as `audit-pr-elixir`. Review the completed implementation from an Elixir/Phoenix code-review stance.

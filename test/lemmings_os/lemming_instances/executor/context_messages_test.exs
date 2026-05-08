@@ -87,4 +87,21 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessagesTest do
     assert String.contains?(message.content, "\"authorization\":\"[REDACTED]\"")
     assert String.contains?(message.content, "\"token\":\"[REDACTED]\"")
   end
+
+  test "tool_result_message/2 adds knowledge.search read guidance when chunk refs exist" do
+    message =
+      ContextMessages.tool_result_message(
+        %{tool_name: "knowledge.search", status: "ok"},
+        %{
+          ok: true,
+          references: %{
+            kind: "source_file",
+            chunks: [%{chunk_ref: "ksf:abc:0:deadbeef", title: "Company price list"}]
+          }
+        }
+      )
+
+    assert String.contains?(message.content, "Search returned chunk references.")
+    assert String.contains?(message.content, "call knowledge.read with a returned chunk_ref")
+  end
 end

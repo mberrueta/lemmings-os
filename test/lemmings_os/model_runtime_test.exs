@@ -512,4 +512,30 @@ defmodule LemmingsOs.ModelRuntimeTest do
                  String.contains?(&1.content, "As response to your previous tool request"))
            )
   end
+
+  test "S10: debug_request/3 includes retrieval policy when knowledge tools are available" do
+    config_snapshot = %{
+      name: "Sales Assistant",
+      instructions: "Find factual answers in available sources.",
+      provider_module: FakeProvider,
+      model: "test-model",
+      tools_config: %{
+        allowed_tools: ["knowledge.search", "knowledge.read"],
+        denied_tools: []
+      }
+    }
+
+    assert {:ok, %{request: request}} =
+             ModelRuntime.debug_request(config_snapshot, [], %{
+               content: "What is the dish rack price?"
+             })
+
+    assert %{role: "system", content: system_prompt} = Enum.at(request.messages, 0)
+
+    assert String.contains?(system_prompt, "Retrieval Decision Policy:")
+    assert String.contains?(system_prompt, "Prefer `knowledge.search` first")
+    assert String.contains?(system_prompt, "must call `knowledge.read` on candidate chunks")
+    assert String.contains?(system_prompt, "must call `knowledge.read` on candidate chunks")
+    assert String.contains?(system_prompt, "do not finalize from snippets alone")
+  end
 end

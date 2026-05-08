@@ -65,9 +65,22 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
     %{
       role: "assistant",
       content:
-        "As response to your previous tool request, the runtime executed #{tool_name}. Tool result for #{tool_name}: status=#{status} payload=#{Redaction.encode_redacted(tool_payload)}. Decide what to do next."
+        "As response to your previous tool request, the runtime executed #{tool_name}. Tool result for #{tool_name}: status=#{status} payload=#{Redaction.encode_redacted(tool_payload)}. #{tool_result_guidance(tool_name, tool_payload)}"
     }
   end
+
+  defp tool_result_guidance("knowledge.search", tool_payload) when is_map(tool_payload) do
+    references = Map.get(tool_payload, :references) || Map.get(tool_payload, "references") || %{}
+    chunks = Map.get(references, :chunks) || Map.get(references, "chunks") || []
+
+    if is_list(chunks) and chunks != [] do
+      "Search returned chunk references. For exact factual answers, call knowledge.read with a returned chunk_ref before concluding not found. Decide what to do next."
+    else
+      "Decide what to do next."
+    end
+  end
+
+  defp tool_result_guidance(_tool_name, _tool_payload), do: "Decide what to do next."
 
   defp lemming_call_result_payload(call) do
     %{}

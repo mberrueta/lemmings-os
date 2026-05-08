@@ -120,23 +120,23 @@ lib/lemmings_os/application.ex                          # Logger bootstrap refer
 Task completed. Runtime lifecycle instrumentation is now normalized across instance creation, executor transitions, scheduler admissions, resource-pool capacity changes, and DETS snapshot writes.
 
 ### Work Performed
-- Added [lib/lemmings_os/lemming_instances/telemetry.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/telemetry.ex) to centralize safe telemetry emission, hierarchy metadata construction, and reason normalization.
-- Updated [lib/lemmings_os/lemming_instances.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances.ex) to emit `[:lemmings_os, :instance, :created]` when a session instance and first user message are persisted.
-- Updated [lib/lemmings_os/lemming_instances/executor.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/executor.ex) so executor start, scheduler work announcements, and all runtime status transitions emit consistent telemetry with full hierarchy metadata and level-appropriate structured logs.
-- Updated [lib/lemmings_os/lemming_instances/department_scheduler.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/department_scheduler.ex) so admission granted and admission denied outcomes emit structured logs and telemetry.
-- Updated [lib/lemmings_os/lemming_instances/resource_pool.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/resource_pool.ex) so pool acquisition, release, and exhaustion emit structured logs and telemetry keyed by resource key.
-- Updated [lib/lemmings_os/lemming_instances/dets_store.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/dets_store.ex) so snapshot writes emit `snapshot_written` and snapshot failures emit `snapshot_failed` without changing best-effort behavior.
-- Added focused event-contract tests in [test/lemmings_os/lemming_instances/telemetry_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/telemetry_test.exs).
+- Added [lib/lemmings_os/lemming_instances/telemetry.ex](/lib/lemmings_os/lemming_instances/telemetry.ex) to centralize safe telemetry emission, hierarchy metadata construction, and reason normalization.
+- Updated [lib/lemmings_os/lemming_instances.ex](/lib/lemmings_os/lemming_instances.ex) to emit `[:lemmings_os, :instance, :created]` when a session instance and first user message are persisted.
+- Updated [lib/lemmings_os/lemming_instances/executor.ex](/lib/lemmings_os/lemming_instances/executor.ex) so executor start, scheduler work announcements, and all runtime status transitions emit consistent telemetry with full hierarchy metadata and level-appropriate structured logs.
+- Updated [lib/lemmings_os/lemming_instances/department_scheduler.ex](/lib/lemmings_os/lemming_instances/department_scheduler.ex) so admission granted and admission denied outcomes emit structured logs and telemetry.
+- Updated [lib/lemmings_os/lemming_instances/resource_pool.ex](/lib/lemmings_os/lemming_instances/resource_pool.ex) so pool acquisition, release, and exhaustion emit structured logs and telemetry keyed by resource key.
+- Updated [lib/lemmings_os/lemming_instances/dets_store.ex](/lib/lemmings_os/lemming_instances/dets_store.ex) so snapshot writes emit `snapshot_written` and snapshot failures emit `snapshot_failed` without changing best-effort behavior.
+- Added focused event-contract tests in [test/lemmings_os/lemming_instances/telemetry_test.exs](/test/lemmings_os/lemming_instances/telemetry_test.exs).
 
 ### Outputs Created
-- [lib/lemmings_os/lemming_instances/telemetry.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/telemetry.ex)
-- [test/lemmings_os/lemming_instances/telemetry_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/telemetry_test.exs)
-- Updated [lib/lemmings_os/lemming_instances.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances.ex)
-- Updated [lib/lemmings_os/lemming_instances/executor.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/executor.ex)
-- Updated [lib/lemmings_os/lemming_instances/department_scheduler.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/department_scheduler.ex)
-- Updated [lib/lemmings_os/lemming_instances/resource_pool.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/resource_pool.ex)
-- Updated [lib/lemmings_os/lemming_instances/dets_store.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/dets_store.ex)
-- Updated [llms/tasks/0005_implement_runtime_engine/16_structured_logging_and_telemetry.md](/mnt/data4/matt/code/personal_stuffs/lemmings-os/llms/tasks/0005_implement_runtime_engine/16_structured_logging_and_telemetry.md)
+- [lib/lemmings_os/lemming_instances/telemetry.ex](/lib/lemmings_os/lemming_instances/telemetry.ex)
+- [test/lemmings_os/lemming_instances/telemetry_test.exs](/test/lemmings_os/lemming_instances/telemetry_test.exs)
+- Updated [lib/lemmings_os/lemming_instances.ex](/lib/lemmings_os/lemming_instances.ex)
+- Updated [lib/lemmings_os/lemming_instances/executor.ex](/lib/lemmings_os/lemming_instances/executor.ex)
+- Updated [lib/lemmings_os/lemming_instances/department_scheduler.ex](/lib/lemmings_os/lemming_instances/department_scheduler.ex)
+- Updated [lib/lemmings_os/lemming_instances/resource_pool.ex](/lib/lemmings_os/lemming_instances/resource_pool.ex)
+- Updated [lib/lemmings_os/lemming_instances/dets_store.ex](/lib/lemmings_os/lemming_instances/dets_store.ex)
+- Updated [llms/tasks/0005_implement_runtime_engine/16_structured_logging_and_telemetry.md](/llms/tasks/0005_implement_runtime_engine/16_structured_logging_and_telemetry.md)
 
 ### Assumptions Made
 | Assumption | Rationale |
@@ -151,7 +151,7 @@ Task completed. Runtime lifecycle instrumentation is now normalized across insta
 - Reused `retry_count` / `max_retries` for logger metadata while also exposing retry attempt semantics in telemetry metadata. | Expanding logger metadata configuration with new keys. | This stayed aligned with the repo’s configured logger metadata and still satisfied the retry observability requirement. |
 
 ### Blockers Encountered
-- `docs/logging/standard.md` referenced by the logging agent guidance is not present in the repository. Resolution: proceeded using the repo’s configured logger metadata contract in [config/config.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/config/config.exs) and the task’s explicit observability requirements.
+- `docs/logging/standard.md` referenced by the logging agent guidance is not present in the repository. Resolution: proceeded using the repo’s configured logger metadata contract in [config/config.exs](/config/config.exs) and the task’s explicit observability requirements.
 
 ### Questions for Human
 1. None.

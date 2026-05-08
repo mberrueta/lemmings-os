@@ -20,6 +20,39 @@ config :lemmings_os, :artifact_storage,
   root_path: Path.expand("../priv/runtime/storage", __DIR__),
   max_file_size_bytes: 100 * 1024 * 1024
 
+config :lemmings_os, :knowledge_source_file_storage,
+  backend: :local,
+  root_path: Path.expand("../priv/runtime/knowledge_storage", __DIR__),
+  max_file_size_bytes: 10 * 1024 * 1024
+
+config :lemmings_os, :knowledge_chunking,
+  chunk_size: 1_200,
+  overlap: 200,
+  max_chunks: 500
+
+config :lemmings_os, :knowledge_tools_runner,
+  timeout_ms: 30_000,
+  max_extracted_chars: 500_000,
+  executor_module: LemmingsOs.Knowledge.SourceFiles.ToolsRunner.SystemExecutor,
+  capabilities: %{
+    markitdown_extract_file: "markitdown",
+    trafilatura_extract_url: "trafilatura",
+    pdftotext_extract_file: "pdftotext"
+  }
+
+config :lemmings_os, :knowledge_embeddings,
+  provider: :ollama,
+  dimensions: 1536,
+  timeout_ms: 30_000,
+  base_url: "http://127.0.0.1:11434/v1",
+  model: "nomic-embed-text",
+  api_key_env: "OPENAI_API_KEY"
+
+config :lemmings_os, Oban,
+  engine: Oban.Engines.Basic,
+  repo: LemmingsOs.Repo,
+  queues: [knowledge_indexing: 1]
+
 config :lemmings_os, :runtime_dets, directory: Path.expand("../priv/runtime/dets", __DIR__)
 config :lemmings_os, :runtime_engine_on_startup, true
 

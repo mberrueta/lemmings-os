@@ -10,7 +10,7 @@
 
 ## Assigned Agent
 
-audit-pr-elixir - staff-level Elixir/Phoenix reviewer for correctness, security, performance, and testing gaps.
+audit-pr-elixir - senior Elixir/Phoenix reviewer for correctness, security, performance, and testing gaps.
 
 ## Agent Invocation
 

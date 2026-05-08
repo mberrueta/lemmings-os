@@ -116,15 +116,15 @@ state = %{
 Task completed. The scheduler admission gate, resource pool gate, and most executor dependency seams were already present in the branch; this turn completed the missing executor idle-time override and added focused test coverage.
 
 ### Work Performed
-- Verified [lib/lemmings_os/lemming_instances/department_scheduler.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/department_scheduler.ex) already supports `:admission_mode` (`:auto` / `:manual`) and `admit_next/1` for deterministic scheduler control in tests.
-- Verified [lib/lemmings_os/lemming_instances/resource_pool.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/resource_pool.ex) already supports resource-keyed gating, inspectable capacity state, and explicit checkout/checkin control for tests.
-- Updated [lib/lemmings_os/lemming_instances/executor.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/executor.ex) to document the test seams and add an `:idle_timeout_ms` override so idle expiration can be controlled deterministically without waiting on config-derived seconds.
-- Added focused coverage in [test/lemmings_os/lemming_instances/executor_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/executor_test.exs) for deterministic idle expiry via the new executor option.
+- Verified [lib/lemmings_os/lemming_instances/department_scheduler.ex](/lib/lemmings_os/lemming_instances/department_scheduler.ex) already supports `:admission_mode` (`:auto` / `:manual`) and `admit_next/1` for deterministic scheduler control in tests.
+- Verified [lib/lemmings_os/lemming_instances/resource_pool.ex](/lib/lemmings_os/lemming_instances/resource_pool.ex) already supports resource-keyed gating, inspectable capacity state, and explicit checkout/checkin control for tests.
+- Updated [lib/lemmings_os/lemming_instances/executor.ex](/lib/lemmings_os/lemming_instances/executor.ex) to document the test seams and add an `:idle_timeout_ms` override so idle expiration can be controlled deterministically without waiting on config-derived seconds.
+- Added focused coverage in [test/lemmings_os/lemming_instances/executor_test.exs](/test/lemmings_os/lemming_instances/executor_test.exs) for deterministic idle expiry via the new executor option.
 
 ### Outputs Created
-- Updated [lib/lemmings_os/lemming_instances/executor.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/executor.ex)
-- Updated [test/lemmings_os/lemming_instances/executor_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/executor_test.exs)
-- Updated [llms/tasks/0005_implement_runtime_engine/15_testability_gates.md](/mnt/data4/matt/code/personal_stuffs/lemmings-os/llms/tasks/0005_implement_runtime_engine/15_testability_gates.md)
+- Updated [lib/lemmings_os/lemming_instances/executor.ex](/lib/lemmings_os/lemming_instances/executor.ex)
+- Updated [test/lemmings_os/lemming_instances/executor_test.exs](/test/lemmings_os/lemming_instances/executor_test.exs)
+- Updated [llms/tasks/0005_implement_runtime_engine/15_testability_gates.md](/llms/tasks/0005_implement_runtime_engine/15_testability_gates.md)
 
 ### Assumptions Made
 | Assumption | Rationale |

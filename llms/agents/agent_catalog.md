@@ -10,7 +10,7 @@ Brief descriptions of each agent and when to use them.
 
 - `audit_accessibility.md` (`audit-accessibility`): Accessibility (a11y) auditor for web/mobile-first Phoenix + LiveView apps. Reviews UI for keyboard navigation, focus management, ARIA semantics, and WCAG compliance.
 
-- `audit_pr_elixir.md` (`audit-pr-elixir`): Staff-level PR reviewer for Elixir/Phoenix backends. Reviews correctness, design quality, security, performance, logging, and test coverage. Pays particular attention to OTP supervision correctness and World scoping.
+- `audit_pr_elixir.md` (`audit-pr-elixir`): Senior PR reviewer for Elixir/Phoenix backends. Reviews correctness, design quality, security, performance, logging, and test coverage. Pays particular attention to OTP supervision correctness and World scoping.
 
 - `audit_security.md` (`audit-security`): Security reviewer for features and code changes. Analyzes authentication, authorization, input validation, secrets management, OWASP risks, and PII safety.
 

@@ -1,56 +1,47 @@
-# Knowledge Memories
+# Knowledge
 
 ## Purpose
 
-Knowledge memories are durable notes that operators or Lemmings can reuse across
-future work. They are intended for stable facts, preferences, rules, and small
-operational reminders.
+Knowledge has two implemented families:
 
-Examples:
+- `memory`: durable notes for facts, preferences, and rules.
+- `source_file`: operator-managed files indexed for scoped retrieval.
 
-- `ACME - email summary language`: Client ACME prefers short email summaries in Portuguese.
-- `Proposal payment terms`: Always include payment terms in customer quotes.
-- `Department tone`: Use premium, warm, concise language for this Department.
+Knowledge is managed directly by the Knowledge domain. Source files are not
+required Artifacts.
 
-This MVP implements memories only. Source files, reference files, semantic search,
-and archive workflows are not implemented yet.
+Primary operator surface: `/knowledge`.
 
 ## Who Uses It
 
 - Operators use the Knowledge UI to create, edit, filter, and delete memories.
-- Lemmings use the `knowledge.store` runtime tool to store memory notes during execution.
-- Developers use `LemmingsOs.Knowledge` for scope-safe memory CRUD and listing.
+- Operators upload and manage source files in the same Knowledge surface.
+- Lemmings use `knowledge.store` (memory-only), `knowledge.search`, and `knowledge.read`.
+- Developers use `LemmingsOs.Knowledge` for scoped CRUD/index/retrieval.
 
 ## Scope Model
 
-Memories are stored in the existing hierarchy:
+Knowledge items are scoped to:
 
 ```text
 World -> City -> Department -> Lemming
 ```
 
-A memory row always has a `world_id`. Lower-level IDs are present only when the
-memory belongs to that level:
-
-| Memory scope | Persisted IDs | Visible to |
+| Scope | Persisted IDs | Visible to |
 |---|---|---|
-| World | `world_id` | That World scope and descendants |
+| World | `world_id` | World + descendants |
 | City | `world_id`, `city_id` | That City and descendants |
 | Department | `world_id`, `city_id`, `department_id` | That Department and descendants |
-| Lemming | `world_id`, `city_id`, `department_id`, `lemming_id` | That Lemming; Department listings also show same-Department Lemming memories |
+| Lemming | `world_id`, `city_id`, `department_id`, `lemming_id` | That Lemming (plus same-department descendant views where applicable) |
 
 Important rules:
 
 - Cross-World visibility is not allowed.
-- Sibling City and sibling Department memories are excluded.
+- Sibling City/Department/Lemming data is excluded.
 - Downward inheritance applies for effective visibility.
-- A Lemming-scoped memory maps to the persisted `lemmings.id` / `lemming_id` field. Product copy may call this "Lemming Type", but there is no separate Lemming Type table in this implementation.
-- The effective-memory context API for a Department includes World, City, Department, and same-Department Lemming memories.
-- The concrete scoped listing API used by embedded UI tabs lists memories owned under the selected scope and its descendants; it does not add inherited parent memories in that mode.
+- `lemming_type` is only a tool-alias for `lemming`; there is no separate table.
 
 ## Operator UI
-
-The primary surface is `/knowledge`.
 
 The same Knowledge LiveView is also embedded in scoped tabs:
 
@@ -61,6 +52,7 @@ The same Knowledge LiveView is also embedded in scoped tabs:
 Current UI behavior:
 
 - The global `/knowledge` page lists all active memories across scopes.
+- Source-file management appears on the same page with dedicated list/filter/actions.
 - Scoped embedded views list memories under the selected scope, including descendants for broader scopes.
 - Operators can create a memory after selecting a valid scope.
 - The global page can edit or delete any listed memory by resolving the memory's owning scope.
@@ -79,7 +71,61 @@ Rows show:
 - timestamp and tags
 - links back to owning City, Department, or Lemming when available
 
-## `knowledge.store`
+## Source Files
+
+### Ingestion Paths
+
+Implemented entry points:
+
+- Upload from Knowledge UI (`create_source_file_upload/3` stores managed bytes + metadata).
+- Registration from existing managed references (`create_source_file/2` with `storage_ref`).
+- URL/HTML extraction helper exists (`ExtractionService.extract_url/1` via Trafilatura capability).
+
+Source-file rows are created as:
+
+- `knowledge_items.kind = "source_file"`
+- `knowledge_items.source = "user"`
+- `knowledge_items.status = "pending_index"`
+- `knowledge_source_files.extraction_status = "pending"`
+- `knowledge_source_files.indexing_status = "pending"`
+
+### Lifecycle and Statuses
+
+Indexing pipeline (`run_source_file_indexing/1`):
+
+1. `extracting`
+2. `chunking`
+3. `embedding`
+4. `ready`
+
+Failure/status branches:
+
+- PDF with insufficient extracted text becomes `needs_ocr`.
+- Extraction/chunking/embedding failures become `failed` with safe `failure_reason`.
+- Operator action can set `archived`.
+- Retry action resets to `pending`, deletes previous chunks, and re-enqueues indexing.
+
+Retrieval only uses ready rows/chunks:
+
+- `knowledge_items.status == "ready"`
+- `source_files.indexing_status == "ready"`
+- `source_files.extraction_status == "ready"`
+- chunk embedding present
+
+### Retrieval Tools
+
+- `knowledge.search`:
+  - Scope-safe vector retrieval over ready source-file chunks.
+  - Supports `query`, optional `source_file_type`, optional `tags`, optional `top_k` (default `5`, max `20`).
+  - Returns safe metadata + snippet, never raw storage paths/refs.
+- `knowledge.read`:
+  - Scope-safe read of one chunk by `chunk_ref`.
+  - Bounded content (`max_chars` default `4000`, max `8000`).
+  - Safe not-found response on inaccessible/unknown refs.
+
+`knowledge.store` remains memory-only and rejects source-file-specific fields.
+
+## `knowledge.store` (Memory Only)
 
 `knowledge.store` lets a Lemming persist one memory note from runtime execution.
 
@@ -151,11 +197,99 @@ level:
 Invalid or cross-scope hints return `tool.knowledge.invalid_scope` and do not
 create a memory.
 
+## Configuration
+
+Source-file defaults and runtime controls:
+
+| Config | Default |
+|---|---|
+| `:knowledge_source_file_storage.root_path` | `priv/runtime/knowledge_storage` (runtime override: `LEMMINGS_KNOWLEDGE_SOURCE_FILE_STORAGE_ROOT`) |
+| `:knowledge_source_file_storage.max_file_size_bytes` | `10 MB` in `config/config.exs`, `100 MB` runtime fallback |
+| `:knowledge_chunking.chunk_size` | `1200` (`LEMMINGS_KNOWLEDGE_CHUNK_SIZE`) |
+| `:knowledge_chunking.overlap` | `200` (`LEMMINGS_KNOWLEDGE_CHUNK_OVERLAP`) |
+| `:knowledge_chunking.max_chunks` | `500` (`LEMMINGS_KNOWLEDGE_MAX_CHUNKS`) |
+| `:knowledge_tools_runner.timeout_ms` | `30000` (`LEMMINGS_KNOWLEDGE_EXTRACTION_TIMEOUT_MS`) |
+| `:knowledge_tools_runner.max_extracted_chars` | `500000` (`LEMMINGS_KNOWLEDGE_MAX_EXTRACTED_CHARS`) |
+| `:knowledge_embeddings.provider` | `ollama` (`LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER`) |
+| `:knowledge_embeddings.base_url` | `http://127.0.0.1:11434/v1` (`LEMMINGS_KNOWLEDGE_EMBEDDING_BASE_URL`) |
+| `:knowledge_embeddings.model` | `nomic-embed-text` (`LEMMINGS_KNOWLEDGE_EMBEDDING_MODEL`) |
+| `:knowledge_embeddings.dimensions` | `1536` (`LEMMINGS_KNOWLEDGE_EMBEDDING_DIMENSIONS`) |
+| `:knowledge_embeddings.timeout_ms` | `30000` (`LEMMINGS_KNOWLEDGE_EMBEDDING_TIMEOUT_MS`) |
+| `:knowledge_embeddings.api_key_env` | `OPENAI_API_KEY` (`LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY_ENV`) |
+| `:knowledge_embeddings.api_key` | unset by default (`LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY`) |
+
+The OpenAI-compatible embedder sends an authorization header only when an API
+key value is configured. Local Ollama can run without one; hosted providers
+usually require one through environment configuration.
+
+When `:knowledge_embeddings.provider` is `ollama`, vectors are auto-aligned to
+the configured `:dimensions` (padding/truncating as needed) so indexing remains
+compatible with the fixed pgvector column size.
+
+Oban queue:
+
+- Worker: `LemmingsOs.Knowledge.SourceFiles.Workers.SourceFilesIndexingWorker`
+- Queue: `:knowledge_indexing`
+- Default concurrency: `1` (configured in `config/config.exs`)
+
+### Tools Runner Sidecar
+
+The repository ships a lightweight sidecar image at
+`docker/images/tools-runner/Dockerfile`:
+
+- Base: `python:3.12-slim`
+- Installed: MarkItDown CLI (`markitdown`), Trafilatura CLI (`trafilatura`), Poppler `pdftotext`
+- Purpose: capability-only extraction runtime
+
+Safety model:
+
+- Only named allowlisted capabilities are callable (`markitdown_extract_file`, `trafilatura_extract_url`, `pdftotext_extract_file`).
+- Commands execute as structured `System.cmd(command, argv)`; no shell command strings.
+- Arguments must be non-empty strings.
+- Enforced timeout (`timeout_ms`) and extracted output clamp (`max_extracted_chars`).
+- No arbitrary shell execution path in Knowledge extraction.
+
+### Why Apache Tika Is Not Included In v1
+
+- Current v1 extraction coverage is intentionally narrow and deterministic around
+  three CLI capabilities above.
+- This avoids a heavier JVM/Tika dependency surface in the first release.
+- Existing tests validate current extraction behavior without Tika.
+
+### OCR Boundary
+
+- OCR is not implemented in v1.
+- Image-only/scanned PDFs that fail both MarkItDown and `pdftotext` text
+  extraction transition to `needs_ocr`.
+- `needs_ocr` rows are excluded from retrieval until future OCR work exists.
+
+## Observability and Safe Data Handling
+
+- Indexing status/failure fields are persisted for operator troubleshooting.
+- Tool outputs and retrieval responses avoid leaking raw storage paths/refs.
+- `knowledge.read` is the only tool path returning chunk content, and it is bounded.
+- Memory audit events intentionally omit memory content.
+
+## Backup and Operations
+
+Source-file data spans filesystem + Postgres:
+
+- Bytes: configured `knowledge_source_file_storage.root_path` tree.
+- Metadata/status: `knowledge_items` and `knowledge_source_files`.
+- Retrieval chunks/embeddings: `knowledge_source_file_chunks`.
+
+Operational guidance:
+
+- Back up storage bytes and DB metadata/chunks together.
+- Restore consistency by keeping DB rows and storage tree from compatible backup points.
+- Treat storage roots and DB backups as sensitive operator data.
+
 ## Developer Notes
 
 Primary modules:
 
 - `LemmingsOs.Knowledge` owns memory CRUD, effective listing, exact-scope validation, and lifecycle events.
+- `LemmingsOs.Knowledge` also owns source-file lifecycle, chunk retrieval, retry/archive actions.
 - `LemmingsOs.Knowledge.KnowledgeItem` defines the shared `knowledge_items` schema for memory rows.
 - `LemmingsOs.Tools.Adapters.Knowledge` validates model-provided `knowledge.store` arguments and delegates persistence to `LemmingsOs.Knowledge`.
 - `LemmingsOsWeb.KnowledgeLive` renders global and embedded memory management surfaces.
@@ -213,12 +347,9 @@ The instance chat UI detects the `/knowledge?memory_id=<uuid>` path and renders 
 Notification is best effort. If the message insert or PubSub broadcast fails,
 the stored memory remains committed and the tool still returns success.
 
-## Known MVP Limits
+## Known Limits and Future Work
 
-- Only memory notes are implemented.
-- No source files or reference files.
-- No file upload, Artifact promotion into Knowledge, Tika extraction, chunking, or pgvector.
-- No semantic search, `knowledge.search`, or `knowledge.read` tool.
-- No archive/unarchive or soft-delete lifecycle.
-- No approval gate before LLM-created memories are stored.
-- Search is simple title/tag filtering; memory content is not searched by the current list filters.
+- Source-file OCR is not implemented (`needs_ocr` is terminal in v1).
+- No Apache Tika integration in v1.
+- No source-file soft-delete restore flow (`archived` exists; hard delete flow is limited).
+- Memory list filters remain title/tag oriented (no semantic memory retrieval path).

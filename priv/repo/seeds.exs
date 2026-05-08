@@ -245,6 +245,21 @@ lemming_seeds = %{
   ]
 }
 
+all_tools_access_config = %{
+  "allowed_tools" => [],
+  "denied_tools" => []
+}
+
+lemming_seeds =
+  Map.new(lemming_seeds, fn {scope_key, lemmings} ->
+    normalized_lemmings =
+      Enum.map(lemmings, fn lemming_attrs ->
+        Map.put(lemming_attrs, :tools_config, all_tools_access_config)
+      end)
+
+    {scope_key, normalized_lemmings}
+  end)
+
 create_department! = fn city, attrs ->
   case Departments.create_department(city, attrs) do
     {:ok, department} ->

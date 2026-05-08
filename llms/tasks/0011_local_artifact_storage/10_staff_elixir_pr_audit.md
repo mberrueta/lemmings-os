@@ -5,10 +5,10 @@
 - **Approved**: [X] Human sign-off
 
 ## Assigned Agent
-`audit-pr-elixir` - Staff-level PR reviewer for Elixir/Phoenix correctness, design, security, performance, logging, and tests.
+`audit-pr-elixir` - Senior PR reviewer for Elixir/Phoenix correctness, design, security, performance, logging, and tests.
 
 ## Agent Invocation
-Act as `audit-pr-elixir`. Perform a staff-level Elixir/Phoenix review of the full local Artifact storage implementation.
+Act as `audit-pr-elixir`. Perform a thorough Elixir/Phoenix review of the full local Artifact storage implementation.
 
 ## Objective
 Catch correctness, style, maintainability, performance, logging, and regression issues before release validation.

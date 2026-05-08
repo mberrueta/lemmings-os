@@ -1,14 +1,14 @@
-# docker-compose.yml -- Local multi-city demo for LemmingsOS
+# docker/compose/docker-compose.yml -- Local multi-city demo for LemmingsOS
 #
 # Starts one world/control-plane node (with web UI) and two city nodes.
 #
 # Option A — managed Postgres (default, spins up a db container):
-#   cp .env.example .env   # fill in SECRET_KEY_BASE
-#   docker compose --profile db up --build
+#   cp docker/compose/.env.example docker/compose/.env   # fill in SECRET_KEY_BASE
+#   docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml --profile db up --build
 #
 # Option B — external Postgres (you already have PG running):
-#   cp .env.example .env   # fill in SECRET_KEY_BASE + DATABASE_URL
-#   docker compose up --build
+#   cp docker/compose/.env.example docker/compose/.env   # fill in SECRET_KEY_BASE + DATABASE_URL
+#   docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml up --build
 #
 # Gotenberg runs on the private Compose network and is not published to host.
 # For dev-only workflows using a host-local Gotenberg, set:
@@ -20,6 +20,13 @@
 # in the UI after the configured freshness threshold (default 90s).
 
 services:
+  tools_runner:
+    build:
+      context: ../..
+      dockerfile: docker/images/tools-runner/Dockerfile
+    networks:
+      - lemmings_internal
+
   db:
     profiles: [db]
     image: postgres:16-alpine
@@ -47,8 +54,12 @@ services:
       - lemmings_internal
 
   world:
-    build: .
+    build:
+      context: ../..
+      dockerfile: docker/images/app/Dockerfile
     depends_on:
+      tools_runner:
+        condition: service_started
       db:
         condition: service_healthy
         required: false
@@ -85,8 +96,12 @@ services:
       '
 
   city_a:
-    build: .
+    build:
+      context: ../..
+      dockerfile: docker/images/app/Dockerfile
     depends_on:
+      tools_runner:
+        condition: service_started
       world:
         condition: service_healthy
       gotenberg:
@@ -107,8 +122,12 @@ services:
       - lemmings_internal
 
   city_b:
-    build: .
+    build:
+      context: ../..
+      dockerfile: docker/images/app/Dockerfile
     depends_on:
+      tools_runner:
+        condition: service_started
       world:
         condition: service_healthy
       gotenberg:

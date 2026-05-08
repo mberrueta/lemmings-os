@@ -180,8 +180,8 @@ Feature documentation:
 
 - [Artifacts](docs/features/artifacts.md) — promoted durable file references,
   managed local storage, lifecycle/state model, and safe download/promotion flows.
-- [Knowledge Memories](docs/features/knowledge.md) — scoped memory notes,
-  operator CRUD, Lemming-created memories, and `knowledge.store` behavior.
+- [Knowledge](docs/features/knowledge.md) — scoped memories, source-file
+  indexing/retrieval, operator workflows, and Knowledge runtime tools.
 - [Tools Catalog](docs/features/tools.md) — human-readable runtime tool catalog, including Filesystem, Web, Knowledge, and Documents tools.
 - [Secret Bank](docs/features/secret_bank.md) — encrypted local runtime secrets,
   hierarchy resolution, env fallback, write-only operator flows, and safe audit
@@ -222,9 +222,9 @@ Stopping a city container causes it to go stale in the UI after the heartbeat th
 ### Option A — you already have Postgres running
 
 ```bash
-cp .env.example .env
-# edit .env: set SECRET_KEY_BASE and DATABASE_URL pointing at your instance
-docker compose up --build
+cp docker/compose/.env.example docker/compose/.env
+# edit docker/compose/.env: set SECRET_KEY_BASE and DATABASE_URL pointing at your instance
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml up --build
 ```
 
 The `db` container is **not started** — it is gated behind the `db` profile and only runs when explicitly requested.
@@ -232,16 +232,16 @@ The `db` container is **not started** — it is gated behind the `db` profile an
 ### Option B — let Docker manage Postgres
 
 ```bash
-cp .env.example .env
-# edit .env: set SECRET_KEY_BASE only
-docker compose --profile db up --build
+cp docker/compose/.env.example docker/compose/.env
+# edit docker/compose/.env: set SECRET_KEY_BASE only
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml --profile db up --build
 ```
 
 ### Stale city demo
 
 ```bash
-docker compose stop city_a   # heartbeat stops → city_a goes stale after ~90s
-docker compose start city_a  # heartbeat resumes → city_a becomes alive again
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml stop city_a   # heartbeat stops → city_a goes stale after ~90s
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml start city_a  # heartbeat resumes → city_a becomes alive again
 ```
 
 The world UI is available at `http://localhost:${PHX_PORT:-4000}`.
@@ -258,6 +258,35 @@ For Department navigation, lifecycle actions, delete guardrails, and the initial
 cp .envrc.custom.example .envrc.custom
 direnv allow
 ```
+
+### Source-File Embeddings (RAG) With Ollama (OpenAI-Compatible)
+
+For source-file embedding/indexing in the RAG pipeline, this repository
+supports an OpenAI-compatible embedding endpoint. Ollama can be used through
+its `/v1` compatibility API.
+
+Recommended local embedding model:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+Runtime configuration:
+
+```bash
+export LEMMINGS_KNOWLEDGE_EMBEDDING_PROVIDER=openai_compatible
+export LEMMINGS_KNOWLEDGE_EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
+export LEMMINGS_KNOWLEDGE_EMBEDDING_MODEL=nomic-embed-text
+export LEMMINGS_KNOWLEDGE_EMBEDDING_DIMENSIONS=1536
+```
+
+Notes:
+
+- Local Ollama does not require an embedding API key. For hosted providers that
+  require authorization, set `LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY_ENV` or
+  `LEMMINGS_KNOWLEDGE_EMBEDDING_API_KEY` in `.envrc.custom`.
+- Keep dimensions aligned with the current MVP default (`1536`) to avoid
+  dimension validation failures in RAG indexing.
 
 `.envrc` ships with open-source defaults and `.envrc.custom` is for machine-local overrides.
 

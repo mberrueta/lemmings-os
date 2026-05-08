@@ -12,6 +12,7 @@ config :lemmings_os, LemmingsOs.Repo,
   password: "postgres",
   hostname: "localhost",
   database: "lemmings_os_test#{System.get_env("MIX_TEST_PARTITION")}",
+  types: LemmingsOs.PostgresTypes,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
@@ -35,6 +36,36 @@ config :lemmings_os, :artifact_storage,
   backend: :local,
   root_path: Path.expand("../tmp/runtime/storage", __DIR__),
   max_file_size_bytes: 100 * 1024 * 1024
+
+config :lemmings_os, :knowledge_source_file_storage,
+  backend: :local,
+  root_path: Path.expand("../tmp/runtime/knowledge_storage", __DIR__),
+  max_file_size_bytes: 10 * 1024 * 1024
+
+config :lemmings_os, :knowledge_chunking,
+  chunk_size: 1_200,
+  overlap: 200,
+  max_chunks: 500
+
+config :lemmings_os, :knowledge_tools_runner,
+  timeout_ms: 30_000,
+  max_extracted_chars: 500_000,
+  executor_module: LemmingsOs.Knowledge.SourceFiles.ToolsRunner.SystemExecutor,
+  capabilities: %{
+    markitdown_extract_file: "markitdown",
+    trafilatura_extract_url: "trafilatura",
+    pdftotext_extract_file: "pdftotext"
+  }
+
+config :lemmings_os, :knowledge_embeddings,
+  provider: :openai_compatible,
+  dimensions: 1536,
+  timeout_ms: 30_000,
+  base_url: "http://127.0.0.1:11434/v1",
+  model: "nomic-embed-text",
+  api_key_env: "OPENAI_API_KEY"
+
+config :lemmings_os, Oban, testing: :manual
 
 config :lemmings_os, :model_runtime,
   provider_module: LemmingsOs.ModelRuntime.Providers.Ollama,

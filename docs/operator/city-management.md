@@ -166,7 +166,7 @@ The heartbeat worker only writes `last_seen_at`. It never reads, interprets, or 
 | `ECTO_IPV6` | No | not set | Set to `true` or `1` to enable IPv6 socket options for Ecto. |
 | `DNS_CLUSTER_QUERY` | No | not set | DNS query for libcluster node discovery. Not used in the compose demo. |
 
-### Compose-only variables (set in docker-compose.yml or .env)
+### Compose-only variables (set in `docker/compose/docker-compose.yml` or `docker/compose/.env`)
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
@@ -190,10 +190,10 @@ The heartbeat worker only writes `last_seen_at`. It never reads, interprets, or 
 **1. Create the `.env` file**
 
 ```bash
-cp .env.example .env
+cp docker/compose/.env.example docker/compose/.env
 ```
 
-Edit `.env` and set `SECRET_KEY_BASE` to a generated secret. You can generate one with:
+Edit `docker/compose/.env` and set `SECRET_KEY_BASE` to a generated secret. You can generate one with:
 
 ```bash
 mix phx.gen.secret
@@ -206,16 +206,16 @@ Or use any method to produce a random string of at least 64 bytes.
 Option A -- you already have Postgres running locally:
 
 ```bash
-# Edit .env: set DATABASE_URL pointing at your Postgres instance
+# Edit docker/compose/.env: set DATABASE_URL pointing at your Postgres instance
 # Example: DATABASE_URL=ecto://postgres:postgres@localhost/lemmings_os_prod
-docker compose up --build
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml up --build
 ```
 
 Option B -- let Docker manage Postgres:
 
 ```bash
 # No DATABASE_URL needed; the managed db container handles it
-docker compose --profile db up --build
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml --profile db up --build
 ```
 
 **3. Wait for startup**
@@ -260,7 +260,7 @@ All three should show liveness as `alive`.
 ### Simulating a stale city
 
 ```bash
-docker compose stop city_a
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml stop city_a
 ```
 
 Wait approximately 90 seconds (the default freshness threshold). Refresh or revisit the Cities page. City A should now show liveness as `stale`.
@@ -268,7 +268,7 @@ Wait approximately 90 seconds (the default freshness threshold). Refresh or revi
 To recover:
 
 ```bash
-docker compose start city_a
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml start city_a
 ```
 
 City A's heartbeat worker resumes, writes `last_seen_at`, and liveness returns to `alive` on the next page load.
@@ -285,8 +285,8 @@ All containers run the same Docker image built from the repository root. Identit
 ### Stopping and cleaning up
 
 ```bash
-docker compose down           # stop containers
-docker compose down -v        # stop containers and remove the Postgres volume
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml down           # stop containers
+docker compose --env-file docker/compose/.env -f docker/compose/docker-compose.yml down -v        # stop containers and remove the Postgres volume
 ```
 
 ---
@@ -335,7 +335,7 @@ Liveness badges are computed on every page load from `last_seen_at` and the conf
 
 - **No Erlang cookie storage.** The Erlang cookie is not stored in the database or shared between nodes. Since distribution is disabled, the cookie is irrelevant.
 
-- **No secrets in source control.** `SECRET_KEY_BASE` is read from the `.env` file, which is gitignored. Database credentials in `docker-compose.yml` use default values suitable only for local development.
+- **No secrets in source control.** `SECRET_KEY_BASE` is read from `docker/compose/.env`, which is gitignored. Database credentials in `docker/compose/docker-compose.yml` use default values suitable only for local development.
 
 - **Secure remote city onboarding is deferred.** The current model trusts any process that can write to the shared database. A future ADR will address secure attachment, encrypted secret distribution, and identity verification for remote City nodes.
 

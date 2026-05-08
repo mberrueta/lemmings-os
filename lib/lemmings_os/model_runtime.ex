@@ -351,6 +351,7 @@ defmodule LemmingsOs.ModelRuntime do
       platform_runtime_context(),
       configured_identity_message(config_snapshot),
       available_tools_message(config_snapshot),
+      retrieval_decision_policy_message(config_snapshot),
       available_lemming_calls_message(config_snapshot),
       loop_state_semantics_message(),
       @runtime_rules,
@@ -442,6 +443,35 @@ defmodule LemmingsOs.ModelRuntime do
     |> Enum.join("\n")
   end
 
+  defp retrieval_decision_policy_message(config_snapshot) do
+    tool_ids = available_tools(config_snapshot) |> Enum.map(& &1.id)
+    has_knowledge_search? = "knowledge.search" in tool_ids
+    has_knowledge_read? = "knowledge.read" in tool_ids
+
+    cond do
+      has_knowledge_search? and has_knowledge_read? ->
+        """
+        Retrieval Decision Policy:
+        - For factual questions that depend on company memories or source files (pricing, SKUs, policies, contracts), do not guess.
+        - Prefer `knowledge.search` first with a focused query; include `kind: \"source_file\"` and relevant filters (for example `source_file_type` or `tags`) when useful.
+        - If search returns chunk references, you must call `knowledge.read` on candidate chunks before declaring "not found".
+        - For exact-value requests (price/SKU/contract term), do not finalize from snippets alone; verify with `knowledge.read`.
+        - If retrieval returns no relevant evidence, reply with that limitation and ask for clarifying scope or file details.
+        """
+
+      has_knowledge_search? ->
+        """
+        Retrieval Decision Policy:
+        - For factual questions that depend on company memories or source files (pricing, SKUs, policies, contracts), do not guess.
+        - Prefer `knowledge.search` first with a focused query and relevant filters when useful.
+        - If retrieval returns no relevant evidence, reply with that limitation and ask for clarifying scope or file details.
+        """
+
+      true ->
+        nil
+    end
+  end
+
   defp tool_argument_contract("fs.read_text_file") do
     "required `path` (WorkArea-relative string)."
   end
@@ -456,6 +486,18 @@ defmodule LemmingsOs.ModelRuntime do
 
   defp tool_argument_contract("web.fetch") do
     "required `url` (http/https URL string)."
+  end
+
+  defp tool_argument_contract("knowledge.search") do
+    "required `query` (string); optional `kind` (must be `source_file`); optional `source_file_type` (string); optional `tags` (list or comma-separated string); optional `scope` (`world|city|department|lemming` or scoped id map); optional `top_k` (positive integer, max 20)."
+  end
+
+  defp tool_argument_contract("knowledge.read") do
+    "required `chunk_ref` (string); optional `scope` (`world|city|department|lemming` or scoped id map); optional `max_chars` (positive integer, max 8000)."
+  end
+
+  defp tool_argument_contract("knowledge.store") do
+    "required `title` and `content`; optional `tags`; optional `scope` (`world|city|department|lemming` or scoped id map). Memory-only tool: does not accept source-file fields."
   end
 
   defp tool_argument_contract("documents.markdown_to_html") do
@@ -513,6 +555,7 @@ defmodule LemmingsOs.ModelRuntime do
     Immediate Response Instruction:
     - Read the conversation messages below and decide the next action now.
     - If the latest tool result already satisfies the user request, return a final `reply`.
+    - If the latest `knowledge.search` result includes chunk references and the task asks for an exact factual value, call `knowledge.read` before any "not found" conclusion.
     - If the latest completed lemming call result already satisfies the user request, return a final `reply` or one next bounded `lemming_call`.
     - If another tool action is still required, return one `tool_call`.
     - Treat tool and lemming-call assistant-context messages as prior runtime execution history, not as new user input.

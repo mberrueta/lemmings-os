@@ -50,7 +50,7 @@ Add listing/query APIs that support inherited visibility, department inclusion o
 
 ## Execution Summary
 ### Work Performed
-- Extended [`LemmingsOs.Knowledge`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/knowledge.ex:1) with `list_effective_memories/2` that returns paginated effective rows:
+- Extended [`LemmingsOs.Knowledge`](/lib/lemmings_os/knowledge.ex:1) with `list_effective_memories/2` that returns paginated effective rows:
   - `entries` (read-model rows)
   - `total_count`
   - `limit` (default `25`, max `100`)
@@ -72,7 +72,7 @@ Add listing/query APIs that support inherited visibility, department inclusion o
 - Kept exact-scope `list_memories/2` behavior intact while aligning its filtering to shared helpers.
 
 ### Tests
-- Extended [`test/lemmings_os/knowledge_test.exs`](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/knowledge_test.exs:1) with Task-04 focused scenarios:
+- Extended [`test/lemmings_os/knowledge_test.exs`](/test/lemmings_os/knowledge_test.exs:1) with Task-04 focused scenarios:
   - Department inherited + descendant lemming inclusion.
   - Sibling exclusion.
   - Filter behavior for `q` and `source`.

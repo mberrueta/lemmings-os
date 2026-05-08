@@ -18,7 +18,8 @@ defmodule LemmingsOs.Application do
         LemmingsOs.Runtime.ActivityLog,
         {LemmingsOs.Worlds.Cache, []},
         {DNSCluster, query: Application.get_env(:lemmings_os, :dns_cluster_query) || :ignore},
-        {Phoenix.PubSub, name: LemmingsOs.PubSub}
+        {Phoenix.PubSub, name: LemmingsOs.PubSub},
+        {Oban, Application.fetch_env!(:lemmings_os, Oban)}
       ] ++ runtime_engine_children() ++ runtime_city_heartbeat_child() ++ [LemmingsOsWeb.Endpoint]
 
     opts = [strategy: :one_for_one, name: LemmingsOs.Supervisor]

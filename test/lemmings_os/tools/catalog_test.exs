@@ -11,6 +11,8 @@ defmodule LemmingsOs.Tools.CatalogTest do
                %{id: "fs.write_text_file"},
                %{id: "web.search"},
                %{id: "web.fetch"},
+               %{id: "knowledge.search"},
+               %{id: "knowledge.read"},
                %{id: "knowledge.store"},
                %{id: "documents.markdown_to_html"},
                %{id: "documents.print_to_pdf"}
@@ -24,6 +26,8 @@ defmodule LemmingsOs.Tools.CatalogTest do
       assert Catalog.supported_tool?("fs.write_text_file")
       assert Catalog.supported_tool?("web.search")
       assert Catalog.supported_tool?("web.fetch")
+      assert Catalog.supported_tool?("knowledge.search")
+      assert Catalog.supported_tool?("knowledge.read")
       assert Catalog.supported_tool?("knowledge.store")
       assert Catalog.supported_tool?("documents.markdown_to_html")
       assert Catalog.supported_tool?("documents.print_to_pdf")

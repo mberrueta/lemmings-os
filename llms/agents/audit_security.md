@@ -110,11 +110,14 @@ If requirements are unclear, coordinate with Product Owner/Analyst.
 - No secrets in repo, logs, or error pages
 - Ensure runtime secrets from env/secret store
 - Review `runtime.exs` and deployment configs for safe defaults
+- No real host-specific absolute filesystem paths in committed code/docs/tests/output
+  (for example `/mnt/...`, `/Users/...`, `C:\\...`)
 
 ### 8) Logging & PII
 - No tokens, passwords, medical or sensitive PII in logs
 - Redaction rules for params and headers
 - Audit logs for privileged actions (admin, payouts, data exports)
+- Ensure docs/review artifacts do not include unredacted user-specific paths or local machine identifiers
 
 ### 9) Background Jobs (Oban)
 - Job args validated; avoid embedding secrets
@@ -144,6 +147,7 @@ You MUST:
 - Prefer allowlists and secure defaults
 - Call out uncertainty and what evidence is missing
 - Recommend minimal changes that reduce risk meaningfully
+- Treat exposed secrets/keys, unredacted PII, and committed host-specific absolute paths as at least High severity (Critical when active data exposure is confirmed)
 
 ---
 
@@ -157,4 +161,3 @@ Entry points: controllers + LiveViews + Oban worker.
 
 Output findings with severities and actionable fixes. Do not implement the feature.
 ```
-

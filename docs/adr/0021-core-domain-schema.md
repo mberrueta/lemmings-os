@@ -646,7 +646,7 @@ Without a canonical domain schema, implementation will drift:
 - persistence will invent another
 - audit and policy systems will attach to partially overlapping concepts
 
-That is exactly the kind of architectural ambiguity a staff-level ADR set should eliminate.
+That is exactly the kind of architectural ambiguity a mature ADR set should eliminate.
 
 The chosen schema makes the core model explicit:
 

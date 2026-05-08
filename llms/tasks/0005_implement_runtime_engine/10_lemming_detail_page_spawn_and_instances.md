@@ -110,26 +110,26 @@ lib/lemmings_os/lemming_instances.ex             # Task 02 context
 Task completed with the runtime detail page wired to the new runtime engine slices.
 
 ### Work Performed
-- Extended [lib/lemmings_os_web/live/lemmings_live.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/live/lemmings_live.ex) with spawn modal state, spawn event handling, live instance loading, and PubSub refreshes.
-- Updated [lib/lemmings_os_web/components/lemming_components.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/components/lemming_components.ex) so the lemming detail workspace renders the spawn CTA, modal, and active instance list.
-- Added [lib/lemmings_os_web/live/instance_live.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/live/instance_live.ex) as a minimal runtime session page.
-- Added [lib/lemmings_os/runtime.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/runtime.ex) as a thin spawn service boundary.
-- Added the instance session route in [lib/lemmings_os_web/router.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/router.ex).
+- Extended [lib/lemmings_os_web/live/lemmings_live.ex](/lib/lemmings_os_web/live/lemmings_live.ex) with spawn modal state, spawn event handling, live instance loading, and PubSub refreshes.
+- Updated [lib/lemmings_os_web/components/lemming_components.ex](/lib/lemmings_os_web/components/lemming_components.ex) so the lemming detail workspace renders the spawn CTA, modal, and active instance list.
+- Added [lib/lemmings_os_web/live/instance_live.ex](/lib/lemmings_os_web/live/instance_live.ex) as a minimal runtime session page.
+- Added [lib/lemmings_os/runtime.ex](/lib/lemmings_os/runtime.ex) as a thin spawn service boundary.
+- Added the instance session route in [lib/lemmings_os_web/router.ex](/lib/lemmings_os_web/router.ex).
 - Added focused LiveView tests for the spawn workspace and instance session page.
 - Added happy-path coverage for the supporting runtime modules so the spawn/list/session flow is exercised end-to-end from the public API surface.
 
 ### Outputs Created
-- [lib/lemmings_os/runtime.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/runtime.ex)
-- [lib/lemmings_os_web/live/instance_live.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/live/instance_live.ex)
-- [test/lemmings_os_web/live/lemmings_live_runtime_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os_web/live/lemmings_live_runtime_test.exs)
-- [test/lemmings_os_web/live/instance_live_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os_web/live/instance_live_test.exs)
-- [test/lemmings_os/runtime_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/runtime_test.exs)
-- [test/lemmings_os/model_runtime/response_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/model_runtime/response_test.exs)
-- [test/lemmings_os/lemming_instances/dets_store_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/dets_store_test.exs)
-- [test/lemmings_os/lemming_instances/ets_store_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/ets_store_test.exs)
-- [test/lemmings_os/lemming_instances/resource_pool_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/resource_pool_test.exs)
-- [test/lemmings_os/lemming_instances/executor_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/executor_test.exs)
-- [test/lemmings_os/lemming_instances/department_scheduler_test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/test/lemmings_os/lemming_instances/department_scheduler_test.exs)
+- [lib/lemmings_os/runtime.ex](/lib/lemmings_os/runtime.ex)
+- [lib/lemmings_os_web/live/instance_live.ex](/lib/lemmings_os_web/live/instance_live.ex)
+- [test/lemmings_os_web/live/lemmings_live_runtime_test.exs](/test/lemmings_os_web/live/lemmings_live_runtime_test.exs)
+- [test/lemmings_os_web/live/instance_live_test.exs](/test/lemmings_os_web/live/instance_live_test.exs)
+- [test/lemmings_os/runtime_test.exs](/test/lemmings_os/runtime_test.exs)
+- [test/lemmings_os/model_runtime/response_test.exs](/test/lemmings_os/model_runtime/response_test.exs)
+- [test/lemmings_os/lemming_instances/dets_store_test.exs](/test/lemmings_os/lemming_instances/dets_store_test.exs)
+- [test/lemmings_os/lemming_instances/ets_store_test.exs](/test/lemmings_os/lemming_instances/ets_store_test.exs)
+- [test/lemmings_os/lemming_instances/resource_pool_test.exs](/test/lemmings_os/lemming_instances/resource_pool_test.exs)
+- [test/lemmings_os/lemming_instances/executor_test.exs](/test/lemmings_os/lemming_instances/executor_test.exs)
+- [test/lemmings_os/lemming_instances/department_scheduler_test.exs](/test/lemmings_os/lemming_instances/department_scheduler_test.exs)
 
 ### Assumptions Made
 | Assumption | Rationale |

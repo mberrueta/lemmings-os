@@ -47,9 +47,9 @@ defmodule LemmingsOs.LemmingInstances.MessageTest do
 
     errors = errors_on(changeset)
 
-    assert errors.lemming_instance_id == [".required"]
-    assert errors.world_id == [".required"]
-    assert errors.content == [".required"]
+    assert errors.lemming_instance_id == ["is required"]
+    assert errors.world_id == ["is required"]
+    assert errors.content == ["is required"]
     assert {".invalid_choice", _details} = Keyword.fetch!(changeset.errors, :role)
   end
 

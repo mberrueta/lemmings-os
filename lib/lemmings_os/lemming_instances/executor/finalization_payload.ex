@@ -18,8 +18,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
       action_taken: redact_text(tool_execution.summary),
       artifacts_created: tool_result_artifacts(result),
       important_details: tool_result_details(result, tool_execution),
-      remaining_work: [],
-      preview: redact_text(truncate_tool_preview(tool_execution.preview))
+      references: tool_result_references(tool_execution, result),
+      remaining_work: tool_remaining_work(tool_execution, result),
+      preview: redact_text(tool_result_preview(tool_execution))
     }
   end
 
@@ -29,6 +30,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
       action_taken: redact_text(tool_execution.summary),
       artifacts_created: [],
       important_details: [],
+      references: %{},
       remaining_work: ["Review tool error and decide the next step."],
       error: Redaction.redact(tool_execution.error)
     }
@@ -42,8 +44,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
       action_taken: redact_text(tool_execution.summary),
       artifacts_created: tool_result_artifacts(result),
       important_details: tool_result_details(result, tool_execution),
-      remaining_work: [],
-      preview: redact_text(truncate_tool_preview(tool_execution.preview)),
+      references: tool_result_references(tool_execution, result),
+      remaining_work: tool_remaining_work(tool_execution, result),
+      preview: redact_text(tool_result_preview(tool_execution)),
       error: Redaction.redact(tool_execution.error)
     }
   end
@@ -176,6 +179,75 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
 
   defp tool_result_bytes_detail(_result), do: nil
 
+  defp tool_result_references(%{tool_name: "knowledge.search"}, result) do
+    case knowledge_search_result_payload(result) do
+      payload when is_map(payload) ->
+        kind = map_value(payload, :kind)
+        results = map_value(payload, :results)
+        count = map_value(payload, :count)
+
+        if kind == "source_file" and is_list(results) do
+          %{
+            kind: "source_file",
+            count: count || length(results),
+            chunks:
+              results
+              |> Enum.take(5)
+              |> Enum.map(&knowledge_search_chunk_reference/1)
+              |> Enum.reject(&(&1 == %{}))
+          }
+        else
+          %{}
+        end
+
+      _other ->
+        %{}
+    end
+  end
+
+  defp tool_result_references(_tool_execution, _result), do: %{}
+
+  defp tool_remaining_work(%{tool_name: "knowledge.search"}, result) do
+    case knowledge_search_result_payload(result) do
+      payload when is_map(payload) ->
+        results = map_value(payload, :results)
+
+        if is_list(results) and results != [] do
+          [
+            "Use knowledge.read with returned chunk_ref values before concluding exact factual answers."
+          ]
+        else
+          []
+        end
+
+      _other ->
+        []
+    end
+  end
+
+  defp tool_remaining_work(_tool_execution, _result), do: []
+
+  defp tool_result_preview(%{tool_name: "knowledge.search"}), do: nil
+
+  defp tool_result_preview(tool_execution) do
+    truncate_tool_preview(tool_execution.preview)
+  end
+
+  defp knowledge_search_result_payload(result) when is_map(result),
+    do: map_value(result, :result)
+
+  defp knowledge_search_result_payload(_result), do: nil
+
+  defp knowledge_search_chunk_reference(row) when is_map(row) do
+    %{}
+    |> maybe_put(:chunk_ref, map_value(row, :chunk_ref))
+    |> maybe_put(:title, map_value(row, :title))
+    |> maybe_put(:source_file_type, map_value(row, :source_file_type))
+    |> maybe_put(:snippet, row |> map_value(:snippet) |> truncate_tool_preview() |> redact_text())
+  end
+
+  defp knowledge_search_chunk_reference(_row), do: %{}
+
   defp present_detail?(value) when is_binary(value), do: value != ""
   defp present_detail?(_value), do: false
 
@@ -190,4 +262,12 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   end
 
   defp truncate_tool_preview(_preview), do: nil
+
+  defp map_value(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

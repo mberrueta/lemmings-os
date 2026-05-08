@@ -112,14 +112,14 @@ lib/lemmings_os/lemming_instances/           # Task 03, 04, 05 outputs
 Task completed. The runtime spawn service and supervised runtime engine infrastructure were already present in the branch, so this turn only verified the implementation and recorded completion.
 
 ### Work Performed
-- Verified [lib/lemmings_os/runtime.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/runtime.ex) exposes `LemmingsOs.Runtime.spawn_session/3` as the runtime/application entrypoint used by the web layer and that it persists the instance, starts scheduler and executor processes, and enqueues the first request.
-- Verified [lib/lemmings_os/application.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/application.ex) starts the runtime registries, `RuntimeTableOwner`, and the pool/executor/scheduler `DynamicSupervisor` processes behind the `:runtime_engine_on_startup` gate.
-- Verified [lib/lemmings_os/lemming_instances/runtime_table_owner.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os/lemming_instances/runtime_table_owner.ex) owns the ETS runtime table for the lifetime of the app.
-- Verified [config/test.exs](/mnt/data4/matt/code/personal_stuffs/lemmings-os/config/test.exs) disables runtime engine startup by default and that tests explicitly start runtime infrastructure with `start_supervised!/1`.
-- Verified [lib/lemmings_os_web/live/lemmings_live.ex](/mnt/data4/matt/code/personal_stuffs/lemmings-os/lib/lemmings_os_web/live/lemmings_live.ex) calls `Runtime.spawn_session/3`, keeping runtime orchestration out of the LiveView.
+- Verified [lib/lemmings_os/runtime.ex](/lib/lemmings_os/runtime.ex) exposes `LemmingsOs.Runtime.spawn_session/3` as the runtime/application entrypoint used by the web layer and that it persists the instance, starts scheduler and executor processes, and enqueues the first request.
+- Verified [lib/lemmings_os/application.ex](/lib/lemmings_os/application.ex) starts the runtime registries, `RuntimeTableOwner`, and the pool/executor/scheduler `DynamicSupervisor` processes behind the `:runtime_engine_on_startup` gate.
+- Verified [lib/lemmings_os/lemming_instances/runtime_table_owner.ex](/lib/lemmings_os/lemming_instances/runtime_table_owner.ex) owns the ETS runtime table for the lifetime of the app.
+- Verified [config/test.exs](/config/test.exs) disables runtime engine startup by default and that tests explicitly start runtime infrastructure with `start_supervised!/1`.
+- Verified [lib/lemmings_os_web/live/lemmings_live.ex](/lib/lemmings_os_web/live/lemmings_live.ex) calls `Runtime.spawn_session/3`, keeping runtime orchestration out of the LiveView.
 
 ### Outputs Created
-- Updated [llms/tasks/0005_implement_runtime_engine/14_application_supervisor_updates.md](/mnt/data4/matt/code/personal_stuffs/lemmings-os/llms/tasks/0005_implement_runtime_engine/14_application_supervisor_updates.md)
+- Updated [llms/tasks/0005_implement_runtime_engine/14_application_supervisor_updates.md](/llms/tasks/0005_implement_runtime_engine/14_application_supervisor_updates.md)
 
 ### Assumptions Made
 | Assumption | Rationale |

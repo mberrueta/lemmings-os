@@ -71,6 +71,7 @@ defmodule LemmingsOs.MixProject do
       {:ecto_sql, "~> 3.13"},
       {:scrivener_ecto, "~> 3.1"},
       {:postgrex, ">= 0.0.0"},
+      {:pgvector, "~> 0.3.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
@@ -96,6 +97,8 @@ defmodule LemmingsOs.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:req, "~> 0.5"},
+      {:oban, "~> 2.19"},
+      {:oban_web, "~> 2.12"},
       {:earmark, "~> 1.4"},
 
       # Dev tooling

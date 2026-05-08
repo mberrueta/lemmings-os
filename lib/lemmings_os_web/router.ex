@@ -62,12 +62,14 @@ defmodule LemmingsOsWeb.Router do
     # you can use Plug.BasicAuth to set up some basic authentication
     # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
+    import Oban.Web.Router
 
     scope "/dev" do
       pipe_through :browser
 
       live "/runtime", LemmingsOsWeb.RuntimeDashboardLive, :index
       live_dashboard "/dashboard", metrics: LemmingsOsWeb.Telemetry
+      oban_dashboard("/oban")
     end
   end
 end
