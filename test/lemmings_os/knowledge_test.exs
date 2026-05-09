@@ -672,6 +672,7 @@ defmodule LemmingsOs.KnowledgeTest do
       assert knowledge_item.kind == "reference_file"
       assert reference_file.size_bytes > 0
       assert String.starts_with?(reference_file.storage_ref, "local://knowledge_reference_files/")
+      assert reference_file.reference_ref == "kref:#{knowledge_item.id}"
     end
 
     test "update/archive/list/descriptor enforce scope and active availability" do

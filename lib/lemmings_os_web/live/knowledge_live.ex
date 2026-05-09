@@ -1294,9 +1294,10 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     descriptor = Map.get(row, :descriptor, %{})
     reference_file = Map.get(row, :reference_file, %ReferenceFile{})
     artifact_id = reference_file.knowledge_item && reference_file.knowledge_item.artifact_id
-    detail_state = reference_file_detail_state(scope, descriptor)
+    read_result = reference_file_read_for_row(scope, descriptor)
+    detail_state = reference_file_detail_state(descriptor, read_result)
     provenance_state = reference_file_provenance_state(scope, artifact_id)
-    preview = reference_file_preview(scope, descriptor, detail_state)
+    preview = reference_file_preview(read_result, detail_state)
     owner_scope_label = reference_file_owner_scope_label(reference_file, assigns)
 
     row
@@ -1347,34 +1348,30 @@ defmodule LemmingsOsWeb.KnowledgeLive do
     end
   end
 
-  defp reference_file_detail_state(_scope, %{status: "archived"}), do: "archived"
+  defp reference_file_read_for_row(_scope, %{status: "archived"}), do: :archived
 
-  defp reference_file_detail_state(scope, %{knowledge_item_id: knowledge_item_id}) do
-    case Knowledge.read_reference_file(scope, %{knowledge_item_id: knowledge_item_id},
-           max_chars: 240
-         ) do
-      {:ok, %{content_status: "readable"}} -> "active"
-      {:ok, %{content_status: "converted"}} -> "active"
-      {:ok, _result} -> "unreadable"
-      {:error, _reason} -> "unreadable"
-    end
+  defp reference_file_read_for_row(scope, %{knowledge_item_id: knowledge_item_id}) do
+    Knowledge.read_reference_file(scope, %{knowledge_item_id: knowledge_item_id}, max_chars: 240)
   end
 
-  defp reference_file_detail_state(_scope, _descriptor), do: "unreadable"
+  defp reference_file_read_for_row(_scope, _descriptor), do: {:error, :invalid_descriptor}
 
-  defp reference_file_preview(_scope, _descriptor, "archived"), do: nil
-  defp reference_file_preview(_scope, _descriptor, "unreadable"), do: nil
+  defp reference_file_detail_state(%{status: "archived"}, _read_result), do: "archived"
 
-  defp reference_file_preview(scope, %{knowledge_item_id: knowledge_item_id}, _detail_state) do
-    case Knowledge.read_reference_file(scope, %{knowledge_item_id: knowledge_item_id},
-           max_chars: 240
-         ) do
-      {:ok, %{content: content}} when is_binary(content) and content != "" -> content
-      _other -> nil
-    end
-  end
+  defp reference_file_detail_state(_descriptor, {:ok, %{content_status: content_status}})
+       when content_status in ["readable", "converted"],
+       do: "active"
 
-  defp reference_file_preview(_scope, _descriptor, _detail_state), do: nil
+  defp reference_file_detail_state(_descriptor, _read_result), do: "unreadable"
+
+  defp reference_file_preview(_read_result, "archived"), do: nil
+  defp reference_file_preview(_read_result, "unreadable"), do: nil
+
+  defp reference_file_preview({:ok, %{content: content}}, _detail_state)
+       when is_binary(content) and content != "",
+       do: content
+
+  defp reference_file_preview(_read_result, _detail_state), do: nil
 
   defp reference_file_provenance_state(_scope, nil), do: "none"
 

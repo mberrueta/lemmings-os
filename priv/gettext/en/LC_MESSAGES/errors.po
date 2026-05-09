@@ -288,8 +288,6 @@ msgstr "Lemming deletion is not available because safety cannot yet be proven."
 #: lib/lemmings_os/knowledge/knowledge_item.ex:197
 #: lib/lemmings_os/knowledge/knowledge_item.ex:198
 #: lib/lemmings_os/knowledge/knowledge_item.ex:321
-#: lib/lemmings_os/knowledge/reference_file.ex:161
-#: lib/lemmings_os/knowledge/reference_file.ex:164
 #: lib/lemmings_os/knowledge/source_file.ex:114
 #: lib/lemmings_os/knowledge/source_file.ex:117
 #: lib/lemmings_os/knowledge/source_file.ex:120
@@ -310,8 +308,7 @@ msgstr ""
 #: lib/lemmings_os/events/event.ex:128
 #: lib/lemmings_os/knowledge/knowledge_item.ex:282
 #: lib/lemmings_os/knowledge/knowledge_item.ex:286
-#: lib/lemmings_os/knowledge/reference_file.ex:182
-#: lib/lemmings_os/knowledge/reference_file.ex:198
+#: lib/lemmings_os/knowledge/reference_file.ex:155
 #: lib/lemmings_os/knowledge/source_file.ex:172
 #: lib/lemmings_os/knowledge/source_file_chunk.ex:132
 #: lib/lemmings_os/lemming_instances/lemming_instance.ex:102
@@ -325,7 +322,7 @@ msgstr ""
 #: lib/lemmings_os/events/event.ex:113
 #: lib/lemmings_os/knowledge/knowledge_item.ex:195
 #: lib/lemmings_os/knowledge/knowledge_item.ex:225
-#: lib/lemmings_os/knowledge/reference_file.ex:150
+#: lib/lemmings_os/knowledge/reference_file.ex:130
 #: lib/lemmings_os/knowledge/source_file.ex:112
 #: lib/lemmings_os/knowledge/source_file_chunk.ex:89
 #: lib/lemmings_os/lemming_calls/lemming_call.ex:107
@@ -355,9 +352,9 @@ msgstr "is required"
 #: lib/lemmings_os/knowledge/knowledge_item.ex:294
 #: lib/lemmings_os/knowledge/knowledge_item.ex:307
 #: lib/lemmings_os/knowledge/knowledge_item.ex:338
-#: lib/lemmings_os/knowledge/reference_file.ex:158
-#: lib/lemmings_os/knowledge/reference_file.ex:178
-#: lib/lemmings_os/knowledge/reference_file.ex:188
+#: lib/lemmings_os/knowledge/reference_file.ex:138
+#: lib/lemmings_os/knowledge/reference_file.ex:151
+#: lib/lemmings_os/knowledge/reference_file.ex:161
 #: lib/lemmings_os/knowledge/source_file.ex:124
 #: lib/lemmings_os/knowledge/source_file.ex:129
 #: lib/lemmings_os/knowledge/source_file.ex:134
