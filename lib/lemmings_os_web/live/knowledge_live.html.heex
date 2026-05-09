@@ -14,7 +14,7 @@
     <div id="knowledge-page" class="grid gap-4">
       <.panel id="knowledge-tabs-panel" tone="default">
         <:title>Knowledge</:title>
-        <:subtitle>Manage memories, retrieval files, and reusable templates by scope.</:subtitle>
+        <:subtitle>Manage memories, retrieval files, and reference files by scope.</:subtitle>
 
         <div
           id="knowledge-tablist"
@@ -61,22 +61,22 @@
           </button>
 
           <button
-            id="knowledge-tab-templates"
+            id="knowledge-tab-reference-files"
             type="button"
             role="tab"
-            aria-controls="knowledge-tab-panel-templates"
-            aria-selected={@active_tab == "templates"}
+            aria-controls="knowledge-tab-panel-reference-files"
+            aria-selected={@active_tab == "reference_files"}
             phx-click="switch_tab"
-            phx-value-tab="templates"
+            phx-value-tab="reference_files"
             class={[
               "inline-flex items-center gap-2 border px-3 py-2 text-xs font-bold uppercase tracking-widest transition",
-              @active_tab == "templates" &&
+              @active_tab == "reference_files" &&
                 "border-emerald-400 bg-emerald-950/40 text-emerald-300",
-              @active_tab != "templates" &&
+              @active_tab != "reference_files" &&
                 "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500"
             ]}
           >
-            <.icon name="hero-rectangle-stack" class="size-4" /> Templates
+            <.icon name="hero-rectangle-stack" class="size-4" /> Reference Files
           </button>
         </div>
       </.panel>
@@ -789,20 +789,457 @@
       </div>
 
       <div
-        :if={@active_tab == "templates"}
-        id="knowledge-tab-panel-templates"
+        :if={@active_tab == "reference_files"}
+        id="knowledge-tab-panel-reference-files"
         role="tabpanel"
-        aria-labelledby="knowledge-tab-templates"
+        aria-labelledby="knowledge-tab-reference-files"
+        class="grid gap-4"
       >
-        <.panel id="knowledge-templates-panel" tone="accent">
-          <:title>Templates</:title>
-          <:subtitle>Reusable prompt and response templates will land here.</:subtitle>
+        <.panel
+          :if={@reference_file_form_open? or !is_nil(@editing_reference_file_id)}
+          id="knowledge-reference-file-create-panel"
+          tone="accent"
+        >
+          <:title>
+            {if is_nil(@editing_reference_file_id),
+              do: "Reference Files",
+              else: "Edit Reference File"}
+          </:title>
+          <:subtitle>Upload or register reusable files and maintain safe descriptors.</:subtitle>
+          <:actions>
+            <.button
+              id="knowledge-reference-file-close"
+              type="button"
+              variant="neutral"
+              phx-click={
+                if is_nil(@editing_reference_file_id),
+                  do: "close_reference_file_form",
+                  else: "cancel_edit_reference_file"
+              }
+            >
+              Close
+            </.button>
+          </:actions>
+
+          <.form
+            id="knowledge-reference-file-scope-form"
+            for={@scope_form}
+            phx-change="change_scope"
+          >
+            <input type="hidden" name="scope[scope_type]" value="world" />
+            <input type="hidden" name="scope[scope_id]" value={@scope_id || ""} />
+            <div class="grid gap-2">
+              <p class="text-xs font-bold uppercase tracking-widest text-zinc-500">World</p>
+              <p id="knowledge-reference-file-current-world" class="text-sm text-zinc-300">
+                {case Enum.find(@scope_options.worlds, &(&1.id == @scope_id)) do
+                  nil -> "Current world"
+                  world -> "#{world.name} (#{world.slug})"
+                end}
+              </p>
+            </div>
+          </.form>
+
+          <.form
+            :if={is_nil(@editing_reference_file_id)}
+            id="knowledge-reference-file-form"
+            for={@reference_file_form}
+            phx-change="validate_reference_file"
+            phx-submit="create_reference_file"
+            phx-target="#knowledge-page"
+            class="mt-4 space-y-3"
+          >
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.input
+                id="knowledge-reference-file-title"
+                field={@reference_file_form[:title]}
+                type="text"
+                label="Title"
+                placeholder="e.g. ACME Quote Template"
+                required
+              />
+              <.input
+                id="knowledge-reference-file-type"
+                field={@reference_file_form[:reference_file_type]}
+                type="text"
+                label="Type"
+                list="knowledge-reference-file-type-options"
+                phx-debounce="blur"
+                placeholder="e.g. quote_template"
+                required
+              />
+            </div>
+            <.reference_file_type_options id="knowledge-reference-file-type-options" />
+            <p id="knowledge-reference-file-type-hint" class="text-xs text-zinc-500">
+              Choose a suggestion or type your own custom value.
+            </p>
+            <.input
+              id="knowledge-reference-file-description"
+              field={@reference_file_form[:content]}
+              type="textarea"
+              label="Description"
+              placeholder="Short summary of when to use this reference file"
+            />
+            <.input
+              id="knowledge-reference-file-tags"
+              field={@reference_file_form[:tags]}
+              type="text"
+              label="Tags (comma separated)"
+              value={@reference_file_tags_value}
+              placeholder="e.g. customer:acme, quote"
+            />
+            <div id="knowledge-reference-file-upload-field" class="space-y-2">
+              <label
+                for={@uploads.reference_file.ref}
+                class="text-xs font-bold uppercase tracking-widest text-zinc-500"
+              >
+                Upload File
+              </label>
+              <.live_file_input
+                upload={@uploads.reference_file}
+                class="block w-full border-2 border-zinc-700 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:border-0 file:bg-zinc-800 file:px-3 file:py-1 file:text-xs file:font-medium file:text-zinc-100 hover:file:bg-zinc-700"
+              />
+              <ul
+                :if={@uploads.reference_file.entries != []}
+                id="knowledge-reference-file-upload-list"
+                class="space-y-1"
+              >
+                <li
+                  :for={entry <- @uploads.reference_file.entries}
+                  id={"knowledge-reference-file-upload-entry-#{entry.ref}"}
+                  class="flex items-center gap-2 border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-300"
+                >
+                  <span class="min-w-0 flex-1 truncate">{entry.client_name}</span>
+                  <button
+                    id={"knowledge-reference-file-upload-cancel-#{entry.ref}"}
+                    type="button"
+                    phx-click="cancel_reference_file_upload"
+                    phx-value-ref={entry.ref}
+                    class="text-zinc-500 transition hover:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <.button id="knowledge-reference-file-submit" type="submit" variant="secondary">
+              Upload Reference File
+            </.button>
+          </.form>
+
+          <.form
+            :if={!is_nil(@editing_reference_file_id)}
+            id="knowledge-reference-file-edit-panel-form"
+            for={@reference_file_edit_form}
+            phx-change="validate_edit_reference_file"
+            phx-submit="save_reference_file_metadata"
+            phx-target="#knowledge-page"
+            class="mt-4 space-y-3"
+          >
+            <input type="hidden" name="reference_file_id" value={@editing_reference_file_id} />
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.input
+                id="knowledge-reference-file-edit-title-panel"
+                field={@reference_file_edit_form[:title]}
+                type="text"
+                label="Title"
+                placeholder="e.g. ACME Quote Template"
+              />
+              <.input
+                id="knowledge-reference-file-edit-type-panel"
+                field={@reference_file_edit_form[:reference_file_type]}
+                type="text"
+                label="Type"
+                list="knowledge-reference-file-type-options-edit-panel"
+                phx-debounce="blur"
+                placeholder="e.g. quote_template"
+              />
+            </div>
+            <.reference_file_type_options id="knowledge-reference-file-type-options-edit-panel" />
+            <p class="text-xs text-zinc-500">
+              Choose a suggestion or type your own custom value.
+            </p>
+            <.input
+              id="knowledge-reference-file-edit-description-panel"
+              field={@reference_file_edit_form[:content]}
+              type="textarea"
+              label="Description"
+              placeholder="Short summary of when to use this reference file"
+            />
+            <.input
+              id="knowledge-reference-file-edit-tags-panel"
+              field={@reference_file_edit_form[:tags]}
+              type="text"
+              label="Tags"
+              value={@reference_file_edit_tags_value}
+              placeholder="e.g. customer:acme, quote"
+            />
+            <div class="flex gap-2">
+              <.button
+                id="knowledge-reference-file-edit-save-panel"
+                type="submit"
+                variant="secondary"
+              >
+                Save
+              </.button>
+              <.button
+                id="knowledge-reference-file-edit-cancel-panel"
+                type="button"
+                variant="neutral"
+                phx-click="cancel_edit_reference_file"
+              >
+                Cancel
+              </.button>
+            </div>
+          </.form>
+        </.panel>
+
+        <.panel id="knowledge-reference-file-list-panel" tone="accent">
+          <:title>Reference File Inventory</:title>
+          <:subtitle>
+            <span id="knowledge-reference-file-total-count">
+              {length(@reference_file_entries)} files
+            </span>
+          </:subtitle>
+          <:actions>
+            <.button
+              id="knowledge-reference-file-open"
+              type="button"
+              variant="secondary"
+              phx-click="open_reference_file_form"
+            >
+              <.icon name="hero-plus" class="size-4" /> Upload Reference File
+            </.button>
+          </:actions>
+
+          <.form
+            id="knowledge-reference-file-filter-form"
+            for={@reference_file_filter_form}
+            phx-change="change_reference_file_filters"
+            phx-target="#knowledge-page"
+          >
+            <div class="grid gap-3 sm:grid-cols-3">
+              <.input
+                id="knowledge-reference-file-filter-query"
+                field={@reference_file_filter_form[:query]}
+                type="text"
+                label="Search"
+                placeholder="title, ref, tags"
+              />
+              <.input
+                id="knowledge-reference-file-filter-type"
+                field={@reference_file_filter_form[:reference_file_type]}
+                type="text"
+                label="Type"
+                list="knowledge-reference-file-type-options-filter"
+                phx-debounce="blur"
+                placeholder="e.g. template"
+              />
+              <.input
+                id="knowledge-reference-file-filter-tags"
+                field={@reference_file_filter_form[:tags]}
+                type="text"
+                label="Tags"
+                placeholder="customer:acme, style"
+              />
+            </div>
+            <.reference_file_type_options id="knowledge-reference-file-type-options-filter" />
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <.input
+                id="knowledge-reference-file-filter-status"
+                field={@reference_file_filter_form[:status]}
+                type="select"
+                label="Status"
+                options={[{"Active", "active"}, {"Archived", "archived"}, {"All", "all"}]}
+              />
+              <.input
+                :if={!(@scoped_mode? and @scope_type in ["city", "department", "lemming"])}
+                id="knowledge-reference-file-filter-owner-scope"
+                field={@reference_file_filter_form[:owner_scope]}
+                type="select"
+                label="Owner Scope"
+                options={[
+                  {"All", ""},
+                  {"World", "world"},
+                  {"City", "city"},
+                  {"Department", "department"},
+                  {"Lemming", "lemming"}
+                ]}
+              />
+            </div>
+          </.form>
 
           <.empty_state
-            id="knowledge-templates-empty-state"
-            title="Templates are coming soon"
-            copy="Use Memories and Source Files for now while we ship reusable templates."
+            :if={!@reference_file_scope_selected?}
+            id="knowledge-reference-file-scope-empty-state"
+            title="Select a scope to view reference files"
+            copy="Choose World, City, Department, or Lemming in the scope selector."
           />
+          <.empty_state
+            :if={
+              @reference_file_scope_selected? and @reference_file_entries == [] and
+                @reference_file_status == "archived"
+            }
+            id="knowledge-reference-file-archived-empty-state"
+            title="No archived reference files"
+            copy="Archive reference files to see them in this view."
+          />
+          <.empty_state
+            :if={
+              @reference_file_scope_selected? and @reference_file_entries == [] and
+                (@reference_file_query != "" or @reference_file_type_filter != "" or
+                   (not (@scoped_mode? and @scope_type in ["city", "department", "lemming"]) and
+                      @reference_file_owner_scope_filter != "") or
+                   Map.get(@reference_file_filter_form.params || %{}, "tags", "") != "")
+            }
+            id="knowledge-reference-file-filter-empty-state"
+            title="No filtered results"
+            copy="Adjust filters to broaden the result set."
+          />
+          <.empty_state
+            :if={
+              @reference_file_scope_selected? and @reference_file_entries == [] and
+                @reference_file_status != "archived" and
+                @reference_file_query == "" and
+                @reference_file_type_filter == "" and
+                ((@scoped_mode? and @scope_type in ["city", "department", "lemming"]) or
+                   @reference_file_owner_scope_filter == "") and
+                Map.get(@reference_file_filter_form.params || %{}, "tags", "") == ""
+            }
+            id="knowledge-reference-file-empty-state"
+            title="No reference files found"
+            copy="Upload a reference file to build your reusable library."
+          />
+
+          <div
+            :if={@reference_file_scope_selected? && @reference_file_entries != []}
+            id="knowledge-reference-file-list"
+            class="space-y-3"
+          >
+            <article
+              :for={row <- @reference_file_entries}
+              id={"knowledge-reference-file-row-#{row.reference_file.id}"}
+              class="border-2 border-zinc-800 bg-zinc-950/60 p-3"
+            >
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <div class="min-w-0">
+                  <h3
+                    id={"knowledge-reference-file-title-text-#{row.reference_file.id}"}
+                    class="text-sm font-semibold text-zinc-100"
+                  >
+                    {row.descriptor.title}
+                  </h3>
+                  <p
+                    id={"knowledge-reference-file-description-#{row.reference_file.id}"}
+                    class="mt-1 text-xs text-zinc-400"
+                  >
+                    {row.reference_file.knowledge_item.content}
+                  </p>
+                  <div class="mt-2 flex flex-wrap gap-2 text-xs text-zinc-400">
+                    <.badge
+                      id={"knowledge-reference-file-status-#{row.reference_file.id}"}
+                      tone="info"
+                    >
+                      {row.descriptor.status}
+                    </.badge>
+                    <.badge
+                      id={"knowledge-reference-file-type-#{row.reference_file.id}"}
+                      tone="muted"
+                    >
+                      {row.descriptor.reference_file_type}
+                    </.badge>
+                    <.badge
+                      id={"knowledge-reference-file-content-type-#{row.reference_file.id}"}
+                      tone="muted"
+                    >
+                      {row.descriptor.content_type}
+                    </.badge>
+                    <.badge
+                      id={"knowledge-reference-file-owner-#{row.reference_file.id}"}
+                      tone="muted"
+                    >
+                      {row.owner_scope_label}
+                    </.badge>
+                    <.badge
+                      id={"knowledge-reference-file-detail-state-#{row.reference_file.id}"}
+                      tone={
+                        case row.detail_state do
+                          "active" -> "success"
+                          "archived" -> "muted"
+                          "unreadable" -> "danger"
+                          _other -> "muted"
+                        end
+                      }
+                    >
+                      detail: {row.detail_state}
+                    </.badge>
+                    <.badge
+                      id={"knowledge-reference-file-provenance-state-#{row.reference_file.id}"}
+                      tone={
+                        case row.provenance_state do
+                          "available" -> "success"
+                          "unavailable" -> "warning"
+                          _other -> "muted"
+                        end
+                      }
+                    >
+                      provenance: {row.provenance_state}
+                    </.badge>
+                    <.badge
+                      :for={{tag, index} <- Enum.with_index(row.descriptor.tags)}
+                      id={"knowledge-reference-file-tag-#{row.reference_file.id}-#{index}"}
+                      tone="success"
+                    >
+                      #{tag}
+                    </.badge>
+                  </div>
+                </div>
+                <div class="flex items-start justify-end gap-2">
+                  <button
+                    id={"knowledge-reference-file-edit-#{row.reference_file.id}"}
+                    type="button"
+                    phx-click="edit_reference_file"
+                    phx-value-id={row.reference_file.id}
+                    aria-label="Edit reference file details"
+                    class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    <.icon name="hero-pencil-square" class="size-4" />
+                  </button>
+                  <button
+                    id={"knowledge-reference-file-archive-#{row.reference_file.id}"}
+                    type="button"
+                    phx-click="archive_reference_file"
+                    phx-value-id={row.reference_file.id}
+                    data-confirm="Archive this reference file?"
+                    aria-label="Archive reference file"
+                    class="inline-flex size-9 items-center justify-center border-2 border-zinc-700 bg-zinc-900/40 text-zinc-100 transition hover:border-red-400 hover:text-red-300"
+                  >
+                    <.icon name="hero-archive-box" class="size-4" />
+                  </button>
+                </div>
+              </div>
+              <p
+                :if={row.detail_state == "unreadable"}
+                id={"knowledge-reference-file-unreadable-state-#{row.reference_file.id}"}
+                class="mt-2 text-xs text-amber-300"
+              >
+                This reference file content is currently unreadable.
+              </p>
+              <p
+                :if={row.provenance_state == "unavailable"}
+                id={"knowledge-reference-file-provenance-unavailable-state-#{row.reference_file.id}"}
+                class="mt-1 text-xs text-amber-300"
+              >
+                Provenance unavailable.
+              </p>
+              <p
+                :if={is_binary(row.preview) and row.preview != ""}
+                id={"knowledge-reference-file-preview-#{row.reference_file.id}"}
+                class="mt-2 whitespace-pre-wrap break-words text-xs text-zinc-400"
+              >
+                {row.preview}
+              </p>
+            </article>
+          </div>
         </.panel>
       </div>
     </div>

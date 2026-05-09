@@ -5,6 +5,7 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
   import Phoenix.LiveViewTest
 
   alias LemmingsOs.Knowledge.KnowledgeItem
+  alias LemmingsOs.Knowledge.ReferenceFile
   alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.Repo
   alias LemmingsOs.Worlds
@@ -28,6 +29,218 @@ defmodule LemmingsOsWeb.KnowledgeLiveTest do
     assert has_element?(source_files_view, "#knowledge-source-file-empty-state")
     refute has_element?(source_files_view, "#knowledge-source-file-scope-empty-state")
     refute has_element?(source_files_view, "#knowledge-source-file-create-panel")
+
+    {:ok, reference_files_view, _html} = live(conn, ~p"/knowledge?#{%{k_tab: "reference_files"}}")
+
+    assert has_element?(reference_files_view, "#knowledge-tab-reference-files[aria-selected]")
+    assert has_element?(reference_files_view, "#knowledge-tab-panel-reference-files")
+    assert has_element?(reference_files_view, "#knowledge-reference-file-open")
+  end
+
+  test "reference-file owner-scope filter is hidden for city-scoped views", %{conn: conn} do
+    world = insert(:world)
+    city = insert(:city, world: world)
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/knowledge?#{%{embedded: "true", scope_type: "city", scope_id: city.id, k_tab: "reference_files"}}"
+      )
+
+    refute has_element?(view, "#knowledge-reference-file-filter-owner-scope")
+  end
+
+  test "reference-file owner badge shows concrete city slug", %{conn: conn} do
+    world = insert(:world, slug: "ops")
+    city = insert(:city, world: world, slug: "ops-city")
+
+    reference_file =
+      insert(:knowledge_reference_file,
+        knowledge_item:
+          build(:knowledge_item,
+            world: world,
+            city: city,
+            department: nil,
+            lemming: nil,
+            kind: "reference_file",
+            status: "active",
+            title: "City Template",
+            content: "Template summary"
+          ),
+        storage_ref:
+          "local://knowledge_reference_files/#{world.id}/#{Ecto.UUID.generate()}/city-template.md"
+      )
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/knowledge?#{%{scope_type: "city", scope_id: city.id, status: "active", k_tab: "reference_files"}}"
+      )
+
+    assert has_element?(
+             view,
+             "#knowledge-reference-file-owner-#{reference_file.id}",
+             "CITY: ops-city"
+           )
+  end
+
+  test "reference-file upload, detail/provenance states, edit, archive, and promotion", %{
+    conn: conn
+  } do
+    world = insert(:world)
+
+    {:ok, view, _html} =
+      live(
+        conn,
+        ~p"/knowledge?#{%{scope_type: "world", scope_id: world.id, status: "active", k_tab: "reference_files"}}"
+      )
+
+    view
+    |> element("#knowledge-reference-file-open")
+    |> render_click()
+
+    upload =
+      file_input(view, "#knowledge-reference-file-form", :reference_file, [
+        %{name: "quote-template.md", content: "# Quote\nTemplate", type: "text/markdown"}
+      ])
+
+    assert render_upload(upload, "quote-template.md") =~ "quote-template.md"
+
+    view
+    |> element("#knowledge-reference-file-form")
+    |> render_submit(%{
+      "reference_file" => %{
+        "title" => "Default Quote Template",
+        "content" => "Reusable quote template",
+        "reference_file_type" => "quote_template",
+        "tags" => "customer:acme, quote"
+      }
+    })
+
+    reference_file = Repo.one!(ReferenceFile) |> Repo.preload(:knowledge_item)
+
+    assert has_element?(view, "#knowledge-reference-file-row-#{reference_file.id}")
+
+    assert has_element?(
+             view,
+             "#knowledge-reference-file-title-text-#{reference_file.id}",
+             "Default Quote Template"
+           )
+
+    refute render(view) =~ reference_file.storage_ref
+    refute has_element?(view, "#knowledge-reference-file-ref-#{reference_file.id}")
+
+    assert has_element?(
+             view,
+             "#knowledge-reference-file-detail-state-#{reference_file.id}",
+             "active"
+           )
+
+    inaccessible_world =
+      insert(:world, slug: "isolated-world-#{System.unique_integer([:positive])}")
+
+    inaccessible_artifact =
+      insert(:artifact,
+        world: inaccessible_world,
+        city: nil,
+        department: nil,
+        lemming: nil
+      )
+
+    knowledge_item = Repo.preload(reference_file, :knowledge_item).knowledge_item
+
+    knowledge_item
+    |> Ecto.Changeset.change(%{artifact_id: inaccessible_artifact.id})
+    |> Repo.update!()
+
+    view
+    |> element("#knowledge-reference-file-filter-form")
+    |> render_change(%{
+      "reference_file_filter" => %{
+        "query" => "",
+        "status" => "active",
+        "reference_file_type" => "",
+        "owner_scope" => "",
+        "tags" => ""
+      }
+    })
+
+    assert has_element?(
+             view,
+             "#knowledge-reference-file-provenance-state-#{reference_file.id}",
+             "unavailable"
+           )
+
+    assert has_element?(
+             view,
+             "#knowledge-reference-file-provenance-unavailable-state-#{reference_file.id}"
+           )
+
+    view
+    |> element("#knowledge-reference-file-edit-#{reference_file.id}")
+    |> render_click()
+
+    view
+    |> element("#knowledge-reference-file-edit-panel-form")
+    |> render_submit(%{
+      "reference_file_id" => reference_file.id,
+      "reference_file_edit" => %{
+        "title" => "Updated Quote Template",
+        "content" => "Updated summary",
+        "reference_file_type" => "quote_template_v2",
+        "tags" => "customer:acme, quote"
+      }
+    })
+
+    assert has_element?(
+             view,
+             "#knowledge-reference-file-title-text-#{reference_file.id}",
+             "Updated Quote Template"
+           )
+
+    view
+    |> element("#knowledge-reference-file-filter-form")
+    |> render_change(%{
+      "reference_file_filter" => %{
+        "query" => "",
+        "status" => "archived",
+        "reference_file_type" => "",
+        "owner_scope" => "",
+        "tags" => ""
+      }
+    })
+
+    assert has_element?(view, "#knowledge-reference-file-archived-empty-state")
+
+    view
+    |> element("#knowledge-reference-file-filter-form")
+    |> render_change(%{
+      "reference_file_filter" => %{
+        "query" => "",
+        "status" => "active",
+        "reference_file_type" => "",
+        "owner_scope" => "",
+        "tags" => ""
+      }
+    })
+
+    view
+    |> element("#knowledge-reference-file-archive-#{reference_file.id}")
+    |> render_click()
+
+    view
+    |> element("#knowledge-reference-file-filter-form")
+    |> render_change(%{
+      "reference_file_filter" => %{
+        "query" => "",
+        "status" => "archived",
+        "reference_file_type" => "",
+        "owner_scope" => "",
+        "tags" => ""
+      }
+    })
+
+    assert has_element?(view, "#knowledge-reference-file-row-#{reference_file.id}")
   end
 
   test "source-file tab defaults to world scope in global mode", %{conn: conn} do

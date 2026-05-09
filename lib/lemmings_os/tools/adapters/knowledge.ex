@@ -7,11 +7,10 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   `LemmingsOs.Knowledge` context.
 
   It is intentionally narrow and safety-focused:
-  - accepts only memory inputs (`title`, `content`, optional `tags`, optional `scope`)
-  - rejects unsupported/file-oriented fields
+  - keeps `knowledge.store` memory-only
+  - rejects unsupported or mismatched fields instead of ignoring them
   - resolves scope from runtime instance ancestry (defaulting to current lemming)
-  - persists with runtime-owned metadata (`source = "llm"` + creator metadata)
-  - returns a minimal, non-leaky tool payload (`knowledge_item_id`, `status`, `scope`)
+  - returns bounded content or descriptor-only payloads without storage internals
   """
 
   import Ecto.Query, only: [from: 2]
@@ -35,15 +34,55 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   @allowed_fields MapSet.new(["title", "content", "tags", "scope"])
   @search_allowed_fields MapSet.new([
                            "query",
+                           "q",
                            "kind",
                            "source_file_type",
+                           "reference_file_type",
+                           "type",
+                           "category",
                            "tags",
+                           "status",
                            "scope",
+                           "owner_scope",
+                           "limit",
+                           "offset",
                            "top_k"
                          ])
-  @read_allowed_fields MapSet.new(["chunk_ref", "scope", "max_chars"])
+  @source_file_search_fields MapSet.new([
+                               "query",
+                               "kind",
+                               "source_file_type",
+                               "tags",
+                               "scope",
+                               "top_k"
+                             ])
+  @reference_file_search_fields MapSet.new([
+                                  "query",
+                                  "q",
+                                  "kind",
+                                  "reference_file_type",
+                                  "type",
+                                  "category",
+                                  "tags",
+                                  "status",
+                                  "scope",
+                                  "owner_scope",
+                                  "limit",
+                                  "offset",
+                                  "top_k"
+                                ])
+  @read_allowed_fields MapSet.new([
+                         "chunk_ref",
+                         "knowledge_item_id",
+                         "reference_ref",
+                         "kind",
+                         "scope",
+                         "max_chars"
+                       ])
   @search_top_k_default 5
   @search_top_k_max 20
+  @reference_file_search_limit_default 10
+  @reference_file_search_limit_max 20
   @read_max_chars_default 4_000
   @read_max_chars_max 8_000
 
@@ -167,15 +206,38 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   end
 
   @doc """
-  Executes `knowledge.search` for source-file chunk retrieval.
+  Executes `knowledge.search` for source-file chunk retrieval or reference-file lookup.
   """
   @spec search(LemmingInstance.t(), map(), runtime_meta()) ::
           {:ok, success_result()} | {:error, error_result()}
   def search(%LemmingInstance{} = instance, args, runtime_meta \\ %{})
       when is_map(args) and is_map(runtime_meta) do
     with :ok <- validate_allowed_fields(args, @search_allowed_fields, "knowledge.search"),
+         {:ok, kind} <- normalize_search_kind(fetch(args, :kind)) do
+      search_by_kind(kind, instance, args)
+    else
+      {:error, %{} = error} -> {:error, error}
+    end
+  end
+
+  @doc """
+  Executes `knowledge.read` for bounded source-file chunk or reference-file content retrieval.
+  """
+  @spec read(LemmingInstance.t(), map(), runtime_meta()) ::
+          {:ok, success_result()} | {:error, error_result()}
+  def read(%LemmingInstance{} = instance, args, _runtime_meta \\ %{}) when is_map(args) do
+    with :ok <- validate_allowed_fields(args, @read_allowed_fields, "knowledge.read"),
+         {:ok, kind} <- normalize_read_kind(fetch(args, :kind), args) do
+      read_by_kind(kind, instance, args)
+    else
+      {:error, %{} = error} ->
+        {:error, error}
+    end
+  end
+
+  defp search_by_kind("source_file", %LemmingInstance{} = instance, args) do
+    with :ok <- validate_kind_allowed_fields(args, @source_file_search_fields, "source_file"),
          {:ok, query} <- validate_required_text(args, :query),
-         {:ok, "source_file"} <- normalize_search_kind(fetch(args, :kind)),
          {:ok, tags} <- validate_optional_tags(args),
          {:ok, scope_name, scope} <- resolve_scope_hint(instance, args),
          {:ok, top_k} <- normalize_top_k(fetch(args, :top_k)),
@@ -200,19 +262,48 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
            results: results
          }
        }}
+    end
+  end
+
+  defp search_by_kind("reference_file", %LemmingInstance{} = instance, args) do
+    with :ok <-
+           validate_kind_allowed_fields(args, @reference_file_search_fields, "reference_file"),
+         {:ok, tags} <- validate_optional_tags(args),
+         {:ok, scope_name, scope} <- resolve_scope_hint(instance, args),
+         {:ok, limit} <-
+           normalize_reference_file_limit(fetch(args, :limit) || fetch(args, :top_k)),
+         {:ok, offset} <- normalize_offset(fetch(args, :offset)),
+         {:ok, page} <-
+           KnowledgeContext.search_reference_files(
+             scope,
+             reference_file_search_opts(args, tags, limit, offset)
+           ) do
+      results = Enum.map(page.entries, &reference_file_search_result/1)
+
+      {:ok,
+       %{
+         summary: "Found #{length(results)} reference files",
+         preview: reference_file_search_preview(results),
+         result: %{
+           kind: "reference_file",
+           scope: scope_name,
+           count: length(results),
+           total_count: page.total_count,
+           limit: page.limit,
+           offset: page.offset,
+           results: results
+         }
+       }}
+      |> maybe_record_reference_file_search_event(instance, scope, args)
     else
+      {:error, :invalid_scope} -> {:error, invalid_scope_error()}
+      {:error, :scope_mismatch} -> {:error, invalid_scope_error()}
       {:error, %{} = error} -> {:error, error}
     end
   end
 
-  @doc """
-  Executes `knowledge.read` for bounded source-file chunk content retrieval.
-  """
-  @spec read(LemmingInstance.t(), map(), runtime_meta()) ::
-          {:ok, success_result()} | {:error, error_result()}
-  def read(%LemmingInstance{} = instance, args, _runtime_meta \\ %{}) when is_map(args) do
-    with :ok <- validate_allowed_fields(args, @read_allowed_fields, "knowledge.read"),
-         {:ok, chunk_ref} <- validate_required_text(args, :chunk_ref),
+  defp read_by_kind("source_file", %LemmingInstance{} = instance, args) do
+    with {:ok, chunk_ref} <- validate_required_text(args, :chunk_ref),
          {:ok, scope_name, scope} <- resolve_scope_hint(instance, args),
          {:ok, max_chars} <- normalize_max_chars(fetch(args, :max_chars)),
          {:ok, chunk} <-
@@ -222,6 +313,7 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
          summary: "Read chunk #{chunk.chunk_ref}",
          preview: String.slice(chunk.content, 0, 280),
          result: %{
+           kind: "source_file",
            scope: scope_name,
            chunk_ref: chunk.chunk_ref,
            knowledge_item_id: chunk.knowledge_item_id,
@@ -235,14 +327,33 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
          }
        }}
     else
-      {:error, :not_found} ->
-        {:error, not_found_error("Chunk not found")}
+      {:error, :not_found} -> {:error, not_found_error("Chunk not found")}
+      {:error, :invalid_scope} -> {:error, invalid_scope_error()}
+      {:error, :scope_mismatch} -> {:error, invalid_scope_error()}
+      {:error, %{} = error} -> {:error, error}
+    end
+  end
 
-      {:error, :invalid_scope} ->
-        {:error, invalid_scope_error()}
+  defp read_by_kind("reference_file", %LemmingInstance{} = instance, args) do
+    with {:ok, identifier} <- reference_file_read_identifier(args),
+         {:ok, scope_name, scope} <- resolve_scope_hint(instance, args),
+         {:ok, max_chars} <- normalize_max_chars(fetch(args, :max_chars)),
+         {:ok, read_result} <-
+           KnowledgeContext.read_reference_file(scope, identifier, max_chars: max_chars) do
+      result = reference_file_read_result(read_result, scope_name)
 
-      {:error, %{} = error} ->
-        {:error, error}
+      {:ok,
+       %{
+         summary: reference_file_read_summary(result),
+         preview: reference_file_read_preview(result),
+         result: result
+       }}
+      |> maybe_record_reference_file_read_event(instance, scope)
+    else
+      {:error, :not_found} -> {:error, not_found_error("Reference file not found")}
+      {:error, :invalid_scope} -> {:error, invalid_scope_error()}
+      {:error, :scope_mismatch} -> {:error, invalid_scope_error()}
+      {:error, %{} = error} -> {:error, error}
     end
   end
 
@@ -469,15 +580,82 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
     end
   end
 
+  defp validate_kind_allowed_fields(args, allowed_fields, kind)
+       when is_map(args) and is_map(allowed_fields) and is_binary(kind) do
+    case unsupported_fields(args, allowed_fields) do
+      [] ->
+        :ok
+
+      fields ->
+        {:error,
+         %{
+           code: "tool.validation.invalid_args",
+           message: "Invalid tool arguments",
+           details: %{kind: kind, unsupported_fields: fields}
+         }}
+    end
+  end
+
   defp normalize_search_kind(nil), do: {:ok, "source_file"}
   defp normalize_search_kind("source_file"), do: {:ok, "source_file"}
+  defp normalize_search_kind("reference_file"), do: {:ok, "reference_file"}
 
   defp normalize_search_kind(_other) do
     {:error,
      %{
        code: "tool.validation.invalid_args",
        message: "Invalid tool arguments",
-       details: %{field: "kind", allowed: ["source_file"]}
+       details: %{field: "kind", allowed: ["source_file", "reference_file"]}
+     }}
+  end
+
+  defp normalize_read_kind(nil, args) do
+    chunk_ref? = present?(fetch(args, :chunk_ref))
+
+    reference_file? =
+      present?(fetch(args, :knowledge_item_id)) or present?(fetch(args, :reference_ref))
+
+    cond do
+      chunk_ref? and reference_file? ->
+        {:error, invalid_args_error(["chunk_ref", "knowledge_item_id", "reference_ref"])}
+
+      chunk_ref? ->
+        {:ok, "source_file"}
+
+      reference_file? ->
+        {:ok, "reference_file"}
+
+      true ->
+        {:error, invalid_args_error(["chunk_ref", "knowledge_item_id", "reference_ref"])}
+    end
+  end
+
+  defp normalize_read_kind("source_file", args) do
+    if present?(fetch(args, :chunk_ref)) and not present?(fetch(args, :knowledge_item_id)) and
+         not present?(fetch(args, :reference_ref)) do
+      {:ok, "source_file"}
+    else
+      {:error, invalid_args_error(["chunk_ref"])}
+    end
+  end
+
+  defp normalize_read_kind("reference_file", args) do
+    reference_file? =
+      present?(fetch(args, :knowledge_item_id)) or present?(fetch(args, :reference_ref))
+
+    if reference_file? and not present?(fetch(args, :chunk_ref)) do
+      {:ok, "reference_file"}
+    else
+      {:error, invalid_args_error(["knowledge_item_id", "reference_ref"])}
+    end
+  end
+
+  defp normalize_read_kind(_other, _args) do
+    {:error,
+     %{
+       code: "tool.validation.invalid_args",
+       message: "Invalid tool arguments",
+       details: %{field: "kind", allowed: ["source_file", "reference_file"]}
      }}
   end
 
@@ -489,6 +667,28 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
       :error -> {:error, invalid_args_error(["top_k"])}
     end
   end
+
+  defp normalize_reference_file_limit(nil), do: {:ok, @reference_file_search_limit_default}
+
+  defp normalize_reference_file_limit(value) do
+    case parse_positive_integer(value) do
+      {:ok, limit} -> {:ok, min(limit, @reference_file_search_limit_max)}
+      :error -> {:error, invalid_args_error(["limit"])}
+    end
+  end
+
+  defp normalize_offset(nil), do: {:ok, 0}
+
+  defp normalize_offset(value) when is_integer(value) and value >= 0, do: {:ok, value}
+
+  defp normalize_offset(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, ""} when parsed >= 0 -> {:ok, parsed}
+      _other -> {:error, invalid_args_error(["offset"])}
+    end
+  end
+
+  defp normalize_offset(_value), do: {:error, invalid_args_error(["offset"])}
 
   defp normalize_max_chars(nil), do: {:ok, @read_max_chars_default}
 
@@ -536,6 +736,100 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
 
   defp search_preview([]), do: nil
   defp search_preview([first | _rest]), do: Map.get(first, :snippet) || Map.get(first, "snippet")
+
+  defp reference_file_search_opts(args, tags, limit, offset) do
+    [
+      kind: "reference_file",
+      query: fetch(args, :query) || fetch(args, :q),
+      reference_file_type: fetch(args, :reference_file_type) || fetch(args, :type),
+      category: fetch(args, :category),
+      tags: tags,
+      status: fetch(args, :status) || "active",
+      owner_scope: fetch(args, :owner_scope),
+      limit: limit,
+      offset: offset
+    ]
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp reference_file_search_result(%{
+         descriptor: descriptor,
+         owner_scope: owner_scope,
+         local?: local?,
+         inherited?: inherited?
+       }) do
+    %{
+      reference_ref: descriptor.reference_ref,
+      knowledge_item_id: descriptor.knowledge_item_id,
+      kind: "reference_file",
+      reference_file_type: descriptor.reference_file_type,
+      title: descriptor.title,
+      tags: descriptor.tags || [],
+      status: descriptor.status,
+      content_type: descriptor.content_type,
+      scope: %{type: owner_scope, local: local?, inherited: inherited?}
+    }
+  end
+
+  defp reference_file_search_result(_row), do: %{}
+
+  defp reference_file_search_preview([]), do: nil
+
+  defp reference_file_search_preview([%{title: title} | _rest]) when is_binary(title), do: title
+
+  defp reference_file_search_preview([%{reference_ref: reference_ref} | _rest])
+       when is_binary(reference_ref),
+       do: reference_ref
+
+  defp reference_file_search_preview(_results), do: nil
+
+  defp reference_file_read_identifier(args) do
+    knowledge_item_id = fetch(args, :knowledge_item_id)
+    reference_ref = fetch(args, :reference_ref)
+
+    cond do
+      present?(knowledge_item_id) -> {:ok, %{knowledge_item_id: String.trim(knowledge_item_id)}}
+      present?(reference_ref) -> {:ok, %{reference_ref: String.trim(reference_ref)}}
+      true -> {:error, invalid_args_error(["knowledge_item_id", "reference_ref"])}
+    end
+  end
+
+  defp reference_file_read_result(%{descriptor: descriptor} = read_result, scope_name) do
+    %{
+      kind: "reference_file",
+      scope: scope_name,
+      reference_ref: descriptor.reference_ref,
+      knowledge_item_id: descriptor.knowledge_item_id,
+      reference_file_type: descriptor.reference_file_type,
+      title: descriptor.title,
+      tags: descriptor.tags || [],
+      content_type: descriptor.content_type,
+      descriptor: descriptor,
+      content_status: read_result.content_status,
+      content: read_result.content,
+      content_length: read_result.content_length,
+      truncated: read_result.truncated
+    }
+    |> maybe_put(:extraction_method, Map.get(read_result, :extraction_method))
+  end
+
+  defp reference_file_read_summary(%{title: title, content_status: content_status})
+       when is_binary(title) do
+    "Read reference file #{title} (#{content_status})"
+  end
+
+  defp reference_file_read_summary(%{
+         reference_ref: reference_ref,
+         content_status: content_status
+       }) do
+    "Read reference file #{reference_ref} (#{content_status})"
+  end
+
+  defp reference_file_read_preview(%{content: content}) when is_binary(content),
+    do: String.slice(content, 0, 280)
+
+  defp reference_file_read_preview(%{title: title}) when is_binary(title), do: title
+  defp reference_file_read_preview(_result), do: nil
 
   defp normalize_required_text(value, field) when is_binary(value),
     do: normalize_required_text_trimmed(String.trim(value), field)
@@ -686,6 +980,176 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
     end
   end
 
+  defp maybe_record_reference_file_search_event(
+         {:ok, %{result: %{kind: "reference_file"} = result}} = adapter_result,
+         %LemmingInstance{} = instance,
+         scope,
+         args
+       )
+       when is_map(args) do
+    payload =
+      %{
+        lemming_instance_id: instance.id,
+        actor_lemming_id: instance.lemming_id,
+        actor_world_id: instance.world_id,
+        actor_city_id: instance.city_id,
+        actor_department_id: instance.department_id,
+        kind: "reference_file",
+        status: fetch(args, :status) || "active",
+        owner_scope: fetch(args, :owner_scope) || fetch(args, :scope),
+        reference_file_type: fetch(args, :reference_file_type) || fetch(args, :type),
+        has_query: present?(fetch(args, :query) || fetch(args, :q)),
+        tags_count: tag_count(fetch(args, :tags)),
+        limit: fetch(result, :limit),
+        offset: fetch(result, :offset),
+        result_count: fetch(result, :count),
+        total_count: fetch(result, :total_count),
+        source: "llm"
+      }
+      |> Map.merge(scope_payload(scope))
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    record_reference_file_access_event(
+      "knowledge.reference_file.search_performed",
+      scope,
+      "Reference file search performed",
+      payload
+    )
+
+    adapter_result
+  end
+
+  defp maybe_record_reference_file_search_event(result, _instance, _scope, _args), do: result
+
+  defp maybe_record_reference_file_read_event(
+         {:ok,
+          %{result: %{kind: "reference_file", knowledge_item_id: knowledge_item_id} = result}} =
+           adapter_result,
+         %LemmingInstance{} = instance,
+         scope
+       ) do
+    payload =
+      %{
+        lemming_instance_id: instance.id,
+        actor_lemming_id: instance.lemming_id,
+        actor_world_id: instance.world_id,
+        actor_city_id: instance.city_id,
+        actor_department_id: instance.department_id,
+        knowledge_item_id: knowledge_item_id,
+        reference_ref: fetch(result, :reference_ref),
+        reference_file_type: fetch(result, :reference_file_type),
+        content_status: fetch(result, :content_status),
+        has_content: is_binary(fetch(result, :content)),
+        truncated: fetch(result, :truncated),
+        source: "llm"
+      }
+      |> Map.merge(scope_payload(scope))
+      |> maybe_put(:content_length, fetch(result, :content_length))
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Map.new()
+
+    record_reference_file_access_event(
+      "knowledge.reference_file.read",
+      scope,
+      "Reference file read",
+      payload,
+      knowledge_item_id
+    )
+
+    adapter_result
+  end
+
+  defp maybe_record_reference_file_read_event(result, _instance, _scope), do: result
+
+  defp record_reference_file_access_event(event_type, scope, message, payload, resource_id \\ nil)
+       when is_binary(event_type) and is_binary(message) and is_map(payload) do
+    case Events.record_event(
+           event_type,
+           scope,
+           message,
+           payload: payload,
+           event_family: "audit",
+           action: reference_file_access_action(event_type),
+           status: "succeeded",
+           resource_type: "knowledge_reference_file_access",
+           resource_id: resource_id
+         ) do
+      {:ok, _event} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("failed to record reference file access event",
+          event: "knowledge.reference_file.access_event_failed",
+          instance_id: fetch(payload, :lemming_instance_id),
+          world_id: fetch(payload, :world_id),
+          department_id: fetch(payload, :department_id),
+          lemming_id: fetch(payload, :lemming_id),
+          reason: safe_reason(reason)
+        )
+
+        :ok
+    end
+  end
+
+  defp reference_file_access_action("knowledge.reference_file.search_performed"), do: "search"
+  defp reference_file_access_action("knowledge.reference_file.read"), do: "read"
+  defp reference_file_access_action(_event_type), do: "read"
+
+  defp tag_count(nil), do: 0
+  defp tag_count(tags) when is_list(tags), do: length(tags)
+
+  defp tag_count(tags) when is_binary(tags) do
+    tags
+    |> String.split(",", trim: true)
+    |> Enum.count()
+  end
+
+  defp tag_count(_tags), do: 0
+
+  defp scope_payload(%World{id: world_id}) do
+    %{
+      world_id: world_id,
+      city_id: nil,
+      department_id: nil,
+      lemming_id: nil
+    }
+  end
+
+  defp scope_payload(%City{id: city_id, world_id: world_id}) do
+    %{
+      world_id: world_id,
+      city_id: city_id,
+      department_id: nil,
+      lemming_id: nil
+    }
+  end
+
+  defp scope_payload(%Department{id: department_id, city_id: city_id, world_id: world_id}) do
+    %{
+      world_id: world_id,
+      city_id: city_id,
+      department_id: department_id,
+      lemming_id: nil
+    }
+  end
+
+  defp scope_payload(%Lemming{
+         id: lemming_id,
+         department_id: department_id,
+         city_id: city_id,
+         world_id: world_id
+       }) do
+    %{
+      world_id: world_id,
+      city_id: city_id,
+      department_id: department_id,
+      lemming_id: lemming_id
+    }
+  end
+
+  defp scope_payload(_scope), do: %{}
+
   defp memory_scope(%KnowledgeItem{} = memory) do
     %{
       world_id: memory.world_id,
@@ -734,6 +1198,9 @@ defmodule LemmingsOs.Tools.Adapters.Knowledge do
   defp normalize_key(key) when is_atom(key), do: Atom.to_string(key)
   defp normalize_key(key) when is_binary(key), do: key
   defp normalize_key(_key), do: ""
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(_value), do: false
 
   defp safe_reason(%Changeset{}), do: "changeset_error"
   defp safe_reason({:error, reason}), do: safe_reason(reason)

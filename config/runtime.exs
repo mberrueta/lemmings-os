@@ -32,6 +32,20 @@ knowledge_source_file_storage_root_path =
 knowledge_source_file_storage_max_file_size_bytes =
   Keyword.get(knowledge_source_file_storage, :max_file_size_bytes, 100 * 1024 * 1024)
 
+knowledge_reference_file_storage =
+  Application.get_env(:lemmings_os, :knowledge_reference_file_storage, [])
+
+knowledge_reference_file_storage_root_path =
+  System.get_env("LEMMINGS_KNOWLEDGE_REFERENCE_FILE_STORAGE_ROOT") ||
+    Keyword.get(
+      knowledge_reference_file_storage,
+      :root_path,
+      Path.expand("../priv/runtime/knowledge_reference_storage", __DIR__)
+    )
+
+knowledge_reference_file_storage_max_file_size_bytes =
+  Keyword.get(knowledge_reference_file_storage, :max_file_size_bytes, 10 * 1024 * 1024)
+
 runtime_city_node_name = System.get_env("LEMMINGS_CITY_NODE_NAME") || Atom.to_string(node())
 runtime_city_heartbeat = Application.get_env(:lemmings_os, :runtime_city_heartbeat, [])
 
@@ -46,6 +60,11 @@ config :lemmings_os, :knowledge_source_file_storage,
   backend: :local,
   root_path: knowledge_source_file_storage_root_path,
   max_file_size_bytes: knowledge_source_file_storage_max_file_size_bytes
+
+config :lemmings_os, :knowledge_reference_file_storage,
+  backend: :local,
+  root_path: knowledge_reference_file_storage_root_path,
+  max_file_size_bytes: knowledge_reference_file_storage_max_file_size_bytes
 
 knowledge_chunking = Application.get_env(:lemmings_os, :knowledge_chunking, [])
 

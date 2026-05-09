@@ -1,10 +1,13 @@
 defmodule LemmingsOs.Knowledge.KnowledgeItem do
   @moduledoc """
-  Persisted Knowledge item schema for memory and source-file entries.
+  Persisted Knowledge item schema for memory, source-file, and reference-file
+  entries.
 
   Memory rows remain strict (`kind = "memory"`) and do not allow `artifact_id`.
   Source-file rows are represented by `kind = "source_file"` and may optionally
   carry artifact provenance.
+  Reference-file rows are represented by `kind = "reference_file"` and may
+  optionally carry artifact provenance.
   """
 
   use Ecto.Schema
@@ -15,6 +18,7 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
   alias LemmingsOs.Artifacts.Artifact
   alias LemmingsOs.Cities.City
   alias LemmingsOs.Departments.Department
+  alias LemmingsOs.Knowledge.ReferenceFile
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.ToolExecution
   alias LemmingsOs.Lemmings.Lemming
@@ -23,9 +27,10 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  @kinds ~w(memory source_file)
+  @kinds ~w(memory source_file reference_file)
   @sources ~w(user llm)
   @memory_statuses ~w(active)
+  @reference_file_statuses ~w(active archived)
   @source_file_statuses ~w(
     pending_index
     extracting
@@ -37,7 +42,7 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
     archived
     deleted
   )
-  @statuses @memory_statuses ++ @source_file_statuses
+  @statuses Enum.uniq(@memory_statuses ++ @source_file_statuses ++ @reference_file_statuses)
 
   @required ~w(world_id kind title content source status)a
 
@@ -68,6 +73,7 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
           lemming: Lemming.t() | Ecto.Association.NotLoaded.t() | nil,
           artifact_id: Ecto.UUID.t() | nil,
           artifact: Artifact.t() | Ecto.Association.NotLoaded.t() | nil,
+          reference_file: ReferenceFile.t() | Ecto.Association.NotLoaded.t() | nil,
           kind: String.t() | nil,
           title: String.t() | nil,
           content: String.t() | nil,
@@ -101,6 +107,7 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
     belongs_to :department, Department
     belongs_to :lemming, Lemming
     belongs_to :artifact, Artifact
+    has_one :reference_file, ReferenceFile
 
     belongs_to :creator_lemming, Lemming
     belongs_to :creator_lemming_instance, LemmingInstance
@@ -114,6 +121,72 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
 
   Runtime-owned fields like hierarchy IDs, source, status, kind, and creator
   metadata are expected to be assigned by the context, not directly by users.
+
+  ## Parameters
+
+  - `knowledge_item` - an existing `%#{inspect(__MODULE__)}{}` struct or a new
+    empty struct.
+  - `attrs` - map of shared Knowledge attributes. Both atom and string keys are
+    accepted by `Ecto.Changeset.cast/4`.
+
+  ## Required Attributes
+
+  - `:world_id` - owning World UUID.
+  - `:kind` - one of `kinds/0`: `"memory"`, `"source_file"`, or
+    `"reference_file"`.
+  - `:title` - non-empty title, 1 to 200 characters.
+  - `:content` - non-empty description/content, 1 to 10,000 characters.
+  - `:source` - one of `sources/0`; currently `"user"` or `"llm"`.
+  - `:status` - one of `statuses/0`, with additional kind-specific validation.
+
+  ## Optional Attributes
+
+  - Scope fields: `:city_id`, `:department_id`, and `:lemming_id`.
+  - Provenance: `:artifact_id`, which is allowed for source and reference files
+    but rejected for memory rows.
+  - Metadata fields: `:tags`, `:creator_type`, `:creator_id`,
+    `:creator_lemming_id`, `:creator_lemming_instance_id`, and
+    `:creator_tool_execution_id`.
+
+  ## Kind-Specific Status Defaults
+
+  The schema struct defaults to `kind = "memory"`, `source = "user"`, and
+  `status = "active"`. Context code should still assign these values explicitly
+  for runtime-owned create flows.
+
+  Valid status groups:
+  - memory: `"active"`
+  - source file: `"pending_index"`, `"extracting"`, `"chunking"`,
+    `"embedding"`, `"ready"`, `"needs_ocr"`, `"failed"`, `"archived"`,
+    `"deleted"`
+  - reference file: `"active"`, `"archived"`
+
+  ## Examples
+
+      iex> attrs = %{
+      ...>   world_id: Ecto.UUID.generate(),
+      ...>   kind: "reference_file",
+      ...>   title: "Default quote template",
+      ...>   content: "Reusable quote template metadata.",
+      ...>   source: "user",
+      ...>   status: "active",
+      ...>   tags: ["default", "quote"]
+      ...> }
+      iex> changeset = LemmingsOs.Knowledge.KnowledgeItem.changeset(%LemmingsOs.Knowledge.KnowledgeItem{}, attrs)
+      iex> changeset.valid?
+      true
+
+      iex> attrs = %{
+      ...>   world_id: Ecto.UUID.generate(),
+      ...>   kind: "reference_file",
+      ...>   title: "Default quote template",
+      ...>   content: "Reusable quote template metadata.",
+      ...>   source: "user",
+      ...>   status: "ready"
+      ...> }
+      iex> changeset = LemmingsOs.Knowledge.KnowledgeItem.changeset(%LemmingsOs.Knowledge.KnowledgeItem{}, attrs)
+      iex> changeset.valid?
+      false
   """
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(knowledge_item, attrs) do
@@ -161,18 +234,41 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
 
   @doc """
   Canonical persisted knowledge `kind` values.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.KnowledgeItem.kinds()
+      ["memory", "source_file", "reference_file"]
   """
   @spec kinds() :: [String.t()]
   def kinds, do: @kinds
 
   @doc """
   Canonical persisted knowledge `source` values.
+
+  ## Examples
+
+      iex> LemmingsOs.Knowledge.KnowledgeItem.sources()
+      ["user", "llm"]
   """
   @spec sources() :: [String.t()]
   def sources, do: @sources
 
   @doc """
   Canonical persisted knowledge `status` values.
+
+  This is the complete set of known status strings across all Knowledge item
+  kinds. `changeset/2` also validates that each status is valid for the selected
+  `kind`.
+
+  ## Examples
+
+      iex> "active" in LemmingsOs.Knowledge.KnowledgeItem.statuses()
+      true
+      iex> "pending_index" in LemmingsOs.Knowledge.KnowledgeItem.statuses()
+      true
+      iex> "deleted" in LemmingsOs.Knowledge.KnowledgeItem.statuses()
+      true
   """
   @spec statuses() :: [String.t()]
   def statuses, do: @statuses
@@ -228,6 +324,7 @@ defmodule LemmingsOs.Knowledge.KnowledgeItem do
 
   defp valid_status_for_kind?("memory", status), do: status in @memory_statuses
   defp valid_status_for_kind?("source_file", status), do: status in @source_file_statuses
+  defp valid_status_for_kind?("reference_file", status), do: status in @reference_file_statuses
   defp valid_status_for_kind?(_kind, _status), do: false
 
   defp validate_scope_shape(changeset) do
