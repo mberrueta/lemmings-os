@@ -15,7 +15,8 @@ defmodule LemmingsOs.Tools.CatalogTest do
                %{id: "knowledge.read"},
                %{id: "knowledge.store"},
                %{id: "documents.markdown_to_html"},
-               %{id: "documents.print_to_pdf"}
+               %{id: "documents.print_to_pdf"},
+               %{id: "email.create_draft"}
              ] = Catalog.list_tools()
     end
   end
@@ -31,6 +32,7 @@ defmodule LemmingsOs.Tools.CatalogTest do
       assert Catalog.supported_tool?("knowledge.store")
       assert Catalog.supported_tool?("documents.markdown_to_html")
       assert Catalog.supported_tool?("documents.print_to_pdf")
+      assert Catalog.supported_tool?("email.create_draft")
       refute Catalog.supported_tool?("exec.run")
     end
   end

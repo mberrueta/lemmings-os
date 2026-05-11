@@ -1,0 +1,534 @@
+defmodule LemmingsOs.Tools.Adapters.EmailTest do
+  use LemmingsOs.DataCase, async: false
+
+  import ExUnit.CaptureLog
+
+  alias LemmingsOs.Artifacts.LocalStorage
+  alias LemmingsOs.Connections.Providers.GmailCaller
+  alias LemmingsOs.Events
+  alias LemmingsOs.SecretBank
+  alias LemmingsOs.Tools.Adapters.Email
+
+  doctest Email
+
+  setup do
+    old_storage = Application.get_env(:lemmings_os, :artifact_storage)
+
+    storage_root =
+      Path.join(
+        System.tmp_dir!(),
+        "lemmings_email_adapter_test_#{System.unique_integer([:positive])}"
+      )
+
+    Application.put_env(:lemmings_os, :artifact_storage, backend: :local, root_path: storage_root)
+    File.mkdir_p!(storage_root)
+
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+    lemming = insert(:lemming, world: world, city: city, department: department)
+
+    instance =
+      insert(:lemming_instance,
+        world: world,
+        city: city,
+        department: department,
+        lemming: lemming
+      )
+
+    on_exit(fn ->
+      if old_storage do
+        Application.put_env(:lemmings_os, :artifact_storage, old_storage)
+      else
+        Application.delete_env(:lemmings_os, :artifact_storage)
+      end
+
+      File.rm_rf(storage_root)
+    end)
+
+    {:ok,
+     world: world,
+     city: city,
+     department: department,
+     lemming: lemming,
+     instance: instance,
+     storage_root: storage_root}
+  end
+
+  test "creates a Gmail draft with text/plain body and no attachments", context do
+    put_gmail_runtime_config!(context)
+
+    assert {:ok, result} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["customer@example.com"],
+                 "subject" => "Plain text draft",
+                 "body" => "Hello from LemmingsOS",
+                 "body_format" => "text/plain"
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert result.summary == "Created Gmail draft for customer@example.com with 0 attachments"
+    assert result.preview == "Subject: Plain text draft"
+    assert result.result["status"] == "draft_created"
+    assert result.result["provider"] == "gmail"
+    assert result.result["connection_ref"] == "gmail"
+    assert result.result["draft_id"] == "draft-abc"
+    assert result.result["message_id"] == "message-abc"
+    assert result.result["to"] == ["customer@example.com"]
+    assert result.result["artifact_ids"] == []
+
+    assert_receive {:email_draft_create_called, "access-token", raw_message}
+    assert {:ok, mime} = Base.url_decode64(raw_message, padding: false)
+    assert mime =~ "Content-Type: text/plain; charset=\"UTF-8\""
+    assert mime =~ "To: customer@example.com"
+    assert mime =~ "Subject: Plain text draft"
+  end
+
+  test "creates a Gmail draft with text/html body and one attachment", context do
+    put_gmail_runtime_config!(context)
+    artifact = insert_ready_artifact!(context, "quote.pdf", "application/pdf", "%PDF-1.4 body")
+
+    assert {:ok, result} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["sales@example.com"],
+                 "cc" => ["team@example.com"],
+                 "subject" => "Quote draft",
+                 "body" => "<p>Quote attached</p>",
+                 "body_format" => "text/html",
+                 "artifact_ids" => [artifact.id]
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert result.result["artifact_ids"] == [artifact.id]
+    assert result.result["cc"] == ["team@example.com"]
+
+    assert_receive {:email_draft_create_called, "access-token", raw_message}
+    assert {:ok, mime} = Base.url_decode64(raw_message, padding: false)
+    assert mime =~ "Content-Type: multipart/mixed"
+    assert mime =~ "Content-Type: text/html; charset=\"UTF-8\""
+    assert mime =~ "Content-Type: application/pdf; name=\"quote.pdf\""
+    assert mime =~ "Content-Disposition: attachment; filename=\"quote.pdf\""
+  end
+
+  test "creates a Gmail draft with multiple attachments", context do
+    put_gmail_runtime_config!(context)
+    first = insert_ready_artifact!(context, "a.txt", "text/plain", "A content")
+    second = insert_ready_artifact!(context, "b.txt", "text/plain", "B content")
+
+    assert {:ok, result} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["ops@example.com"],
+                 "subject" => "Multi attachment draft",
+                 "body" => "See files",
+                 "body_format" => "text/plain",
+                 "artifact_ids" => [first.id, second.id]
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert result.result["artifact_ids"] == [first.id, second.id]
+    assert_receive {:email_draft_create_called, "access-token", raw_message}
+    assert {:ok, mime} = Base.url_decode64(raw_message, padding: false)
+    assert mime =~ "filename=\"a.txt\""
+    assert mime =~ "filename=\"b.txt\""
+  end
+
+  test "returns connection_not_found when Gmail connection is missing", context do
+    assert {:error, error} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["ops@example.com"],
+                 "subject" => "Missing connection",
+                 "body" => "Body",
+                 "body_format" => "text/plain"
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert error.code == "tool.email.connection_not_found"
+  end
+
+  test "returns connection_not_allowed for disabled or invalid Gmail connection", context do
+    put_gmail_runtime_config!(context)
+    connection = LemmingsOs.Connections.get_connection_by_type(context.world, "gmail")
+
+    assert {:ok, _} =
+             LemmingsOs.Connections.update_connection(context.world, connection, %{
+               status: "disabled"
+             })
+
+    assert {:error, %{code: "tool.email.connection_not_allowed"}} =
+             Email.create_draft(
+               context.instance,
+               valid_args(),
+               %{},
+               success_config(self())
+             )
+
+    assert {:ok, _} =
+             LemmingsOs.Connections.update_connection(context.world, connection, %{
+               status: "invalid"
+             })
+
+    assert {:error, %{code: "tool.email.connection_not_allowed"}} =
+             Email.create_draft(
+               context.instance,
+               valid_args(),
+               %{},
+               success_config(self())
+             )
+  end
+
+  test "returns connection_auth_failed when refresh token exchange fails", context do
+    put_gmail_runtime_config!(context)
+
+    assert {:error, error} =
+             Email.create_draft(
+               context.instance,
+               valid_args(),
+               %{},
+               %{
+                 "gmail_client" => LemmingsOs.TestSupport.EmailDraftGmailClientAuthFailure
+               }
+             )
+
+    assert error.code == "tool.email.connection_auth_failed"
+  end
+
+  test "returns draft_create_failed when provider draft call fails", context do
+    put_gmail_runtime_config!(context)
+
+    assert {:error, error} =
+             Email.create_draft(
+               context.instance,
+               valid_args(),
+               %{},
+               %{
+                 "gmail_client" => LemmingsOs.TestSupport.EmailDraftGmailClientDraftFailure
+               }
+             )
+
+    assert error.code == "tool.email.draft_create_failed"
+  end
+
+  test "falls back to default Gmail client when trusted gmail_client is nil", context do
+    put_gmail_runtime_config!(context)
+
+    assert {:ok, result} =
+             Email.create_draft(
+               context.instance,
+               valid_args(),
+               %{},
+               %{
+                 "gmail_client" => nil,
+                 "gmail_client_opts" => %{
+                   "req" => LemmingsOs.TestSupport.EmailDraftReqSuccess
+                 }
+               }
+             )
+
+    assert result.result["status"] == "draft_created"
+    assert result.result["draft_id"] == "draft-123"
+    assert result.result["message_id"] == "message-123"
+  end
+
+  test "validates recipients, body format, and rejects raw path fields", context do
+    put_gmail_runtime_config!(context)
+
+    assert {:error, %{code: "tool.email.invalid_recipient", details: %{field: "to"}}} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["not-an-email"],
+                 "subject" => "Invalid",
+                 "body" => "Body",
+                 "body_format" => "text/plain"
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert {:error, %{code: "tool.email.invalid_body_format"}} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["valid@example.com"],
+                 "subject" => "Invalid format",
+                 "body" => "Body",
+                 "body_format" => "text/markdown"
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert {:error,
+            %{code: "tool.validation.invalid_args", details: %{unsupported_fields: fields}}} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["valid@example.com"],
+                 "subject" => "Invalid field",
+                 "body" => "Body",
+                 "body_format" => "text/plain",
+                 "attachment_paths" => ["/tmp/secret.pdf"]
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert "attachment_paths" in fields
+  end
+
+  test "returns safe artifact errors for missing, non-ready, not-allowed, and broken storage",
+       context do
+    put_gmail_runtime_config!(context)
+
+    missing_id = Ecto.UUID.generate()
+
+    assert {:error, %{code: "tool.email.artifact_not_found"}} =
+             Email.create_draft(
+               context.instance,
+               Map.put(valid_args(), "artifact_ids", [missing_id]),
+               %{},
+               success_config(self())
+             )
+
+    non_ready =
+      insert_ready_artifact!(context, "archived.txt", "text/plain", "archived",
+        status: "archived"
+      )
+
+    assert {:error, %{code: "tool.email.artifact_not_found"}} =
+             Email.create_draft(
+               context.instance,
+               Map.put(valid_args(), "artifact_ids", [non_ready.id]),
+               %{},
+               success_config(self())
+             )
+
+    other_lemming =
+      insert(:lemming,
+        world: context.world,
+        city: context.city,
+        department: context.department
+      )
+
+    not_allowed =
+      insert_ready_artifact!(
+        context,
+        "other-owner.txt",
+        "text/plain",
+        "content",
+        lemming: other_lemming
+      )
+
+    assert {:error, %{code: "tool.email.artifact_not_allowed"}} =
+             Email.create_draft(
+               context.instance,
+               Map.put(valid_args(), "artifact_ids", [not_allowed.id]),
+               %{},
+               success_config(self())
+             )
+
+    broken = insert_broken_ready_artifact!(context, "broken.txt", "text/plain")
+
+    assert {:error, %{code: "tool.email.artifact_not_found"}} =
+             Email.create_draft(
+               context.instance,
+               Map.put(valid_args(), "artifact_ids", [broken.id]),
+               %{},
+               success_config(self())
+             )
+  end
+
+  test "events are emitted and payload/result do not leak secrets or provider tokens", context do
+    raw_client_secret = "sentinel-client-secret"
+    raw_refresh_token = "sentinel-refresh-token"
+    raw_access_token = "sentinel-access-token"
+    raw_auth_code = "sentinel-auth-code"
+
+    put_gmail_runtime_config!(context,
+      client_secret_value: raw_client_secret,
+      refresh_token_value: raw_refresh_token
+    )
+
+    log =
+      capture_log(fn ->
+        assert {:ok, result} =
+                 Email.create_draft(
+                   context.instance,
+                   valid_args(),
+                   %{},
+                   success_config(self(), access_token: raw_access_token)
+                 )
+
+        assert inspect(result) =~ "draft_created"
+        refute inspect(result) =~ raw_client_secret
+        refute inspect(result) =~ raw_refresh_token
+        refute inspect(result) =~ raw_access_token
+        refute inspect(result) =~ raw_auth_code
+      end)
+
+    refute log =~ raw_client_secret
+    refute log =~ raw_refresh_token
+    refute log =~ raw_access_token
+    refute log =~ raw_auth_code
+
+    events =
+      Events.list_recent_events(
+        %{
+          world_id: context.world.id,
+          city_id: context.city.id,
+          department_id: context.department.id,
+          lemming_id: context.lemming.id
+        },
+        event_types: ["email.draft_requested", "email.draft_created"],
+        limit: 10
+      )
+
+    assert Enum.any?(events, &(&1.event_type == "email.draft_requested"))
+    assert Enum.any?(events, &(&1.event_type == "email.draft_created"))
+
+    inspected_payloads = Enum.map_join(events, "\n", &inspect(&1.payload))
+    refute inspected_payloads =~ raw_client_secret
+    refute inspected_payloads =~ raw_refresh_token
+    refute inspected_payloads =~ raw_access_token
+    refute inspected_payloads =~ raw_auth_code
+
+    connection = LemmingsOs.Connections.get_connection_by_type(context.world, "gmail")
+    assert connection.config["client_id"] == "$GMAIL_CLIENT_ID"
+    assert connection.config["client_secret"] == "$GMAIL_CLIENT_SECRET"
+    assert connection.config["refresh_token"] == "$GMAIL_REFRESH_TOKEN"
+    refute inspect(connection.config) =~ raw_client_secret
+    refute inspect(connection.config) =~ raw_refresh_token
+  end
+
+  defp valid_args do
+    %{
+      "connection_ref" => "gmail",
+      "to" => ["ops@example.com"],
+      "subject" => "Test draft",
+      "body" => "Hello",
+      "body_format" => "text/plain"
+    }
+  end
+
+  defp success_config(pid, opts \\ []) do
+    %{
+      "gmail_client" => LemmingsOs.TestSupport.EmailDraftGmailClientSuccess,
+      "gmail_client_opts" => %{
+        "test_pid" => pid,
+        "access_token" => Keyword.get(opts, :access_token, "access-token")
+      }
+    }
+  end
+
+  defp put_gmail_runtime_config!(context, opts \\ []) do
+    client_id_value = Keyword.get(opts, :client_id_value, "client-id-value")
+    client_secret_value = Keyword.get(opts, :client_secret_value, "client-secret-value")
+    refresh_token_value = Keyword.get(opts, :refresh_token_value, "refresh-token-value")
+
+    assert {:ok, _} = SecretBank.upsert_secret(context.world, "GMAIL_CLIENT_ID", client_id_value)
+
+    assert {:ok, _} =
+             SecretBank.upsert_secret(context.world, "GMAIL_CLIENT_SECRET", client_secret_value)
+
+    assert {:ok, _} =
+             SecretBank.upsert_secret(context.world, "GMAIL_REFRESH_TOKEN", refresh_token_value)
+
+    config = %{
+      "provider" => "gmail",
+      "account_email" => "ops@example.com",
+      "scopes" => [GmailCaller.compose_scope()],
+      "client_id" => "$GMAIL_CLIENT_ID",
+      "client_secret" => "$GMAIL_CLIENT_SECRET",
+      "refresh_token" => "$GMAIL_REFRESH_TOKEN"
+    }
+
+    case LemmingsOs.Connections.get_connection_by_type(context.world, "gmail") do
+      nil ->
+        insert(:world_connection,
+          world: context.world,
+          type: "gmail",
+          status: "enabled",
+          config: config
+        )
+
+      connection ->
+        assert {:ok, _} =
+                 LemmingsOs.Connections.update_connection(context.world, connection, %{
+                   status: "enabled",
+                   config: config
+                 })
+    end
+  end
+
+  defp insert_ready_artifact!(context, filename, content_type, content, opts \\ []) do
+    artifact_id = Ecto.UUID.generate()
+    source_path = Path.join(context.storage_root, "source_#{artifact_id}")
+    lemming = Keyword.get(opts, :lemming, context.lemming)
+    status = Keyword.get(opts, :status, "ready")
+    File.write!(source_path, content)
+
+    {:ok, stored} = LocalStorage.store_copy(context.world.id, artifact_id, source_path, filename)
+
+    insert(:artifact,
+      id: artifact_id,
+      world: context.world,
+      city: context.city,
+      department: context.department,
+      lemming: lemming,
+      lemming_instance: nil,
+      type: "other",
+      filename: filename,
+      content_type: content_type,
+      storage_ref: stored.storage_ref,
+      size_bytes: stored.size_bytes,
+      checksum: stored.checksum,
+      status: status,
+      metadata: %{"source" => "manual_promotion"}
+    )
+  end
+
+  defp insert_broken_ready_artifact!(context, filename, content_type) do
+    artifact_id = Ecto.UUID.generate()
+    {:ok, storage_ref} = LocalStorage.build_storage_ref(context.world.id, artifact_id, filename)
+
+    insert(:artifact,
+      id: artifact_id,
+      world: context.world,
+      city: context.city,
+      department: context.department,
+      lemming: context.lemming,
+      lemming_instance: nil,
+      type: "other",
+      filename: filename,
+      content_type: content_type,
+      storage_ref: storage_ref,
+      size_bytes: 100,
+      checksum: String.duplicate("a", 64),
+      status: "ready",
+      metadata: %{"source" => "manual_promotion"}
+    )
+  end
+end

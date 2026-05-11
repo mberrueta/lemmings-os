@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status**: NOT STARTED
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETED 
+- **Approved**: [x] Human sign-off
 
 ## Assigned Agent
 
@@ -50,6 +50,23 @@ The tool creates a Gmail draft and never sends email.
   - `email.draft_created`
   - `email.draft_failed`
 - Public API docs, parameter descriptions, specs, and executable examples/doctests for non-trivial new public functions.
+
+## Implementation Checklist
+
+- [x] `email.create_draft` added to `LemmingsOs.Tools.Catalog` (`category: email`, `risk: medium`).
+- [x] Runtime dispatch wired in `LemmingsOs.Tools.Runtime` with existing normalized envelope.
+- [x] Added `LemmingsOs.Tools.Adapters.Email` and `LemmingsOs.Tools.Adapters.Email.GmailClient` (Req boundary).
+- [x] Input validation for recipients, body format, connection ref, and artifact ID contract.
+- [x] Scoped Connection resolution via `LemmingsOs.Connections.Runtime`.
+- [x] Secret ref resolution kept inside adapter execution (`LemmingsOs.SecretBank.resolve_runtime_secret/3`).
+- [x] Refresh-token exchange and Gmail draft create HTTP flow implemented.
+- [x] MIME construction supports `text/plain`, `text/html`, and multipart attachments.
+- [x] Attachment loading uses `LemmingsOs.Artifacts` APIs by Artifact ID only.
+- [x] Safe draft result contract implemented (no raw provider responses).
+- [x] Best-effort safe events added: `email.draft_requested`, `email.draft_created`, `email.draft_failed`.
+- [x] Public docs/specs/examples added for new public APIs (adapter + Gmail client).
+- [x] Tests added/updated for catalog/runtime, adapter validation/errors, MIME/attachments, provider failures, and no-leak assertions.
+- [x] Validation run complete: targeted tests + `mix precommit` passing.
 
 ## Backend Safety Rules
 

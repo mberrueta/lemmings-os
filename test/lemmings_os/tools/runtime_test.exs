@@ -12,6 +12,7 @@ defmodule LemmingsOs.Tools.RuntimeTest do
   alias LemmingsOs.Knowledge.SourceFile
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Repo
+  alias LemmingsOs.SecretBank
   alias LemmingsOs.Tools.Runtime
   alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds.World
@@ -104,6 +105,66 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
       assert {:error, %{code: "tool.validation.invalid_path"}} =
                Runtime.execute(world, instance, "fs.read_text_file", %{"path" => "../secret.txt"})
+    end
+  end
+
+  describe "execute/5 with email.create_draft" do
+    test "normalizes adapter success with standard runtime envelope", %{
+      world: world,
+      instance: instance
+    } do
+      assert {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_ID", "client-id")
+      assert {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_SECRET", "client-secret")
+      assert {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_REFRESH_TOKEN", "refresh-token")
+
+      insert(:world_connection,
+        world: world,
+        type: "gmail",
+        status: "enabled",
+        config: %{
+          "provider" => "gmail",
+          "account_email" => "ops@example.com",
+          "scopes" => ["https://www.googleapis.com/auth/gmail.compose"],
+          "client_id" => "$GMAIL_CLIENT_ID",
+          "client_secret" => "$GMAIL_CLIENT_SECRET",
+          "refresh_token" => "$GMAIL_REFRESH_TOKEN"
+        }
+      )
+
+      args = %{
+        "connection_ref" => "gmail",
+        "to" => ["customer@example.com"],
+        "subject" => "Runtime envelope draft",
+        "body" => "Hello from runtime",
+        "body_format" => "text/plain"
+      }
+
+      runtime_meta = %{
+        trusted_tool_config: %{
+          "email.create_draft" => %{
+            "gmail_client" => LemmingsOs.TestSupport.EmailDraftGmailClientSuccess,
+            "gmail_client_opts" => %{
+              "test_pid" => self(),
+              "access_token" => "runtime-access-token"
+            }
+          }
+        }
+      }
+
+      assert {:ok, result} =
+               Runtime.execute(world, instance, "email.create_draft", args, runtime_meta)
+
+      assert result.tool_name == "email.create_draft"
+      assert result.args == args
+      assert result.summary == "Created Gmail draft for customer@example.com with 0 attachments"
+      assert result.preview == "Subject: Runtime envelope draft"
+      assert result.result["status"] == "draft_created"
+      assert result.result["provider"] == "gmail"
+      assert result.result["connection_ref"] == "gmail"
+      assert result.result["to"] == ["customer@example.com"]
+      assert result.result["subject"] == "Runtime envelope draft"
+
+      assert_receive {:email_draft_create_called, "runtime-access-token", _raw_message}
     end
   end
 
