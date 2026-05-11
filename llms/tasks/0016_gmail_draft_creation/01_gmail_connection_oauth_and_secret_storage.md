@@ -2,8 +2,45 @@
 
 ## Status
 
-- **Status**: NOT STARTED
+- **Status**: COMPLETED 
 - **Approved**: [ ] Human sign-off
+
+## Implementation Progress (2026-05-11)
+
+### Done
+
+- [x] Added Gmail provider/caller module under Connections:
+  `LemmingsOs.Connections.Providers.GmailCaller`.
+- [x] Registered `gmail` in `LemmingsOs.Connections.TypeRegistry`.
+- [x] Added Gmail config contract validation for:
+  - `provider = "gmail"`
+  - compose-only Gmail scope
+  - secret refs for `client_id`, `client_secret`, and `refresh_token`
+  - optional `account_email`
+- [x] Added OAuth backend boundary and HTTP client:
+  - `LemmingsOs.Connections.GmailOAuth`
+  - `LemmingsOs.Connections.GmailOAuth.Client` (Req-based token exchange)
+- [x] Added OAuth start + callback routes/controller:
+  `LemmingsOsWeb.GmailOAuthController` and router entries.
+- [x] Added session-bound OAuth state with expiry checks and callback validation path.
+- [x] Added Secret Bank + Connection upsert flow in the Gmail OAuth boundary.
+- [x] Wired safe OAuth lifecycle events:
+  `connection.gmail.oauth_started`, `connection.gmail.oauth_succeeded`,
+  `connection.gmail.oauth_failed`.
+- [x] Added initial doctests/tests coverage for:
+  - Gmail type registry presence
+  - Gmail config validation
+  - Connection changeset Gmail validation
+  - OAuth start redirect/scope + callback invalid-state rejection
+
+### Remaining Before Approval
+
+- [x] Add automated happy-path callback test proving:
+  code exchange, refresh token persistence in Secret Bank, and Connection create/update behavior.
+- [x] Add callback rejection matrix coverage for missing/expired/mismatched state-session and explicit scope-tampering cases.
+- [x] Expand validation tests for disallowed raw credential patterns (access token/authorization header/password-like values).
+- [x] Add no-secret-leak assertions for failure paths/events/provider error handling.
+- [x] Run full final gate (`mix precommit`) once the remaining behavior/tests are complete.
 
 ## Assigned Agent
 

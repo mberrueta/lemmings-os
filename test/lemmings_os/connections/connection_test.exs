@@ -32,6 +32,25 @@ defmodule LemmingsOs.Connections.ConnectionTest do
       assert changeset.valid?
     end
 
+    test "accepts registered gmail type with secret refs" do
+      changeset =
+        Connection.changeset(%Connection{}, %{
+          world_id: Ecto.UUID.generate(),
+          type: "gmail",
+          status: "enabled",
+          config: %{
+            "provider" => "gmail",
+            "account_email" => "ops@example.test",
+            "scopes" => ["https://www.googleapis.com/auth/gmail.compose"],
+            "client_id" => "$GMAIL_CLIENT_ID",
+            "client_secret" => "$GMAIL_CLIENT_SECRET",
+            "refresh_token" => "$GMAIL_REFRESH_TOKEN"
+          }
+        })
+
+      assert changeset.valid?
+    end
+
     test "rejects unknown status values" do
       changeset =
         Connection.changeset(%Connection{}, %{
@@ -83,6 +102,46 @@ defmodule LemmingsOs.Connections.ConnectionTest do
 
       refute changeset.valid?
       assert ".invalid_choice" in errors_on(changeset).type
+    end
+
+    test "rejects gmail config with raw token values" do
+      changeset =
+        Connection.changeset(%Connection{}, %{
+          world_id: Ecto.UUID.generate(),
+          type: "gmail",
+          status: "enabled",
+          config: %{
+            "provider" => "gmail",
+            "scopes" => ["https://www.googleapis.com/auth/gmail.compose"],
+            "client_id" => "$GMAIL_CLIENT_ID",
+            "client_secret" => "raw-client-secret",
+            "refresh_token" => "raw-refresh-token"
+          }
+        })
+
+      refute changeset.valid?
+      assert ".invalid_value" in errors_on(changeset).config
+    end
+
+    test "rejects gmail config with raw access token and authorization header fields" do
+      changeset =
+        Connection.changeset(%Connection{}, %{
+          world_id: Ecto.UUID.generate(),
+          type: "gmail",
+          status: "enabled",
+          config: %{
+            "provider" => "gmail",
+            "scopes" => ["https://www.googleapis.com/auth/gmail.compose"],
+            "client_id" => "$GMAIL_CLIENT_ID",
+            "client_secret" => "$GMAIL_CLIENT_SECRET",
+            "refresh_token" => "$GMAIL_REFRESH_TOKEN",
+            "access_token" => "raw-access-token",
+            "authorization" => "Bearer raw-header-token"
+          }
+        })
+
+      refute changeset.valid?
+      assert ".invalid_value" in errors_on(changeset).config
     end
 
     test "exposes canonical statuses helper" do

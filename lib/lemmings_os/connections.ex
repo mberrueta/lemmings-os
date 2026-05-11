@@ -32,7 +32,7 @@ defmodule LemmingsOs.Connections do
 
   ## Examples
 
-      iex> [type] = LemmingsOs.Connections.list_connection_types()
+      iex> [type | _] = LemmingsOs.Connections.list_connection_types()
       iex> type.id
       "mock"
   """

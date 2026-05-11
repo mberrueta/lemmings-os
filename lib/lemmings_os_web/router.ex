@@ -47,6 +47,8 @@ defmodule LemmingsOsWeb.Router do
     live "/knowledge", KnowledgeLive, :index
     live "/logs", LogsLive, :index
     live "/settings", SettingsLive, :index
+    get "/connections/gmail/oauth/start", GmailOAuthController, :start
+    get "/connections/gmail/oauth/callback", GmailOAuthController, :callback
   end
 
   # Other scopes may use custom stacks.
