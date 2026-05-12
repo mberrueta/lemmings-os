@@ -34,15 +34,27 @@ defmodule LemmingsOsWeb.GmailOAuthController do
   @oauth_session_key "gmail_oauth_state"
 
   def start(conn, params) do
-    with {:ok, scope} <- scope_from_params(params),
-         {:ok, %{authorize_url: url, session_state: session_state}} <-
-           GmailOAuth.start(scope, params, redirect_uri: callback_url(conn)) do
-      _ = record_event(scope, "connection.gmail.oauth_started", "Gmail OAuth started")
+    case scope_from_params(params) do
+      {:ok, scope} ->
+        case GmailOAuth.start(scope, params, redirect_uri: callback_url(conn)) do
+          {:ok, %{authorize_url: url, session_state: session_state}} ->
+            _ = record_event(scope, "connection.gmail.oauth_started", "Gmail OAuth started")
 
-      conn
-      |> put_session(@oauth_session_key, session_state)
-      |> redirect(external: url)
-    else
+            return_to = safe_return_to(params, connections_redirect_path(scope))
+
+            conn
+            |> put_session(
+              @oauth_session_key,
+              Map.put(session_state, "return_to", return_to)
+            )
+            |> redirect(external: url)
+
+          _ ->
+            conn
+            |> put_flash(:error, "Unable to start Gmail OAuth.")
+            |> redirect(to: connections_redirect_path(scope))
+        end
+
       _ ->
         conn
         |> put_flash(:error, "Unable to start Gmail OAuth.")
@@ -54,27 +66,36 @@ defmodule LemmingsOsWeb.GmailOAuthController do
     session_state = get_session(conn, @oauth_session_key) || %{}
     conn = delete_session(conn, @oauth_session_key)
 
-    with {:ok, scope} <- scope_from_session(session_state),
-         {:ok, connection} <-
-           GmailOAuth.complete(scope, params, session_state,
-             redirect_uri: callback_url(conn),
-             oauth_client: oauth_client()
-           ) do
-      _ =
-        record_event(scope, "connection.gmail.oauth_succeeded", "Gmail OAuth succeeded", %{
-          connection_id: connection.id
-        })
+    case scope_from_session(session_state) do
+      {:ok, scope} ->
+        return_to = safe_return_to(session_state, connections_redirect_path(scope))
 
-      conn
-      |> put_flash(:info, "Gmail connected.")
-      |> redirect(to: ~p"/settings")
-    else
-      {:error, reason} ->
-        _ = record_safe_failure(session_state, reason)
+        case GmailOAuth.complete(scope, params, session_state,
+               redirect_uri: callback_url(conn),
+               oauth_client: oauth_client()
+             ) do
+          {:ok, connection} ->
+            _ =
+              record_event(scope, "connection.gmail.oauth_succeeded", "Gmail OAuth succeeded", %{
+                connection_id: connection.id
+              })
 
+            conn
+            |> put_flash(:info, "Gmail connected.")
+            |> redirect(to: return_to)
+
+          {:error, reason} ->
+            _ = record_safe_failure(session_state, reason)
+
+            conn
+            |> put_flash(:error, "Gmail OAuth failed.")
+            |> redirect(to: return_to)
+        end
+
+      _ ->
         conn
         |> put_flash(:error, "Gmail OAuth failed.")
-        |> redirect(to: ~p"/settings")
+        |> redirect(to: safe_return_to(session_state, ~p"/settings"))
     end
   end
 
@@ -196,4 +217,26 @@ defmodule LemmingsOsWeb.GmailOAuthController do
   end
 
   defp scope_from_params(_params), do: {:error, :invalid_scope}
+
+  defp connections_redirect_path(%World{}),
+    do: ~p"/world?#{%{tab: "connections"}}"
+
+  defp connections_redirect_path(%LemmingsOs.Cities.City{id: city_id}),
+    do: ~p"/cities?#{%{city: city_id, tab: "connections"}}"
+
+  defp connections_redirect_path(%LemmingsOs.Departments.Department{
+         id: department_id,
+         city_id: city_id
+       }),
+       do: ~p"/departments?#{%{city: city_id, dept: department_id, tab: "connections"}}"
+
+  defp safe_return_to(%{"return_to" => return_to}, fallback) when is_binary(return_to) do
+    if String.starts_with?(return_to, ["/world", "/cities", "/departments"]) do
+      return_to
+    else
+      fallback
+    end
+  end
+
+  defp safe_return_to(_session_state, fallback), do: fallback
 end

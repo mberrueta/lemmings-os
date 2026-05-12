@@ -2,8 +2,8 @@
 
 ## Status
 
-- **Status**: NOT STARTED
-- **Approved**: [ ] Human sign-off
+- **Status**: COMPLETED
+- **Approved**: [X] Human sign-off
 
 ## Assigned Agent
 
@@ -28,7 +28,7 @@ Expose the Gmail connection flow to operators and ensure draft creation results 
   - `docs/features/tools.md` for `email.create_draft`
   - `docs/features/connections.md` for Gmail Connection config and onboarding
   - `docs/features/secret_bank.md` only if needed for Gmail secret refs
-  - Google OAuth setup how-to covering Gmail API enablement, OAuth consent, OAuth Web Client, authorized redirect URI, required env vars, and the in-app `Connections -> Gmail -> Connect` flow
+  - Google OAuth setup how-to covering Gmail API enablement, OAuth consent, OAuth Web Client, authorized redirect URI, required env vars, and the in-app `Connections -> + Create -> Gmail -> Connect Gmail` flow
 - Clear documentation that sending, reading, sync, mailbox watch, and approval records are out of scope.
 
 ## UI Safety Rules

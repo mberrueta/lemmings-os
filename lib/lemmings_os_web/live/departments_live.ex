@@ -51,6 +51,8 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      |> assign(:department_connection_rows, [])
      |> assign(:department_connection_editing_id, nil)
      |> assign(:department_connection_edit_form, nil)
+     |> assign(:department_gmail_oauth, ConnectionsSurface.gmail_oauth_state(nil))
+     |> assign(:department_connection_scope_params, %{})
      |> assign(:department_artifact_rows, [])}
   end
 
@@ -227,9 +229,11 @@ defmodule LemmingsOsWeb.DepartmentsLive do
      assign(
        socket,
        :department_connection_create_form,
-       ConnectionsSurface.create_form(socket.assigns.department_connection_types, %{
-         "type" => type
-       })
+       ConnectionsSurface.create_form_for_type(
+         socket.assigns.department_connection_types,
+         type,
+         socket.assigns.department_connection_rows
+       )
      )}
   end
 
@@ -248,16 +252,25 @@ defmodule LemmingsOsWeb.DepartmentsLive do
   end
 
   def handle_event("create_department_connection", %{"connection_create" => params}, socket) do
+    action = ConnectionsSurface.connection_form_action(params)
+
     with %Department{} = department <- socket.assigns.selected_department,
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
-         {:ok, _connection} <- Connections.create_connection(department, attrs) do
+         {:ok, connection} <- persist_department_connection(department, attrs, params) do
       department = reload_department_detail(department)
 
-      {:noreply,
-       socket
-       |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
-       |> assign(:department_connection_create_open, false)
-       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+      case action do
+        :connect_gmail ->
+          {:noreply,
+           redirect(socket, to: department_gmail_oauth_start_path(department, connection, attrs))}
+
+        :save ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
+           |> assign(:department_connection_create_open, false)
+           |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+      end
     else
       nil ->
         {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
@@ -337,6 +350,7 @@ defmodule LemmingsOsWeb.DepartmentsLive do
 
   def handle_event("save_department_connection_edit", %{"connection_edit" => params}, socket) do
     connection_id = Map.get(params, "connection_id", "")
+    action = ConnectionsSurface.connection_form_action(params)
 
     with %Department{} = department <- socket.assigns.selected_department,
          {:ok, row} <-
@@ -345,13 +359,20 @@ defmodule LemmingsOsWeb.DepartmentsLive do
              connection_id
            ),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
-         {:ok, _connection} <- Connections.update_connection(department, row.connection, attrs) do
+         {:ok, connection} <- Connections.update_connection(department, row.connection, attrs) do
       department = reload_department_detail(department)
 
-      {:noreply,
-       socket
-       |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
-       |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+      case action do
+        :connect_gmail ->
+          {:noreply,
+           redirect(socket, to: department_gmail_oauth_start_path(department, connection, attrs))}
+
+        :save ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
+           |> assign_department_detail(department, socket.assigns.selected_department_tab)}
+      end
     else
       nil ->
         {:noreply, put_flash(socket, :error, dgettext("errors", ".error_department_unavailable"))}
@@ -558,6 +579,8 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_connection_create_open, false)
     |> assign(:department_connection_editing_id, nil)
     |> assign(:department_connection_edit_form, nil)
+    |> assign(:department_gmail_oauth, ConnectionsSurface.gmail_oauth_state(nil))
+    |> assign(:department_connection_scope_params, %{})
   end
 
   defp assign_department_detail(socket, %Department{} = department, requested_tab) do
@@ -584,6 +607,12 @@ defmodule LemmingsOsWeb.DepartmentsLive do
     |> assign(:department_connection_create_open, false)
     |> assign(:department_connection_editing_id, nil)
     |> assign(:department_connection_edit_form, nil)
+    |> assign(:department_gmail_oauth, ConnectionsSurface.gmail_oauth_state(department))
+    |> assign(:department_connection_scope_params, %{
+      world_id: department.world_id,
+      city_id: department.city_id,
+      department_id: department.id
+    })
   end
 
   defp build_department_settings_form(%Department{} = department) do
@@ -680,6 +709,24 @@ defmodule LemmingsOsWeb.DepartmentsLive do
       end
 
     to_form(%{"city_id" => selected_city_id}, as: :city_selector)
+  end
+
+  defp persist_department_connection(department, %{type: "gmail"} = attrs, params) do
+    ConnectionsSurface.upsert_gmail_connection(
+      department,
+      attrs,
+      Map.get(params, "connection_id")
+    )
+  end
+
+  defp persist_department_connection(department, attrs, _params),
+    do: Connections.create_connection(department, attrs)
+
+  defp department_gmail_oauth_start_path(%Department{} = department, connection, attrs) do
+    return_to =
+      ~p"/departments?#{%{city: department.city_id, dept: department.id, tab: "connections"}}"
+
+    ~p"/connections/gmail/oauth/start?#{%{world_id: department.world_id, city_id: department.city_id, department_id: department.id, connection_id: connection.id, client_id: attrs.config["client_id"], client_secret: attrs.config["client_secret"], return_to: return_to}}"
   end
 
   defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)

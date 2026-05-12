@@ -503,8 +503,23 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
 
       assert has_element?(view, "#department-connections-panel")
       assert has_element?(view, "#department-connections-open-create")
+      refute has_element?(view, "#department-gmail-connect-panel")
       view |> element("#department-connections-open-create") |> render_click()
       assert render(view) =~ "$MOCK_API_KEY"
+
+      view
+      |> element("#department-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+      assert has_element?(view, "#department-connections-create-gmail-panel")
+      assert has_element?(view, "#department-connections-create-gmail-client-id")
+      refute has_element?(view, "#department-connections-create-config")
+
+      view
+      |> element("#department-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "mock"}})
+
+      assert has_element?(view, "#department-connections-create-config")
 
       view
       |> element("#department-connections-create-form")
@@ -524,16 +539,6 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       view
       |> element("#department-connections-edit-#{created.id}")
       |> render_click()
-
-      view
-      |> element("#department-connections-edit-form-#{created.id}")
-      |> render_change(%{
-        "connection_edit" => %{
-          "connection_id" => created.id,
-          "type" => "mock",
-          "status" => "enabled"
-        }
-      })
 
       assert has_element?(view, "#department-connections-edit-form-#{created.id}")
 

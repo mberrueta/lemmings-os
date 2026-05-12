@@ -79,7 +79,8 @@ defmodule LemmingsOs.Connections.GmailOAuth do
            "config" => %{
              "client_id" => client_id_ref,
              "client_secret" => client_secret_ref,
-             "account_email" => safe_string(Map.get(attrs, "account_email"))
+             "account_email" => safe_string(Map.get(attrs, "account_email")),
+             "connection_id" => safe_string(Map.get(attrs, "connection_id"))
            }
          }
        }}
@@ -176,7 +177,8 @@ defmodule LemmingsOs.Connections.GmailOAuth do
        %{
          client_id_ref: client_id_ref,
          client_secret_ref: client_secret_ref,
-         account_email: safe_string(Map.get(config, "account_email"))
+         account_email: safe_string(Map.get(config, "account_email")),
+         connection_id: safe_string(Map.get(config, "connection_id"))
        }}
     else
       _ -> {:error, :invalid_session}
@@ -242,7 +244,10 @@ defmodule LemmingsOs.Connections.GmailOAuth do
   defp safe_reason(_reason), do: "profile_lookup_failed"
 
   defp upsert_gmail_connection(scope, config, refresh_ref, profile_email) do
-    existing = Connections.get_connection_by_type(scope, "gmail")
+    existing =
+      scoped_connection(scope, config.connection_id) ||
+        Connections.get_connection_by_type(scope, "gmail")
+
     existing_email = existing && existing.config && existing.config["account_email"]
 
     account_email =
@@ -267,6 +272,16 @@ defmodule LemmingsOs.Connections.GmailOAuth do
     case existing do
       nil -> Connections.create_connection(scope, attrs)
       connection -> Connections.update_connection(scope, connection, attrs)
+    end
+  end
+
+  defp scoped_connection(_scope, nil), do: nil
+  defp scoped_connection(_scope, ""), do: nil
+
+  defp scoped_connection(scope, connection_id) do
+    case Connections.get_connection(scope, connection_id) do
+      %Connection{type: "gmail"} = connection -> connection
+      _ -> nil
     end
   end
 

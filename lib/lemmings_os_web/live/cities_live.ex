@@ -61,6 +61,8 @@ defmodule LemmingsOsWeb.CitiesLive do
      |> assign(:city_connection_rows, [])
      |> assign(:city_connection_editing_id, nil)
      |> assign(:city_connection_edit_form, nil)
+     |> assign(:city_gmail_oauth, ConnectionsSurface.gmail_oauth_state(nil))
+     |> assign(:city_connection_scope_params, %{})
      |> assign(:city_artifact_rows, [])
      |> load_snapshot(params)}
   end
@@ -242,7 +244,11 @@ defmodule LemmingsOsWeb.CitiesLive do
      assign(
        socket,
        :city_connection_create_form,
-       ConnectionsSurface.create_form(socket.assigns.city_connection_types, %{"type" => type})
+       ConnectionsSurface.create_form_for_type(
+         socket.assigns.city_connection_types,
+         type,
+         socket.assigns.city_connection_rows
+       )
      )}
   end
 
@@ -261,16 +267,24 @@ defmodule LemmingsOsWeb.CitiesLive do
   end
 
   def handle_event("create_city_connection", %{"connection_create" => params}, socket) do
+    action = ConnectionsSurface.connection_form_action(params)
+
     with {:ok, city} <- load_selected_city_scope(socket),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
-         {:ok, _connection} <- Connections.create_connection(city, attrs) do
+         {:ok, connection} <- persist_city_connection(city, attrs, params) do
       snapshot_params = city_detail_params(socket, %{city: city.id})
 
-      {:noreply,
-       socket
-       |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
-       |> assign(:city_connection_create_open, false)
-       |> load_snapshot(snapshot_params)}
+      case action do
+        :connect_gmail ->
+          {:noreply, redirect(socket, to: city_gmail_oauth_start_path(city, connection, attrs))}
+
+        :save ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
+           |> assign(:city_connection_create_open, false)
+           |> load_snapshot(snapshot_params)}
+      end
     else
       {:error, :invalid_scope} ->
         {:noreply, put_flash(socket, :error, dgettext("errors", ".error_city_unavailable"))}
@@ -342,6 +356,7 @@ defmodule LemmingsOsWeb.CitiesLive do
 
   def handle_event("save_city_connection_edit", %{"connection_edit" => params}, socket) do
     connection_id = Map.get(params, "connection_id", "")
+    action = ConnectionsSurface.connection_form_action(params)
 
     with {:ok, city} <- load_selected_city_scope(socket),
          {:ok, row} <-
@@ -350,13 +365,19 @@ defmodule LemmingsOsWeb.CitiesLive do
              connection_id
            ),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
-         {:ok, _connection} <- Connections.update_connection(city, row.connection, attrs) do
+         {:ok, connection} <- Connections.update_connection(city, row.connection, attrs) do
       snapshot_params = city_detail_params(socket, %{city: city.id})
 
-      {:noreply,
-       socket
-       |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
-       |> load_snapshot(snapshot_params)}
+      case action do
+        :connect_gmail ->
+          {:noreply, redirect(socket, to: city_gmail_oauth_start_path(city, connection, attrs))}
+
+        :save ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
+           |> load_snapshot(snapshot_params)}
+      end
     else
       {:error, :invalid_scope} ->
         {:noreply, put_flash(socket, :error, dgettext("errors", ".error_city_unavailable"))}
@@ -586,6 +607,8 @@ defmodule LemmingsOsWeb.CitiesLive do
       |> assign(:city_connection_create_open, false)
       |> assign(:city_connection_editing_id, nil)
       |> assign(:city_connection_edit_form, nil)
+      |> assign(:city_gmail_oauth, ConnectionsSurface.gmail_oauth_state(city))
+      |> assign(:city_connection_scope_params, %{world_id: world.id, city_id: city.id})
     else
       _ -> reset_city_connection_surface(socket)
     end
@@ -604,6 +627,8 @@ defmodule LemmingsOsWeb.CitiesLive do
     |> assign(:city_connection_create_open, false)
     |> assign(:city_connection_editing_id, nil)
     |> assign(:city_connection_edit_form, nil)
+    |> assign(:city_gmail_oauth, ConnectionsSurface.gmail_oauth_state(nil))
+    |> assign(:city_connection_scope_params, %{})
   end
 
   defp assign_city_artifact_surface(socket, %{selected_city: nil}),
@@ -650,6 +675,19 @@ defmodule LemmingsOsWeb.CitiesLive do
   end
 
   defp load_selected_city_scope(_socket), do: {:error, :invalid_scope}
+
+  defp persist_city_connection(city, %{type: "gmail"} = attrs, params) do
+    ConnectionsSurface.upsert_gmail_connection(city, attrs, Map.get(params, "connection_id"))
+  end
+
+  defp persist_city_connection(city, attrs, _params),
+    do: Connections.create_connection(city, attrs)
+
+  defp city_gmail_oauth_start_path(%City{} = city, connection, attrs) do
+    return_to = ~p"/cities?#{%{city: city.id, tab: "connections"}}"
+
+    ~p"/connections/gmail/oauth/start?#{%{world_id: city.world_id, city_id: city.id, connection_id: connection.id, client_id: attrs.config["client_id"], client_secret: attrs.config["client_secret"], return_to: return_to}}"
+  end
 
   defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)
 

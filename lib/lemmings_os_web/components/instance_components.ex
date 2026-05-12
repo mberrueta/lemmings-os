@@ -8,6 +8,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
   alias LemmingsOs.Tools.ToolExecutionOutputs
 
   @default_max_retries 3
+  @email_draft_result_keys ~w(status provider connection_ref draft_id message_id to cc bcc subject artifact_ids)
 
   attr :id, :string, default: nil
   attr :status, :string, required: true
@@ -231,7 +232,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
       |> assign(:tool_status, status)
       |> assign(:tool_details_id, "tool-execution-details-#{assigns.tool_execution.id}")
       |> assign(:args_payload, tool_payload_json(assigns.tool_execution.args))
-      |> assign(:result_payload, tool_payload_json(assigns.tool_execution.result))
+      |> assign(:result_payload, tool_result_payload_json(assigns.tool_execution))
       |> assign(:error_payload, tool_payload_json(assigns.tool_execution.error))
       |> assign(:artifact_link, tool_artifact_link(assigns.tool_execution, assigns.world_id))
       |> assign(:promotion_form_id, "artifact-promotion-form-#{assigns.tool_execution.id}")
@@ -1018,6 +1019,13 @@ defmodule LemmingsOsWeb.InstanceComponents do
   defp tool_status_label("error"), do: dgettext("lemmings", "Failed")
   defp tool_status_label(status), do: status
 
+  defp tool_summary(%{tool_name: "email.create_draft"} = tool_execution) do
+    case email_draft_summary(tool_execution) do
+      nil -> email_draft_fallback_summary(tool_execution)
+      summary -> summary
+    end
+  end
+
   defp tool_summary(%{summary: summary}) when is_binary(summary) and summary != "", do: summary
 
   defp tool_summary(%{status: "running"}),
@@ -1062,6 +1070,10 @@ defmodule LemmingsOsWeb.InstanceComponents do
 
   defp tool_summary_prefix(tool_execution),
     do: ensure_trailing_space(tool_summary(tool_execution))
+
+  defp tool_preview(%{tool_name: "email.create_draft"} = tool_execution) do
+    email_draft_preview(tool_execution)
+  end
 
   defp tool_preview(%{preview: preview}) when is_binary(preview) and preview != "", do: preview
 
@@ -1160,6 +1172,81 @@ defmodule LemmingsOsWeb.InstanceComponents do
   end
 
   defp tool_payload_json(payload), do: inspect(payload, pretty: true)
+
+  defp tool_result_payload_json(%{tool_name: "email.create_draft", result: result})
+       when is_map(result) do
+    result
+    |> email_draft_safe_result()
+    |> tool_payload_json()
+  end
+
+  defp tool_result_payload_json(%{result: result}), do: tool_payload_json(result)
+  defp tool_result_payload_json(_tool_execution), do: "{}"
+
+  defp email_draft_summary(%{result: result}) when is_map(result) do
+    recipient = result |> Map.get("to", []) |> safe_string_list() |> List.first() || "recipient"
+    attachment_count = result |> Map.get("artifact_ids", []) |> safe_string_list() |> length()
+    attachment_label = if attachment_count == 1, do: "attachment", else: "attachments"
+
+    "Created Gmail draft for #{recipient} with #{attachment_count} #{attachment_label}"
+  end
+
+  defp email_draft_summary(_tool_execution), do: nil
+
+  defp email_draft_fallback_summary(%{status: "running"}),
+    do: dgettext("lemmings", "Gmail draft creation is still running.")
+
+  defp email_draft_fallback_summary(%{status: "error"}),
+    do: dgettext("lemmings", "Gmail draft creation failed.")
+
+  defp email_draft_fallback_summary(_tool_execution),
+    do: dgettext("lemmings", "Gmail draft creation recorded.")
+
+  defp email_draft_preview(%{result: result}) when is_map(result) do
+    case safe_string(Map.get(result, "subject")) do
+      nil -> nil
+      subject -> "Subject: #{subject}"
+    end
+  end
+
+  defp email_draft_preview(_tool_execution), do: nil
+
+  defp email_draft_safe_result(result) when is_map(result) do
+    result
+    |> Map.take(@email_draft_result_keys)
+    |> Map.put("to", safe_string_list(Map.get(result, "to", [])))
+    |> Map.put("cc", safe_string_list(Map.get(result, "cc", [])))
+    |> Map.put("bcc", safe_string_list(Map.get(result, "bcc", [])))
+    |> Map.put("artifact_ids", safe_string_list(Map.get(result, "artifact_ids", [])))
+    |> maybe_put_safe_string("status", Map.get(result, "status"))
+    |> maybe_put_safe_string("provider", Map.get(result, "provider"))
+    |> maybe_put_safe_string("connection_ref", Map.get(result, "connection_ref"))
+    |> maybe_put_safe_string("draft_id", Map.get(result, "draft_id"))
+    |> maybe_put_safe_string("message_id", Map.get(result, "message_id"))
+    |> maybe_put_safe_string("subject", Map.get(result, "subject"))
+  end
+
+  defp maybe_put_safe_string(payload, key, value) do
+    case safe_string(value) do
+      nil -> Map.delete(payload, key)
+      safe_value -> Map.put(payload, key, safe_value)
+    end
+  end
+
+  defp safe_string_list(values) when is_list(values) do
+    values
+    |> Enum.map(&safe_string/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp safe_string_list(_values), do: []
+
+  defp safe_string(value) when is_binary(value) do
+    trimmed = String.trim(value)
+    if trimmed == "", do: nil, else: trimmed
+  end
+
+  defp safe_string(_value), do: nil
 
   defp assistant_metadata?(role) when role in ["assistant", :assistant], do: true
   defp assistant_metadata?(_role), do: false

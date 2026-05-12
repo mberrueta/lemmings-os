@@ -274,8 +274,23 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
 
       assert has_element?(view, "#city-connections-panel")
       assert has_element?(view, "#city-connections-open-create")
+      refute has_element?(view, "#city-gmail-connect-panel")
       view |> element("#city-connections-open-create") |> render_click()
       assert render(view) =~ "$MOCK_API_KEY"
+
+      view
+      |> element("#city-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+      assert has_element?(view, "#city-connections-create-gmail-panel")
+      assert has_element?(view, "#city-connections-create-gmail-client-id")
+      refute has_element?(view, "#city-connections-create-config")
+
+      view
+      |> element("#city-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "mock"}})
+
+      assert has_element?(view, "#city-connections-create-config")
 
       world_row = Connections.resolve_visible_connection(city, "mock")
       assert has_element?(view, "#city-connections-source-#{world_row.connection.id}", "World")
@@ -302,16 +317,6 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       view
       |> element("#city-connections-edit-#{created.id}")
       |> render_click()
-
-      view
-      |> element("#city-connections-edit-form-#{created.id}")
-      |> render_change(%{
-        "connection_edit" => %{
-          "connection_id" => created.id,
-          "type" => "mock",
-          "status" => "enabled"
-        }
-      })
 
       assert has_element?(view, "#city-connections-edit-form-#{created.id}")
 

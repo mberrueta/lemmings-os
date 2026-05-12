@@ -6,8 +6,8 @@ defmodule LemmingsOs.Connections.Providers.GmailCaller do
   alias LemmingsOs.Connections.Connection
 
   @compose_scope "https://www.googleapis.com/auth/gmail.compose"
-  @required_keys ~w(provider scopes client_id client_secret refresh_token)
-  @optional_keys ~w(account_email)
+  @required_keys ~w(provider scopes client_id client_secret)
+  @optional_keys ~w(account_email refresh_token)
   @allowed_keys @required_keys ++ @optional_keys
   @secret_ref_keys ~w(client_id client_secret refresh_token)
 
@@ -37,9 +37,8 @@ defmodule LemmingsOs.Connections.Providers.GmailCaller do
       "provider" => "gmail",
       "account_email" => "",
       "scopes" => [@compose_scope],
-      "client_id" => "$GMAIL_OAUTH_CLIENT_ID",
-      "client_secret" => "$GMAIL_OAUTH_CLIENT_SECRET",
-      "refresh_token" => "$GMAIL_REFRESH_TOKEN"
+      "client_id" => "$GMAIL_CLIENT_ID",
+      "client_secret" => "$GMAIL_CLIENT_SECRET"
     }
   end
 
@@ -94,8 +93,10 @@ defmodule LemmingsOs.Connections.Providers.GmailCaller do
   defp validate_scopes(_config), do: {:error, :invalid_config}
 
   defp validate_secret_refs(config) do
-    Enum.reduce_while(@secret_ref_keys, :ok, fn key, :ok ->
-      case Map.get(config, key) do
+    config
+    |> Map.take(@secret_ref_keys)
+    |> Enum.reduce_while(:ok, fn {_key, value}, :ok ->
+      case value do
         "$" <> rest when rest != "" -> {:cont, :ok}
         _ -> {:halt, {:error, :invalid_config}}
       end

@@ -264,6 +264,7 @@ Runtime config lives in `config/runtime.exs` under `:lemmings_os, :documents`.
 ### `email.create_draft`
 
 Creates a Gmail draft using a scoped `gmail` Connection and optional Artifact attachments.
+The resulting draft is intended for human review in Gmail before manual send.
 
 Required inputs:
 
@@ -309,3 +310,10 @@ Safety notes:
 - Rejects raw local file paths; attachments must be Artifact IDs.
 - Resolves Secret Bank refs only during adapter execution.
 - Does not expose raw Gmail API responses or OAuth credentials.
+- Timeline rendering should remain limited to safe summary/preview/result fields.
+
+Email non-goals in this MVP:
+
+- no `email.send` runtime tool
+- no Gmail read/sync/watch flows
+- no mailbox ingestion, reply parsing, or approval-record automation

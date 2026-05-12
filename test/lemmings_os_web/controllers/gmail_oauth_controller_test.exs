@@ -15,16 +15,16 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     def exchange_code(_client_id, _client_secret, "valid_code", _redirect_uri) do
       {:ok,
        %{
-         "refresh_token" => "dev_only_refresh_token_1",
-         "access_token" => "dev_only_access_token_1"
+         "refresh_token" => "oauth_secret_value_1",
+         "access_token" => "profile_lookup_value_1"
        }}
     end
 
     def exchange_code(_client_id, _client_secret, "valid_code_2", _redirect_uri) do
       {:ok,
        %{
-         "refresh_token" => "dev_only_refresh_token_2",
-         "access_token" => "dev_only_access_token_profile_failure"
+         "refresh_token" => "oauth_secret_value_2",
+         "access_token" => "profile_lookup_value_failure"
        }}
     end
 
@@ -32,9 +32,9 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
       {:error, :oauth_exchange_failed}
     end
 
-    def fetch_profile("dev_only_access_token_1"), do: {:ok, "owner@example.test"}
+    def fetch_profile("profile_lookup_value_1"), do: {:ok, "owner@example.test"}
 
-    def fetch_profile("dev_only_access_token_profile_failure"),
+    def fetch_profile("profile_lookup_value_failure"),
       do: {:error, :profile_lookup_failed}
 
     def fetch_profile(_access_token), do: {:error, :profile_lookup_failed}
@@ -62,8 +62,10 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     response =
       get(conn, ~p"/connections/gmail/oauth/start", %{
         "world_id" => world.id,
+        "connection_id" => "existing-connection-id",
         "client_id" => "$GMAIL_CLIENT_ID",
-        "client_secret" => "$GMAIL_CLIENT_SECRET"
+        "client_secret" => "$GMAIL_CLIENT_SECRET",
+        "return_to" => "/world?tab=connections"
       })
 
     redirect_url = redirected_to(response, 302)
@@ -74,6 +76,8 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     assert is_integer(session_state["expires_at_unix"])
     assert session_state["config"]["client_id"] == "$GMAIL_CLIENT_ID"
     assert session_state["config"]["client_secret"] == "$GMAIL_CLIENT_SECRET"
+    assert session_state["config"]["connection_id"] == "existing-connection-id"
+    assert session_state["return_to"] == "/world?tab=connections"
     refute inspect(session_state) =~ "dev_only_client_id"
 
     %URI{query: query} = URI.parse(redirect_url)
@@ -82,6 +86,82 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     assert query_params["scope"] == @compose_scope
     assert query_params["scope"] == String.trim(query_params["scope"])
     refute String.contains?(query_params["scope"], " ")
+  end
+
+  test "callback success redirects to city connections tab for city-scoped onboarding", %{
+    conn: conn
+  } do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    seed_google_client_secrets(world)
+
+    started =
+      get(conn, ~p"/connections/gmail/oauth/start", %{
+        "world_id" => world.id,
+        "city_id" => city.id,
+        "client_id" => "$GMAIL_CLIENT_ID",
+        "client_secret" => "$GMAIL_CLIENT_SECRET"
+      })
+
+    state = get_session(started, @session_key)
+
+    callback_conn =
+      started
+      |> recycle()
+      |> init_test_session(%{@session_key => state})
+      |> get(~p"/connections/gmail/oauth/callback", %{
+        "code" => "valid_code",
+        "state" => state["state"]
+      })
+
+    redirect_path = redirected_to(callback_conn)
+    assert String.starts_with?(redirect_path, "/cities?")
+
+    assert URI.parse(redirect_path).query |> URI.decode_query() == %{
+             "city" => city.id,
+             "tab" => "connections"
+           }
+
+    assert Connections.get_connection_by_type(city, "gmail")
+  end
+
+  test "callback success redirects to department connections tab for department-scoped onboarding",
+       %{conn: conn} do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+    seed_google_client_secrets(world)
+
+    started =
+      get(conn, ~p"/connections/gmail/oauth/start", %{
+        "world_id" => world.id,
+        "city_id" => city.id,
+        "department_id" => department.id,
+        "client_id" => "$GMAIL_CLIENT_ID",
+        "client_secret" => "$GMAIL_CLIENT_SECRET"
+      })
+
+    state = get_session(started, @session_key)
+
+    callback_conn =
+      started
+      |> recycle()
+      |> init_test_session(%{@session_key => state})
+      |> get(~p"/connections/gmail/oauth/callback", %{
+        "code" => "valid_code",
+        "state" => state["state"]
+      })
+
+    redirect_path = redirected_to(callback_conn)
+    assert String.starts_with?(redirect_path, "/departments?")
+
+    assert URI.parse(redirect_path).query |> URI.decode_query() == %{
+             "city" => city.id,
+             "dept" => department.id,
+             "tab" => "connections"
+           }
+
+    assert Connections.get_connection_by_type(department, "gmail")
   end
 
   test "callback success stores refresh token ref only and creates gmail connection", %{
@@ -102,7 +182,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
         "state" => state["state"]
       })
 
-    assert redirected_to(callback_conn) == "/settings"
+    assert redirected_to(callback_conn) == "/world?tab=connections"
 
     connection = Connections.get_connection_by_type(world, "gmail")
     assert connection.type == "gmail"
@@ -116,9 +196,9 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     assert {:ok, resolved_refresh} =
              SecretBank.resolve_runtime_secret(world, connection.config["refresh_token"])
 
-    assert resolved_refresh.value == "dev_only_refresh_token_1"
-    refute inspect(connection.config) =~ "dev_only_refresh_token_1"
-    refute inspect(connection.config) =~ "dev_only_access_token_not_for_storage"
+    assert resolved_refresh.value == "oauth_secret_value_1"
+    refute inspect(connection.config) =~ "oauth_secret_value_1"
+    refute inspect(connection.config) =~ "profile_lookup_value_not_for_storage"
 
     [event] =
       Events.list_recent_events(world,
@@ -127,8 +207,8 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
       )
 
     assert event.payload["connection_id"] == connection.id
-    refute inspect(event.payload) =~ "dev_only_refresh_token_1"
-    refute inspect(event.payload) =~ "dev_only_access_token_1"
+    refute inspect(event.payload) =~ "oauth_secret_value_1"
+    refute inspect(event.payload) =~ "profile_lookup_value_1"
     refute inspect(event.payload) =~ "valid_code"
     refute inspect(event.payload) =~ "dev_only_client_secret"
   end
@@ -171,7 +251,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     assert {:ok, resolved_refresh} =
              SecretBank.resolve_runtime_secret(world, updated.config["refresh_token"])
 
-    assert resolved_refresh.value == "dev_only_refresh_token_2"
+    assert resolved_refresh.value == "oauth_secret_value_2"
 
     [profile_failure_event] =
       Events.list_recent_events(world,
@@ -180,6 +260,54 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
       )
 
     assert profile_failure_event.payload["reason"] == "profile_lookup_failed"
+  end
+
+  test "callback preserves custom client credential refs from existing scoped connection", %{
+    conn: conn
+  } do
+    world = insert(:world)
+    seed_custom_google_client_secrets(world)
+
+    {:ok, existing} =
+      Connections.create_connection(world, %{
+        type: "gmail",
+        status: "enabled",
+        config: %{
+          "provider" => "gmail",
+          "scopes" => [@compose_scope],
+          "client_id" => "$GMAIL_CLIENT_ID2",
+          "client_secret" => "$GMAIL_CLIENT_SECRET2",
+          "account_email" => ""
+        }
+      })
+
+    started =
+      get(conn, ~p"/connections/gmail/oauth/start", %{
+        "world_id" => world.id,
+        "connection_id" => existing.id,
+        "client_id" => "$GMAIL_CLIENT_ID2",
+        "client_secret" => "$GMAIL_CLIENT_SECRET2"
+      })
+
+    state = get_session(started, @session_key)
+
+    _callback_conn =
+      started
+      |> recycle()
+      |> init_test_session(%{@session_key => state})
+      |> get(~p"/connections/gmail/oauth/callback", %{
+        "code" => "valid_code",
+        "state" => state["state"]
+      })
+
+    updated = Connections.get_connection_by_type(world, "gmail")
+    assert updated.id == existing.id
+    assert updated.config["client_id"] == "$GMAIL_CLIENT_ID2"
+    assert updated.config["client_secret"] == "$GMAIL_CLIENT_SECRET2"
+    assert updated.config["provider"] == "gmail"
+    assert updated.config["scopes"] == [@compose_scope]
+    assert updated.config["account_email"] == "owner@example.test"
+    assert String.starts_with?(updated.config["refresh_token"], "$GMAIL_REFRESH_TOKEN_WORLD_")
   end
 
   test "profile lookup failure does not fail oauth and leaves account email blank when no prior value",
@@ -199,7 +327,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
         "state" => state["state"]
       })
 
-    assert redirected_to(callback_conn) == "/settings"
+    assert redirected_to(callback_conn) == "/world?tab=connections"
 
     connection = Connections.get_connection_by_type(world, "gmail")
     assert connection.config["account_email"] == ""
@@ -211,7 +339,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
       )
 
     assert profile_failure_event.payload["reason"] == "profile_lookup_failed"
-    refute inspect(profile_failure_event.payload) =~ "dev_only_access_token_profile_failure"
+    refute inspect(profile_failure_event.payload) =~ "profile_lookup_value_failure"
   end
 
   test "callback rejects missing session state", %{conn: conn} do
@@ -248,7 +376,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
         "state" => "tampered"
       })
 
-    assert redirected_to(callback_conn) == "/settings"
+    assert redirected_to(callback_conn) == "/world?tab=connections"
     assert Phoenix.Flash.get(callback_conn.assigns.flash, :error) == "Gmail OAuth failed."
 
     [event] =
@@ -274,7 +402,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
       |> init_test_session(%{@session_key => state})
       |> get(~p"/connections/gmail/oauth/callback", %{"code" => "valid_code"})
 
-    assert redirected_to(callback_conn) == "/settings"
+    assert redirected_to(callback_conn) == "/world?tab=connections"
 
     [event] =
       Events.list_recent_events(world,
@@ -302,7 +430,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
         "state" => state["state"]
       })
 
-    assert redirected_to(callback_conn) == "/settings"
+    assert redirected_to(callback_conn) == "/world?tab=connections"
 
     [event] =
       Events.list_recent_events(world,
@@ -331,7 +459,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
         "world_id" => other_world.id
       })
 
-    assert redirected_to(callback_conn) == "/settings"
+    assert redirected_to(callback_conn) == "/world?tab=connections"
     assert Connections.get_connection_by_type(world, "gmail")
     assert is_nil(Connections.get_connection_by_type(other_world, "gmail"))
   end
@@ -350,7 +478,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
           |> recycle()
           |> init_test_session(%{@session_key => state})
           |> get(~p"/connections/gmail/oauth/callback", %{
-            "code" => "provider_failure_code_dev_only_refresh_token_1",
+            "code" => "provider_failure_code_oauth_secret_value_1",
             "state" => state["state"]
           })
 
@@ -359,7 +487,7 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
 
     assert_receive {:callback_conn, callback_conn}
 
-    assert redirected_to(callback_conn) == "/settings"
+    assert redirected_to(callback_conn) == "/world?tab=connections"
     assert Phoenix.Flash.get(callback_conn.assigns.flash, :error) == "Gmail OAuth failed."
 
     [event] =
@@ -369,11 +497,11 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
       )
 
     assert event.payload["reason"] == "oauth_exchange_failed"
-    refute inspect(event.payload) =~ "dev_only_refresh_token_1"
-    refute inspect(event.payload) =~ "provider_failure_code_dev_only_refresh_token_1"
+    refute inspect(event.payload) =~ "oauth_secret_value_1"
+    refute inspect(event.payload) =~ "provider_failure_code_oauth_secret_value_1"
     refute inspect(event.payload) =~ "dev_only_client_secret"
-    refute log =~ "dev_only_refresh_token_1"
-    refute log =~ "provider_failure_code_dev_only_refresh_token_1"
+    refute log =~ "oauth_secret_value_1"
+    refute log =~ "provider_failure_code_oauth_secret_value_1"
     refute log =~ "dev_only_client_secret"
     refute log =~ "valid_code"
   end
@@ -389,5 +517,10 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
   defp seed_google_client_secrets(world) do
     {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_ID", "dev_only_client_id")
     {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_SECRET", "dev_only_client_secret")
+  end
+
+  defp seed_custom_google_client_secrets(world) do
+    {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_ID2", "dev_only_client_id_2")
+    {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_SECRET2", "dev_only_client_secret_2")
   end
 end

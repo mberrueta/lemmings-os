@@ -22,6 +22,8 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :connection_rows, :list, default: []
   attr :connection_editing_id, :string, default: nil
   attr :connection_edit_form, :any, default: nil
+  attr :connection_gmail_oauth, :map, default: %{}
+  attr :connection_scope_params, :map, default: %{}
   attr :artifact_rows, :list, default: []
 
   def world_page(assigns) do
@@ -62,6 +64,8 @@ defmodule LemmingsOsWeb.WorldComponents do
         connection_rows={@connection_rows}
         connection_editing_id={@connection_editing_id}
         connection_edit_form={@connection_edit_form}
+        connection_gmail_oauth={@connection_gmail_oauth}
+        connection_scope_params={@connection_scope_params}
         artifact_rows={@artifact_rows}
       />
     </.content_container>
@@ -89,6 +93,8 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :connection_rows, :list, required: true
   attr :connection_editing_id, :string, default: nil
   attr :connection_edit_form, :any, default: nil
+  attr :connection_gmail_oauth, :map, default: %{}
+  attr :connection_scope_params, :map, default: %{}
   attr :artifact_rows, :list, default: []
 
   defp world_snapshot(assigns) do
@@ -517,6 +523,8 @@ defmodule LemmingsOsWeb.WorldComponents do
       rows={@connection_rows}
       editing_connection_id={@connection_editing_id}
       edit_form={@connection_edit_form}
+      gmail_oauth={@connection_gmail_oauth}
+      gmail_scope_params={@connection_scope_params}
       create_submit_event="create_world_connection"
       create_type_change_event="change_world_connection_create_type"
       open_create_event="open_world_connection_create"
@@ -774,6 +782,8 @@ defmodule LemmingsOsWeb.WorldComponents do
   attr :connection_rows, :list, default: []
   attr :connection_editing_id, :string, default: nil
   attr :connection_edit_form, :any, default: nil
+  attr :connection_gmail_oauth, :map, default: %{}
+  attr :connection_scope_params, :map, default: %{}
   attr :artifact_rows, :list, default: []
 
   def department_detail_page(assigns) do
@@ -1245,6 +1255,8 @@ defmodule LemmingsOsWeb.WorldComponents do
         rows={@connection_rows}
         editing_connection_id={@connection_editing_id}
         edit_form={@connection_edit_form}
+        gmail_oauth={@connection_gmail_oauth}
+        gmail_scope_params={@connection_scope_params}
         create_submit_event="create_department_connection"
         create_type_change_event="change_department_connection_create_type"
         open_create_event="open_department_connection_create"
