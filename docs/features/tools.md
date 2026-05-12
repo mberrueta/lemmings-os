@@ -269,15 +269,18 @@ The resulting draft is intended for human review in Gmail before manual send.
 Required inputs:
 
 - `connection_ref`: must be `gmail`
-- `to`: non-empty recipient list
+- `to`: non-empty recipient email string, comma-separated recipient string, or
+  recipient list
 - `subject`: non-empty string
 - `body`: non-empty string
-- `body_format`: `text/plain` or `text/html`
 
 Optional inputs:
 
-- `cc`: recipient list (default `[]`)
-- `bcc`: recipient list (default `[]`)
+- `cc`: recipient email string, comma-separated string, list, `null`, or blank
+  string (default `[]`)
+- `bcc`: recipient email string, comma-separated string, list, `null`, or blank
+  string (default `[]`)
+- `body_format`: `text/plain` or `text/html` (default `text/plain`)
 - `artifact_ids`: Artifact id list (default `[]`)
 
 Minimal call:

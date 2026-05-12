@@ -55,6 +55,21 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     :ok
   end
 
+  test "router exposes only Gmail OAuth start and callback routes" do
+    gmail_routes =
+      LemmingsOsWeb.Router.__routes__()
+      |> Enum.filter(fn route ->
+        String.contains?(route.path, "/gmail") or String.contains?(inspect(route.plug), "Gmail")
+      end)
+      |> Enum.map(&{&1.verb, &1.path, &1.plug_opts})
+      |> Enum.sort()
+
+    assert gmail_routes == [
+             {:get, "/connections/gmail/oauth/callback", :callback},
+             {:get, "/connections/gmail/oauth/start", :start}
+           ]
+  end
+
   test "start stores session state and redirects with compose scope", %{conn: conn} do
     world = insert(:world)
     {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_ID", "dev_only_client_id")
@@ -79,6 +94,12 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     assert session_state["config"]["connection_id"] == "existing-connection-id"
     assert session_state["return_to"] == "/world?tab=connections"
     refute inspect(session_state) =~ "dev_only_client_id"
+
+    session_cookie = Enum.join(get_resp_header(response, "set-cookie"), "\n")
+    refute session_cookie =~ "$GMAIL_CLIENT_ID"
+    refute session_cookie =~ "$GMAIL_CLIENT_SECRET"
+    refute session_cookie =~ "existing-connection-id"
+    refute session_cookie =~ world.id
 
     %URI{query: query} = URI.parse(redirect_url)
     query_params = URI.decode_query(query || "")

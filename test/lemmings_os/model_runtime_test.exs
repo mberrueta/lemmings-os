@@ -469,6 +469,28 @@ defmodule LemmingsOs.ModelRuntimeTest do
     assert List.last(request.messages) == %{role: "user", content: "Write notes/output.md"}
   end
 
+  test "S08a: debug_request/3 exposes email draft argument contract" do
+    config_snapshot = %{
+      name: "Customer Follow-up",
+      description: "Prepares customer updates after support triage completes.",
+      provider_module: FakeProvider,
+      model: "test-model",
+      tools_config: %{allowed_tools: ["email.create_draft"]}
+    }
+
+    assert {:ok, %{request: request}} =
+             ModelRuntime.debug_request(config_snapshot, [], %{content: "Draft a follow-up"})
+
+    assert %{role: "system", content: system_prompt} = Enum.at(request.messages, 0)
+
+    assert String.contains?(system_prompt, "- email.create_draft:")
+    assert String.contains?(system_prompt, "args: required `connection_ref`")
+    assert String.contains?(system_prompt, "`to` (recipient email string")
+    assert String.contains?(system_prompt, "optional `cc`/`bcc`")
+    assert String.contains?(system_prompt, "optional `body_format` (`text/plain` default")
+    assert String.contains?(system_prompt, "Creates a Gmail draft only; never sends email.")
+  end
+
   test "S09: debug_request/3 keeps one user message when current request already exists in history" do
     config_snapshot = %{
       name: "Budget Brief",

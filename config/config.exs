@@ -75,11 +75,23 @@ end
 config :lemmings_os, LemmingsOs.SecretBank,
   allowed_env_vars: [
     "$GITHUB_TOKEN",
-    "$OPENROUTER_API_KEY"
+    "$OPENROUTER_API_KEY",
+    "$GMAIL_CLIENT_ID",
+    "$GMAIL_CLIENT_SECRET",
+    "$GOOGLE_OAUTH_CLIENT_ID",
+    "$GOOGLE_OAUTH_CLIENT_SECRET",
+    "$GMAIL_OAUTH_CLIENT_ID",
+    "$GMAIL_OAUTH_CLIENT_SECRET"
   ],
   env_fallbacks: [
     "$GITHUB_TOKEN",
-    {"OPENROUTER_API_KEY", "$OPENROUTER_API_KEY"}
+    {"OPENROUTER_API_KEY", "$OPENROUTER_API_KEY"},
+    "$GMAIL_CLIENT_ID",
+    "$GMAIL_CLIENT_SECRET",
+    "$GOOGLE_OAUTH_CLIENT_ID",
+    "$GOOGLE_OAUTH_CLIENT_SECRET",
+    "$GMAIL_OAUTH_CLIENT_ID",
+    "$GMAIL_OAUTH_CLIENT_SECRET"
   ]
 
 # TODO: temporary default selection

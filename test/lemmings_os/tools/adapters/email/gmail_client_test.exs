@@ -5,6 +5,15 @@ defmodule LemmingsOs.Tools.Adapters.Email.GmailClientTest do
 
   doctest GmailClient
 
+  test "does not expose public Gmail send, read, list, sync, or delete functions" do
+    refute function_exported?(GmailClient, :send_message, 3)
+    refute function_exported?(GmailClient, :send_email, 3)
+    refute function_exported?(GmailClient, :read_message, 2)
+    refute function_exported?(GmailClient, :list_messages, 2)
+    refute function_exported?(GmailClient, :sync_messages, 2)
+    refute function_exported?(GmailClient, :delete_message, 2)
+  end
+
   test "exchange_refresh_token/4 returns access token on success" do
     bypass = Bypass.open()
 

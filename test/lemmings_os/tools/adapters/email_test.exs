@@ -89,6 +89,66 @@ defmodule LemmingsOs.Tools.Adapters.EmailTest do
     assert mime =~ "Subject: Plain text draft"
   end
 
+  test "normalizes string recipients, blank optional recipients, and default body format",
+       context do
+    put_gmail_runtime_config!(context)
+
+    assert {:ok, result} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => "first@example.com, second@example.com",
+                 "cc" => "",
+                 "bcc" => nil,
+                 "subject" => "Default format draft",
+                 "body" => "Hello from LemmingsOS"
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert result.result["to"] == ["first@example.com", "second@example.com"]
+    assert result.result["cc"] == []
+    assert result.result["bcc"] == []
+
+    assert_receive {:email_draft_create_called, "access-token", raw_message}
+    assert {:ok, mime} = Base.url_decode64(raw_message, padding: false)
+    assert mime =~ "Content-Type: text/plain; charset=\"UTF-8\""
+    assert mime =~ "To: first@example.com, second@example.com"
+    refute mime =~ "\r\nCc:"
+    refute mime =~ "\r\nBcc:"
+  end
+
+  test "normalizes comma-separated cc and bcc recipient strings", context do
+    put_gmail_runtime_config!(context)
+
+    assert {:ok, result} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => ["customer@example.com"],
+                 "cc" => "ops@example.com, sales@example.com",
+                 "bcc" => "audit@example.com",
+                 "subject" => "Recipient draft",
+                 "body" => "Hello",
+                 "body_format" => ""
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert result.result["cc"] == ["ops@example.com", "sales@example.com"]
+    assert result.result["bcc"] == ["audit@example.com"]
+
+    assert_receive {:email_draft_create_called, "access-token", raw_message}
+    assert {:ok, mime} = Base.url_decode64(raw_message, padding: false)
+    assert mime =~ "Cc: ops@example.com, sales@example.com"
+    assert mime =~ "Bcc: audit@example.com"
+    assert mime =~ "Content-Type: text/plain; charset=\"UTF-8\""
+  end
+
   test "creates a Gmail draft with text/html body and one attachment", context do
     put_gmail_runtime_config!(context)
     artifact = insert_ready_artifact!(context, "quote.pdf", "application/pdf", "%PDF-1.4 body")
@@ -297,6 +357,63 @@ defmodule LemmingsOs.Tools.Adapters.EmailTest do
              )
 
     assert "attachment_paths" in fields
+  end
+
+  test "invalid arguments emit safe draft_failed event without raw input values", context do
+    put_gmail_runtime_config!(context)
+
+    raw_body = "sentinel body should not be observed"
+    raw_subject = "sentinel subject should not be observed"
+    raw_recipient = "raw-recipient@example.com"
+    raw_path = "/tmp/sentinel-secret.pdf"
+    raw_token = "sentinel-access-token"
+
+    assert {:error, %{code: "tool.validation.invalid_args"} = error} =
+             Email.create_draft(
+               context.instance,
+               %{
+                 "connection_ref" => "gmail",
+                 "to" => [raw_recipient],
+                 "subject" => raw_subject,
+                 "body" => raw_body,
+                 "body_format" => "text/plain",
+                 "attachment_paths" => [raw_path],
+                 "access_token" => raw_token
+               },
+               %{},
+               success_config(self())
+             )
+
+    assert error.details.unsupported_fields == ["access_token", "attachment_paths"]
+
+    [event] =
+      Events.list_recent_events(
+        %{
+          world_id: context.world.id,
+          city_id: context.city.id,
+          department_id: context.department.id,
+          lemming_id: context.lemming.id
+        },
+        event_types: ["email.draft_failed"],
+        limit: 1
+      )
+
+    assert event.payload["world_id"] == context.world.id
+    assert event.payload["city_id"] == context.city.id
+    assert event.payload["department_id"] == context.department.id
+    assert event.payload["lemming_instance_id"] == context.instance.id
+    assert event.payload["tool_name"] == "email.create_draft"
+    assert event.payload["status"] == "failed"
+    assert event.payload["error_code"] == "invalid_args"
+
+    inspected_payload = inspect(event.payload)
+    refute inspected_payload =~ raw_body
+    refute inspected_payload =~ raw_subject
+    refute inspected_payload =~ raw_recipient
+    refute inspected_payload =~ raw_path
+    refute inspected_payload =~ raw_token
+    refute inspected_payload =~ "attachment_paths"
+    refute inspected_payload =~ "access_token"
   end
 
   test "returns safe artifact errors for missing, non-ready, not-allowed, and broken storage",

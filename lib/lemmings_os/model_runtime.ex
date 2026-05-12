@@ -514,6 +514,10 @@ defmodule LemmingsOs.ModelRuntime do
     "required `source_path` (WorkArea-relative supported source); optional `output_path` (defaults to same path with `.pdf`); optional `overwrite` (default `true`); optional `print_raw_file` (default `false`); optional `header_path`/`footer_path`; optional `style_paths` (list of `.css`); optional `paper_size`, `landscape`, `margin_top`, `margin_bottom`, `margin_left`, `margin_right`."
   end
 
+  defp tool_argument_contract("email.create_draft") do
+    "required `connection_ref` (`gmail`), `to` (recipient email string, comma-separated string, or list), `subject`, and `body`; optional `cc`/`bcc` (list, string, comma-separated string, nil, or blank; default []); optional `body_format` (`text/plain` default, or `text/html`); optional `artifact_ids` (list, default []). Creates a Gmail draft only; never sends email."
+  end
+
   defp tool_argument_contract(_tool_id), do: nil
 
   defp available_lemming_calls_message(config_snapshot) do

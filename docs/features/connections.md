@@ -277,16 +277,21 @@ set:
 
 ### Environment And Secret Bank Setup
 
-Required deployment env vars:
+Recommended deployment env vars when using Secret Bank env fallbacks:
 
-- `GOOGLE_OAUTH_CLIENT_ID`
-- `GOOGLE_OAUTH_CLIENT_SECRET`
-- `GOOGLE_OAUTH_REDIRECT_URI`
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
 
 Recommended Secret Bank mapping for the UI flow:
 
 - `$GMAIL_CLIENT_ID` -> OAuth client id value
 - `$GMAIL_CLIENT_SECRET` -> OAuth client secret value
+
+The default Secret Bank policy also allows `$GOOGLE_OAUTH_CLIENT_ID`,
+`$GOOGLE_OAUTH_CLIENT_SECRET`, `$GMAIL_OAUTH_CLIENT_ID`, and
+`$GMAIL_OAUTH_CLIENT_SECRET` refs if operators prefer those names. The
+authorized redirect URI is the app callback URL:
+`/connections/gmail/oauth/callback`.
 
 You can provide those refs either by:
 

@@ -26,6 +26,7 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   @tool_name "email.create_draft"
   @provider "gmail"
   @connection_ref "gmail"
+  @default_body_format "text/plain"
   @allowed_body_formats MapSet.new(["text/plain", "text/html"])
   @allowed_fields MapSet.new([
                     "connection_ref",
@@ -80,12 +81,16 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   - `instance`: `%LemmingsOs.LemmingInstances.LemmingInstance{}` execution scope.
   - `args`:
     - `"connection_ref"` (required): must be `"gmail"`.
-    - `"to"` (required): non-empty list of recipient email strings.
-    - `"cc"` (optional): list of recipient email strings. Default: `[]`.
-    - `"bcc"` (optional): list of recipient email strings. Default: `[]`.
+    - `"to"` (required): non-empty recipient email string, comma-separated
+      recipient email string, or list of recipient email strings.
+    - `"cc"` (optional): recipient email string, comma-separated recipient
+      email string, list of recipient email strings, `nil`, or `""`. Default: `[]`.
+    - `"bcc"` (optional): recipient email string, comma-separated recipient
+      email string, list of recipient email strings, `nil`, or `""`. Default: `[]`.
     - `"subject"` (required): non-empty string.
     - `"body"` (required): body string.
-    - `"body_format"` (required): `"text/plain"` or `"text/html"`.
+    - `"body_format"` (optional): `"text/plain"` or `"text/html"`.
+      Default: `"text/plain"`.
     - `"artifact_ids"` (optional): list of Artifact IDs. Default: `[]`.
   - `runtime_meta` (optional): runtime metadata map. Default: `%{}`.
   - `trusted_config` (optional): trusted adapter config map. Default: `%{}`.
@@ -162,12 +167,17 @@ defmodule LemmingsOs.Tools.Adapters.Email do
         trusted_config \\ %{}
       )
       when is_map(args) and is_map(runtime_meta) and is_map(trusted_config) do
-    with {:ok, parsed_args} <- validate_args(args) do
-      _ = record_requested_event(instance, parsed_args)
+    case validate_args(args) do
+      {:ok, parsed_args} ->
+        _ = record_requested_event(instance, parsed_args)
 
-      instance
-      |> run_create_draft(parsed_args, trusted_config)
-      |> finalize_with_events(instance, parsed_args)
+        instance
+        |> run_create_draft(parsed_args, trusted_config)
+        |> finalize_with_events(instance, parsed_args)
+
+      {:error, %{} = error} ->
+        _ = record_invalid_args_failed_event(instance)
+        {:error, error}
     end
   end
 
@@ -283,37 +293,52 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   end
 
   defp validate_required_recipients(args, field) do
-    case fetch_arg(args, field) do
-      values when is_list(values) and values != [] ->
-        normalize_recipients(values, field)
+    case normalize_recipient_values(fetch_arg(args, field), field) do
+      {:ok, []} ->
+        required_field_error(field)
 
-      _other ->
-        {:error,
-         %{
-           code: "tool.validation.invalid_args",
-           message: "Invalid tool arguments",
-           details: %{required: [field]}
-         }}
+      {:ok, recipients} ->
+        {:ok, recipients}
+
+      {:error, %{} = error} ->
+        {:error, error}
     end
   end
 
   defp validate_optional_recipients(args, field) do
-    case fetch_arg(args, field) do
-      nil ->
-        {:ok, []}
+    case normalize_recipient_values(fetch_arg(args, field), field) do
+      {:ok, recipients} ->
+        {:ok, recipients}
 
-      values when is_list(values) ->
-        normalize_recipients(values, field)
-
-      _other ->
-        {:error,
-         %{
-           code: "tool.validation.invalid_args",
-           message: "Invalid tool arguments",
-           details: %{field: field}
-         }}
+      {:error, %{} = error} ->
+        {:error, error}
     end
   end
+
+  defp normalize_recipient_values(nil, _field), do: {:ok, []}
+
+  defp normalize_recipient_values(value, field) when is_binary(value) do
+    value
+    |> recipient_candidates()
+    |> normalize_recipients(field)
+  end
+
+  defp normalize_recipient_values(values, field) when is_list(values) do
+    values
+    |> Enum.flat_map(&recipient_candidates/1)
+    |> normalize_recipients(field)
+  end
+
+  defp normalize_recipient_values(_values, field), do: {:error, invalid_args_error(field)}
+
+  defp recipient_candidates(value) when is_binary(value) do
+    value
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp recipient_candidates(value), do: [value]
 
   defp normalize_recipients(values, field) do
     values
@@ -369,27 +394,48 @@ defmodule LemmingsOs.Tools.Adapters.Email do
 
   defp validate_body_format(args) do
     case fetch_arg(args, "body_format") do
+      nil ->
+        {:ok, @default_body_format}
+
       value when is_binary(value) ->
-        if MapSet.member?(@allowed_body_formats, value) do
-          {:ok, value}
-        else
-          {:error, invalid_body_format_error(value)}
+        normalized = String.trim(value)
+
+        cond do
+          normalized == "" ->
+            {:ok, @default_body_format}
+
+          MapSet.member?(@allowed_body_formats, normalized) ->
+            {:ok, normalized}
+
+          true ->
+            {:error, invalid_body_format_error(normalized)}
         end
 
       _other ->
-        {:error,
-         %{
-           code: "tool.validation.invalid_args",
-           message: "Invalid tool arguments",
-           details: %{required: ["body_format"]}
-         }}
+        {:error, invalid_args_error("body_format")}
     end
+  end
+
+  defp required_field_error(field) do
+    {:error,
+     %{
+       code: "tool.validation.invalid_args",
+       message: "Invalid tool arguments",
+       details: %{required: [field]}
+     }}
   end
 
   defp validate_artifact_ids(args) do
     case fetch_arg(args, "artifact_ids") do
       nil ->
         {:ok, []}
+
+      value when is_binary(value) ->
+        if String.trim(value) == "" do
+          {:ok, []}
+        else
+          {:error, invalid_args_error("artifact_ids")}
+        end
 
       values when is_list(values) ->
         normalize_artifact_ids(values)
@@ -783,6 +829,20 @@ defmodule LemmingsOs.Tools.Adapters.Email do
       base_event_payload(instance, parsed_args, connection_id)
       |> Map.put(:status, "failed")
       |> Map.put(:error_code, Map.get(error, :code))
+
+    record_event(instance, "email.draft_failed", "Email draft failed", payload)
+  end
+
+  defp record_invalid_args_failed_event(instance) do
+    payload = %{
+      world_id: instance.world_id,
+      city_id: instance.city_id,
+      department_id: instance.department_id,
+      lemming_instance_id: instance.id,
+      tool_name: @tool_name,
+      status: "failed",
+      error_code: "invalid_args"
+    }
 
     record_event(instance, "email.draft_failed", "Email draft failed", payload)
   end

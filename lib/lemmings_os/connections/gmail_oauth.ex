@@ -128,6 +128,7 @@ defmodule LemmingsOs.Connections.GmailOAuth do
     oauth_client = Keyword.get(opts, :oauth_client, Client)
 
     with :ok <- validate_session_state(params, session_state),
+         :ok <- validate_session_scope(scope, session_state),
          {:ok, code} <- fetch_nonempty_map(params, "code"),
          {:ok, redirect_uri} <- fetch_nonempty(opts, :redirect_uri),
          {:ok, config} <- fetch_oauth_config(session_state),
@@ -154,6 +155,16 @@ defmodule LemmingsOs.Connections.GmailOAuth do
       {:error, :missing_secret} -> {:error, :missing_secret}
       {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
       _ -> {:error, :oauth_failed}
+    end
+  end
+
+  defp validate_session_scope(scope, session_state) do
+    with {:ok, scope_data} <- scope_data(scope),
+         %{} = session_scope <- Map.get(session_state, "scope"),
+         true <- session_scope == scope_data do
+      :ok
+    else
+      _ -> {:error, :invalid_state}
     end
   end
 

@@ -87,11 +87,15 @@ Bank may read. `env_fallbacks` maps bank keys to those env vars:
 
 The process environment is never treated as an open keyspace.
 
-For Gmail onboarding, deployments commonly map OAuth env vars into the refs
-used by Connections:
+For Gmail onboarding, deployments commonly map OAuth env vars into the default
+refs used by Connections:
 
-- `GOOGLE_OAUTH_CLIENT_ID` -> `$GMAIL_CLIENT_ID`
-- `GOOGLE_OAUTH_CLIENT_SECRET` -> `$GMAIL_CLIENT_SECRET`
+- `GMAIL_CLIENT_ID` -> `$GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET` -> `$GMAIL_CLIENT_SECRET`
+
+The default allowlist also permits `$GOOGLE_OAUTH_CLIENT_ID`,
+`$GOOGLE_OAUTH_CLIENT_SECRET`, `$GMAIL_OAUTH_CLIENT_ID`, and
+`$GMAIL_OAUTH_CLIENT_SECRET` refs for deployments that prefer those names.
 
 ## Key and Reference Format
 
