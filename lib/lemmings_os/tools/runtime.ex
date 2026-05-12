@@ -4,6 +4,7 @@ defmodule LemmingsOs.Tools.Runtime do
   """
 
   alias LemmingsOs.Tools.Adapters.Documents
+  alias LemmingsOs.Tools.Adapters.Email
   alias LemmingsOs.Tools.Adapters.Knowledge
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.Tools.Adapters.Filesystem
@@ -208,6 +209,21 @@ defmodule LemmingsOs.Tools.Runtime do
       "documents.print_to_pdf",
       args,
       Documents.print_to_pdf(instance, args, runtime_meta)
+    )
+  end
+
+  defp dispatch_tool_call(
+         _world,
+         instance,
+         "email.create_draft",
+         args,
+         runtime_meta,
+         trusted_config
+       ) do
+    normalize_tool_result(
+      "email.create_draft",
+      args,
+      Email.create_draft(instance, args, runtime_meta, trusted_config)
     )
   end
 

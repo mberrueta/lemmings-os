@@ -133,10 +133,10 @@ msgstr ""
 msgid ".error_something_went_wrong"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:179
-#: lib/lemmings_os_web/live/departments_live.ex:161
+#: lib/lemmings_os_web/live/cities_live.ex:181
+#: lib/lemmings_os_web/live/departments_live.ex:163
 #: lib/lemmings_os_web/live/lemmings_live.ex:161
-#: lib/lemmings_os_web/live/world_live.ex:78
+#: lib/lemmings_os_web/live/world_live.ex:80
 #, elixir-autogen
 msgid ".error_invalid_key"
 msgstr ""
@@ -492,24 +492,24 @@ msgstr ""
 msgid "Tool iteration limit reached before final reply."
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:172
-#: lib/lemmings_os_web/live/cities_live.ex:211
-#: lib/lemmings_os_web/live/cities_live.ex:276
-#: lib/lemmings_os_web/live/cities_live.ex:362
-#: lib/lemmings_os_web/live/cities_live.ex:389
-#: lib/lemmings_os_web/live/cities_live.ex:417
-#: lib/lemmings_os_web/live/cities_live.ex:435
+#: lib/lemmings_os_web/live/cities_live.ex:174
+#: lib/lemmings_os_web/live/cities_live.ex:213
+#: lib/lemmings_os_web/live/cities_live.ex:290
+#: lib/lemmings_os_web/live/cities_live.ex:387
+#: lib/lemmings_os_web/live/cities_live.ex:414
+#: lib/lemmings_os_web/live/cities_live.ex:442
+#: lib/lemmings_os_web/live/cities_live.ex:460
 #, elixir-autogen, elixir-format
 msgid ".error_city_unavailable"
 msgstr ""
 
-#: lib/lemmings_os_web/live/departments_live.ex:154
-#: lib/lemmings_os_web/live/departments_live.ex:196
-#: lib/lemmings_os_web/live/departments_live.ex:263
-#: lib/lemmings_os_web/live/departments_live.ex:357
-#: lib/lemmings_os_web/live/departments_live.ex:384
-#: lib/lemmings_os_web/live/departments_live.ex:412
-#: lib/lemmings_os_web/live/departments_live.ex:430
+#: lib/lemmings_os_web/live/departments_live.ex:156
+#: lib/lemmings_os_web/live/departments_live.ex:198
+#: lib/lemmings_os_web/live/departments_live.ex:276
+#: lib/lemmings_os_web/live/departments_live.ex:382
+#: lib/lemmings_os_web/live/departments_live.ex:409
+#: lib/lemmings_os_web/live/departments_live.ex:437
+#: lib/lemmings_os_web/live/departments_live.ex:455
 #, elixir-autogen, elixir-format
 msgid ".error_department_unavailable"
 msgstr ""
@@ -520,48 +520,48 @@ msgstr ""
 msgid ".error_lemming_unavailable"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:225
-#: lib/lemmings_os_web/live/departments_live.ex:210
+#: lib/lemmings_os_web/live/cities_live.ex:227
+#: lib/lemmings_os_web/live/departments_live.ex:212
 #: lib/lemmings_os_web/live/lemmings_live.ex:207
-#: lib/lemmings_os_web/live/world_live.ex:122
+#: lib/lemmings_os_web/live/world_live.ex:124
 #, elixir-autogen, elixir-format
 msgid ".error_secret_delete_failed"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:218
-#: lib/lemmings_os_web/live/departments_live.ex:203
+#: lib/lemmings_os_web/live/cities_live.ex:220
+#: lib/lemmings_os_web/live/departments_live.ex:205
 #: lib/lemmings_os_web/live/lemmings_live.ex:200
-#: lib/lemmings_os_web/live/world_live.ex:115
+#: lib/lemmings_os_web/live/world_live.ex:117
 #, elixir-autogen, elixir-format
 msgid ".error_secret_inherited_not_deletable"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:222
-#: lib/lemmings_os_web/live/departments_live.ex:207
+#: lib/lemmings_os_web/live/cities_live.ex:224
+#: lib/lemmings_os_web/live/departments_live.ex:209
 #: lib/lemmings_os_web/live/lemmings_live.ex:204
-#: lib/lemmings_os_web/live/world_live.ex:119
+#: lib/lemmings_os_web/live/world_live.ex:121
 #, elixir-autogen, elixir-format
 msgid ".error_secret_key_not_found"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:194
-#: lib/lemmings_os_web/live/departments_live.ex:179
+#: lib/lemmings_os_web/live/cities_live.ex:196
+#: lib/lemmings_os_web/live/departments_live.ex:181
 #: lib/lemmings_os_web/live/lemmings_live.ex:176
-#: lib/lemmings_os_web/live/world_live.ex:93
+#: lib/lemmings_os_web/live/world_live.ex:95
 #, elixir-autogen, elixir-format
 msgid ".error_secret_save_failed"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:187
-#: lib/lemmings_os_web/live/departments_live.ex:172
+#: lib/lemmings_os_web/live/cities_live.ex:189
+#: lib/lemmings_os_web/live/departments_live.ex:174
 #: lib/lemmings_os_web/live/lemmings_live.ex:169
-#: lib/lemmings_os_web/live/world_live.ex:86
+#: lib/lemmings_os_web/live/world_live.ex:88
 #, elixir-autogen, elixir-format
 msgid ".error_secret_value_required"
 msgstr ""
 
-#: lib/lemmings_os_web/live/world_live.ex:71
-#: lib/lemmings_os_web/live/world_live.ex:108
+#: lib/lemmings_os_web/live/world_live.ex:73
+#: lib/lemmings_os_web/live/world_live.ex:110
 #, elixir-autogen, elixir-format
 msgid ".error_world_unavailable"
 msgstr ""

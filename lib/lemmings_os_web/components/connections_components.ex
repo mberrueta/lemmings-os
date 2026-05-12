@@ -11,6 +11,8 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
   attr :id_prefix, :string, required: true
   attr :scope_kind, :string, required: true
   attr :scope_available?, :boolean, default: true
+  attr :gmail_oauth, :map, default: %{}
+  attr :gmail_scope_params, :map, default: %{}
   attr :types, :list, default: []
   attr :create_form, :any, required: true
   attr :create_open?, :boolean, default: false
@@ -36,6 +38,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
       assigns
       |> assign(:title, assigns[:title] || dgettext("layout", ".title_connections"))
       |> assign(:subtitle, assigns[:subtitle] || dgettext("layout", ".subtitle_connections"))
+      |> assign(:gmail_oauth, assigns[:gmail_oauth] || %{})
 
     ~H"""
     <.panel id={"#{@id_prefix}-connections-panel"} tone="accent">
@@ -99,14 +102,30 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
 
             <input type="hidden" name="connection_create[status]" value="enabled" />
 
+            <.gmail_connection_panel
+              :if={ConnectionsSurface.gmail_form?(@create_form)}
+              id_prefix={"#{@id_prefix}-connections-create"}
+              form={@create_form}
+              form_name="connection_create"
+              scope_kind={@scope_kind}
+              submit_button_id={"#{@id_prefix}-connections-create-submit"}
+              connect_button_id={"#{@id_prefix}-connections-create-connect-gmail"}
+              cancel_button_id={"#{@id_prefix}-connections-create-cancel"}
+              close_event={@close_create_event}
+            />
+
             <.input
+              :if={!ConnectionsSurface.gmail_form?(@create_form)}
               field={@create_form[:config]}
               id={"#{@id_prefix}-connections-create-config"}
               type="textarea"
               label={dgettext("layout", ".connections_label_config_json")}
             />
 
-            <div class="mt-3 flex justify-end gap-2">
+            <div
+              :if={!ConnectionsSurface.gmail_form?(@create_form)}
+              class="mt-3 flex justify-end gap-2"
+            >
               <button
                 id={"#{@id_prefix}-connections-create-cancel"}
                 type="button"
@@ -270,7 +289,6 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
               }
               for={@edit_form}
               id={"#{@id_prefix}-connections-edit-form-#{row.connection.id}"}
-              phx-change={@edit_type_change_event}
               phx-submit={@save_edit_event}
               class="mt-3 grid gap-2 rounded-md border border-zinc-700 bg-zinc-900/40 p-3"
             >
@@ -286,6 +304,7 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
               <select
                 id={"#{@id_prefix}-connections-edit-type-#{row.connection.id}"}
                 name="connection_edit[type]"
+                phx-change={@edit_type_change_event}
                 class="rounded border border-zinc-600 bg-zinc-950 px-3 py-2 text-zinc-100"
               >
                 <option
@@ -297,14 +316,27 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
                 </option>
               </select>
 
+              <.gmail_connection_panel
+                :if={ConnectionsSurface.gmail_form?(@edit_form)}
+                id_prefix={"#{@id_prefix}-connections-edit-#{row.connection.id}"}
+                form={@edit_form}
+                form_name="connection_edit"
+                scope_kind={@scope_kind}
+                submit_button_id={"#{@id_prefix}-connections-edit-save-#{row.connection.id}"}
+                connect_button_id={"#{@id_prefix}-connections-edit-connect-gmail-#{row.connection.id}"}
+                cancel_button_id={"#{@id_prefix}-connections-edit-cancel-#{row.connection.id}"}
+                close_event={@cancel_edit_event}
+              />
+
               <.input
+                :if={!ConnectionsSurface.gmail_form?(@edit_form)}
                 field={@edit_form[:config]}
                 type="textarea"
                 id={"#{@id_prefix}-connections-edit-config-#{row.connection.id}"}
                 label={dgettext("layout", ".connections_label_config_json")}
               />
 
-              <div class="mt-2 flex gap-2">
+              <div :if={!ConnectionsSurface.gmail_form?(@edit_form)} class="mt-2 flex gap-2">
                 <.button
                   id={"#{@id_prefix}-connections-edit-save-#{row.connection.id}"}
                   type="submit"
@@ -326,6 +358,131 @@ defmodule LemmingsOsWeb.ConnectionsComponents do
         </.panel>
       </div>
     </.panel>
+    """
+  end
+
+  attr :id_prefix, :string, required: true
+  attr :form, :any, required: true
+  attr :form_name, :string, required: true
+  attr :scope_kind, :string, required: true
+  attr :submit_button_id, :string, required: true
+  attr :connect_button_id, :string, required: true
+  attr :cancel_button_id, :string, required: true
+  attr :close_event, :string, required: true
+
+  def gmail_connection_panel(assigns) do
+    ~H"""
+    <section
+      id={"#{@id_prefix}-gmail-panel"}
+      class="mt-4 rounded-md border border-cyan-500/30 bg-cyan-950/10 p-4"
+      aria-labelledby={"#{@id_prefix}-gmail-title"}
+    >
+      <input type="hidden" name={"#{@form_name}[connection_id]"} value={@form[:connection_id].value} />
+      <input type="hidden" name={"#{@form_name}[type]"} value="gmail" />
+      <input type="hidden" name={"#{@form_name}[status]"} value={@form[:status].value || "enabled"} />
+      <input
+        type="hidden"
+        name={"#{@form_name}[account_email]"}
+        value={@form[:account_email].value || ""}
+      />
+      <input
+        type="hidden"
+        name={"#{@form_name}[refresh_token]"}
+        value={@form[:refresh_token].value || ""}
+      />
+
+      <div class="space-y-1">
+        <h3 id={"#{@id_prefix}-gmail-title"} class="text-lg font-semibold text-cyan-100">
+          Gmail
+        </h3>
+        <p class="text-sm text-zinc-300">OAuth onboarding for draft creation only</p>
+        <p id={"#{@id_prefix}-gmail-scope"} class="text-xs uppercase tracking-widest text-zinc-400">
+          Scope: {scope_title(@scope_kind)}
+        </p>
+      </div>
+
+      <div class="mt-4 grid gap-3 md:grid-cols-2">
+        <.input
+          field={@form[:client_id]}
+          id={"#{@id_prefix}-gmail-client-id"}
+          label="Client ID secret ref"
+        />
+        <.input
+          field={@form[:client_secret]}
+          id={"#{@id_prefix}-gmail-client-secret"}
+          label="Client Secret secret ref"
+        />
+      </div>
+
+      <div class="mt-4 rounded border border-zinc-700 bg-zinc-950/40 p-3 text-sm">
+        <div class="font-medium text-zinc-200">Permission summary</div>
+        <code id={"#{@id_prefix}-gmail-compose-scope"} class="mt-1 block text-xs text-cyan-200">
+          https://www.googleapis.com/auth/gmail.compose
+        </code>
+      </div>
+
+      <dl class="mt-4 grid gap-3 text-sm md:grid-cols-2">
+        <div class="rounded border border-zinc-700 bg-zinc-950/40 p-3">
+          <dt class="text-xs uppercase tracking-widest text-zinc-500">Status</dt>
+          <dd id={"#{@id_prefix}-gmail-connected-status"} class="mt-1 text-zinc-100">
+            {ConnectionsSurface.gmail_status_label(@form)}
+          </dd>
+        </div>
+        <div class="rounded border border-zinc-700 bg-zinc-950/40 p-3">
+          <dt class="text-xs uppercase tracking-widest text-zinc-500">Account</dt>
+          <dd id={"#{@id_prefix}-gmail-account"} class="mt-1 text-zinc-100">
+            {ConnectionsSurface.gmail_account_label(@form)}
+          </dd>
+        </div>
+      </dl>
+
+      <details
+        :if={ConnectionsSurface.gmail_refresh_token_ref(@form)}
+        id={"#{@id_prefix}-gmail-refresh-token-details"}
+        class="mt-3 rounded border border-zinc-700 bg-zinc-950/40 p-3 text-sm"
+      >
+        <summary class="cursor-pointer text-zinc-300">Refresh token secret ref</summary>
+        <code id={"#{@id_prefix}-gmail-refresh-token-ref"} class="mt-2 block text-xs text-zinc-300">
+          {ConnectionsSurface.gmail_refresh_token_ref(@form)}
+        </code>
+      </details>
+
+      <details
+        id={"#{@id_prefix}-gmail-advanced-json"}
+        class="mt-3 rounded border border-zinc-700 bg-zinc-950/40 p-3"
+      >
+        <summary class="cursor-pointer text-sm text-zinc-300">Advanced JSON</summary>
+        <.input
+          field={@form[:config]}
+          type="textarea"
+          id={"#{@id_prefix}-gmail-config"}
+          label="Config JSON preview"
+        />
+      </details>
+
+      <div class="mt-4 flex flex-wrap justify-end gap-2">
+        <button
+          id={@cancel_button_id}
+          type="button"
+          phx-click={@close_event}
+          class="rounded border border-zinc-600 px-3 py-2 text-sm text-zinc-300"
+        >
+          {dgettext("layout", ".connections_action_cancel")}
+        </button>
+        <.button id={@submit_button_id} type="submit" variant="secondary">
+          Save config
+        </.button>
+        <.button
+          id={@connect_button_id}
+          type="submit"
+          name={"#{@form_name}[action]"}
+          value="connect_gmail"
+          variant="secondary"
+        >
+          {ConnectionsSurface.gmail_action_label(@form)}
+        </.button>
+      </div>
+    </section>
     """
   end
 

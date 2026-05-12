@@ -16,13 +16,13 @@ defmodule LemmingsOsWeb.WorldLive do
   alias LemmingsOsWeb.PageData.WorldPageSnapshot
   require Logger
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     connection_types = Connections.list_connection_types()
 
     {:ok,
      socket
      |> assign_shell(:world, dgettext("layout", ".page_title_world"))
-     |> assign(:active_tab, "overview")
+     |> assign(:active_tab, normalize_tab(Map.get(params || %{}, "tab")))
      |> assign(:snapshot, nil)
      |> assign(:cities, [])
      |> assign(:last_import_result, nil)
@@ -36,6 +36,8 @@ defmodule LemmingsOsWeb.WorldLive do
      |> assign(:world_connection_rows, [])
      |> assign(:world_connection_editing_id, nil)
      |> assign(:world_connection_edit_form, nil)
+     |> assign(:world_gmail_oauth, ConnectionsSurface.gmail_oauth_state(nil))
+     |> assign(:world_connection_scope_params, %{})
      |> assign(:world_artifact_rows, [])
      |> load_snapshot()}
   end
@@ -139,7 +141,11 @@ defmodule LemmingsOsWeb.WorldLive do
      assign(
        socket,
        :world_connection_create_form,
-       ConnectionsSurface.create_form(socket.assigns.world_connection_types, %{"type" => type})
+       ConnectionsSurface.create_form_for_type(
+         socket.assigns.world_connection_types,
+         type,
+         socket.assigns.world_connection_rows
+       )
      )}
   end
 
@@ -158,18 +164,26 @@ defmodule LemmingsOsWeb.WorldLive do
   end
 
   def handle_event("create_world_connection", %{"connection_create" => params}, socket) do
+    action = ConnectionsSurface.connection_form_action(params)
+
     with {:ok, world} <- load_world_scope(socket),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
-         {:ok, _connection} <- Connections.create_connection(world, attrs) do
-      {:noreply,
-       socket
-       |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
-       |> assign_world_connection_surface(world)
-       |> assign(:world_connection_create_open, false)
-       |> assign(
-         :world_connection_create_form,
-         ConnectionsSurface.create_form(socket.assigns.world_connection_types)
-       )}
+         {:ok, connection} <- persist_world_connection(world, attrs, params) do
+      case action do
+        :connect_gmail ->
+          {:noreply, redirect(socket, to: world_gmail_oauth_start_path(world, connection, attrs))}
+
+        :save ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("layout", ".connections_flash_created"))
+           |> assign_world_connection_surface(world)
+           |> assign(:world_connection_create_open, false)
+           |> assign(
+             :world_connection_create_form,
+             ConnectionsSurface.create_form(socket.assigns.world_connection_types)
+           )}
+      end
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
@@ -178,6 +192,10 @@ defmodule LemmingsOsWeb.WorldLive do
          |> assign(:world_connection_create_form, to_form(changeset, as: :connection_create))}
 
       {:error, :invalid_payload} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+
+      {:error, :invalid_type} ->
         {:noreply,
          put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
 
@@ -242,6 +260,7 @@ defmodule LemmingsOsWeb.WorldLive do
 
   def handle_event("save_world_connection_edit", %{"connection_edit" => params}, socket) do
     connection_id = Map.get(params, "connection_id", "")
+    action = ConnectionsSurface.connection_form_action(params)
 
     with {:ok, world} <- load_world_scope(socket),
          {:ok, row} <-
@@ -250,13 +269,19 @@ defmodule LemmingsOsWeb.WorldLive do
              connection_id
            ),
          {:ok, attrs} <- ConnectionsSurface.parse_connection_form_params(params),
-         {:ok, _connection} <- Connections.update_connection(world, row.connection, attrs) do
-      {:noreply,
-       socket
-       |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
-       |> assign_world_connection_surface(world)
-       |> assign(:world_connection_editing_id, nil)
-       |> assign(:world_connection_edit_form, nil)}
+         {:ok, connection} <- Connections.update_connection(world, row.connection, attrs) do
+      case action do
+        :connect_gmail ->
+          {:noreply, redirect(socket, to: world_gmail_oauth_start_path(world, connection, attrs))}
+
+        :save ->
+          {:noreply,
+           socket
+           |> put_flash(:info, dgettext("layout", ".connections_flash_updated"))
+           |> assign_world_connection_surface(world)
+           |> assign(:world_connection_editing_id, nil)
+           |> assign(:world_connection_edit_form, nil)}
+      end
     else
       {:error, :invalid_payload} ->
         {:noreply,
@@ -355,6 +380,8 @@ defmodule LemmingsOsWeb.WorldLive do
         |> assign(:world_connection_create_open, false)
         |> assign(:world_connection_editing_id, nil)
         |> assign(:world_connection_edit_form, nil)
+        |> assign(:world_gmail_oauth, ConnectionsSurface.gmail_oauth_state(nil))
+        |> assign(:world_connection_scope_params, %{})
         |> assign(:world_artifact_rows, [])
     end
   end
@@ -467,6 +494,8 @@ defmodule LemmingsOsWeb.WorldLive do
       ConnectionsSurface.create_form(socket.assigns.world_connection_types)
     )
     |> assign(:world_connection_create_open, false)
+    |> assign(:world_gmail_oauth, ConnectionsSurface.gmail_oauth_state(world))
+    |> assign(:world_connection_scope_params, %{world_id: world.id})
   end
 
   defp assign_world_connection_surface(socket, nil) do
@@ -479,6 +508,8 @@ defmodule LemmingsOsWeb.WorldLive do
     |> assign(:world_connection_create_open, false)
     |> assign(:world_connection_editing_id, nil)
     |> assign(:world_connection_edit_form, nil)
+    |> assign(:world_gmail_oauth, ConnectionsSurface.gmail_oauth_state(nil))
+    |> assign(:world_connection_scope_params, %{})
   end
 
   defp assign_world_artifact_surface(socket, world_id) when is_binary(world_id) do
@@ -500,6 +531,19 @@ defmodule LemmingsOsWeb.WorldLive do
 
   defp assign_world_artifact_surface(socket, nil) do
     assign(socket, :world_artifact_rows, [])
+  end
+
+  defp persist_world_connection(world, %{type: "gmail"} = attrs, params) do
+    ConnectionsSurface.upsert_gmail_connection(world, attrs, Map.get(params, "connection_id"))
+  end
+
+  defp persist_world_connection(world, attrs, _params),
+    do: Connections.create_connection(world, attrs)
+
+  defp world_gmail_oauth_start_path(%World{} = world, connection, attrs) do
+    return_to = ~p"/world?#{%{tab: "connections"}}"
+
+    ~p"/connections/gmail/oauth/start?#{%{world_id: world.id, connection_id: connection.id, client_id: attrs.config["client_id"], client_secret: attrs.config["client_secret"], return_to: return_to}}"
   end
 
   defp blank_secret_form, do: to_form(%{"bank_key" => "", "value" => ""}, as: :secret)

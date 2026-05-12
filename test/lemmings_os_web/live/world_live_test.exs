@@ -298,11 +298,31 @@ defmodule LemmingsOsWeb.WorldLiveTest do
 
     assert has_element?(view, "#world-connections-panel")
     assert has_element?(view, "#world-connections-open-create")
+    refute has_element?(view, "#world-gmail-connect-panel")
 
     view |> element("#world-connections-open-create") |> render_click()
 
     assert has_element?(view, "#world-connections-create-type")
+    assert has_element?(view, "#world-connections-create-config")
     assert render(view) =~ "$MOCK_API_KEY"
+
+    view
+    |> element("#world-connections-create-type")
+    |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+    assert has_element?(view, "#world-connections-create-gmail-panel")
+    assert has_element?(view, "#world-connections-create-gmail-client-id")
+    assert has_element?(view, "#world-connections-create-gmail-client-secret")
+    assert has_element?(view, "#world-connections-create-gmail-connected-status", "Not connected")
+    assert has_element?(view, "#world-connections-create-gmail-account", "Not available")
+    assert has_element?(view, "#world-connections-create-gmail-compose-scope")
+    refute has_element?(view, "#world-connections-create-config")
+
+    view
+    |> element("#world-connections-create-type")
+    |> render_change(%{"connection_create" => %{"type" => "mock"}})
+
+    assert has_element?(view, "#world-connections-create-config")
 
     view
     |> element("#world-connections-create-form")
@@ -322,16 +342,6 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     view
     |> element("#world-connections-edit-#{created.id}")
     |> render_click()
-
-    view
-    |> element("#world-connections-edit-form-#{created.id}")
-    |> render_change(%{
-      "connection_edit" => %{
-        "connection_id" => created.id,
-        "type" => "mock",
-        "status" => "enabled"
-      }
-    })
 
     assert has_element?(view, "#world-connections-edit-form-#{created.id}")
 
@@ -368,6 +378,131 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     |> render_click()
 
     refute Connections.get_connection(world, created.id)
+  end
+
+  test "connections tab saves Gmail config and redirects connect through scoped OAuth", %{
+    conn: conn
+  } do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    world =
+      insert(:world,
+        slug: "local",
+        name: "Local World",
+        bootstrap_path: path,
+        bootstrap_source: "direct",
+        last_import_status: "ok"
+      )
+
+    assert {:ok, _metadata} =
+             LemmingsOs.SecretBank.upsert_secret(world, "GMAIL_CLIENT_ID", "dev_only_client_id")
+
+    assert {:ok, _metadata} =
+             LemmingsOs.SecretBank.upsert_secret(
+               world,
+               "GMAIL_CLIENT_SECRET",
+               "dev_only_client_secret"
+             )
+
+    {:ok, view, _html} = live(conn, ~p"/world?#{%{tab: "connections"}}")
+
+    view |> element("#world-connections-open-create") |> render_click()
+
+    view
+    |> element("#world-connections-create-type")
+    |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+    view
+    |> element("#world-connections-create-form")
+    |> render_submit(%{
+      "connection_create" => %{
+        "type" => "gmail",
+        "status" => "enabled",
+        "client_id" => "$GMAIL_CLIENT_ID2",
+        "client_secret" => "$GMAIL_CLIENT_SECRET2"
+      }
+    })
+
+    gmail_connection = Connections.get_connection_by_type(world, "gmail")
+    assert gmail_connection.config["client_id"] == "$GMAIL_CLIENT_ID2"
+    assert gmail_connection.config["client_secret"] == "$GMAIL_CLIENT_SECRET2"
+    refute Map.has_key?(gmail_connection.config, "refresh_token")
+
+    view |> element("#world-connections-open-create") |> render_click()
+
+    view
+    |> element("#world-connections-create-type")
+    |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+    assert has_element?(
+             view,
+             "#world-connections-create-gmail-client-id[value='$GMAIL_CLIENT_ID2']"
+           )
+
+    {:error, {:redirect, %{to: redirect_path}}} =
+      view
+      |> element("#world-connections-create-form")
+      |> render_submit(%{
+        "connection_create" => %{
+          "type" => "gmail",
+          "status" => "enabled",
+          "connection_id" => gmail_connection.id,
+          "client_id" => "$GMAIL_CLIENT_ID2",
+          "client_secret" => "$GMAIL_CLIENT_SECRET2",
+          "action" => "connect_gmail"
+        }
+      })
+
+    assert redirect_path =~ "/connections/gmail/oauth/start"
+    assert redirect_path =~ "world_id=#{world.id}"
+    assert redirect_path =~ "connection_id=#{gmail_connection.id}"
+    assert redirect_path =~ "client_id=%24GMAIL_CLIENT_ID2"
+    assert redirect_path =~ "client_secret=%24GMAIL_CLIENT_SECRET2"
+    assert redirect_path =~ "return_to=%2Fworld%3Ftab%3Dconnections"
+
+    assert Connections.list_connections(world, type: "gmail") |> length() == 1
+  end
+
+  test "connections tab rejects Gmail upsert when connection id belongs to another type", %{
+    conn: conn
+  } do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    world =
+      insert(:world,
+        slug: "local",
+        name: "Local World",
+        bootstrap_path: path,
+        bootstrap_source: "direct",
+        last_import_status: "ok"
+      )
+
+    mock_connection = insert(:world_connection, world: world, type: "mock")
+
+    {:ok, view, _html} = live(conn, ~p"/world?#{%{tab: "connections"}}")
+
+    view |> element("#world-connections-open-create") |> render_click()
+
+    view
+    |> element("#world-connections-create-type")
+    |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+    view
+    |> element("#world-connections-create-form")
+    |> render_submit(%{
+      "connection_create" => %{
+        "type" => "gmail",
+        "status" => "enabled",
+        "connection_id" => mock_connection.id,
+        "client_id" => "$GMAIL_CLIENT_ID",
+        "client_secret" => "$GMAIL_CLIENT_SECRET"
+      }
+    })
+
+    assert has_element?(view, "#flash-error", "Invalid connection payload")
+    refute Connections.get_connection_by_type(world, "gmail")
   end
 
   test "artifacts tab lists artifacts filtered by world", %{conn: conn} do

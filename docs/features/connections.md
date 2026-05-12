@@ -14,6 +14,13 @@ provider configuration and to choose where that configuration is owned.
 Connections are resolved by `type`, can be inherited down the hierarchy, and can
 be tested through a deterministic mock provider.
 
+This slice also ships Gmail onboarding for draft creation through the normal
+Connections create/manage form:
+
+- `Connections -> + Create -> Type: Gmail -> Connect Gmail`
+- scope-local Connection create/update (`type = gmail`)
+- refresh token storage through Secret Bank refs only
+
 This document describes the shipped behavior only.
 
 ## What A Connection Is
@@ -132,6 +139,14 @@ For the shipped `mock` type, the `api_key` field must be a Secret Bank style
 reference such as `$MOCK_API_KEY`. A raw string like `super-secret-token` is
 rejected as invalid config.
 
+For `gmail`, the config stores only safe metadata plus refs:
+
+- `client_id` (for example `$GMAIL_CLIENT_ID`)
+- `client_secret` (for example `$GMAIL_CLIENT_SECRET`)
+- `refresh_token` only after OAuth callback (generated Secret Bank ref such as
+  `$GMAIL_REFRESH_TOKEN_WORLD_<scope-id>`)
+- `account_email` only after OAuth profile lookup succeeds
+
 This means Connection rows are safe configuration carriers, not credential
 vaults.
 
@@ -164,6 +179,9 @@ Current split of responsibility:
 - `LemmingsOs.Connections.Runtime` resolves identity and visibility
 - `LemmingsOs.Connections.Providers.MockCaller` validates mock config, resolves
   secret refs just in time through Secret Bank, and returns sanitized results
+- `LemmingsOs.Connections.Providers.GmailCaller` validates Gmail config contract
+- `LemmingsOs.Connections.GmailOAuth` handles OAuth start/callback validation,
+  refresh-token persistence, and Gmail Connection upsert
 
 This separation is deliberate. Runtime resolution decides which Connection is
 usable. Provider callers decide how credentials are consumed.
@@ -176,6 +194,7 @@ labels, default config examples, config validation, and test dispatch.
 Shipped registry entries:
 
 - `mock` -> `LemmingsOs.Connections.Providers.MockCaller`
+- `gmail` -> `LemmingsOs.Connections.Providers.GmailCaller`
 
 The UI reads registry metadata to:
 
@@ -183,11 +202,9 @@ The UI reads registry metadata to:
 - prefill editable config examples
 - validate that the selected type is supported
 
-Real provider integrations are not shipped in this MVP.
-
 ## Mock Provider Behavior
 
-`mock` is the only deterministic provider behavior in this slice.
+`mock` is the deterministic provider test path in this slice.
 
 Required config shape:
 
@@ -220,6 +237,71 @@ Successful test result shape is intentionally narrow and safe:
 No raw secret values are returned, persisted into `last_test`, or written to
 safe event payloads.
 
+## Gmail OAuth Onboarding (Draft Creation Only)
+
+Gmail onboarding is available from Connections panels at:
+
+- `/world` (World scope)
+- `/cities?city=<city_id>` (City scope)
+- `/departments?city=<city_id>&dept=<department_id>` (Department scope)
+
+The flow is:
+
+1. Open the scope's Connections tab.
+2. Use `+ Create`.
+3. Select `Gmail`.
+4. Edit `Client ID secret ref` and `Client Secret secret ref` if this scope
+   should use non-default OAuth app credentials.
+5. Use `Save config` to persist refs without starting OAuth, or `Connect Gmail`
+   to persist refs and start OAuth.
+6. Complete Google OAuth consent.
+7. Return to the same Connections tab with a safe success or failure flash.
+8. A local `gmail` Connection is created or updated at that scope.
+
+If a local Gmail Connection already exists at the current scope, selecting
+`Gmail` manages that row instead of creating a duplicate.
+
+### Google Cloud Setup
+
+Before using `Connect Gmail`, set up Google once per deployment or credential
+set:
+
+1. Create or select a Google Cloud project.
+2. Enable **Gmail API**.
+3. Configure the OAuth consent screen.
+4. Create **OAuth client ID** credentials with application type **Web
+   application**.
+5. Add authorized redirect URI:
+   - `https://<your-host>/connections/gmail/oauth/callback`
+   - local dev example: `http://localhost:4000/connections/gmail/oauth/callback`
+
+### Environment And Secret Bank Setup
+
+Recommended deployment env vars when using Secret Bank env fallbacks:
+
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+
+Recommended Secret Bank mapping for the UI flow:
+
+- `$GMAIL_CLIENT_ID` -> OAuth client id value
+- `$GMAIL_CLIENT_SECRET` -> OAuth client secret value
+
+The default Secret Bank policy also allows `$GOOGLE_OAUTH_CLIENT_ID`,
+`$GOOGLE_OAUTH_CLIENT_SECRET`, `$GMAIL_OAUTH_CLIENT_ID`, and
+`$GMAIL_OAUTH_CLIENT_SECRET` refs if operators prefer those names. The
+authorized redirect URI is the app callback URL:
+`/connections/gmail/oauth/callback`.
+
+You can provide those refs either by:
+
+- storing local Secret Bank values directly at the target scope; or
+- mapping env values through Secret Bank env fallback policy.
+
+OAuth-generated refresh tokens are stored through Secret Bank during callback.
+Connection rows store only the generated refresh-token ref, not raw token
+values. Operators never paste refresh tokens into the UI.
+
 ## Operator Flows
 
 Connections UI surfaces exist on World, City, and Department pages.
@@ -240,8 +322,14 @@ Operators can open a create form at the current scope.
 Behavior:
 
 - type options come from the registry
-- changing the selected type refills the example config for that type
-- config can be entered as JSON or YAML text
+- selecting `mock` or other non-Gmail types keeps the generic JSON/YAML config
+  textarea
+- selecting `gmail` switches the form to a Gmail-specific setup panel
+- the Gmail panel exposes editable `client_id` and `client_secret` Secret Bank
+  refs and shows the compose-only OAuth scope as read-only help text
+- the Gmail panel shows connected account state when OAuth has completed
+- the Gmail panel may show the generated refresh-token Secret Bank ref in an
+  advanced/debug section, but never the raw token value
 - new rows are created as local rows at the current scope
 - the create form submits `status = enabled`
 
@@ -339,7 +427,9 @@ test summaries. They must not contain raw credentials.
 
 The following are explicitly not shipped by this MVP:
 
-- real provider integrations beyond deterministic `mock`
+- sending email from LemmingsOS (draft creation only)
+- Gmail read, sync, watch, reply parsing, mailbox ingestion, or approval-record
+  workflows
 - Tool Runtime refactors or generic provider execution unification
 - application authentication or RBAC around Connection management
 - approval workflows for creating, changing, testing, enabling, disabling, or

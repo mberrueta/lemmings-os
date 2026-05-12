@@ -9,9 +9,11 @@ defmodule LemmingsOs.Connections.TypeRegistry do
   """
 
   alias LemmingsOs.Connections.Providers.MockCaller
+  alias LemmingsOs.Connections.Providers.GmailCaller
 
   @entries [
-    %{id: "mock", module: MockCaller}
+    %{id: "mock", module: MockCaller},
+    %{id: "gmail", module: GmailCaller}
   ]
 
   @doc """
@@ -19,11 +21,11 @@ defmodule LemmingsOs.Connections.TypeRegistry do
 
   ## Examples
 
-      iex> [type] = LemmingsOs.Connections.TypeRegistry.list_types()
+      iex> [type | _] = LemmingsOs.Connections.TypeRegistry.list_types()
       iex> type.id
       "mock"
 
-      iex> [type] = LemmingsOs.Connections.TypeRegistry.list_types()
+      iex> [type | _] = LemmingsOs.Connections.TypeRegistry.list_types()
       iex> type.label
       "Mock"
   """

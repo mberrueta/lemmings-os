@@ -23,6 +23,7 @@ Catalog scope:
 | `knowledge.store` | Knowledge | Store a scoped memory note for future use | Stored memory ID + scope |
 | `documents.markdown_to_html` | Documents | Convert WorkArea Markdown file to WorkArea HTML file | `text/html` file + byte size |
 | `documents.print_to_pdf` | Documents | Print supported WorkArea source file to WorkArea PDF via Gotenberg | `application/pdf` file + byte size |
+| `email.create_draft` | Email | Create a Gmail draft from prepared content and optional Artifacts | Draft descriptor (no send) |
 
 ## Global Tool Boundaries
 
@@ -257,3 +258,65 @@ Runtime config lives in `config/runtime.exs` under `:lemmings_os, :documents`.
 - No templates (`EEx`, `HEEx`, `Liquid`)
 - No email/e-signature/legal validation flow
 - No advanced image layout engine
+
+## Email
+
+### `email.create_draft`
+
+Creates a Gmail draft using a scoped `gmail` Connection and optional Artifact attachments.
+The resulting draft is intended for human review in Gmail before manual send.
+
+Required inputs:
+
+- `connection_ref`: must be `gmail`
+- `to`: non-empty recipient email string, comma-separated recipient string, or
+  recipient list
+- `subject`: non-empty string
+- `body`: non-empty string
+
+Optional inputs:
+
+- `cc`: recipient email string, comma-separated string, list, `null`, or blank
+  string (default `[]`)
+- `bcc`: recipient email string, comma-separated string, list, `null`, or blank
+  string (default `[]`)
+- `body_format`: `text/plain` or `text/html` (default `text/plain`)
+- `artifact_ids`: Artifact id list (default `[]`)
+
+Minimal call:
+
+```json
+{
+  "connection_ref": "gmail",
+  "to": ["customer@example.com"],
+  "subject": "Quotation",
+  "body": "Attached quotation draft.",
+  "body_format": "text/plain",
+  "artifact_ids": []
+}
+```
+
+Result details include:
+
+- `status` (`draft_created`)
+- `provider` (`gmail`)
+- `connection_ref`
+- `draft_id`
+- optional `message_id`
+- recipients (`to`, `cc`, `bcc`)
+- `subject`
+- `artifact_ids`
+
+Safety notes:
+
+- Creates drafts only; it does not send email.
+- Rejects raw local file paths; attachments must be Artifact IDs.
+- Resolves Secret Bank refs only during adapter execution.
+- Does not expose raw Gmail API responses or OAuth credentials.
+- Timeline rendering should remain limited to safe summary/preview/result fields.
+
+Email non-goals in this MVP:
+
+- no `email.send` runtime tool
+- no Gmail read/sync/watch flows
+- no mailbox ingestion, reply parsing, or approval-record automation

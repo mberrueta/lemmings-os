@@ -729,6 +729,106 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
              text_position(html, "Follow-up question")
   end
 
+  test "S08c1: email.create_draft tool card renders safe summary, preview, and allowlisted result keys",
+       %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, tool_execution} =
+      LemmingTools.create_tool_execution(world, instance, %{
+        tool_name: "email.create_draft",
+        status: "ok",
+        args: %{
+          "connection_ref" => "gmail",
+          "to" => ["customer@example.com"],
+          "subject" => "Renewal quote",
+          "body" => "Prepared body",
+          "body_format" => "text/plain",
+          "artifact_ids" => ["artifact-1"]
+        },
+        summary: "redacted_provider_credential_123 should never render",
+        preview: "redacted-local-path",
+        result: %{
+          "status" => "draft_created",
+          "provider" => "gmail",
+          "connection_ref" => "gmail",
+          "draft_id" => "draft-123",
+          "message_id" => "message-123",
+          "to_count" => 1,
+          "cc_count" => 0,
+          "bcc_count" => 0,
+          "subject_preview" => "Renewal quote",
+          "artifact_count" => 1,
+          "artifact_ids" => ["artifact-1"],
+          "access_token" => "redacted_provider_credential_123",
+          "raw_provider_payload" => %{"sensitive" => true},
+          "storage_ref" => "redacted-storage-ref",
+          "local_path" => "redacted-local-path"
+        }
+      })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#card-tool-execution-#{tool_execution.id}")
+
+    assert has_element?(
+             view,
+             "#tool-execution-summary-#{tool_execution.id}",
+             "Created Gmail draft for 1 recipient(s) with 1 attachment"
+           )
+
+    assert has_element?(
+             view,
+             "#tool-execution-preview-#{tool_execution.id}",
+             "Subject: Renewal quote"
+           )
+
+    assert has_element?(
+             view,
+             "#tool-execution-result-#{tool_execution.id}",
+             "\"draft_id\": \"draft-123\""
+           )
+
+    assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"artifact_ids\"")
+    assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "artifact-1")
+    assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"to_count\": 1")
+    assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"bcc_count\": 0")
+
+    assert has_element?(
+             view,
+             "#tool-execution-result-#{tool_execution.id}",
+             "\"subject_preview\""
+           )
+
+    refute has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"to\"")
+    refute has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"bcc\"")
+    refute has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"subject\":")
+
+    refute has_element?(
+             view,
+             "#card-tool-execution-#{tool_execution.id}",
+             "redacted_provider_credential_123"
+           )
+
+    refute has_element?(
+             view,
+             "#tool-execution-result-#{tool_execution.id}",
+             "raw_provider_payload"
+           )
+
+    refute has_element?(
+             view,
+             "#tool-execution-result-#{tool_execution.id}",
+             "redacted-storage-ref"
+           )
+
+    refute has_element?(
+             view,
+             "#tool-execution-result-#{tool_execution.id}",
+             "redacted-local-path"
+           )
+  end
+
   test "S08d: tool execution artifact link opens workspace file content", %{conn: conn} do
     %{world: world, instance: instance} = spawn_runtime_session()
 

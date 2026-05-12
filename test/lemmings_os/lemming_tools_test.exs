@@ -153,6 +153,78 @@ defmodule LemmingsOs.LemmingToolsTest do
     end
   end
 
+  describe "email.create_draft privacy projection" do
+    test "sanitizes persisted args and result for email drafts" do
+      %{world: world, instance: instance} = spawn_instance_fixture()
+
+      assert {:ok, tool_execution} =
+               LemmingTools.create_tool_execution(world, instance, %{
+                 tool_name: "email.create_draft",
+                 status: "running",
+                 args: %{
+                   "connection_ref" => "gmail",
+                   "to" => ["customer@example.com", "ops@example.com"],
+                   "cc" => "sales@example.com, finance@example.com",
+                   "bcc" => ["private@example.com"],
+                   "subject" => "Sensitive renewal quote for ACME",
+                   "body" => "full body should not be persisted",
+                   "body_format" => "text/plain",
+                   "artifact_ids" => ["artifact-1"]
+                 }
+               })
+
+      assert tool_execution.args == %{
+               "connection_ref" => "gmail",
+               "to_count" => 2,
+               "cc_count" => 2,
+               "bcc_count" => 1,
+               "subject_preview" => "Sensitive renewal quote for ACME",
+               "body_bytes" => 33,
+               "body_format" => "text/plain",
+               "artifact_count" => 1,
+               "artifact_ids" => ["artifact-1"]
+             }
+
+      assert {:ok, updated_execution} =
+               LemmingTools.update_tool_execution(world, instance, tool_execution, %{
+                 status: "ok",
+                 result: %{
+                   "status" => "draft_created",
+                   "provider" => "gmail",
+                   "connection_ref" => "gmail",
+                   "draft_id" => "draft-123",
+                   "message_id" => "message-123",
+                   "to" => ["customer@example.com"],
+                   "cc" => [],
+                   "bcc" => ["private@example.com"],
+                   "subject" => "Sensitive renewal quote for ACME",
+                   "artifact_ids" => ["artifact-1"],
+                   "raw_provider_payload" => %{"private" => true}
+                 }
+               })
+
+      assert updated_execution.result == %{
+               "status" => "draft_created",
+               "provider" => "gmail",
+               "connection_ref" => "gmail",
+               "draft_id" => "draft-123",
+               "message_id" => "message-123",
+               "to_count" => 1,
+               "cc_count" => 0,
+               "bcc_count" => 1,
+               "subject_preview" => "Sensitive renewal quote for ACME",
+               "artifact_count" => 1,
+               "artifact_ids" => ["artifact-1"]
+             }
+
+      persisted = inspect(%{args: updated_execution.args, result: updated_execution.result})
+      refute persisted =~ "customer@example.com"
+      refute persisted =~ "private@example.com"
+      refute persisted =~ "full body should not be persisted"
+      refute persisted =~ "raw_provider_payload"
+    end
+  end
+
   defp spawn_instance_fixture do
     world = insert(:world)
     city = insert(:city, world: world)

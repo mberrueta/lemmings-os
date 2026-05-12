@@ -80,6 +80,14 @@ defmodule LemmingsOs.Tools.Catalog do
       icon: "hero-printer",
       category: "documents",
       risk: "high"
+    },
+    %{
+      id: "email.create_draft",
+      name: "Create Gmail Draft",
+      description: "Create a Gmail draft with optional artifact attachments.",
+      icon: "hero-envelope",
+      category: "email",
+      risk: "medium"
     }
   ]
 
@@ -101,7 +109,7 @@ defmodule LemmingsOs.Tools.Catalog do
 
       iex> tools = LemmingsOs.Tools.Catalog.list_tools()
       iex> Enum.map(tools, & &1.id)
-      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch", "knowledge.search", "knowledge.read", "knowledge.store", "documents.markdown_to_html", "documents.print_to_pdf"]
+      ["fs.read_text_file", "fs.write_text_file", "web.search", "web.fetch", "knowledge.search", "knowledge.read", "knowledge.store", "documents.markdown_to_html", "documents.print_to_pdf", "email.create_draft"]
   """
   @spec list_tools() :: [tool()]
   def list_tools, do: @tools

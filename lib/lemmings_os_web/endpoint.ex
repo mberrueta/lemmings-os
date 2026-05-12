@@ -1,13 +1,12 @@
 defmodule LemmingsOsWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :lemmings_os
 
-  # The session will be stored in the cookie and signed,
-  # this means its contents can be read but not tampered with.
-  # Set :encryption_salt if you would also like to encrypt it.
+  # The session is stored in an encrypted and signed cookie.
   @session_options [
     store: :cookie,
     key: "_lemmings_os_key",
     signing_salt: "QNkmlQfq",
+    encryption_salt: "dev_only_session_encryption_salt",
     same_site: "Lax"
   ]
 

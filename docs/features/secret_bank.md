@@ -87,6 +87,16 @@ Bank may read. `env_fallbacks` maps bank keys to those env vars:
 
 The process environment is never treated as an open keyspace.
 
+For Gmail onboarding, deployments commonly map OAuth env vars into the default
+refs used by Connections:
+
+- `GMAIL_CLIENT_ID` -> `$GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET` -> `$GMAIL_CLIENT_SECRET`
+
+The default allowlist also permits `$GOOGLE_OAUTH_CLIENT_ID`,
+`$GOOGLE_OAUTH_CLIENT_SECRET`, `$GMAIL_OAUTH_CLIENT_ID`, and
+`$GMAIL_OAUTH_CLIENT_SECRET` refs for deployments that prefer those names.
+
 ## Key and Reference Format
 
 Current bank keys must match:
@@ -125,6 +135,10 @@ Without `allowed_hosts` or `secret_header_allowed_hosts`, a resolved secret
 header is blocked before the outbound request is made. The allowlist is exact
 host matching and exists to prevent model-supplied URLs from receiving
 credentials intended for another provider.
+
+Gmail OAuth callback handling also writes generated refresh tokens to Secret
+Bank using scoped keys such as `GMAIL_REFRESH_TOKEN_WORLD_<UUID>`. Connection
+rows persist only the resulting `$...` ref.
 
 ## Hierarchy and Resolution
 

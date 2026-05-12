@@ -274,8 +274,23 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
 
       assert has_element?(view, "#city-connections-panel")
       assert has_element?(view, "#city-connections-open-create")
+      refute has_element?(view, "#city-gmail-connect-panel")
       view |> element("#city-connections-open-create") |> render_click()
       assert render(view) =~ "$MOCK_API_KEY"
+
+      view
+      |> element("#city-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+      assert has_element?(view, "#city-connections-create-gmail-panel")
+      assert has_element?(view, "#city-connections-create-gmail-client-id")
+      refute has_element?(view, "#city-connections-create-config")
+
+      view
+      |> element("#city-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "mock"}})
+
+      assert has_element?(view, "#city-connections-create-config")
 
       world_row = Connections.resolve_visible_connection(city, "mock")
       assert has_element?(view, "#city-connections-source-#{world_row.connection.id}", "World")
@@ -303,16 +318,6 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       |> element("#city-connections-edit-#{created.id}")
       |> render_click()
 
-      view
-      |> element("#city-connections-edit-form-#{created.id}")
-      |> render_change(%{
-        "connection_edit" => %{
-          "connection_id" => created.id,
-          "type" => "mock",
-          "status" => "enabled"
-        }
-      })
-
       assert has_element?(view, "#city-connections-edit-form-#{created.id}")
 
       view
@@ -320,6 +325,37 @@ defmodule LemmingsOsWeb.CitiesLiveTest do
       |> render_click()
 
       refute Connections.get_connection(city, created.id)
+    end
+
+    test "city detail rejects Gmail upsert when connection id belongs to another type", %{
+      conn: conn
+    } do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Ops City", slug: "ops-city", status: "active")
+      mock_connection = insert(:city_connection, world: world, city: city, type: "mock")
+
+      {:ok, view, _html} = live(conn, ~p"/cities?city=#{city.id}&tab=connections")
+
+      view |> element("#city-connections-open-create") |> render_click()
+
+      view
+      |> element("#city-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+      view
+      |> element("#city-connections-create-form")
+      |> render_submit(%{
+        "connection_create" => %{
+          "type" => "gmail",
+          "status" => "enabled",
+          "connection_id" => mock_connection.id,
+          "client_id" => "$GMAIL_CLIENT_ID",
+          "client_secret" => "$GMAIL_CLIENT_SECRET"
+        }
+      })
+
+      assert has_element?(view, "#flash-error", "Invalid connection payload")
+      refute Connections.get_connection_by_type(city, "gmail")
     end
   end
 
