@@ -195,6 +195,10 @@ defmodule LemmingsOsWeb.WorldLive do
         {:noreply,
          put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
 
+      {:error, :invalid_type} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+
       {:error, :invalid_scope} ->
         {:noreply,
          put_flash(socket, :error, dgettext("layout", ".connections_flash_scope_unavailable"))}

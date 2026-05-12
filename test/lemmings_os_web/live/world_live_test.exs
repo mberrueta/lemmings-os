@@ -464,6 +464,47 @@ defmodule LemmingsOsWeb.WorldLiveTest do
     assert Connections.list_connections(world, type: "gmail") |> length() == 1
   end
 
+  test "connections tab rejects Gmail upsert when connection id belongs to another type", %{
+    conn: conn
+  } do
+    path =
+      WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())
+
+    world =
+      insert(:world,
+        slug: "local",
+        name: "Local World",
+        bootstrap_path: path,
+        bootstrap_source: "direct",
+        last_import_status: "ok"
+      )
+
+    mock_connection = insert(:world_connection, world: world, type: "mock")
+
+    {:ok, view, _html} = live(conn, ~p"/world?#{%{tab: "connections"}}")
+
+    view |> element("#world-connections-open-create") |> render_click()
+
+    view
+    |> element("#world-connections-create-type")
+    |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+    view
+    |> element("#world-connections-create-form")
+    |> render_submit(%{
+      "connection_create" => %{
+        "type" => "gmail",
+        "status" => "enabled",
+        "connection_id" => mock_connection.id,
+        "client_id" => "$GMAIL_CLIENT_ID",
+        "client_secret" => "$GMAIL_CLIENT_SECRET"
+      }
+    })
+
+    assert has_element?(view, "#flash-error", "Invalid connection payload")
+    refute Connections.get_connection_by_type(world, "gmail")
+  end
+
   test "artifacts tab lists artifacts filtered by world", %{conn: conn} do
     path =
       WorldBootstrapTestHelpers.write_temp_file!(WorldBootstrapTestHelpers.valid_bootstrap_yaml())

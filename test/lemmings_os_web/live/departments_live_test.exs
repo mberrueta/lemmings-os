@@ -549,6 +549,46 @@ defmodule LemmingsOsWeb.DepartmentsLiveTest do
       refute Connections.get_connection(department, created.id)
     end
 
+    test "connections tab rejects Gmail upsert when connection id belongs to another type", %{
+      conn: conn
+    } do
+      world = insert(:world)
+      city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")
+      department = insert(:department, world: world, city: city, name: "Support", slug: "support")
+
+      mock_connection =
+        insert(:department_connection,
+          world: world,
+          city: city,
+          department: department,
+          type: "mock"
+        )
+
+      {:ok, view, _html} =
+        live(conn, ~p"/departments?#{%{city: city.id, dept: department.id, tab: "connections"}}")
+
+      view |> element("#department-connections-open-create") |> render_click()
+
+      view
+      |> element("#department-connections-create-type")
+      |> render_change(%{"connection_create" => %{"type" => "gmail"}})
+
+      view
+      |> element("#department-connections-create-form")
+      |> render_submit(%{
+        "connection_create" => %{
+          "type" => "gmail",
+          "status" => "enabled",
+          "connection_id" => mock_connection.id,
+          "client_id" => "$GMAIL_CLIENT_ID",
+          "client_secret" => "$GMAIL_CLIENT_SECRET"
+        }
+      })
+
+      assert has_element?(view, "#flash-error", "Invalid connection payload")
+      refute Connections.get_connection_by_type(department, "gmail")
+    end
+
     test "S16: artifacts tab lists artifacts filtered by department", %{conn: conn} do
       world = insert(:world)
       city = insert(:city, world: world, name: "Alpha City", slug: "alpha-city", status: "active")

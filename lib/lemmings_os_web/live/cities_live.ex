@@ -298,6 +298,10 @@ defmodule LemmingsOsWeb.CitiesLive do
       {:error, :invalid_payload} ->
         {:noreply,
          put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
+
+      {:error, :invalid_type} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("layout", ".connections_flash_invalid_payload"))}
     end
   end
 

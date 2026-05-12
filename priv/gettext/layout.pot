@@ -74,7 +74,7 @@ msgid ".nav_departments"
 msgstr ""
 
 #: lib/lemmings_os_web/components/sidebar_components.ex:170
-#: lib/lemmings_os_web/components/world_components.ex:699
+#: lib/lemmings_os_web/components/world_components.ex:707
 #: lib/lemmings_os_web/live/mock_shell.ex:49
 #, elixir-autogen
 msgid ".nav_lemmings"
@@ -102,7 +102,7 @@ msgid ".nav_settings"
 msgstr ""
 
 #: lib/lemmings_os_web/components/sidebar_components.ex:71
-#: lib/lemmings_os_web/components/world_components.ex:1036
+#: lib/lemmings_os_web/components/world_components.ex:1046
 #, elixir-autogen
 msgid ".button_new_lemming"
 msgstr ""
@@ -846,231 +846,235 @@ msgstr ""
 msgid ".tools_risk_unknown"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:116
-#: lib/lemmings_os_web/components/connections_components.ex:321
+#: lib/lemmings_os_web/components/connections_components.ex:135
+#: lib/lemmings_os_web/components/connections_components.ex:353
+#: lib/lemmings_os_web/components/connections_components.ex:470
 #, elixir-autogen, elixir-format
 msgid ".connections_action_cancel"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:66
+#: lib/lemmings_os_web/components/connections_components.ex:69
 #, elixir-autogen, elixir-format
 msgid ".connections_action_create"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:253
-#: lib/lemmings_os_web/components/connections_components.ex:254
+#: lib/lemmings_os_web/components/connections_components.ex:272
+#: lib/lemmings_os_web/components/connections_components.ex:273
 #, elixir-autogen, elixir-format
 msgid ".connections_action_delete"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:229
-#: lib/lemmings_os_web/components/connections_components.ex:230
+#: lib/lemmings_os_web/components/connections_components.ex:248
+#: lib/lemmings_os_web/components/connections_components.ex:249
 #, elixir-autogen, elixir-format
 msgid ".connections_action_disable"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:241
-#: lib/lemmings_os_web/components/connections_components.ex:242
+#: lib/lemmings_os_web/components/connections_components.ex:260
+#: lib/lemmings_os_web/components/connections_components.ex:261
 #, elixir-autogen, elixir-format
 msgid ".connections_action_edit"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:216
-#: lib/lemmings_os_web/components/connections_components.ex:217
+#: lib/lemmings_os_web/components/connections_components.ex:235
+#: lib/lemmings_os_web/components/connections_components.ex:236
 #, elixir-autogen, elixir-format
 msgid ".connections_action_enable"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:123
-#: lib/lemmings_os_web/components/connections_components.ex:313
+#: lib/lemmings_os_web/components/connections_components.ex:142
+#: lib/lemmings_os_web/components/connections_components.ex:345
 #, elixir-autogen, elixir-format
 msgid ".connections_action_save"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:203
-#: lib/lemmings_os_web/components/connections_components.ex:204
+#: lib/lemmings_os_web/components/connections_components.ex:222
+#: lib/lemmings_os_web/components/connections_components.ex:223
 #, elixir-autogen, elixir-format
 msgid ".connections_action_test"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:142
+#: lib/lemmings_os_web/components/connections_components.ex:161
 #, elixir-autogen, elixir-format
 msgid ".connections_column_actions"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:141
-#: lib/lemmings_os_web/components/connections_components.ex:190
+#: lib/lemmings_os_web/components/connections_components.ex:160
+#: lib/lemmings_os_web/components/connections_components.ex:209
 #, elixir-autogen, elixir-format
 msgid ".connections_column_last_test"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:139
+#: lib/lemmings_os_web/components/connections_components.ex:158
 #, elixir-autogen, elixir-format
 msgid ".connections_column_name"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:129
+#: lib/lemmings_os_web/components/connections_components.ex:148
 #, elixir-autogen, elixir-format
 msgid ".connections_empty"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:271
-#: lib/lemmings_os_web/live/departments_live.ex:258
-#: lib/lemmings_os_web/live/world_live.ex:166
+#: lib/lemmings_os_web/live/cities_live.ex:284
+#: lib/lemmings_os_web/live/departments_live.ex:270
+#: lib/lemmings_os_web/live/world_live.ex:179
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_created"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:385
-#: lib/lemmings_os_web/live/departments_live.ex:380
-#: lib/lemmings_os_web/live/world_live.ex:280
+#: lib/lemmings_os_web/live/cities_live.ex:410
+#: lib/lemmings_os_web/live/departments_live.ex:405
+#: lib/lemmings_os_web/live/world_live.ex:305
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_deleted"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:286
-#: lib/lemmings_os_web/live/cities_live.ex:340
-#: lib/lemmings_os_web/live/cities_live.ex:366
-#: lib/lemmings_os_web/live/departments_live.ex:276
-#: lib/lemmings_os_web/live/departments_live.ex:335
-#: lib/lemmings_os_web/live/departments_live.ex:361
-#: lib/lemmings_os_web/live/world_live.ex:182
-#: lib/lemmings_os_web/live/world_live.ex:240
-#: lib/lemmings_os_web/live/world_live.ex:263
+#: lib/lemmings_os_web/live/cities_live.ex:300
+#: lib/lemmings_os_web/live/cities_live.ex:304
+#: lib/lemmings_os_web/live/cities_live.ex:358
+#: lib/lemmings_os_web/live/cities_live.ex:391
+#: lib/lemmings_os_web/live/departments_live.ex:289
+#: lib/lemmings_os_web/live/departments_live.ex:293
+#: lib/lemmings_os_web/live/departments_live.ex:352
+#: lib/lemmings_os_web/live/departments_live.ex:386
+#: lib/lemmings_os_web/live/world_live.ex:196
+#: lib/lemmings_os_web/live/world_live.ex:200
+#: lib/lemmings_os_web/live/world_live.ex:258
+#: lib/lemmings_os_web/live/world_live.ex:288
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_invalid_payload"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:302
-#: lib/lemmings_os_web/live/cities_live.ex:334
-#: lib/lemmings_os_web/live/cities_live.ex:369
-#: lib/lemmings_os_web/live/cities_live.ex:392
-#: lib/lemmings_os_web/live/cities_live.ex:420
-#: lib/lemmings_os_web/live/departments_live.ex:296
-#: lib/lemmings_os_web/live/departments_live.ex:329
-#: lib/lemmings_os_web/live/departments_live.ex:364
-#: lib/lemmings_os_web/live/departments_live.ex:387
-#: lib/lemmings_os_web/live/departments_live.ex:415
-#: lib/lemmings_os_web/live/world_live.ex:202
-#: lib/lemmings_os_web/live/world_live.ex:234
-#: lib/lemmings_os_web/live/world_live.ex:266
-#: lib/lemmings_os_web/live/world_live.ex:286
-#: lib/lemmings_os_web/live/world_live.ex:309
+#: lib/lemmings_os_web/live/cities_live.ex:320
+#: lib/lemmings_os_web/live/cities_live.ex:352
+#: lib/lemmings_os_web/live/cities_live.ex:394
+#: lib/lemmings_os_web/live/cities_live.ex:417
+#: lib/lemmings_os_web/live/cities_live.ex:445
+#: lib/lemmings_os_web/live/departments_live.ex:313
+#: lib/lemmings_os_web/live/departments_live.ex:346
+#: lib/lemmings_os_web/live/departments_live.ex:389
+#: lib/lemmings_os_web/live/departments_live.ex:412
+#: lib/lemmings_os_web/live/departments_live.ex:440
+#: lib/lemmings_os_web/live/world_live.ex:220
+#: lib/lemmings_os_web/live/world_live.ex:252
+#: lib/lemmings_os_web/live/world_live.ex:291
+#: lib/lemmings_os_web/live/world_live.ex:311
+#: lib/lemmings_os_web/live/world_live.ex:334
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_local_only"
 msgstr ""
 
-#: lib/lemmings_os_web/live/world_live.ex:186
+#: lib/lemmings_os_web/live/world_live.ex:204
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_scope_unavailable"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:413
-#: lib/lemmings_os_web/live/departments_live.ex:408
-#: lib/lemmings_os_web/live/world_live.ex:305
+#: lib/lemmings_os_web/live/cities_live.ex:438
+#: lib/lemmings_os_web/live/departments_live.ex:433
+#: lib/lemmings_os_web/live/world_live.ex:330
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_status_updated"
 msgstr ""
 
-#: lib/lemmings_os_web/connections_surface.ex:108
+#: lib/lemmings_os_web/connections_surface.ex:218
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_test_failed"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:431
-#: lib/lemmings_os_web/live/departments_live.ex:426
-#: lib/lemmings_os_web/live/world_live.ex:318
+#: lib/lemmings_os_web/live/cities_live.ex:456
+#: lib/lemmings_os_web/live/departments_live.ex:451
+#: lib/lemmings_os_web/live/world_live.ex:343
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_tested"
 msgstr ""
 
-#: lib/lemmings_os_web/live/cities_live.ex:358
-#: lib/lemmings_os_web/live/departments_live.ex:353
-#: lib/lemmings_os_web/live/world_live.ex:256
+#: lib/lemmings_os_web/live/cities_live.ex:382
+#: lib/lemmings_os_web/live/departments_live.ex:377
+#: lib/lemmings_os_web/live/world_live.ex:280
 #, elixir-autogen, elixir-format
 msgid ".connections_flash_updated"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:106
-#: lib/lemmings_os_web/components/connections_components.ex:304
+#: lib/lemmings_os_web/components/connections_components.ex:122
+#: lib/lemmings_os_web/components/connections_components.ex:336
 #, elixir-autogen, elixir-format
 msgid ".connections_label_config_json"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:82
-#: lib/lemmings_os_web/components/connections_components.ex:140
-#: lib/lemmings_os_web/components/connections_components.ex:284
+#: lib/lemmings_os_web/components/connections_components.ex:85
+#: lib/lemmings_os_web/components/connections_components.ex:159
+#: lib/lemmings_os_web/components/connections_components.ex:302
 #, elixir-autogen, elixir-format
 msgid ".connections_label_type"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:333
+#: lib/lemmings_os_web/components/connections_components.ex:490
 #, elixir-autogen, elixir-format
 msgid ".connections_scope_city"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:334
+#: lib/lemmings_os_web/components/connections_components.ex:491
 #, elixir-autogen, elixir-format
 msgid ".connections_scope_department"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:50
-#: lib/lemmings_os_web/components/connections_components.ex:335
+#: lib/lemmings_os_web/components/connections_components.ex:53
+#: lib/lemmings_os_web/components/connections_components.ex:492
 #, elixir-autogen, elixir-format
 msgid ".connections_scope_unavailable"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:332
+#: lib/lemmings_os_web/components/connections_components.ex:489
 #, elixir-autogen, elixir-format
 msgid ".connections_scope_world"
 msgstr ""
 
-#: lib/lemmings_os_web/connections_surface.ex:88
+#: lib/lemmings_os_web/connections_surface.ex:191
 #, elixir-autogen, elixir-format
 msgid ".connections_source_city"
 msgstr ""
 
-#: lib/lemmings_os_web/connections_surface.ex:89
+#: lib/lemmings_os_web/connections_surface.ex:192
 #, elixir-autogen, elixir-format
 msgid ".connections_source_department"
 msgstr ""
 
-#: lib/lemmings_os_web/connections_surface.ex:83
+#: lib/lemmings_os_web/connections_surface.ex:186
 #, elixir-autogen, elixir-format
 msgid ".connections_source_inherited"
 msgstr ""
 
-#: lib/lemmings_os_web/connections_surface.ex:80
+#: lib/lemmings_os_web/connections_surface.ex:183
 #, elixir-autogen, elixir-format
 msgid ".connections_source_local"
 msgstr ""
 
-#: lib/lemmings_os_web/connections_surface.ex:85
-#: lib/lemmings_os_web/connections_surface.ex:90
+#: lib/lemmings_os_web/connections_surface.ex:188
+#: lib/lemmings_os_web/connections_surface.ex:193
 #, elixir-autogen, elixir-format
 msgid ".connections_source_unknown"
 msgstr ""
 
-#: lib/lemmings_os_web/connections_surface.ex:87
+#: lib/lemmings_os_web/connections_surface.ex:190
 #, elixir-autogen, elixir-format
 msgid ".connections_source_world"
 msgstr ""
 
-#: lib/lemmings_os_web/components/world_components.ex:237
-#: lib/lemmings_os_web/components/world_components.ex:842
+#: lib/lemmings_os_web/components/world_components.ex:243
+#: lib/lemmings_os_web/components/world_components.ex:852
 #: lib/lemmings_os_web/live/cities_live.html.heex:247
 #, elixir-autogen, elixir-format
 msgid ".nav_connections"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:38
+#: lib/lemmings_os_web/components/connections_components.ex:40
 #, elixir-autogen, elixir-format
 msgid ".subtitle_connections"
 msgstr ""
 
-#: lib/lemmings_os_web/components/connections_components.ex:37
-#: lib/lemmings_os_web/components/connections_components.ex:55
-#: lib/lemmings_os_web/components/connections_components.ex:135
+#: lib/lemmings_os_web/components/connections_components.ex:39
+#: lib/lemmings_os_web/components/connections_components.ex:58
+#: lib/lemmings_os_web/components/connections_components.ex:154
 #, elixir-autogen, elixir-format
 msgid ".title_connections"
 msgstr ""
@@ -1084,8 +1088,8 @@ msgstr ""
 #: lib/lemmings_os_web/components/artifacts_components.ex:35
 #: lib/lemmings_os_web/components/lemming_components.ex:399
 #: lib/lemmings_os_web/components/lemming_components.ex:1100
-#: lib/lemmings_os_web/components/world_components.ex:246
-#: lib/lemmings_os_web/components/world_components.ex:852
+#: lib/lemmings_os_web/components/world_components.ex:252
+#: lib/lemmings_os_web/components/world_components.ex:862
 #: lib/lemmings_os_web/live/cities_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Artifacts"
@@ -1159,4 +1163,29 @@ msgstr ""
 #: lib/lemmings_os_web/components/artifacts_components.ex:90
 #, elixir-autogen, elixir-format
 msgid "world"
+msgstr ""
+
+#: lib/lemmings_os_web/connections_surface.ex:172
+#, elixir-autogen, elixir-format
+msgid "Connect Gmail"
+msgstr ""
+
+#: lib/lemmings_os_web/connections_surface.ex:162
+#, elixir-autogen, elixir-format
+msgid "Connected"
+msgstr ""
+
+#: lib/lemmings_os_web/connections_surface.ex:149
+#, elixir-autogen, elixir-format
+msgid "Not available"
+msgstr ""
+
+#: lib/lemmings_os_web/connections_surface.ex:164
+#, elixir-autogen, elixir-format
+msgid "Not connected"
+msgstr ""
+
+#: lib/lemmings_os_web/connections_surface.ex:170
+#, elixir-autogen, elixir-format
+msgid "Reconnect Gmail"
 msgstr ""
