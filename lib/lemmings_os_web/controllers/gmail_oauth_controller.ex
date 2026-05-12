@@ -231,12 +231,16 @@ defmodule LemmingsOsWeb.GmailOAuthController do
        do: ~p"/departments?#{%{city: city_id, dept: department_id, tab: "connections"}}"
 
   defp safe_return_to(%{"return_to" => return_to}, fallback) when is_binary(return_to) do
-    if String.starts_with?(return_to, ["/world", "/cities", "/departments"]) do
-      return_to
-    else
-      fallback
-    end
+    return_to
+    |> URI.parse()
+    |> safe_return_to_uri(return_to, fallback)
   end
 
   defp safe_return_to(_session_state, fallback), do: fallback
+
+  defp safe_return_to_uri(%URI{scheme: nil, host: nil, path: path}, return_to, _fallback)
+       when path in ["/world", "/cities", "/departments"],
+       do: return_to
+
+  defp safe_return_to_uri(_uri, _return_to, fallback), do: fallback
 end

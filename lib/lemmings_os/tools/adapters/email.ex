@@ -27,6 +27,11 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   @provider "gmail"
   @connection_ref "gmail"
   @default_body_format "text/plain"
+  @default_max_attachment_count 5
+  @default_max_attachment_megabytes 10
+  @default_max_total_attachment_megabytes 20
+  @default_max_body_megabytes 0.2
+  @bytes_per_megabyte 1_000_000
   @allowed_body_formats MapSet.new(["text/plain", "text/html"])
   @allowed_fields MapSet.new([
                     "connection_ref",
@@ -182,6 +187,13 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   end
 
   defp run_create_draft(%LemmingInstance{} = instance, parsed_args, trusted_config) do
+    case validate_body_limit(parsed_args) do
+      :ok -> do_run_create_draft(instance, parsed_args, trusted_config)
+      {:error, %{} = error} -> {:error, error, %{connection_id: nil}}
+    end
+  end
+
+  defp do_run_create_draft(%LemmingInstance{} = instance, parsed_args, trusted_config) do
     case resolve_gmail_connection(instance, parsed_args.connection_ref) do
       {:ok, connection_scope, descriptor} ->
         connection_id = descriptor.connection_id
@@ -590,18 +602,48 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   defp load_attachments(_instance, []), do: {:ok, []}
 
   defp load_attachments(%LemmingInstance{} = instance, artifact_ids) when is_list(artifact_ids) do
-    with {:ok, artifact_scope} <- artifact_scope(instance),
+    with :ok <- validate_attachment_count(artifact_ids),
+         {:ok, artifact_scope} <- artifact_scope(instance),
          {:ok, world_scope} <- world_scope(instance) do
       load_attachment_list(artifact_ids, artifact_scope, world_scope)
     end
   end
 
   defp load_attachment_list(artifact_ids, artifact_scope, world_scope) do
+    with {:ok, artifacts} <- load_attachment_artifacts(artifact_ids, artifact_scope, world_scope),
+         :ok <- validate_attachment_sizes(artifacts) do
+      open_attachment_list(artifacts, artifact_scope)
+    end
+  end
+
+  defp load_attachment_artifacts(artifact_ids, artifact_scope, world_scope) do
     artifact_ids
     |> Enum.reduce_while({:ok, []}, fn artifact_id, {:ok, acc} ->
-      case load_attachment(artifact_scope, world_scope, artifact_id) do
-        {:ok, attachment} -> {:cont, {:ok, [attachment | acc]}}
-        {:error, %{} = error} -> {:halt, {:error, error}}
+      case load_attachment_artifact(artifact_scope, world_scope, artifact_id) do
+        {:ok, artifact} ->
+          {:cont, {:ok, [artifact | acc]}}
+
+        {:error, %{} = error} ->
+          {:halt, {:error, error}}
+      end
+    end)
+    |> normalize_attachment_artifacts_result()
+  end
+
+  defp normalize_attachment_artifacts_result({:ok, artifacts}),
+    do: {:ok, Enum.reverse(artifacts)}
+
+  defp normalize_attachment_artifacts_result({:error, %{} = error}), do: {:error, error}
+
+  defp open_attachment_list(artifacts, artifact_scope) do
+    artifacts
+    |> Enum.reduce_while({:ok, []}, fn artifact, {:ok, acc} ->
+      case open_attachment(artifact_scope, artifact.id) do
+        {:ok, attachment} ->
+          {:cont, {:ok, [attachment | acc]}}
+
+        {:error, %{} = error} ->
+          {:halt, {:error, error}}
       end
     end)
     |> normalize_attachment_list_result()
@@ -610,13 +652,11 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   defp normalize_attachment_list_result({:ok, attachments}), do: {:ok, Enum.reverse(attachments)}
   defp normalize_attachment_list_result({:error, %{} = error}), do: {:error, error}
 
-  defp load_attachment(artifact_scope, world_scope, artifact_id) do
+  defp load_attachment_artifact(artifact_scope, world_scope, artifact_id) do
     case Artifacts.get_artifact(artifact_scope, artifact_id, include_non_ready: true) do
       {:ok, artifact} ->
-        if artifact.status != "ready" do
-          {:error, artifact_not_found_error(artifact_id)}
-        else
-          open_attachment(artifact_scope, artifact_id)
+        with :ok <- validate_ready_artifact(artifact, artifact_id) do
+          {:ok, artifact}
         end
 
       {:error, :not_found} ->
@@ -624,6 +664,47 @@ defmodule LemmingsOs.Tools.Adapters.Email do
 
       {:error, _reason} ->
         {:error, artifact_not_allowed_error(artifact_id)}
+    end
+  end
+
+  defp validate_attachment_sizes(artifacts) do
+    artifacts
+    |> Enum.reduce_while({:ok, 0}, fn artifact, {:ok, total_bytes} ->
+      case validate_attachment_size(artifact, total_bytes) do
+        {:ok, next_total_bytes} -> {:cont, {:ok, next_total_bytes}}
+        {:error, %{} = error} -> {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      {:ok, _total_bytes} -> :ok
+      {:error, %{} = error} -> {:error, error}
+    end
+  end
+
+  defp validate_ready_artifact(artifact, artifact_id) do
+    if artifact.status == "ready" do
+      :ok
+    else
+      {:error, artifact_not_found_error(artifact_id)}
+    end
+  end
+
+  defp validate_attachment_size(artifact, total_bytes) do
+    size_bytes = artifact.size_bytes
+    limits = email_draft_limits()
+
+    cond do
+      not is_integer(size_bytes) or size_bytes < 0 ->
+        {:error, artifact_not_found_error(artifact.id)}
+
+      size_bytes > limits.max_attachment_bytes ->
+        {:error, attachment_too_large_error(artifact.id)}
+
+      total_bytes + size_bytes > limits.max_total_attachment_bytes ->
+        {:error, attachment_too_large_error(artifact.id)}
+
+      true ->
+        {:ok, total_bytes + size_bytes}
     end
   end
 
@@ -657,10 +738,11 @@ defmodule LemmingsOs.Tools.Adapters.Email do
       "provider" => @provider,
       "connection_ref" => parsed_args.connection_ref,
       "draft_id" => draft.draft_id,
-      "to" => parsed_args.to,
-      "cc" => parsed_args.cc,
-      "bcc" => parsed_args.bcc,
-      "subject" => parsed_args.subject,
+      "to_count" => length(parsed_args.to),
+      "cc_count" => length(parsed_args.cc),
+      "bcc_count" => length(parsed_args.bcc),
+      "subject_preview" => subject_preview(parsed_args.subject),
+      "artifact_count" => length(parsed_args.artifact_ids),
       "artifact_ids" => parsed_args.artifact_ids
     }
 
@@ -681,13 +763,18 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   end
 
   defp draft_summary(parsed_args) do
-    recipient = List.first(parsed_args.to)
     attachment_count = length(parsed_args.artifact_ids)
 
     attachment_label =
       if attachment_count == 1, do: "1 attachment", else: "#{attachment_count} attachments"
 
-    "Created Gmail draft for #{recipient} with #{attachment_label}"
+    "Created Gmail draft for #{length(parsed_args.to)} recipient(s) with #{attachment_label}"
+  end
+
+  defp subject_preview(subject) when is_binary(subject) do
+    subject
+    |> String.trim()
+    |> String.slice(0, 80)
   end
 
   defp build_raw_message(parsed_args, attachments) do
@@ -777,6 +864,22 @@ defmodule LemmingsOs.Tools.Adapters.Email do
     |> Base.encode64()
     |> String.replace(~r/.{1,76}/, "\\0\r\n")
     |> String.trim_trailing()
+  end
+
+  defp validate_body_limit(%{body: body}) when is_binary(body) do
+    if byte_size(body) <= email_draft_limits().max_body_bytes do
+      :ok
+    else
+      {:error, body_too_large_error()}
+    end
+  end
+
+  defp validate_attachment_count(artifact_ids) do
+    if length(artifact_ids) <= email_draft_limits().max_attachment_count do
+      :ok
+    else
+      {:error, attachment_too_large_error(nil)}
+    end
   end
 
   defp sanitize_header_value(value) when is_binary(value) do
@@ -990,6 +1093,22 @@ defmodule LemmingsOs.Tools.Adapters.Email do
     }
   end
 
+  defp attachment_too_large_error(artifact_id) do
+    %{
+      code: "tool.email.attachment_too_large",
+      message: "Attachment exceeds configured draft limit",
+      details: maybe_put(%{}, :artifact_id, artifact_id)
+    }
+  end
+
+  defp body_too_large_error do
+    %{
+      code: "tool.email.body_too_large",
+      message: "Email body exceeds configured draft limit",
+      details: %{}
+    }
+  end
+
   defp draft_create_failed_error do
     %{
       code: "tool.email.draft_create_failed",
@@ -1035,6 +1154,48 @@ defmodule LemmingsOs.Tools.Adapters.Email do
   defp trusted_atom_key("mode"), do: :mode
   defp trusted_atom_key("access_token"), do: :access_token
   defp trusted_atom_key(_key), do: nil
+
+  defp email_draft_limits do
+    config = Application.get_env(:lemmings_os, :email_draft, [])
+
+    %{
+      max_attachment_count:
+        positive_integer_config(config, :max_attachment_count, @default_max_attachment_count),
+      max_attachment_bytes:
+        megabytes_config_to_bytes(
+          config,
+          :max_attachment_megabytes,
+          @default_max_attachment_megabytes
+        ),
+      max_total_attachment_bytes:
+        megabytes_config_to_bytes(
+          config,
+          :max_total_attachment_megabytes,
+          @default_max_total_attachment_megabytes
+        ),
+      max_body_bytes:
+        megabytes_config_to_bytes(config, :max_body_megabytes, @default_max_body_megabytes)
+    }
+  end
+
+  defp positive_integer_config(config, key, default) do
+    case Keyword.get(config, key, default) do
+      value when is_integer(value) and value > 0 -> value
+      _value -> default
+    end
+  end
+
+  defp megabytes_config_to_bytes(config, key, default) do
+    config
+    |> Keyword.get(key, default)
+    |> case do
+      value when is_integer(value) and value > 0 -> value
+      value when is_float(value) and value > 0.0 -> value
+      _value -> default
+    end
+    |> Kernel.*(@bytes_per_megabyte)
+    |> round()
+  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

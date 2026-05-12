@@ -8,7 +8,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
   alias LemmingsOs.Tools.ToolExecutionOutputs
 
   @default_max_retries 3
-  @email_draft_result_keys ~w(status provider connection_ref draft_id message_id to cc bcc subject artifact_ids)
+  @email_draft_result_keys ~w(status provider connection_ref draft_id message_id to_count cc_count bcc_count subject_preview artifact_count artifact_ids)
 
   attr :id, :string, default: nil
   attr :status, :string, required: true
@@ -1184,11 +1184,11 @@ defmodule LemmingsOsWeb.InstanceComponents do
   defp tool_result_payload_json(_tool_execution), do: "{}"
 
   defp email_draft_summary(%{result: result}) when is_map(result) do
-    recipient = result |> Map.get("to", []) |> safe_string_list() |> List.first() || "recipient"
-    attachment_count = result |> Map.get("artifact_ids", []) |> safe_string_list() |> length()
+    recipient_count = safe_count(Map.get(result, "to_count"))
+    attachment_count = safe_count(Map.get(result, "artifact_count"))
     attachment_label = if attachment_count == 1, do: "attachment", else: "attachments"
 
-    "Created Gmail draft for #{recipient} with #{attachment_count} #{attachment_label}"
+    "Created Gmail draft for #{recipient_count} recipient(s) with #{attachment_count} #{attachment_label}"
   end
 
   defp email_draft_summary(_tool_execution), do: nil
@@ -1203,7 +1203,7 @@ defmodule LemmingsOsWeb.InstanceComponents do
     do: dgettext("lemmings", "Gmail draft creation recorded.")
 
   defp email_draft_preview(%{result: result}) when is_map(result) do
-    case safe_string(Map.get(result, "subject")) do
+    case safe_string(Map.get(result, "subject_preview")) do
       nil -> nil
       subject -> "Subject: #{subject}"
     end
@@ -1214,17 +1214,21 @@ defmodule LemmingsOsWeb.InstanceComponents do
   defp email_draft_safe_result(result) when is_map(result) do
     result
     |> Map.take(@email_draft_result_keys)
-    |> Map.put("to", safe_string_list(Map.get(result, "to", [])))
-    |> Map.put("cc", safe_string_list(Map.get(result, "cc", [])))
-    |> Map.put("bcc", safe_string_list(Map.get(result, "bcc", [])))
     |> Map.put("artifact_ids", safe_string_list(Map.get(result, "artifact_ids", [])))
+    |> Map.put("to_count", safe_count(Map.get(result, "to_count")))
+    |> Map.put("cc_count", safe_count(Map.get(result, "cc_count")))
+    |> Map.put("bcc_count", safe_count(Map.get(result, "bcc_count")))
+    |> Map.put("artifact_count", safe_count(Map.get(result, "artifact_count")))
     |> maybe_put_safe_string("status", Map.get(result, "status"))
     |> maybe_put_safe_string("provider", Map.get(result, "provider"))
     |> maybe_put_safe_string("connection_ref", Map.get(result, "connection_ref"))
     |> maybe_put_safe_string("draft_id", Map.get(result, "draft_id"))
     |> maybe_put_safe_string("message_id", Map.get(result, "message_id"))
-    |> maybe_put_safe_string("subject", Map.get(result, "subject"))
+    |> maybe_put_safe_string("subject_preview", Map.get(result, "subject_preview"))
   end
+
+  defp safe_count(value) when is_integer(value) and value >= 0, do: value
+  defp safe_count(_value), do: 0
 
   defp maybe_put_safe_string(payload, key, value) do
     case safe_string(value) do

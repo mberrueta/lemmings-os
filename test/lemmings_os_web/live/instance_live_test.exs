@@ -753,10 +753,11 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
           "connection_ref" => "gmail",
           "draft_id" => "draft-123",
           "message_id" => "message-123",
-          "to" => ["customer@example.com"],
-          "cc" => [],
-          "bcc" => [],
-          "subject" => "Renewal quote",
+          "to_count" => 1,
+          "cc_count" => 0,
+          "bcc_count" => 0,
+          "subject_preview" => "Renewal quote",
+          "artifact_count" => 1,
           "artifact_ids" => ["artifact-1"],
           "access_token" => "redacted_provider_credential_123",
           "raw_provider_payload" => %{"sensitive" => true},
@@ -773,7 +774,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     assert has_element?(
              view,
              "#tool-execution-summary-#{tool_execution.id}",
-             "Created Gmail draft for customer@example.com with 1 attachment"
+             "Created Gmail draft for 1 recipient(s) with 1 attachment"
            )
 
     assert has_element?(
@@ -790,6 +791,18 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
     assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"artifact_ids\"")
     assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "artifact-1")
+    assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"to_count\": 1")
+    assert has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"bcc_count\": 0")
+
+    assert has_element?(
+             view,
+             "#tool-execution-result-#{tool_execution.id}",
+             "\"subject_preview\""
+           )
+
+    refute has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"to\"")
+    refute has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"bcc\"")
+    refute has_element?(view, "#tool-execution-result-#{tool_execution.id}", "\"subject\":")
 
     refute has_element?(
              view,

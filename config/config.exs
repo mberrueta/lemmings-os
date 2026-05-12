@@ -20,6 +20,12 @@ config :lemmings_os, :artifact_storage,
   root_path: Path.expand("../priv/runtime/storage", __DIR__),
   max_file_size_bytes: 100 * 1024 * 1024
 
+config :lemmings_os, :email_draft,
+  max_attachment_count: 5,
+  max_attachment_megabytes: 10,
+  max_total_attachment_megabytes: 20,
+  max_body_megabytes: 0.2
+
 config :lemmings_os, :knowledge_source_file_storage,
   backend: :local,
   root_path: Path.expand("../priv/runtime/knowledge_storage", __DIR__),

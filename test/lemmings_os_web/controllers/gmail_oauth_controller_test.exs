@@ -109,6 +109,28 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     refute String.contains?(query_params["scope"], " ")
   end
 
+  test "start stores only exact supported return_to paths", %{conn: conn} do
+    world = insert(:world)
+    {:ok, _} = SecretBank.upsert_secret(world, "GMAIL_CLIENT_ID", "dev_only_client_id")
+
+    for unsafe_return_to <- [
+          "/worldevil?tab=connections",
+          "/cities-malformed?city=123",
+          "/departments_anything",
+          "https://example.test/world"
+        ] do
+      response =
+        get(conn, ~p"/connections/gmail/oauth/start", %{
+          "world_id" => world.id,
+          "client_id" => "$GMAIL_CLIENT_ID",
+          "client_secret" => "$GMAIL_CLIENT_SECRET",
+          "return_to" => unsafe_return_to
+        })
+
+      assert get_session(response, @session_key)["return_to"] == "/world?tab=connections"
+    end
+  end
+
   test "callback success redirects to city connections tab for city-scoped onboarding", %{
     conn: conn
   } do
@@ -252,6 +274,12 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
 
     original = Connections.get_connection_by_type(world, "gmail")
     assert original
+    original_refresh_ref = original.config["refresh_token"]
+
+    assert {:ok, original_refresh} =
+             SecretBank.resolve_runtime_secret(world, original_refresh_ref)
+
+    assert original_refresh.value == "oauth_secret_value_1"
 
     restarted = oauth_start(conn, world)
     state_two = get_session(restarted, @session_key)
@@ -268,11 +296,15 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
     updated = Connections.get_connection_by_type(world, "gmail")
     assert updated.id == original.id
     assert updated.config["account_email"] == "owner@example.test"
+    assert updated.config["refresh_token"] != original_refresh_ref
 
     assert {:ok, resolved_refresh} =
              SecretBank.resolve_runtime_secret(world, updated.config["refresh_token"])
 
     assert resolved_refresh.value == "oauth_secret_value_2"
+
+    assert {:error, :missing_secret} =
+             SecretBank.resolve_runtime_secret(world, original_refresh_ref)
 
     [profile_failure_event] =
       Events.list_recent_events(world,
@@ -281,6 +313,53 @@ defmodule LemmingsOsWeb.GmailOAuthControllerTest do
       )
 
     assert profile_failure_event.payload["reason"] == "profile_lookup_failed"
+  end
+
+  test "failed callback leaves existing gmail refresh token unchanged", %{conn: conn} do
+    world = insert(:world)
+    seed_google_client_secrets(world)
+
+    started = oauth_start(conn, world)
+    state = get_session(started, @session_key)
+
+    _callback_conn =
+      started
+      |> recycle()
+      |> init_test_session(%{@session_key => state})
+      |> get(~p"/connections/gmail/oauth/callback", %{
+        "code" => "valid_code",
+        "state" => state["state"]
+      })
+
+    original = Connections.get_connection_by_type(world, "gmail")
+    original_refresh_ref = original.config["refresh_token"]
+
+    assert {:ok, original_refresh} =
+             SecretBank.resolve_runtime_secret(world, original_refresh_ref)
+
+    failed_start = oauth_start(conn, world)
+    failed_state = get_session(failed_start, @session_key)
+
+    failed_callback_conn =
+      failed_start
+      |> recycle()
+      |> init_test_session(%{@session_key => failed_state})
+      |> get(~p"/connections/gmail/oauth/callback", %{
+        "code" => "invalid_code",
+        "state" => failed_state["state"]
+      })
+
+    assert redirected_to(failed_callback_conn) == "/world?tab=connections"
+    assert Phoenix.Flash.get(failed_callback_conn.assigns.flash, :error) =~ "Gmail OAuth failed"
+
+    unchanged = Connections.get_connection_by_type(world, "gmail")
+    assert unchanged.id == original.id
+    assert unchanged.config["refresh_token"] == original_refresh_ref
+
+    assert {:ok, unchanged_refresh} =
+             SecretBank.resolve_runtime_secret(world, original_refresh_ref)
+
+    assert unchanged_refresh.value == original_refresh.value
   end
 
   test "callback preserves custom client credential refs from existing scoped connection", %{
