@@ -94,6 +94,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.TransitionsData do
   def last_error_message(:tool_iteration_limit_reached),
     do: dgettext("errors", "Tool iteration limit reached before final reply.")
 
+  def last_error_message({:resume_after_tool_failed, _reason}),
+    do: dgettext("errors", "Tool completed, but the executor could not resume the model.")
+
   def last_error_message(:invalid_world_scope),
     do: dgettext("errors", "Runtime world scope is invalid.")
 
@@ -149,8 +152,37 @@ defmodule LemmingsOs.LemmingInstances.Executor.TransitionsData do
     %{kind: :tool_execution_update_failed, reason: inspect(reason)}
   end
 
+  def internal_error_details({:resume_after_tool_failed, reason}) do
+    %{kind: :resume_after_tool_failed, reason: inspect(reason)}
+  end
+
   def internal_error_details(reason) when is_atom(reason), do: %{kind: reason}
   def internal_error_details(reason), do: inspect(reason)
+
+  @doc """
+  Returns a structured last-error payload for runtime/debug surfaces.
+  """
+  @spec last_error_details(term(), binary()) :: map()
+  def last_error_details(reason, message) when is_binary(message) do
+    %{
+      "code" => error_code(reason),
+      "message" => message,
+      "context" => ModelStepPayload.sanitize_json_map(internal_error_details(reason))
+    }
+  end
+
+  @doc """
+  Returns the fallback structured error used if failed status is requested
+  before an explicit runtime error has been recorded.
+  """
+  @spec missing_failure_error_details() :: map()
+  def missing_failure_error_details do
+    %{
+      "code" => "runtime.failure_missing_error",
+      "message" => dgettext("errors", "Runtime failed without a recorded error."),
+      "context" => %{"kind" => "runtime.failure_missing_error"}
+    }
+  end
 
   @doc """
   Maps transition status to telemetry atom.
@@ -203,4 +235,14 @@ defmodule LemmingsOs.LemmingInstances.Executor.TransitionsData do
 
   defp provider_status_copy(%{status: status}) when is_integer(status), do: " (HTTP #{status})"
   defp provider_status_copy(_metadata), do: ""
+
+  defp error_code({kind, metadata}) when is_atom(kind) and is_map(metadata) do
+    get_in(metadata, [:validation_result, :validation_error]) ||
+      get_in(metadata, ["validation_result", "validation_error"]) ||
+      Atom.to_string(kind)
+  end
+
+  defp error_code({kind, _metadata}) when is_atom(kind), do: Atom.to_string(kind)
+  defp error_code(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp error_code(_reason), do: "runtime.error"
 end

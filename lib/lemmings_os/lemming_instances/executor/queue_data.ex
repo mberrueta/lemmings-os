@@ -155,6 +155,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.QueueData do
     |> Map.put(:retry_count, 0)
     |> Map.put(:last_error, nil)
     |> Map.put(:internal_error_details, nil)
+    |> Map.put(:last_error_details, nil)
   end
 
   defp next_status_for_enqueue(status) when status in ["created", "idle"], do: "queued"

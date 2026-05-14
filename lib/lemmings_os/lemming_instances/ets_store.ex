@@ -31,6 +31,7 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
           context_messages: [map()],
           last_error: String.t() | nil,
           internal_error_details: map() | String.t() | nil,
+          last_error_details: map() | nil,
           status: atom(),
           started_at: DateTime.t() | nil,
           last_activity_at: DateTime.t() | nil
@@ -384,6 +385,10 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
       :internal_error_details,
       normalize_internal_error_details(field_value(state, :internal_error_details))
     )
+    |> Map.put(
+      :last_error_details,
+      normalize_last_error_details(field_value(state, :last_error_details))
+    )
     |> Map.put(:status, normalize_status(field_value(state, :status)))
     |> Map.put(:started_at, field_value(state, :started_at))
     |> Map.put(:last_activity_at, field_value(state, :last_activity_at))
@@ -401,6 +406,7 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
      |> maybe_normalize_field(:context_messages, &normalize_context_messages/1)
      |> maybe_normalize_field(:last_error, &normalize_last_error/1)
      |> maybe_normalize_field(:internal_error_details, &normalize_internal_error_details/1)
+     |> maybe_normalize_field(:last_error_details, &normalize_last_error_details/1)
      |> maybe_normalize_field(:status, &normalize_status/1)}
   end
 
@@ -429,6 +435,9 @@ defmodule LemmingsOs.LemmingInstances.EtsStore do
   end
 
   defp normalize_internal_error_details(_error_details), do: nil
+
+  defp normalize_last_error_details(%{} = error_details), do: error_details
+  defp normalize_last_error_details(_error_details), do: nil
 
   defp normalize_current_item(nil), do: nil
 

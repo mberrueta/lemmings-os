@@ -52,6 +52,30 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   end
 
   @doc """
+  Adds goal-specific continuation guidance to a tool payload.
+  """
+  @spec apply_goal_context(map(), map(), binary()) :: map()
+  def apply_goal_context(
+        tool_payload,
+        %{tool_name: "knowledge.search"} = tool_execution,
+        original_goal
+      )
+      when is_map(tool_payload) and is_binary(original_goal) do
+    if zero_result_knowledge_search?(tool_execution) and placeholders_allowed?(original_goal) do
+      Map.update(
+        tool_payload,
+        :remaining_work,
+        placeholder_remaining_work(),
+        &Enum.uniq(&1 ++ placeholder_remaining_work())
+      )
+    else
+      tool_payload
+    end
+  end
+
+  def apply_goal_context(tool_payload, _tool_execution, _original_goal), do: tool_payload
+
+  @doc """
   Builds the normalized finalization context persisted in executor state.
   """
   @spec build_finalization_context(binary(), map(), map()) :: map()
@@ -146,7 +170,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
       tool_result_workspace_path(result),
       tool_result_root_path(result),
       tool_result_bytes_detail(result),
-      tool_execution.preview
+      Map.get(tool_execution, :preview)
     ]
     |> Enum.filter(&present_detail?/1)
     |> Enum.map(&redact_text/1)
@@ -262,6 +286,32 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   end
 
   defp knowledge_search_remaining_work(_kind, _results), do: []
+
+  defp zero_result_knowledge_search?(%{result: result}) when is_map(result) do
+    case knowledge_search_result_payload(result) do
+      payload when is_map(payload) ->
+        (map_value(payload, :count) || 0) == 0
+
+      _payload ->
+        false
+    end
+  end
+
+  defp zero_result_knowledge_search?(_tool_execution), do: false
+
+  defp placeholders_allowed?(text) when is_binary(text) do
+    normalized = String.downcase(text)
+
+    String.contains?(normalized, "placeholder") or
+      String.contains?(normalized, "$ xxx.xx") or
+      String.contains?(normalized, "xxx.xx")
+  end
+
+  defp placeholder_remaining_work do
+    [
+      "No price knowledge was found, but the user explicitly allowed placeholders. Continue the quote workflow using `$ XXX.XX` for unavailable prices, and report those prices as assumptions/missing information."
+    ]
+  end
 
   defp knowledge_search_chunk_reference(row) when is_map(row) do
     %{}

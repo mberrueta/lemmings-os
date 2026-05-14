@@ -189,6 +189,41 @@ defmodule LemmingsOs.LemmingInstances.Executor.Events do
     })
   end
 
+  @spec emit_tool_result_received(map(), map()) :: :ok
+  def emit_tool_result_received(state, tool_execution) do
+    emit(state, "runtime.tool.result_received", %{
+      tool_name: Map.get(tool_execution, :tool_name),
+      tool_execution_id: Map.get(tool_execution, :id),
+      status: Map.get(tool_execution, :status)
+    })
+  end
+
+  @spec emit_tool_result_context_appended(map(), map(), non_neg_integer()) :: :ok
+  def emit_tool_result_context_appended(state, tool_execution, context_message_count) do
+    emit(state, "runtime.tool.result_context_appended", %{
+      tool_name: Map.get(tool_execution, :tool_name),
+      tool_execution_id: Map.get(tool_execution, :id),
+      context_message_count: context_message_count
+    })
+  end
+
+  @spec emit_requeued_after_tool(map()) :: :ok
+  def emit_requeued_after_tool(state) do
+    emit(state, "runtime.executor.requeued_after_tool", %{
+      phase: Map.get(state, :phase),
+      tool_iteration_count: Map.get(state, :tool_iteration_count)
+    })
+  end
+
+  @spec emit_resume_after_tool_failed(map(), term()) :: :ok
+  def emit_resume_after_tool_failed(state, reason) do
+    emit(state, "runtime.executor.resume_after_tool_failed", %{
+      reason: Telemetry.reason_token(reason),
+      phase: Map.get(state, :phase),
+      tool_iteration_count: Map.get(state, :tool_iteration_count)
+    })
+  end
+
   @doc """
   Emits a resume-requested runtime event for delegated child-call continuation.
 

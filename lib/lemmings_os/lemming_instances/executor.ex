@@ -124,8 +124,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
           tool_iteration_count: non_neg_integer(),
           model_step_count: non_neg_integer(),
           model_steps: [map()],
+          last_tool_result_delivery: map() | nil,
           last_error: String.t() | nil,
           internal_error_details: map() | String.t() | nil,
+          last_error_details: map() | nil,
           active_model_step: map() | nil,
           model_task_pid: pid() | nil,
           model_task_monitor_ref: reference() | nil,
@@ -450,8 +452,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         tool_iteration_count: 0,
         model_step_count: 0,
         model_steps: [],
+        last_tool_result_delivery: nil,
         last_error: nil,
         internal_error_details: nil,
+        last_error_details: nil,
         active_model_step: nil,
         model_task_pid: nil,
         model_task_monitor_ref: nil,
@@ -563,8 +567,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       tool_iteration_count: state.tool_iteration_count,
       model_step_count: state.model_step_count,
       queue_depth: :queue.len(state.queue),
+      last_tool_result_delivery: state.last_tool_result_delivery,
       last_error: state.last_error,
-      internal_error_details: state.internal_error_details
+      internal_error_details: state.internal_error_details,
+      last_error_details: state.last_error_details
     }
 
     {:reply, snapshot, state}
@@ -590,8 +596,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         state.current_resource_key || ConfigSnapshot.resource_key(state.config_snapshot),
       current_resource_key: state.current_resource_key,
       model_steps: state.model_steps,
+      last_tool_result_delivery: state.last_tool_result_delivery,
       last_error: state.last_error,
       internal_error_details: state.internal_error_details,
+      last_error_details: state.last_error_details,
       started_at: state.started_at,
       last_activity_at: state.last_activity_at
     }
@@ -837,6 +845,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       state
       |> Map.put(:last_error, nil)
       |> Map.put(:internal_error_details, nil)
+      |> Map.put(:last_error_details, nil)
 
     case ToolStepRuntime.execute_tool_call(state, response, tool_step_runtime_deps()) do
       {:ok, next_state, _tool_execution} ->
@@ -856,6 +865,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       state
       |> Map.put(:last_error, nil)
       |> Map.put(:internal_error_details, nil)
+      |> Map.put(:last_error_details, nil)
 
     case CommunicationRuntime.execute_lemming_call(state, response) do
       {:ok, next_state, _call} ->
@@ -895,6 +905,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       state
       |> Map.put(:last_error, nil)
       |> Map.put(:internal_error_details, nil)
+      |> Map.put(:last_error_details, nil)
 
     case persist_assistant_message(state, response) do
       {:ok, next_state} ->
@@ -1183,10 +1194,16 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp append_tool_result_context(state, tool_execution) do
-    tool_payload = FinalizationPayload.tool_result_payload(tool_execution)
+    _ = Events.emit_tool_result_received(state, tool_execution)
+
+    tool_payload =
+      tool_execution
+      |> FinalizationPayload.tool_result_payload()
+      |> FinalizationPayload.apply_goal_context(tool_execution, state.current_item.content)
+
     tool_message = ContextMessages.tool_result_message(tool_execution, tool_payload)
 
-    %{
+    next_state = %{
       state
       | context_messages: state.context_messages ++ [tool_message],
         finalization_context:
@@ -1196,6 +1213,25 @@ defmodule LemmingsOs.LemmingInstances.Executor do
             tool_payload
           ),
         finalization_repair_attempted?: false
+    }
+
+    _ =
+      Events.emit_tool_result_context_appended(
+        next_state,
+        tool_execution,
+        length(next_state.context_messages)
+      )
+
+    %{
+      next_state
+      | last_tool_result_delivery: %{
+          status: "context_appended",
+          tool_execution_id: tool_execution.id,
+          tool_name: tool_execution.tool_name,
+          tool_status: tool_execution.status,
+          context_message_count: length(next_state.context_messages),
+          updated_at: state.now_fun.()
+        }
     }
   end
 
@@ -1238,7 +1274,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       put_runtime_state: &put_runtime_state/1,
       start_execution: &start_execution/1,
       handle_model_retry: &handle_model_retry/2,
-      max_tool_iterations: &max_tool_iterations/1
+      max_tool_iterations: &max_tool_iterations/1,
+      emit_requeued_after_tool: &Events.emit_requeued_after_tool/1,
+      emit_resume_after_tool_failed: &Events.emit_resume_after_tool_failed/2
     }
   end
 
@@ -1517,16 +1555,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp model_config_snapshot(state) do
-    instance =
-      CommunicationRuntime.instance_with_runtime_snapshot(
-        state.instance,
-        state.config_snapshot
-      )
-
     CommunicationRuntime.model_config_snapshot(
       state.config_snapshot,
       state.lemming_calls_mod,
-      instance
+      state.instance
     )
   end
 
@@ -1630,6 +1662,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   defp transition_to(state, new_status, attrs \\ %{}) when new_status in @statuses do
     now = state.now_fun.()
     previous_status = state.status
+    state = maybe_ensure_failed_error(state, new_status)
 
     attrs =
       attrs
@@ -1846,13 +1879,38 @@ defmodule LemmingsOs.LemmingInstances.Executor do
       phase: state.phase,
       finalization_context: state.finalization_context,
       finalization_repair_attempted?: state.finalization_repair_attempted?,
+      last_tool_result_delivery: state.last_tool_result_delivery,
       last_error: state.last_error,
       internal_error_details: state.internal_error_details,
+      last_error_details: state.last_error_details,
       status: status_atom(state.status),
       started_at: state.started_at,
       last_activity_at: state.last_activity_at
     }
   end
+
+  defp maybe_ensure_failed_error(state, "failed") do
+    if present_string?(Map.get(state, :last_error)) do
+      Map.update(
+        state,
+        :last_error_details,
+        TransitionsData.last_error_details(:runtime_error, state.last_error),
+        fn
+          details when is_map(details) -> details
+          _details -> TransitionsData.last_error_details(:runtime_error, state.last_error)
+        end
+      )
+    else
+      details = TransitionsData.missing_failure_error_details()
+
+      state
+      |> Map.put(:last_error, Map.fetch!(details, "message"))
+      |> Map.put(:last_error_details, details)
+      |> Map.put(:internal_error_details, Map.fetch!(details, "context"))
+    end
+  end
+
+  defp maybe_ensure_failed_error(state, _status), do: state
 
   defp maybe_ensure_root_work_area(
          %{work_area_ref: instance_id, instance_id: instance_id} = state
@@ -1949,6 +2007,9 @@ defmodule LemmingsOs.LemmingInstances.Executor do
 
   defp current_item_id(%{id: id}) when is_binary(id), do: id
   defp current_item_id(_current_item), do: nil
+
+  defp present_string?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_string?(_value), do: false
 
   defp status_atom(status) when is_binary(status) do
     TransitionsData.status_atom(status, @status_atoms)

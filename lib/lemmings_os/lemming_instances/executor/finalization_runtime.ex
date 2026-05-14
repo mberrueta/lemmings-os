@@ -24,10 +24,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationRuntime do
   ## Examples
 
       iex> deps = %{put_runtime_state: &Map.put(&1, :persisted?, true), release_resource: & &1, cleanup_snapshot: & &1, transition_to: fn state, _status, _attrs -> state end}
-      iex> state = %{finalization_repair_attempted?: false, last_error: "boom", internal_error_details: %{kind: :x}, finalization_context: %{}}
+      iex> state = %{finalization_repair_attempted?: false, last_error: "boom", internal_error_details: %{kind: :x}, last_error_details: %{code: "x"}, finalization_context: %{}}
       iex> updated = LemmingsOs.LemmingInstances.Executor.FinalizationRuntime.schedule_repair(state, :empty_final_response, deps)
-      iex> {updated.finalization_repair_attempted?, updated.last_error, updated.internal_error_details, updated.persisted?}
-      {true, nil, nil, true}
+      iex> {updated.finalization_repair_attempted?, updated.last_error, updated.internal_error_details, updated.last_error_details, updated.persisted?}
+      {true, nil, nil, nil, true}
   """
   @spec schedule_repair(map(), term(), deps()) :: map()
   def schedule_repair(state, reason, deps) when is_map(state) and is_map(deps) do
@@ -35,6 +35,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationRuntime do
     |> Map.put(:finalization_repair_attempted?, true)
     |> Map.put(:last_error, nil)
     |> Map.put(:internal_error_details, nil)
+    |> Map.put(:last_error_details, nil)
     |> put_in([:finalization_context, :repair_reason], inspect(reason))
     |> deps.put_runtime_state.()
   end
@@ -57,10 +58,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationRuntime do
   """
   @spec fail_without_retry(map(), term(), deps()) :: map()
   def fail_without_retry(state, reason, deps) when is_map(state) and is_map(deps) do
+    error_message = TransitionsData.last_error_message(reason)
+
     state
     |> Map.put(:retry_count, state.max_retries)
-    |> Map.put(:last_error, TransitionsData.last_error_message(reason))
+    |> Map.put(:last_error, error_message)
     |> Map.put(:internal_error_details, TransitionsData.internal_error_details(reason))
+    |> Map.put(:last_error_details, TransitionsData.last_error_details(reason, error_message))
     |> deps.release_resource.()
     |> deps.cleanup_snapshot.()
     |> deps.transition_to.("failed", %{stopped_at: state.now_fun.()})

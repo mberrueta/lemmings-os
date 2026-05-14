@@ -40,12 +40,14 @@ defmodule LemmingsOs.LemmingInstances.Executor.RetryRuntime do
     next_retry = state.retry_count + 1
     error_message = TransitionsData.last_error_message(reason)
     internal_error_details = TransitionsData.internal_error_details(reason)
+    last_error_details = TransitionsData.last_error_details(reason, error_message)
 
-    if next_retry >= state.max_retries do
+    if terminal_without_executor_retry?(reason) or next_retry >= state.max_retries do
       state
       |> Map.put(:retry_count, next_retry)
       |> Map.put(:last_error, error_message)
       |> Map.put(:internal_error_details, internal_error_details)
+      |> Map.put(:last_error_details, last_error_details)
       |> deps.release_resource.()
       |> deps.cleanup_snapshot.()
       |> deps.transition_to.("failed", %{stopped_at: state.now_fun.()})
@@ -55,9 +57,17 @@ defmodule LemmingsOs.LemmingInstances.Executor.RetryRuntime do
       |> Map.put(:retry_count, next_retry)
       |> Map.put(:last_error, error_message)
       |> Map.put(:internal_error_details, internal_error_details)
+      |> Map.put(:last_error_details, last_error_details)
       |> deps.transition_to.("retrying", %{})
       |> deps.put_runtime_state.()
       |> deps.schedule_retry.()
     end
   end
+
+  defp terminal_without_executor_retry?({kind, metadata})
+       when kind in [:invalid_structured_output, :unknown_action] and is_map(metadata) do
+    Map.get(metadata, :retry_attempted) == true or Map.get(metadata, "retry_attempted") == true
+  end
+
+  defp terminal_without_executor_retry?(_reason), do: false
 end

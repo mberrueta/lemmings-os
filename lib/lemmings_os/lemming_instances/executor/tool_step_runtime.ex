@@ -14,9 +14,11 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
   @type execute_result :: {:ok, map(), map()} | {:error, term(), map()}
   @type post_tool_deps :: %{
           put_runtime_state: (map() -> map()),
-          start_execution: (map() -> map()),
+          start_execution: (map() -> map() | {:error, term()}),
           handle_model_retry: (map(), term() -> map()),
-          max_tool_iterations: (map() -> non_neg_integer())
+          max_tool_iterations: (map() -> non_neg_integer()),
+          emit_requeued_after_tool: (map() -> :ok),
+          emit_resume_after_tool_failed: (map(), term() -> :ok)
         }
   @type execute_deps :: %{
           now_fun: (map() -> DateTime.t()),
@@ -47,7 +49,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
       ...>   put_runtime_state: & &1,
       ...>   start_execution: fn state -> Map.put(state, :started_execution?, true) end,
       ...>   handle_model_retry: fn state, reason -> Map.put(state, :retry_reason, reason) end,
-      ...>   max_tool_iterations: fn _config -> 8 end
+      ...>   max_tool_iterations: fn _config -> 8 end,
+      ...>   emit_requeued_after_tool: fn _state -> :ok end,
+      ...>   emit_resume_after_tool_failed: fn _state, _reason -> :ok end
       ...> }
       iex> state = %{tool_iteration_count: 0, config_snapshot: %{}, finalization_context: %{tool_status: "ok"}}
       iex> updated = LemmingsOs.LemmingInstances.Executor.ToolStepRuntime.continue_after_tool_outcome(state, deps)
@@ -147,7 +151,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
       ...>   put_runtime_state: & &1,
       ...>   start_execution: fn state -> Map.put(state, :started_execution?, true) end,
       ...>   handle_model_retry: fn state, _reason -> state end,
-      ...>   max_tool_iterations: fn _config -> 8 end
+      ...>   max_tool_iterations: fn _config -> 8 end,
+      ...>   emit_requeued_after_tool: fn _state -> :ok end,
+      ...>   emit_resume_after_tool_failed: fn _state, _reason -> :ok end
       ...> }
       iex> state = %{tool_iteration_count: 1, phase: :action_selection, retry_count: 2, last_error: "boom", internal_error_details: %{kind: :x}}
       iex> updated = LemmingsOs.LemmingInstances.Executor.ToolStepRuntime.start_finalization_phase(state, deps)
@@ -164,8 +170,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
     |> Map.put(:retry_count, 0)
     |> Map.put(:last_error, nil)
     |> Map.put(:internal_error_details, nil)
+    |> Map.put(:last_error_details, nil)
+    |> mark_tool_delivery(:resume_pending)
     |> deps.put_runtime_state.()
-    |> deps.start_execution.()
+    |> resume_after_tool(deps)
   end
 
   @doc """
@@ -200,10 +208,63 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
     else
       state
       |> Map.put(:tool_iteration_count, next_iteration_count)
+      |> mark_tool_delivery(:resume_pending)
       |> deps.put_runtime_state.()
-      |> deps.start_execution.()
+      |> resume_after_tool(deps)
     end
   end
+
+  defp resume_after_tool(state, deps) do
+    _ = Map.get(deps, :emit_requeued_after_tool, fn _state -> :ok end).(state)
+
+    case safe_start_execution(state, deps) do
+      {:ok, next_state} ->
+        next_state
+        |> mark_tool_delivery(:model_resumed)
+        |> deps.put_runtime_state.()
+
+      {:error, reason} ->
+        failed_state = mark_tool_delivery(state, :resume_failed, reason)
+
+        _ =
+          Map.get(deps, :emit_resume_after_tool_failed, fn _state, _reason -> :ok end).(
+            failed_state,
+            reason
+          )
+
+        deps.handle_model_retry.(failed_state, {:resume_after_tool_failed, reason})
+    end
+  end
+
+  defp safe_start_execution(state, deps) do
+    try do
+      case deps.start_execution.(state) do
+        {:error, reason} -> {:error, reason}
+        next_state when is_map(next_state) -> {:ok, next_state}
+        other -> {:error, {:unexpected_resume_result, other}}
+      end
+    rescue
+      exception -> {:error, {exception.__struct__, Exception.message(exception)}}
+    catch
+      kind, reason -> {:error, {kind, reason}}
+    end
+  end
+
+  defp mark_tool_delivery(state, status, reason \\ nil) do
+    delivery =
+      %{
+        status: Atom.to_string(status),
+        phase: Map.get(state, :phase),
+        tool_iteration_count: Map.get(state, :tool_iteration_count),
+        updated_at: DateTime.utc_now()
+      }
+      |> maybe_put_reason(reason)
+
+    Map.put(state, :last_tool_result_delivery, delivery)
+  end
+
+  defp maybe_put_reason(delivery, nil), do: delivery
+  defp maybe_put_reason(delivery, reason), do: Map.put(delivery, :reason, inspect(reason))
 
   defp emit_tool_event(deps, key, state, tool_name, tool_args) do
     Map.get(deps, key, fn _state, _tool_name, _tool_args -> :ok end).(state, tool_name, tool_args)
