@@ -70,26 +70,68 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
   end
 
   defp tool_result_guidance("knowledge.search", tool_payload) when is_map(tool_payload) do
-    result = Map.get(tool_payload, :result) || Map.get(tool_payload, "result") || %{}
-    kind = Map.get(result, :kind) || Map.get(result, "kind")
-    references = Map.get(tool_payload, :references) || Map.get(tool_payload, "references") || %{}
-    chunks = Map.get(references, :chunks) || Map.get(references, "chunks") || []
-
-    knowledge_search_guidance(kind, chunks, result)
+    tool_payload
+    |> knowledge_search_context()
+    |> knowledge_search_guidance()
   end
 
   defp tool_result_guidance(_tool_name, _tool_payload), do: "Decide what to do next."
 
-  defp knowledge_search_guidance(kind, chunks, result) do
+  defp knowledge_search_context(tool_payload) do
+    result = field(tool_payload, :result, %{})
+    references = field(tool_payload, :references, %{})
+
+    %{
+      kind: field(result, :kind),
+      chunks: field(references, :chunks, []),
+      result: result,
+      references: references,
+      remaining_work: field(tool_payload, :remaining_work, [])
+    }
+  end
+
+  defp field(map, key, default \\ nil) when is_map(map) and is_atom(key) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key)) || default
+  end
+
+  defp knowledge_search_guidance(%{
+         kind: kind,
+         chunks: chunks,
+         result: result,
+         references: references,
+         remaining_work: remaining_work
+       }) do
     cond do
       is_list(chunks) and chunks != [] ->
         "Search returned chunk references. For exact factual answers, call knowledge.read with a returned chunk_ref before concluding not found. Decide what to do next."
+
+      placeholder_continuation?(remaining_work) ->
+        "Search returned no matching knowledge. The original request allows placeholders, so continue the quote workflow with those placeholders and list missing prices as assumptions."
+
+      zero_results?(result) or zero_results?(references) ->
+        "Search returned no matching knowledge. If the original user request explicitly allowed placeholders for missing prices, continue the quote workflow with those placeholders and list missing prices as assumptions. Otherwise ask for clarification or report missing knowledge."
 
       kind == "reference_file" and has_results?(result) ->
         "Search returned reference-file descriptors. If file content is needed, call knowledge.read with a returned reference_ref or knowledge_item_id. Decide what to do next."
 
       true ->
         "Decide what to do next."
+    end
+  end
+
+  defp placeholder_continuation?(remaining_work) when is_list(remaining_work) do
+    Enum.any?(remaining_work, fn
+      value when is_binary(value) -> String.contains?(value, "$ XXX.XX")
+      _value -> false
+    end)
+  end
+
+  defp placeholder_continuation?(_remaining_work), do: false
+
+  defp zero_results?(result) when is_map(result) do
+    case Map.get(result, :count) || Map.get(result, "count") do
+      0 -> true
+      _count -> false
     end
   end
 
@@ -101,10 +143,16 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
   defp lemming_call_result_payload(call) do
     %{}
     |> maybe_put(:call_id, Map.get(call, :id))
+    |> maybe_put(:caller_instance_id, Map.get(call, :caller_instance_id))
     |> maybe_put(:status, Map.get(call, :status))
     |> maybe_put(:callee_instance_id, Map.get(call, :callee_instance_id))
+    |> maybe_put(:child_instance_id, Map.get(call, :callee_instance_id))
+    |> maybe_put(:callee_lemming_id, Map.get(call, :callee_lemming_id))
+    |> maybe_put(:callee_slug, nested_call_value(call, [:callee_lemming, :slug]))
+    |> maybe_put(:callee_name, nested_call_value(call, [:callee_lemming, :name]))
     |> maybe_put(:root_call_id, Map.get(call, :root_call_id))
     |> maybe_put(:previous_call_id, Map.get(call, :previous_call_id))
+    |> maybe_put(:request_text, Map.get(call, :request_text))
     |> maybe_put(:result_summary, Map.get(call, :result_summary))
     |> maybe_put(:error_summary, Map.get(call, :error_summary))
     |> maybe_put(:recovery_status, Map.get(call, :recovery_status))
@@ -112,6 +160,23 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
 
   defp maybe_put(payload, _field, nil), do: payload
   defp maybe_put(payload, field, value), do: Map.put(payload, field, value)
+
+  defp nested_call_value(map, [key]) when is_map(map) do
+    case Map.get(map, key) do
+      %Ecto.Association.NotLoaded{} -> nil
+      value -> value
+    end
+  end
+
+  defp nested_call_value(map, [key | rest]) when is_map(map) do
+    case Map.get(map, key) do
+      %Ecto.Association.NotLoaded{} -> nil
+      nested when is_map(nested) -> nested_call_value(nested, rest)
+      _other -> nil
+    end
+  end
+
+  defp nested_call_value(_value, _path), do: nil
 
   defp lemming_call_result_guidance(%{status: "completed", result_summary: result_summary})
        when is_binary(result_summary) and result_summary != "" do

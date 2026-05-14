@@ -9,6 +9,7 @@ defmodule LemmingsOs.Runtime do
   import Ecto.Query, warn: false
 
   alias LemmingsOs.Lemmings.Lemming
+  alias LemmingsOs.LemmingCalls
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.DepartmentScheduler
   alias LemmingsOs.LemmingInstances.DetsStore
@@ -224,7 +225,10 @@ defmodule LemmingsOs.Runtime do
   end
 
   defp recover_created_session(instance, opts) do
-    with {:ok, recovered_instance, resume_message} <- recovery_plan(instance),
+    callback_resume? = repair_terminal_callback_contexts?(instance)
+
+    with {:ok, recovered_instance, resume_message} <-
+           recovery_plan(instance, force_resume?: callback_resume?),
          {:ok, _scheduler_pid} <- start_scheduler(recovered_instance, opts),
          {:ok, executor_pid} <-
            start_executor(
@@ -318,8 +322,15 @@ defmodule LemmingsOs.Runtime do
     end
   end
 
-  defp recovery_plan(instance) do
-    case pending_user_message(instance) do
+  defp recovery_plan(instance, opts) do
+    pending_message =
+      if Keyword.get(opts, :force_resume?, false) do
+        latest_user_message(instance)
+      else
+        pending_user_message(instance)
+      end
+
+    case pending_message do
       {:ok, message} ->
         {:ok, %{instance | status: "created"}, {:pending, message}}
 
@@ -341,7 +352,7 @@ defmodule LemmingsOs.Runtime do
   defp pending_user_message(instance) do
     messages =
       case Map.get(instance, :messages) do
-        messages when is_list(messages) -> messages
+        messages when is_list(messages) -> chronological_messages(messages)
         _ -> LemmingInstances.list_messages(instance)
       end
 
@@ -349,6 +360,34 @@ defmodule LemmingsOs.Runtime do
       %{role: "user"} = message -> {:ok, message}
       _ -> :none
     end
+  end
+
+  defp latest_user_message(instance) do
+    messages =
+      case Map.get(instance, :messages) do
+        messages when is_list(messages) -> chronological_messages(messages)
+        _ -> LemmingInstances.list_messages(instance)
+      end
+
+    messages
+    |> Enum.reverse()
+    |> Enum.find(fn message -> Map.get(message, :role) == "user" end)
+    |> case do
+      nil -> :none
+      message -> {:ok, message}
+    end
+  end
+
+  defp chronological_messages(messages) when is_list(messages) do
+    Enum.sort_by(messages, fn message ->
+      {Map.get(message, :inserted_at), Map.get(message, :id)}
+    end)
+  end
+
+  defp repair_terminal_callback_contexts?(%LemmingInstance{} = instance) do
+    {:ok, inserted_count} = LemmingCalls.repair_missing_terminal_callbacks(instance)
+
+    inserted_count > 0 or LemmingCalls.terminal_callback_resume_pending?(instance)
   end
 
   defp normalize_attached_instance(%LemmingInstance{status: "idle"} = instance), do: instance

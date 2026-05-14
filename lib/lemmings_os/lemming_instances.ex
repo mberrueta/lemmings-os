@@ -78,6 +78,7 @@ defmodule LemmingsOs.LemmingInstances do
           lemming
           |> Resolver.resolve()
           |> snapshot_value()
+          |> with_lemming_prompt_context(lemming)
           |> ConfigSnapshot.enrich()
 
         with {:ok, %{instance: instance, message: message}} <-
@@ -528,6 +529,34 @@ defmodule LemmingsOs.LemmingInstances do
   defp snapshot_value(list) when is_list(list), do: Enum.map(list, &snapshot_value/1)
   defp snapshot_value(value), do: value
 
+  defp with_lemming_prompt_context(config_snapshot, %Lemming{} = lemming)
+       when is_map(config_snapshot) do
+    config_snapshot
+    |> Map.put(:name, lemming.name)
+    |> Map.put(:slug, lemming.slug)
+    |> Map.put(:description, lemming.description)
+    |> Map.put(:instructions, lemming.instructions)
+    |> maybe_put(:collaboration_role, lemming.collaboration_role)
+    |> maybe_put(:department_slug, nested_value(lemming, [:department, :slug]))
+    |> maybe_put(:department_name, nested_value(lemming, [:department, :name]))
+  end
+
+  defp with_lemming_prompt_context(config_snapshot, _lemming), do: config_snapshot
+
+  defp maybe_put(map, _key, value) when value in [nil, ""], do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp nested_value(map, [key]) when is_map(map), do: Map.get(map, key)
+
+  defp nested_value(map, [key | rest]) when is_map(map) do
+    case Map.get(map, key) do
+      nested when is_map(nested) -> nested_value(nested, rest)
+      _other -> nil
+    end
+  end
+
+  defp nested_value(_value, _path), do: nil
+
   defp persist_spawn(lemming, config_snapshot, first_request_text) do
     Multi.new()
     |> Multi.insert(
@@ -715,6 +744,7 @@ defmodule LemmingsOs.LemmingInstances do
       context_messages: normalize_context_messages(Map.get(state, :context_messages)),
       last_error: Map.get(state, :last_error),
       internal_error_details: Map.get(state, :internal_error_details),
+      last_error_details: Map.get(state, :last_error_details),
       status: runtime_status(Map.get(state, :status)),
       started_at: Map.get(state, :started_at),
       last_activity_at: Map.get(state, :last_activity_at)

@@ -157,23 +157,29 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
   @spec instance_with_runtime_snapshot(map(), map()) :: map()
   def instance_with_runtime_snapshot(instance, config_snapshot)
       when is_map(instance) and is_map(config_snapshot) do
-    %{instance | config_snapshot: config_snapshot}
+    Map.put(instance, :config_snapshot, config_snapshot)
   end
 
   @doc """
-  Builds model config snapshot augmented with available lemming-call targets.
+  Builds model config snapshot augmented with current lemming-call targets.
+
+  Target discovery receives the runtime config snapshot supplied for this model
+  turn. That keeps resumed parent turns from reusing stale target metadata from
+  a persisted or fallback instance snapshot.
 
   ## Examples
 
       iex> base_config = %{model: "fake-model"}
-      iex> instance = %{id: "instance-1", config_snapshot: base_config}
+      iex> instance = %{id: "instance-1", config_snapshot: %{model: "old"}}
       iex> LemmingsOs.LemmingInstances.Executor.CommunicationRuntime.model_config_snapshot(base_config, nil, instance)
       %{model: "fake-model"}
   """
   @spec model_config_snapshot(map(), module() | nil, map()) :: map()
   def model_config_snapshot(config_snapshot, lemming_calls_mod, instance)
       when is_map(config_snapshot) and is_map(instance) do
-    targets = Communication.available_targets(lemming_calls_mod, instance)
+    runtime_instance = instance_with_runtime_snapshot(instance, config_snapshot)
+    targets = Communication.available_targets(lemming_calls_mod, runtime_instance)
+
     Communication.put_targets_in_config(config_snapshot, targets)
   end
 
@@ -220,6 +226,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
     |> deps.release_resource.()
     |> Map.put(:last_error, nil)
     |> Map.put(:internal_error_details, nil)
+    |> Map.put(:last_error_details, nil)
     |> deps.put_runtime_state.()
     |> deps.transition_to.("idle", %{stopped_at: nil})
     |> deps.put_runtime_state.()

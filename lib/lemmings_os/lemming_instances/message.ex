@@ -17,6 +17,8 @@ defmodule LemmingsOs.LemmingInstances.Message do
   @roles ~w(user assistant)
   @required ~w(lemming_instance_id world_id role content)a
   @optional ~w(provider model input_tokens output_tokens total_tokens usage)a
+  @internal_visibility "internal"
+  @runtime_context_sources ~w(runtime_context lemming_call_callback)
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -71,4 +73,45 @@ defmodule LemmingsOs.LemmingInstances.Message do
   """
   @spec roles() :: [String.t()]
   def roles, do: @roles
+
+  @doc """
+  Returns true for durable runtime-history rows that should be sent to the
+  model but not rendered as user-facing transcript replies.
+  """
+  @spec internal_context?(t() | map()) :: boolean()
+  def internal_context?(message)
+
+  def internal_context?(%__MODULE__{} = message) do
+    internal_context_usage?(message.usage) or callback_context_content?(message.content)
+  end
+
+  def internal_context?(%{} = message) do
+    usage = Map.get(message, :usage) || Map.get(message, "usage")
+    content = Map.get(message, :content) || Map.get(message, "content")
+
+    internal_context_usage?(usage) or callback_context_content?(content)
+  end
+
+  def internal_context?(_message), do: false
+
+  @doc """
+  Returns true when a persisted message is user-visible transcript content.
+  """
+  @spec visible_transcript?(t() | map()) :: boolean()
+  def visible_transcript?(message), do: not internal_context?(message)
+
+  defp internal_context_usage?(usage) when is_map(usage) do
+    visibility = Map.get(usage, "visibility") || Map.get(usage, :visibility)
+    source = Map.get(usage, "source") || Map.get(usage, :source)
+
+    visibility == @internal_visibility or source in @runtime_context_sources
+  end
+
+  defp internal_context_usage?(_usage), do: false
+
+  defp callback_context_content?(content) when is_binary(content) do
+    String.contains?(content, "Lemming call result: status=")
+  end
+
+  defp callback_context_content?(_content), do: false
 end

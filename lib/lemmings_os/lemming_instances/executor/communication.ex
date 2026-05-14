@@ -121,7 +121,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
       false
   """
   @spec call_terminal?(map()) :: boolean()
-  def call_terminal?(%{status: status}) when status in ["completed", "failed"], do: true
+  def call_terminal?(%{status: status})
+      when status in ["completed", "failed", "cancelled", "expired"],
+      do: true
+
   def call_terminal?(_call), do: false
 
   @doc """
@@ -155,7 +158,29 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
   @spec append_call_result_context([map()], map()) :: [map()]
   def append_call_result_context(context_messages, call)
       when is_list(context_messages) and is_map(call) do
-    context_messages ++ [ContextMessages.lemming_call_result_message(call)]
+    if call_result_context_present?(context_messages, call) do
+      context_messages
+    else
+      context_messages ++ [ContextMessages.lemming_call_result_message(call)]
+    end
+  end
+
+  @doc """
+  Returns true when runtime history already contains the terminal callback for
+  this delegated call.
+  """
+  @spec call_result_context_present?([map()], map()) :: boolean()
+  def call_result_context_present?(context_messages, call)
+      when is_list(context_messages) and is_map(call) do
+    call
+    |> call_identity_values()
+    |> case do
+      [] ->
+        false
+
+      identities ->
+        Enum.any?(context_messages, &call_result_message_matches?(&1, identities))
+    end
   end
 
   @doc """
@@ -178,6 +203,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
     |> Map.put(:retry_count, 0)
     |> Map.put(:last_error, nil)
     |> Map.put(:internal_error_details, nil)
+    |> Map.put(:last_error_details, nil)
   end
 
   @doc """
@@ -343,4 +369,18 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
   end
 
   defp module_loaded_and_exports?(_module, _function_name, _arity), do: false
+
+  defp call_result_message_matches?(%{} = message, identities) do
+    content = Map.get(message, :content) || Map.get(message, "content")
+
+    is_binary(content) and String.contains?(content, "Lemming call result: status=") and
+      Enum.any?(identities, &String.contains?(content, &1))
+  end
+
+  defp call_result_message_matches?(_message, _identities), do: false
+
+  defp call_identity_values(call) do
+    [Map.get(call, :id) || Map.get(call, "id")]
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+  end
 end

@@ -9,11 +9,13 @@ defmodule LemmingsOs.LemmingCalls do
 
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances
+  alias LemmingsOs.LemmingInstances.Executor.ContextMessages
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingCalls.PubSub
   alias LemmingsOs.LemmingCalls.Telemetry
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances.LemmingInstance
+  alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime
@@ -21,6 +23,8 @@ defmodule LemmingsOs.LemmingCalls do
   alias LemmingsOs.Worlds.World
 
   @terminal_statuses ~w(completed failed)
+  @callback_terminal_statuses ~w(completed failed cancelled expired)
+  @pending_child_statuses ~w(accepted running needs_more_context partial_result)
   @lemming_call_tool "lemming.call"
   @delegation_max_artifacts 2
   @delegation_artifact_char_limit 12_000
@@ -276,6 +280,65 @@ defmodule LemmingsOs.LemmingCalls do
   def available_targets(_instance), do: []
 
   @doc """
+  Returns operator-facing diagnostics for lemming-call target resolution.
+
+  The supplied config snapshot is treated as the effective runtime snapshot for
+  this prompt turn, so recovery/fallback views can explain whether delegation
+  was hidden by tool policy, missing candidates, or target authorization.
+  """
+  @spec target_resolution_debug(LemmingInstance.t(), map()) :: map()
+  def target_resolution_debug(%LemmingInstance{} = instance, config_snapshot)
+      when is_map(config_snapshot) do
+    allowed_tool? = lemming_call_enabled?(config_snapshot)
+
+    case caller_lemming(instance) do
+      {:ok, caller} ->
+        manager? = manager?(caller)
+        candidates = if manager?, do: Repo.all(target_query(instance)), else: []
+
+        allowed_targets =
+          if manager? and allowed_tool? do
+            Enum.filter(candidates, &can_call_lemming?(instance, &1, config_snapshot))
+          else
+            []
+          end
+
+        %{
+          resolver_called: true,
+          allowed_lemming_call_tool: allowed_tool?,
+          candidate_targets_count: length(candidates),
+          allowed_targets_count: length(allowed_targets),
+          unavailable_reason:
+            target_resolution_unavailable_reason(
+              manager?,
+              allowed_tool?,
+              candidates,
+              allowed_targets
+            )
+        }
+
+      {:error, reason} ->
+        %{
+          resolver_called: true,
+          allowed_lemming_call_tool: allowed_tool?,
+          candidate_targets_count: 0,
+          allowed_targets_count: 0,
+          unavailable_reason: Atom.to_string(reason)
+        }
+    end
+  end
+
+  def target_resolution_debug(_instance, _config_snapshot) do
+    %{
+      resolver_called: false,
+      allowed_lemming_call_tool: false,
+      candidate_targets_count: 0,
+      allowed_targets_count: 0,
+      unavailable_reason: "invalid_instance_or_config"
+    }
+  end
+
+  @doc """
   Returns true when a caller instance is authorized to address a target lemming.
 
   Manager role is necessary but not sufficient: effective `lemming.call` tool
@@ -373,6 +436,16 @@ defmodule LemmingsOs.LemmingCalls do
     })
   end
 
+  def sync_child_instance_terminal(%LemmingInstance{} = instance, "cancelled", attrs)
+      when is_map(attrs) do
+    update_child_calls(instance, "failed", %{
+      error_summary:
+        Map.get(attrs, :error_summary) || "Child instance was cancelled before completion.",
+      recovery_status: "cancelled",
+      completed_at: Map.get(attrs, :completed_at) || now()
+    })
+  end
+
   def sync_child_instance_terminal(_instance, _status, _attrs), do: :ok
 
   @doc """
@@ -397,6 +470,42 @@ defmodule LemmingsOs.LemmingCalls do
   end
 
   def note_child_user_input(_instance, _request_text), do: :ok
+
+  @doc """
+  Repairs missing durable terminal callback context for a manager instance.
+
+  Returns the number of callback messages inserted. Existing callback messages
+  are left unchanged, so the operation is safe to repeat during recovery.
+  """
+  @spec repair_missing_terminal_callbacks(LemmingInstance.t()) :: {:ok, non_neg_integer()}
+  def repair_missing_terminal_callbacks(%LemmingInstance{} = caller_instance) do
+    inserted_count =
+      caller_instance
+      |> list_manager_calls(statuses: @terminal_statuses, preload: [:callee_lemming])
+      |> Enum.reduce(0, fn call, count ->
+        case ensure_terminal_callback_context(call) do
+          {:ok, :inserted, _message} -> count + 1
+          {:ok, :existing, _message} -> count
+          {:error, _reason} -> count
+        end
+      end)
+
+    {:ok, inserted_count}
+  end
+
+  def repair_missing_terminal_callbacks(_caller_instance), do: {:ok, 0}
+
+  @doc """
+  Returns true when the manager's latest durable transcript entry is a delegated
+  callback and there are no still-pending child calls.
+  """
+  @spec terminal_callback_resume_pending?(LemmingInstance.t()) :: boolean()
+  def terminal_callback_resume_pending?(%LemmingInstance{} = caller_instance) do
+    latest_callback_message?(caller_instance) and
+      list_manager_calls(caller_instance, statuses: @pending_child_statuses) == []
+  end
+
+  def terminal_callback_resume_pending?(_caller_instance), do: false
 
   defp caller_lemming(%LemmingInstance{lemming: %Lemming{} = lemming}), do: {:ok, lemming}
 
@@ -480,6 +589,26 @@ defmodule LemmingsOs.LemmingCalls do
 
   defp normalize_tool_list(tools) when is_list(tools), do: Enum.filter(tools, &is_binary/1)
   defp normalize_tool_list(_tools), do: []
+
+  defp target_resolution_unavailable_reason(
+         _manager?,
+         _allowed_tool?,
+         _candidates,
+         [_allowed | _rest]
+       ),
+       do: nil
+
+  defp target_resolution_unavailable_reason(false, _allowed_tool?, _candidates, _allowed),
+    do: "not_manager"
+
+  defp target_resolution_unavailable_reason(_manager?, false, _candidates, _allowed),
+    do: "lemming_call_tool_not_allowed"
+
+  defp target_resolution_unavailable_reason(_manager?, _allowed_tool?, [], _allowed),
+    do: "no_candidate_targets"
+
+  defp target_resolution_unavailable_reason(_manager?, _allowed_tool?, _candidates, []),
+    do: "no_allowed_targets"
 
   defp call_relation_allowed?(
          %LemmingInstance{department_id: department_id},
@@ -900,11 +1029,13 @@ defmodule LemmingsOs.LemmingCalls do
 
   defp update_child_calls(instance, status, attrs) do
     instance
-    |> list_child_calls(statuses: ["accepted", "running", "needs_more_context", "partial_result"])
+    |> list_child_calls(statuses: @pending_child_statuses)
     |> Enum.each(fn call ->
       case update_call_status(call, status, attrs) do
         {:ok, updated_call}
         when status in ["needs_more_context", "partial_result", "completed", "failed"] ->
+          updated_call = Repo.preload(updated_call, [:callee_lemming])
+          _ = ensure_terminal_callback_context(updated_call)
           resume_caller_instance(updated_call)
 
         {:ok, _updated_call} ->
@@ -916,6 +1047,100 @@ defmodule LemmingsOs.LemmingCalls do
     end)
 
     :ok
+  end
+
+  defp ensure_terminal_callback_context(%LemmingCall{status: status} = call)
+       when status in @callback_terminal_statuses do
+    call = Repo.preload(call, [:callee_lemming])
+
+    case terminal_callback_message(call) do
+      %Message{} = message ->
+        {:ok, :existing, message}
+
+      nil ->
+        persist_terminal_callback_context(call)
+    end
+  end
+
+  defp ensure_terminal_callback_context(%LemmingCall{} = call) do
+    {:ok, :not_terminal, call}
+  end
+
+  defp persist_terminal_callback_context(%LemmingCall{} = call) do
+    attrs = %{
+      lemming_instance_id: call.caller_instance_id,
+      world_id: call.world_id,
+      role: "assistant",
+      content: Map.fetch!(ContextMessages.lemming_call_result_message(call), :content),
+      usage: %{
+        "visibility" => "internal",
+        "source" => "lemming_call_callback",
+        "kind" => "runtime_context",
+        "lemming_call_id" => call.id,
+        "callee_instance_id" => call.callee_instance_id,
+        "status" => call.status
+      }
+    }
+
+    case %Message{} |> Message.changeset(attrs) |> Repo.insert() do
+      {:ok, message} ->
+        Logger.info("lemming call terminal callback context appended",
+          event: "lemming_call.callback_context.appended",
+          lemming_call_id: call.id,
+          caller_instance_id: call.caller_instance_id,
+          callee_instance_id: call.callee_instance_id,
+          status: call.status
+        )
+
+        _ =
+          LemmingInstances.PubSub.broadcast_message_appended(
+            call.caller_instance_id,
+            message.id,
+            message.role
+          )
+
+        {:ok, :inserted, message}
+
+      {:error, changeset} = error ->
+        Logger.warning("lemming call terminal callback context append failed",
+          event: "lemming_call.callback_context.append_failed",
+          lemming_call_id: call.id,
+          caller_instance_id: call.caller_instance_id,
+          callee_instance_id: call.callee_instance_id,
+          status: call.status,
+          reason: inspect(changeset)
+        )
+
+        error
+    end
+  end
+
+  defp terminal_callback_message(%LemmingCall{} = call) do
+    Message
+    |> where(
+      [message],
+      message.lemming_instance_id == ^call.caller_instance_id and
+        message.world_id == ^call.world_id and
+        message.role == "assistant" and
+        like(message.content, ^"%Lemming call result: status=%") and
+        like(message.content, ^"%#{call.id}%")
+    )
+    |> order_by([message], asc: message.inserted_at, asc: message.id)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp latest_callback_message?(%LemmingInstance{} = caller_instance) do
+    caller_instance
+    |> LemmingInstances.list_messages()
+    |> List.last()
+    |> case do
+      %Message{} = message ->
+        Message.internal_context?(message)
+
+      _other ->
+        false
+    end
   end
 
   defp resume_caller_instance(%LemmingCall{caller_instance_id: caller_instance_id} = call)
