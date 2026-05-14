@@ -3,6 +3,7 @@ defmodule LemmingsOs.RuntimeTest do
 
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.Executor
+  alias LemmingsOs.LemmingCalls
   alias LemmingsOs.Runtime
 
   defmodule RejectingExecutorApi do
@@ -160,6 +161,132 @@ defmodule LemmingsOs.RuntimeTest do
     assert eventually_status(idle_instance.id) == "queued"
   end
 
+  test "S03a: recover_created_sessions/1 does not requeue when newest message is assistant" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+
+    lemming =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    instance =
+      insert(:lemming_instance,
+        lemming: lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "queued",
+        started_at: now,
+        last_activity_at: now
+      )
+
+    insert(:lemming_instance_message,
+      lemming_instance: instance,
+      world: world,
+      role: "assistant",
+      content: "Finished already",
+      inserted_at: now
+    )
+
+    previous_minute = DateTime.add(now, -60, :second)
+
+    insert(:lemming_instance_message,
+      lemming_instance: instance,
+      world: world,
+      role: "user",
+      content: "Original request",
+      inserted_at: previous_minute
+    )
+
+    assert {:ok, 1} =
+             Runtime.recover_created_sessions(scheduler_opts: [admission_mode: :manual])
+
+    assert eventually_status(instance.id) == "idle"
+
+    assert [{executor_pid, _value}] =
+             Registry.lookup(LemmingsOs.LemmingInstances.ExecutorRegistry, instance.id)
+
+    assert %{queue_depth: 0, status: "idle"} = Executor.snapshot(executor_pid)
+  end
+
+  test "S03b: recover_created_sessions/1 repairs missing delegated callback context" do
+    world = insert(:world)
+    city = insert(:city, world: world)
+    department = insert(:department, world: world, city: city)
+
+    manager =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active",
+        tools_config: %{allowed_tools: ["lemming.call"]}
+      )
+
+    worker =
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active",
+        collaboration_role: "worker"
+      )
+
+    assert {:ok, manager_instance} = LemmingInstances.spawn_instance(manager, "Manage quote")
+    assert {:ok, child_instance} = LemmingInstances.spawn_instance(worker, "Research quote")
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    assert {:ok, idle_manager} =
+             LemmingInstances.update_status(manager_instance, "idle", %{
+               started_at: now,
+               last_activity_at: now
+             })
+
+    call =
+      insert(:lemming_call,
+        world: world,
+        city: city,
+        caller_department: department,
+        callee_department: department,
+        caller_lemming: manager,
+        callee_lemming: worker,
+        caller_instance: idle_manager,
+        callee_instance: child_instance,
+        request_text: "Find product constraints",
+        status: "completed",
+        result_summary: "Knowledge librarian result",
+        completed_at: now
+      )
+
+    assert {:ok, 2} =
+             Runtime.recover_created_sessions(scheduler_opts: [admission_mode: :manual])
+
+    messages = LemmingInstances.list_messages(idle_manager)
+
+    callback_messages =
+      Enum.filter(messages, fn message ->
+        message.role == "assistant" and
+          String.contains?(message.content, "Lemming call result: status=completed") and
+          String.contains?(message.content, call.id)
+      end)
+
+    assert length(callback_messages) == 1
+    assert LemmingInstances.Message.internal_context?(hd(callback_messages))
+    assert hd(callback_messages).content =~ "Knowledge librarian result"
+    assert eventually_status(idle_manager.id) == "queued"
+
+    assert {:ok, 0} = LemmingCalls.repair_missing_terminal_callbacks(idle_manager)
+    assert length(callback_messages_for(idle_manager, call.id)) == 1
+  end
+
   test "S04: recover_created_sessions/1 respects the configured recovery limit" do
     world = insert(:world)
     city = insert(:city, world: world)
@@ -269,5 +396,15 @@ defmodule LemmingsOs.RuntimeTest do
       Process.sleep(50)
       eventually_status(instance_id, attempts - 1)
     end
+  end
+
+  defp callback_messages_for(instance, call_id) do
+    instance
+    |> LemmingInstances.list_messages()
+    |> Enum.filter(fn message ->
+      message.role == "assistant" and
+        String.contains?(message.content, "Lemming call result: status=") and
+        String.contains?(message.content, call_id)
+    end)
   end
 end

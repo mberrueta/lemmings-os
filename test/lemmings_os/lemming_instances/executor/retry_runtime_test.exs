@@ -21,6 +21,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.RetryRuntimeTest do
     assert updated.retry_count == 1
     assert updated.retry_scheduled? == true
     assert updated.persisted? == true
+    assert updated.last_error_details["code"] == "provider_error"
+    assert updated.last_error_details["message"] == updated.last_error
+    assert updated.last_error_details["context"] == %{"kind" => "provider_error"}
     refute Map.get(updated, :released?, false)
   end
 
@@ -45,6 +48,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.RetryRuntimeTest do
     assert updated.released? == true
     assert updated.snapshot_cleaned? == true
     assert updated.persisted? == true
+    assert updated.last_error not in [nil, ""]
+    assert updated.last_error_details["code"] == "provider_error"
     refute Map.get(updated, :retry_scheduled?, false)
     assert %DateTime{} = updated.stopped_at
   end

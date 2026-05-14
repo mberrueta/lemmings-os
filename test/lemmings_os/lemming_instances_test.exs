@@ -149,6 +149,9 @@ defmodule LemmingsOs.LemmingInstancesTest do
         department: department,
         name: "Incident Triage",
         slug: "incident-triage",
+        description: "Handles incident follow-up and operator requests.",
+        instructions: "Stay concise and use tools when needed.",
+        collaboration_role: "manager",
         status: "active"
       )
 
@@ -163,6 +166,16 @@ defmodule LemmingsOs.LemmingInstancesTest do
     assert is_map(instance.config_snapshot)
     refute Map.has_key?(instance.config_snapshot, :__meta__)
     refute Map.has_key?(instance.config_snapshot, "__meta__")
+    assert instance.config_snapshot.name == "Incident Triage"
+    assert instance.config_snapshot.slug == "incident-triage"
+    assert instance.config_snapshot.department_slug == "support"
+    assert instance.config_snapshot.department_name == "Support"
+
+    assert instance.config_snapshot.description ==
+             "Handles incident follow-up and operator requests."
+
+    assert instance.config_snapshot.instructions == "Stay concise and use tools when needed."
+    assert instance.config_snapshot.collaboration_role == "manager"
   end
 
   test "S03b: spawn_instance does not create the runtime WorkArea before an executor starts" do

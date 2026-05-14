@@ -231,4 +231,44 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntimeTest do
     assert updated.retry_reason == :tool_iteration_limit_reached
     refute Map.get(updated, :started_execution?, false)
   end
+
+  test "continue_after_tool_outcome/2 records explicit retry reason when model resume fails" do
+    deps = %{
+      put_runtime_state: &Map.put(&1, :persisted?, true),
+      start_execution: fn _state -> {:error, :task_start_failed} end,
+      handle_model_retry: fn state, reason ->
+        state
+        |> Map.put(:retry_reason, reason)
+        |> Map.put(:last_error, "Tool completed, but the executor could not resume the model.")
+      end,
+      max_tool_iterations: fn _config -> 8 end,
+      emit_requeued_after_tool: fn state ->
+        send(self(), {:requeued_after_tool, state.last_tool_result_delivery.status})
+        :ok
+      end,
+      emit_resume_after_tool_failed: fn state, reason ->
+        send(self(), {:resume_after_tool_failed, state.last_tool_result_delivery.status, reason})
+        :ok
+      end
+    }
+
+    state = %{
+      tool_iteration_count: 0,
+      config_snapshot: %{},
+      finalization_context: %{tool_status: "ok"},
+      phase: :action_selection,
+      retry_count: 0,
+      last_error: nil,
+      internal_error_details: nil
+    }
+
+    updated = ToolStepRuntime.continue_after_tool_outcome(state, deps)
+
+    assert updated.retry_reason == {:resume_after_tool_failed, :task_start_failed}
+    assert updated.last_error == "Tool completed, but the executor could not resume the model."
+    assert updated.last_tool_result_delivery.status == "resume_failed"
+    assert updated.last_tool_result_delivery.reason == ":task_start_failed"
+    assert_receive {:requeued_after_tool, "resume_pending"}
+    assert_receive {:resume_after_tool_failed, "resume_failed", :task_start_failed}
+  end
 end

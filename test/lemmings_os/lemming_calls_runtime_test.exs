@@ -730,6 +730,60 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
     assert resumed_call.id == call.id
     assert resumed_call.status == "completed"
     assert resumed_call.result_summary == "Completed child result"
+
+    callback_messages = terminal_callback_messages(manager_instance, call.id)
+    assert length(callback_messages) == 1
+
+    [callback_message] = callback_messages
+    assert callback_message.role == "assistant"
+    assert LemmingInstances.Message.internal_context?(callback_message)
+    assert callback_message.usage["visibility"] == "internal"
+    assert callback_message.usage["source"] == "lemming_call_callback"
+    assert callback_message.content =~ "Lemming call result: status=completed"
+    assert callback_message.content =~ call.id
+    assert callback_message.content =~ call.callee_instance_id
+    assert callback_message.content =~ "ops-worker"
+    assert callback_message.content =~ "Completed child result"
+    assert callback_message.content =~ "First pass"
+
+    assert :ok =
+             LemmingCalls.sync_child_instance_terminal(child_instance, "idle", %{
+               result_summary: "Completed child result"
+             })
+
+    assert length(terminal_callback_messages(manager_instance, call.id)) == 1
+    refute_receive {:manager_resumed_after_call, _duplicate_call}, 50
+  end
+
+  test "S08b: terminal child sync appends failure callback context and resumes caller", %{
+    manager_instance: manager_instance
+  } do
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "First pass"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, _pid} = start_supervised({FakeManagerExecutor, {self(), manager_instance.id}})
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    assert :ok =
+             LemmingCalls.sync_child_instance_terminal(child_instance, "failed", %{
+               error_summary: "Child model failed"
+             })
+
+    assert_receive {:manager_resumed_after_call, resumed_call}
+    assert resumed_call.id == call.id
+    assert resumed_call.status == "failed"
+    assert resumed_call.error_summary == "Child model failed"
+
+    [callback_message] = terminal_callback_messages(manager_instance, call.id)
+    assert LemmingInstances.Message.internal_context?(callback_message)
+    assert callback_message.content =~ "Lemming call result: status=failed"
+    assert callback_message.content =~ "Child model failed"
   end
 
   defp attach(event) do
@@ -758,6 +812,16 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
 
   defp detach(ref) do
     :telemetry.detach("lemming-calls-telemetry-test-#{inspect(ref)}")
+  end
+
+  defp terminal_callback_messages(manager_instance, call_id) do
+    manager_instance
+    |> LemmingInstances.list_messages()
+    |> Enum.filter(fn message ->
+      message.role == "assistant" and
+        String.contains?(message.content, "Lemming call result: status=") and
+        String.contains?(message.content, call_id)
+    end)
   end
 
   defp ensure_process_started!(child) do

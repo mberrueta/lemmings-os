@@ -27,6 +27,7 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
   alias LemmingsOs.Runtime.ActivityLog
   alias LemmingsOs.Repo
   alias LemmingsOsWeb.InstanceComponents
+  alias LemmingsOsWeb.PageData.InstanceRawSnapshot
   alias LemmingsOs.Worlds.Cache
   alias LemmingsOs.Worlds.World
 
@@ -81,6 +82,15 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
           content: "not-json",
           raw: %{content: "not-json", provider: "fake", model: "broken-model"}
         }}}
+    end
+  end
+
+  defmodule RawTraceAlwaysInvalidProvider do
+    @behaviour LemmingsOs.ModelRuntime.Provider
+
+    @impl true
+    def chat(request, _opts) do
+      {:ok, %{content: "not-json", provider: "fake", model: request.model, raw: request}}
     end
   end
 
@@ -540,6 +550,35 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
              text_position(html, "Second user request")
 
     assert has_element?(view, "#instance-session-transcript-stream", "First assistant reply")
+  end
+
+  test "S07a: transcript hides internal delegated callback context", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    Repo.insert!(%Message{
+      lemming_instance_id: instance.id,
+      world_id: world.id,
+      role: "assistant",
+      content:
+        "As runtime execution history for your previous lemming_call request, the runtime is returning delegated outcome now. Lemming call result: status=completed payload={\"call_id\":\"call-1\"}.",
+      usage: %{
+        "visibility" => "internal",
+        "source" => "lemming_call_callback",
+        "kind" => "runtime_context",
+        "lemming_call_id" => "call-1"
+      }
+    })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    refute has_element?(
+             view,
+             "#instance-session-transcript-stream",
+             "As runtime execution history for your previous lemming_call request"
+           )
+
+    assert has_element?(view, "#instance-session-transcript-stream", "Investigate the outage")
   end
 
   test "S07b: manager sessions render delegated work states and child links", %{conn: conn} do
@@ -1726,6 +1765,10 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     assert has_element?(view, "#instance-raw-current-item", "Create budget file")
     assert has_element?(view, "#instance-raw-config-snapshot", "\"tools_config\"")
     assert has_element?(view, "#instance-raw-session-link", "Back to session")
+    assert has_element?(view, "#instance-raw-copy-id-button", "Copy instance ID")
+
+    html = render(view)
+    assert html =~ "navigator.clipboard.writeText(this.dataset.instanceId)"
   end
 
   test "S12b: raw context view reconstructs the provider request from persisted transcript", %{
@@ -1765,6 +1808,172 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
            )
 
     refute has_element?(view, "#instance-raw-model-request", ":invalid_request")
+  end
+
+  test "S12b2: raw context export distinguishes internal callback context from final replies" do
+    world = insert(:world)
+    city = insert(:city, world: world, status: "active")
+    department = insert(:department, world: world, city: city)
+
+    lemming =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active"
+      )
+
+    {:ok, instance} = LemmingInstances.spawn_instance(lemming, "Create quote")
+
+    instance =
+      instance
+      |> Ecto.Changeset.change(%{
+        config_snapshot: %{
+          models_config: %{profiles: %{default: %{provider: "ollama", model: "quote-model"}}}
+        }
+      })
+      |> Repo.update!()
+
+    callback =
+      Repo.insert!(%Message{
+        lemming_instance_id: instance.id,
+        world_id: world.id,
+        role: "assistant",
+        content:
+          "As runtime execution history for your previous lemming_call request, the runtime is returning delegated outcome now. Lemming call result: status=completed payload={\"call_id\":\"call-1\",\"result_summary\":\"Done\"}.",
+        usage: %{
+          "visibility" => "internal",
+          "source" => "lemming_call_callback",
+          "kind" => "runtime_context",
+          "lemming_call_id" => "call-1"
+        }
+      })
+
+    assert {:ok, snapshot} = InstanceRawSnapshot.build(instance_id: instance.id, world: world)
+
+    assert Enum.any?(
+             snapshot.interaction_timeline,
+             &(&1.kind == :runtime_context and &1.id == "persisted-runtime-context-#{callback.id}")
+           )
+
+    refute Enum.any?(snapshot.interaction_timeline, &(&1.kind == :final_reply))
+
+    markdown = InstanceRawSnapshot.to_markdown(snapshot)
+    assert markdown =~ "Runtime -> LLM context"
+    refute markdown =~ "Final assistant reply stored in transcript"
+    assert markdown =~ "Final action: unknown"
+
+    request =
+      Map.get(snapshot.model_request, :request) || Map.get(snapshot.model_request, "request") ||
+        %{}
+
+    request_messages = Map.get(request, :messages) || Map.get(request, "messages") || []
+
+    assert Enum.any?(
+             request_messages,
+             fn message ->
+               role = Map.get(message, :role) || Map.get(message, "role")
+               content = Map.get(message, :content) || Map.get(message, "content") || ""
+
+               role == "assistant" and
+                 String.contains?(content, "Lemming call result: status=completed")
+             end
+           )
+  end
+
+  test "S12b3: raw context reconstructs resumed manager prompt with delegation targets" do
+    world = insert(:world)
+    city = insert(:city, world: world, status: "active")
+    department = insert(:department, world: world, city: city, slug: "sales-demo")
+
+    manager =
+      insert(:manager_lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active",
+        slug: "sales_manager",
+        tools_config: %{allowed_tools: ["lemming.call"]}
+      )
+
+    for slug <- [
+          "sales_knowledge_librarian",
+          "sales_web_researcher",
+          "sales_quote_specialist"
+        ] do
+      insert(:lemming,
+        world: world,
+        city: city,
+        department: department,
+        status: "active",
+        slug: slug,
+        collaboration_role: "worker"
+      )
+    end
+
+    {:ok, instance} = LemmingInstances.spawn_instance(manager, "Create quotation")
+
+    instance =
+      instance
+      |> Ecto.Changeset.change(%{
+        config_snapshot:
+          Map.merge(instance.config_snapshot, %{
+            models_config: %{profiles: %{default: %{provider: "ollama", model: "quote-model"}}},
+            lemming_call_targets: []
+          })
+      })
+      |> Repo.update!()
+
+    Repo.insert!(%Message{
+      lemming_instance_id: instance.id,
+      world_id: world.id,
+      role: "assistant",
+      content:
+        "As runtime execution history for your previous lemming_call request, the runtime is returning delegated outcome now. Lemming call result: status=completed payload={\"call_id\":\"call-1\",\"result_summary\":\"Knowledge done\"}.",
+      usage: %{
+        "visibility" => "internal",
+        "source" => "lemming_call_callback",
+        "kind" => "runtime_context",
+        "lemming_call_id" => "call-1"
+      }
+    })
+
+    assert {:ok, snapshot} = InstanceRawSnapshot.build(instance_id: instance.id, world: world)
+
+    request =
+      Map.get(snapshot.model_request, :request) || Map.get(snapshot.model_request, "request") ||
+        %{}
+
+    request_messages = Map.get(request, :messages) || Map.get(request, "messages") || []
+
+    assert Enum.map(request_messages, &(Map.get(&1, :role) || Map.get(&1, "role"))) == [
+             "system",
+             "user",
+             "assistant"
+           ]
+
+    system_prompt = request_messages |> List.first() |> Map.get(:content)
+
+    assert String.contains?(system_prompt, "Available Lemming Calls:")
+    assert String.contains?(system_prompt, "sales_knowledge_librarian")
+    assert String.contains?(system_prompt, "sales_web_researcher")
+    assert String.contains?(system_prompt, "sales_quote_specialist")
+    assert String.contains?(system_prompt, ~s("action":"lemming_call"))
+
+    assert snapshot.target_resolution_debug.resolver_called
+    assert snapshot.target_resolution_debug.allowed_lemming_call_tool
+    assert snapshot.target_resolution_debug.candidate_targets_count == 3
+    assert snapshot.target_resolution_debug.allowed_targets_count == 3
+    assert snapshot.target_resolution_debug.rendered_available_lemming_calls
+    assert is_nil(snapshot.target_resolution_debug.unavailable_reason)
+
+    markdown = InstanceRawSnapshot.to_markdown(snapshot)
+    assert markdown =~ "resolver_called: true"
+    assert markdown =~ "allowed_lemming_call_tool: true"
+    assert markdown =~ "candidate_targets_count: 3"
+    assert markdown =~ "allowed_targets_count: 3"
+    assert markdown =~ "rendered_available_lemming_calls: true"
+    assert markdown =~ "unavailable_reason: none"
   end
 
   test "S12c: raw context view renders live model interaction timeline", %{conn: conn} do
@@ -1810,16 +2019,16 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     assert has_element?(view, "#instance-raw-interaction-timeline", "2. App -> LLM")
     assert has_element?(view, "#instance-raw-interaction-timeline", "SYSTEM")
     assert has_element?(view, "#instance-raw-interaction-timeline", "Platform Runtime Context")
-    assert has_element?(view, "#instance-raw-interaction-timeline", "Configured Lemming Identity")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Lemming Identity")
     assert has_element?(view, "#instance-raw-interaction-timeline", "Name: Incident Triage")
 
     assert has_element?(
              view,
              "#instance-raw-interaction-timeline",
-             "Description: Handles incident follow-up and operator requests."
+             "Purpose/description: Handles incident follow-up and operator requests."
            )
 
-    assert has_element?(view, "#instance-raw-interaction-timeline", "Instructions:")
+    assert has_element?(view, "#instance-raw-interaction-timeline", "Lemming Instructions:")
 
     assert has_element?(
              view,
@@ -1889,6 +2098,55 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
            )
 
     assert has_element?(view, "#instance-raw-interaction-timeline", "not-json")
+    assert has_element?(view, "#instance-raw-runtime-debug-summary", "Last Raw Model Output")
+    assert has_element?(view, "#instance-raw-runtime-debug-summary", "not-json")
+    assert has_element?(view, "#instance-raw-runtime-debug-summary", "invalid_structured_output")
+
+    GenServer.stop(pid)
+  end
+
+  test "S12d2: raw context export shows parser and retry diagnostics" do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          provider_module: RawTraceAlwaysInvalidProvider,
+          model: "parser-debug-model",
+          tools_config: %{
+            allowed_tools: [],
+            denied_tools: Enum.map(LemmingsOs.Tools.Catalog.list_tools(), & &1.id)
+          }
+        },
+        context_mod: LemmingsOs.LemmingInstances,
+        model_mod: nil,
+        pool_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: EtsStore
+      )
+
+    assert :ok = Executor.enqueue_work(pid, "Trigger parser diagnostics")
+    Executor.admit(pid)
+    assert eventually_executor_status(pid, "failed")
+
+    {:ok, snapshot} = InstanceRawSnapshot.build(instance_id: instance.id, world: world)
+    markdown = InstanceRawSnapshot.to_markdown(snapshot)
+
+    assert markdown =~ "Raw model output"
+    assert markdown =~ "Parser result"
+    assert markdown =~ "Validation result"
+    assert markdown =~ "Retry attempted"
+    assert markdown =~ "Retry output"
+    assert markdown =~ "Final parse error"
+    assert markdown =~ "not-json"
+    assert markdown =~ "Last Raw Model Output"
+    assert markdown =~ "Last Parse Error"
+    assert markdown =~ "Last Validation Error"
+    assert markdown =~ "Last Error Details"
+    assert markdown =~ "Last error code: invalid_structured_output"
+    assert markdown =~ "Model output retry: 1/1"
 
     GenServer.stop(pid)
   end

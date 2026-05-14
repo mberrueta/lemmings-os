@@ -59,6 +59,16 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
   end
 
+  defmodule AlwaysInvalidProvider do
+    @behaviour LemmingsOs.ModelRuntime.Provider
+
+    @impl true
+    def chat(request, _opts) do
+      send(self(), {:always_invalid_provider_request, request})
+      {:ok, %{content: "not-json", provider: "fake", model: request.model, raw: request}}
+    end
+  end
+
   defmodule InvalidStructuredOutputModelRuntime do
     def run(_config_snapshot, _context_messages, _current_item) do
       {:error,
@@ -102,6 +112,63 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
            model: "tool-loop-model",
            raw: %{current_item: current_item, context_messages: context_messages}
          )}
+      end
+    end
+  end
+
+  defmodule QuotePlaceholderModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:quote_placeholder_model_run, context_messages, current_item})
+      end
+
+      cond do
+        Enum.any?(
+          context_messages,
+          &String.contains?(&1.content, "Tool result for fs.write_text_file: status=ok")
+        ) ->
+          {:ok,
+           Response.new(
+             action: :reply,
+             reply: "Created quotation with $ XXX.XX placeholders for missing prices.",
+             provider: "fake",
+             model: "quote-placeholder-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
+
+        Enum.any?(
+          context_messages,
+          &String.contains?(&1.content, "Search returned no matching knowledge")
+        ) ->
+          {:ok,
+           Response.new(
+             action: :tool_call,
+             tool_name: "fs.write_text_file",
+             tool_args: %{
+               "path" => "quote.md",
+               "content" =>
+                 "# Quote\n\n- Item price: $ XXX.XX\n\nAssumptions: price knowledge was unavailable."
+             },
+             provider: "fake",
+             model: "quote-placeholder-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
+
+        true ->
+          {:ok,
+           Response.new(
+             action: :tool_call,
+             tool_name: "knowledge.search",
+             tool_args: %{
+               "query" => "customer quotation price list requested items",
+               "scope" => "department"
+             },
+             provider: "fake",
+             model: "quote-placeholder-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
       end
     end
   end
@@ -186,6 +253,57 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              continue_call_id: nil,
              provider: "fake",
              model: "lemming-call-summary-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
+      end
+    end
+  end
+
+  defmodule SecondLemmingCallAfterCallbackModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+      targets = Map.get(config_snapshot, :lemming_call_targets, [])
+      target_available? = Enum.any?(targets, &(Map.get(&1, :slug) == "ops-worker"))
+
+      if is_pid(observer_pid) do
+        send(
+          observer_pid,
+          {:second_lemming_call_model_run, config_snapshot, context_messages, current_item}
+        )
+      end
+
+      cond do
+        not target_available? ->
+          {:ok,
+           Response.new(
+             action: :reply,
+             reply: "No lemming call targets available.",
+             provider: "fake",
+             model: "second-lemming-call-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
+
+        Enum.any?(context_messages, &String.contains?(&1.content, "Lemming call result:")) ->
+          {:ok,
+           Response.new(
+             action: :lemming_call,
+             lemming_target: "ops-worker",
+             lemming_request: "Find the current exchange rate for the quote",
+             continue_call_id: nil,
+             provider: "fake",
+             model: "second-lemming-call-model",
+             raw: %{current_item: current_item, context_messages: context_messages}
+           )}
+
+        true ->
+          {:ok,
+           Response.new(
+             action: :lemming_call,
+             lemming_target: "ops-worker",
+             lemming_request: "Gather product constraints",
+             continue_call_id: nil,
+             provider: "fake",
+             model: "second-lemming-call-model",
              raw: %{current_item: current_item, context_messages: context_messages}
            )}
       end
@@ -315,6 +433,58 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     defp tracker_pid do
       Application.fetch_env!(:lemmings_os, __MODULE__)
+    end
+  end
+
+  defmodule RuntimeSnapshotGatedLemmingCalls do
+    @required_marker "runtime-targets-current"
+
+    def available_targets(instance) do
+      maybe_notify_snapshot(:available_targets, instance)
+
+      if get_in(instance.config_snapshot || %{}, [:runtime_snapshot_marker]) == @required_marker do
+        [
+          %{
+            slug: "ops-worker",
+            capability: "ops/ops-worker",
+            role: "worker",
+            department_slug: "ops",
+            description: "Drafts notes"
+          }
+        ]
+      else
+        []
+      end
+    end
+
+    def request_call(instance, attrs, _opts) do
+      maybe_notify_snapshot(:request_call, instance)
+
+      {:ok,
+       %LemmingsOs.LemmingCalls.LemmingCall{
+         id: Ecto.UUID.generate(),
+         world_id: instance.world_id,
+         city_id: instance.city_id,
+         caller_instance_id: instance.id,
+         callee_instance_id: Ecto.UUID.generate(),
+         request_text: attrs.request,
+         status: "running"
+       }}
+    end
+
+    def sync_child_instance_terminal(_instance, _status, _attrs), do: :ok
+
+    defp maybe_notify_snapshot(event, instance) do
+      case get_in(instance.config_snapshot || %{}, [:test_pid]) do
+        test_pid when is_pid(test_pid) ->
+          send(
+            test_pid,
+            {:runtime_snapshot_gated_calls_snapshot, event, instance.config_snapshot}
+          )
+
+        _other ->
+          :ok
+      end
     end
   end
 
@@ -548,6 +718,52 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
            root_path: "/workspace/test",
            bytes: byte_size(content)
          }
+       }}
+    end
+  end
+
+  defmodule QuotePlaceholderToolRuntime do
+    def execute(_world, _instance, "knowledge.search", args) do
+      send(Application.fetch_env!(:lemmings_os, __MODULE__)[:test_pid], {
+        :quote_tool_call,
+        "knowledge.search",
+        args
+      })
+
+      {:ok,
+       %{
+         tool_name: "knowledge.search",
+         args: args,
+         summary: "Found 0 source-file chunks",
+         preview: nil,
+         result: %{
+           result: %{
+             kind: "source_file",
+             scope: "department",
+             count: 0,
+             results: []
+           }
+         }
+       }}
+    end
+
+    def execute(_world, _instance, "fs.write_text_file", %{
+          "path" => path,
+          "content" => content
+        }) do
+      send(Application.fetch_env!(:lemmings_os, __MODULE__)[:test_pid], {
+        :quote_tool_call,
+        "fs.write_text_file",
+        %{"path" => path, "content" => content}
+      })
+
+      {:ok,
+       %{
+         tool_name: "fs.write_text_file",
+         args: %{"path" => path, "content" => content},
+         summary: "Wrote file #{path}",
+         preview: content,
+         result: %{path: path, bytes: byte_size(content)}
        }}
     end
   end
@@ -1130,6 +1346,112 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              messages,
              &(&1.role == "assistant" and
                  &1.content == "Used child result directly: Draft child notes complete.")
+           )
+
+    GenServer.stop(pid)
+  end
+
+  test "S02c2: resumed manager can choose a second lemming call after callback context",
+       %{
+         instance: instance
+       } do
+    resource_key = "ollama:second-lemming-call-model"
+
+    assert :ok = PubSub.subscribe_instance(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "second-lemming-call-model",
+          observer_pid: self(),
+          test_pid: self(),
+          runtime_snapshot_marker: "runtime-targets-current",
+          lemming_call_targets: [],
+          models_config: %{
+            profiles: %{default: %{provider: "ollama", model: "second-lemming-call-model"}}
+          }
+        },
+        context_mod: LemmingInstances,
+        model_mod: SecondLemmingCallAfterCallbackModelRuntime,
+        lemming_calls_mod: RuntimeSnapshotGatedLemmingCalls,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Create a quote")
+    assert_receive {:status_changed, %{status: "queued"}}
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:runtime_snapshot_gated_calls_snapshot, :available_targets,
+                    available_snapshot}
+
+    assert available_snapshot.runtime_snapshot_marker == "runtime-targets-current"
+
+    assert_receive {:second_lemming_call_model_run, %{lemming_call_targets: first_targets},
+                    _context_messages, %{content: "Create a quote"}}
+
+    assert [%{slug: "ops-worker"}] = first_targets
+
+    assert_receive {:runtime_snapshot_gated_calls_snapshot, :request_call, request_snapshot}
+    assert request_snapshot.runtime_snapshot_marker == "runtime-targets-current"
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    assert :ok =
+             Executor.resume_after_lemming_call(pid, %LemmingsOs.LemmingCalls.LemmingCall{
+               id: Ecto.UUID.generate(),
+               status: "completed",
+               result_summary: "Knowledge librarian result"
+             })
+
+    assert_receive {:status_changed, %{status: "processing"}}
+
+    assert_receive {:runtime_snapshot_gated_calls_snapshot, :available_targets,
+                    resumed_available_snapshot}
+
+    assert resumed_available_snapshot.runtime_snapshot_marker == "runtime-targets-current"
+
+    assert_receive {:second_lemming_call_model_run,
+                    %{lemming_call_targets: resumed_targets} = resumed_config, context_messages,
+                    %{content: "Create a quote"} = current_item}
+
+    assert [%{slug: "ops-worker"}] = resumed_targets
+
+    assert {:ok, %{request: provider_request}} =
+             LemmingsOs.ModelRuntime.debug_request(resumed_config, context_messages, current_item)
+
+    assert %{role: "system", content: system_prompt} = Enum.at(provider_request.messages, 0)
+    assert String.contains?(system_prompt, "Available Lemming Calls:")
+    assert String.contains?(system_prompt, "ops-worker")
+    assert String.contains?(system_prompt, ~s("action":"lemming_call"))
+
+    assert Enum.any?(
+             context_messages,
+             &String.contains?(&1.content, "Lemming call result: status=completed")
+           )
+
+    assert_receive {:runtime_snapshot_gated_calls_snapshot, :request_call,
+                    resumed_request_snapshot}
+
+    assert resumed_request_snapshot.runtime_snapshot_marker == "runtime-targets-current"
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    messages = LemmingInstances.list_messages(instance)
+
+    refute Enum.any?(
+             messages,
+             &(&1.role == "assistant" and
+                 &1.content == "Find the current exchange rate for the quote")
            )
 
     GenServer.stop(pid)
@@ -1981,7 +2303,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              %{
                step_index: 1,
                status: "ok",
-               parsed_output: %{"action" => "tool_call", "tool_name" => "web.fetch"},
+               parsed_output: %{"action" => "tool_call", "target" => "web.fetch"},
                tool_execution_id: tool_execution_id
              },
              %{
@@ -2010,6 +2332,84 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
 
     detach(started_ref)
     detach(completed_ref)
+    GenServer.stop(pid)
+  end
+
+  test "S08a: quote specialist continues to write quotation after zero knowledge results when placeholders are allowed",
+       %{instance: instance} do
+    resource_key = "ollama:quote-placeholder-model"
+    previous_env = Application.get_env(:lemmings_os, QuotePlaceholderToolRuntime)
+    Application.put_env(:lemmings_os, QuotePlaceholderToolRuntime, test_pid: self())
+
+    on_exit(fn ->
+      if previous_env do
+        Application.put_env(:lemmings_os, QuotePlaceholderToolRuntime, previous_env)
+      else
+        Application.delete_env(:lemmings_os, QuotePlaceholderToolRuntime)
+      end
+    end)
+
+    assert :ok = PubSub.subscribe_instance(instance.id)
+    assert :ok = PubSub.subscribe_instance_messages(instance.id)
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          model: "quote-placeholder-model",
+          observer_pid: self(),
+          models_config: %{
+            profiles: %{default: %{provider: "ollama", model: "quote-placeholder-model"}}
+          },
+          tools_config: %{
+            allowed_tools: ["knowledge.search", "fs.write_text_file"],
+            denied_tools: []
+          }
+        },
+        context_mod: LemmingInstances,
+        model_mod: QuotePlaceholderModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: QuotePlaceholderToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: LemmingsOs.LemmingInstances.EtsStore,
+        name: nil
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+
+    assert :ok =
+             Executor.enqueue_work(
+               pid,
+               "Create a quotation. Use $ XXX.XX placeholders for unavailable prices."
+             )
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert_receive {:quote_tool_call, "knowledge.search", search_args}
+    assert search_args["scope"] == "department"
+    refute Map.has_key?(search_args, "tags")
+    refute Map.has_key?(search_args, "source_file_type")
+
+    assert_receive {:runtime_event, %{event: "runtime.tool.result_received"}}
+    assert_receive {:runtime_event, %{event: "runtime.tool.result_context_appended"}}
+    assert_receive {:runtime_event, %{event: "runtime.executor.requeued_after_tool"}}
+
+    assert_receive {:quote_tool_call, "fs.write_text_file", write_args}
+    assert write_args["path"] == "quote.md"
+    assert write_args["content"] =~ "$ XXX.XX"
+    assert write_args["content"] =~ "Assumptions"
+
+    assert_receive {:status_changed, %{status: "idle"}}
+
+    snapshot = Executor.snapshot(pid)
+    assert snapshot.last_tool_result_delivery.status == "model_resumed"
+    assert Enum.any?(snapshot.model_steps, &(&1.parsed_output["target"] == "fs.write_text_file"))
+
     GenServer.stop(pid)
   end
 
@@ -2317,6 +2717,57 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              Enum.map(Executor.snapshot(pid).model_steps, fn model_step ->
                Map.take(model_step, [:step_index, :status, :response_payload, :error])
              end)
+
+    GenServer.stop(pid)
+  end
+
+  test "S10a: parser repair failure is terminal with explicit last_error and details", %{
+    instance: instance
+  } do
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          provider_module: AlwaysInvalidProvider,
+          model: "broken-parser-model",
+          tools_config: %{
+            allowed_tools: [],
+            denied_tools: Enum.map(LemmingsOs.Tools.Catalog.list_tools(), & &1.id)
+          },
+          max_retries: 3
+        },
+        context_mod: LemmingInstances,
+        model_mod: nil,
+        pool_mod: nil,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil
+      )
+
+    assert :ok = Executor.enqueue_work(pid, "Break parser")
+    Executor.admit(pid)
+    assert eventually_status(pid, "failed")
+
+    snapshot = Executor.snapshot(pid)
+    assert snapshot.last_error == "Model returned invalid structured output."
+    assert snapshot.last_error not in [nil, ""]
+    assert snapshot.internal_error_details["kind"] == "invalid_structured_output"
+    assert snapshot.internal_error_details["raw_model_output"] == "not-json"
+    assert snapshot.internal_error_details["retry_attempted"] == true
+    assert snapshot.internal_error_details["retry_output"] == "not-json"
+    assert is_binary(snapshot.internal_error_details["final_parse_error"])
+
+    assert [%{status: "error", error: error, response_payload: response_payload}] =
+             snapshot.model_steps
+
+    assert error["raw_model_output"] == "not-json"
+    assert error["retry_attempted"] == true
+    assert error["parser_result"]["parse_status"] == "error"
+    assert error["validation_result"]["valid_actions"] == ["reply"]
+    assert response_payload["model"] == "broken-parser-model"
+
+    assert error["retry_request"]["messages"] |> List.last() |> Map.get("content") =~
+             "Correction required"
 
     GenServer.stop(pid)
   end

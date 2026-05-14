@@ -24,6 +24,16 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
     def available_targets(_instance), do: [%{slug: "ops-worker"}]
   end
 
+  defmodule RuntimeSnapshotTargetCalls do
+    def available_targets(instance) do
+      if get_in(instance.config_snapshot || %{}, [:runtime_snapshot_marker]) == "current" do
+        [%{slug: "ops-worker"}]
+      else
+        []
+      end
+    end
+  end
+
   defmodule RequestCalls do
     def request_call(_instance, attrs, _opts),
       do: {:ok, %{id: "call-1", request_text: attrs.request}}
@@ -59,6 +69,26 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
 
     assert %{model: "fake-model", lemming_call_targets: [%{slug: "ops-worker"}]} =
              CommunicationRuntime.model_config_snapshot(base_config, TargetCalls, instance)
+  end
+
+  test "model_config_snapshot/3 refreshes stale empty target lists" do
+    base_config = %{
+      model: "fake-model",
+      lemming_call_targets: [],
+      runtime_snapshot_marker: "current"
+    }
+
+    instance = %{
+      id: "instance-1",
+      config_snapshot: %{lemming_call_targets: [], runtime_snapshot_marker: "stale"}
+    }
+
+    assert %{lemming_call_targets: [%{slug: "ops-worker"}]} =
+             CommunicationRuntime.model_config_snapshot(
+               base_config,
+               RuntimeSnapshotTargetCalls,
+               instance
+             )
   end
 
   test "append_call_request_context/2 appends lemming call request message" do

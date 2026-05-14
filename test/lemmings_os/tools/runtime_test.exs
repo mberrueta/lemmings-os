@@ -156,13 +156,15 @@ defmodule LemmingsOs.Tools.RuntimeTest do
 
       assert result.tool_name == "email.create_draft"
       assert result.args == args
-      assert result.summary == "Created Gmail draft for customer@example.com with 0 attachments"
+      assert result.summary == "Created Gmail draft for 1 recipient(s) with 0 attachments"
       assert result.preview == "Subject: Runtime envelope draft"
       assert result.result["status"] == "draft_created"
       assert result.result["provider"] == "gmail"
       assert result.result["connection_ref"] == "gmail"
-      assert result.result["to"] == ["customer@example.com"]
-      assert result.result["subject"] == "Runtime envelope draft"
+      assert result.result["to_count"] == 1
+      assert result.result["cc_count"] == 0
+      assert result.result["bcc_count"] == 0
+      assert result.result["subject_preview"] == "Runtime envelope draft"
 
       assert_receive {:email_draft_create_called, "runtime-access-token", _raw_message}
     end
@@ -210,10 +212,10 @@ defmodule LemmingsOs.Tools.RuntimeTest do
       assert {:ok, result} =
                Runtime.execute(world, instance, "email.create_draft", args, runtime_meta)
 
-      assert result.result["to"] == ["jordan.lee@example.com"]
-      assert result.result["cc"] == []
-      assert result.result["bcc"] == []
-      assert result.summary == "Created Gmail draft for jordan.lee@example.com with 0 attachments"
+      assert result.result["to_count"] == 1
+      assert result.result["cc_count"] == 0
+      assert result.result["bcc_count"] == 0
+      assert result.summary == "Created Gmail draft for 1 recipient(s) with 0 attachments"
 
       assert_receive {:email_draft_create_called, "access-token", raw_message}
       assert {:ok, mime} = Base.url_decode64(raw_message, padding: false)

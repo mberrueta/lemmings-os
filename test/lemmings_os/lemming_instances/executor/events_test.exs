@@ -179,6 +179,56 @@ defmodule LemmingsOs.LemmingInstances.Executor.EventsTest do
                     }}
   end
 
+  test "post-tool continuation events broadcast delivery and resume state" do
+    instance_id = "instance-events-tool-delivery"
+    assert :ok = PubSub.subscribe_instance_messages(instance_id)
+
+    state = %{instance_id: instance_id, phase: :action_selection, tool_iteration_count: 1}
+    tool_execution = %{id: "tool-1", tool_name: "knowledge.search", status: "ok"}
+
+    assert :ok = Events.emit_tool_result_received(state, tool_execution)
+    assert :ok = Events.emit_tool_result_context_appended(state, tool_execution, 3)
+    assert :ok = Events.emit_requeued_after_tool(state)
+    assert :ok = Events.emit_resume_after_tool_failed(state, :task_start_failed)
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.tool.result_received",
+                      payload: %{
+                        event: "runtime.tool.result_received",
+                        tool_name: "knowledge.search",
+                        tool_execution_id: "tool-1",
+                        status: "ok"
+                      }
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.tool.result_context_appended",
+                      payload: %{
+                        event: "runtime.tool.result_context_appended",
+                        tool_name: "knowledge.search",
+                        tool_execution_id: "tool-1",
+                        context_message_count: 3
+                      }
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.executor.requeued_after_tool",
+                      payload: %{event: "runtime.executor.requeued_after_tool"}
+                    }}
+
+    assert_receive {:runtime_event,
+                    %{
+                      event: "runtime.executor.resume_after_tool_failed",
+                      payload: %{
+                        event: "runtime.executor.resume_after_tool_failed",
+                        reason: "task_start_failed"
+                      }
+                    }}
+  end
+
   test "resume events broadcast requested, started, rejected, and completed payloads" do
     instance_id = "instance-events-resume"
     assert :ok = PubSub.subscribe_instance_messages(instance_id)

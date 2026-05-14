@@ -61,6 +61,46 @@ defmodule LemmingsOsWeb.InstanceRawSnapshotControllerTest do
     end
   end
 
+  defmodule MissingActionFailureModelRuntime do
+    def run(_config_snapshot, _context_messages, _current_item) do
+      {:error,
+       {:invalid_structured_output,
+        %{
+          provider: "fake",
+          model: "missing-action-model",
+          content: "{}",
+          raw_model_output: "{}",
+          raw: %{
+            dets_path: "/mnt/data4/matt/code/personal_stuffs/lemmings-os/_build/test/runtime.dets"
+          },
+          parser_result: %{
+            parse_status: "ok",
+            parse_error: nil,
+            parse_source: "direct_json",
+            extracted_json: %{},
+            normalized_action: nil
+          },
+          validation_result: %{
+            validation_error: "missing_action",
+            validation_error_details: %{
+              code: "missing_action",
+              message: "Model output must include an action field.",
+              parsed_payload: %{},
+              expected_actions: ["reply", "tool_call"],
+              expected_targets: %{"tool_call" => ["web.search", "web.fetch"]},
+              provider: "fake",
+              model: "missing-action-model"
+            },
+            valid_actions: ["reply", "tool_call"],
+            valid_targets: %{"tool_call" => ["web.search", "web.fetch"]}
+          },
+          retry_attempted: true,
+          retry_output: "{}",
+          final_parse_error: "missing_action"
+        }}}
+    end
+  end
+
   setup do
     Repo.delete_all(ToolExecution)
     Repo.delete_all(Message)
@@ -165,6 +205,121 @@ defmodule LemmingsOsWeb.InstanceRawSnapshotControllerTest do
     assert response(conn, 404) == "World not found"
   end
 
+  test "failed persisted-only export never renders last error none", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    {:ok, failed_instance} = LemmingInstances.update_status(instance, "failed", %{})
+
+    conn = get(conn, ~p"/lemmings/instances/#{failed_instance.id}/raw.md?#{%{world: world.id}}")
+    body = response(conn, 200)
+
+    assert body =~ "Outcome: failed"
+    assert body =~ "Last error: Runtime failed without a recorded error."
+    assert body =~ "Last error code: runtime.failure_missing_error"
+    refute body =~ "Last error: none"
+  end
+
+  test "export classifies missing action model output as validation failure with no tool failure",
+       %{
+         conn: conn
+       } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    resource_key = "ollama:missing-action-model"
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          name: "Sales Web Researcher",
+          description: "Researches web data.",
+          instructions: "Use web search for current public facts.",
+          model: "missing-action-model",
+          tools_config: %{allowed_tools: ["web.search", "web.fetch"], denied_tools: []},
+          models_config: %{
+            profiles: %{default: %{provider: "ollama", model: "missing-action-model"}}
+          }
+        },
+        context_mod: nil,
+        model_mod: MissingActionFailureModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: RawTraceSuccessToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: EtsStore
+      )
+
+    {:ok, _pool_pid} =
+      start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+
+    assert :ok =
+             Executor.enqueue_work(
+               pid,
+               "Get current USD/BRL exchange rate for the Buenos Aires quotation"
+             )
+
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_executor_status(pid, "failed")
+    assert eventually_executor_last_error(pid)
+
+    conn = get(conn, ~p"/lemmings/instances/#{instance.id}/raw.md?#{%{world: world.id}}")
+    body = response(conn, 200)
+
+    assert body =~ "Likely issue: model output validation failure"
+    assert body =~ "Last error code: missing_action"
+    assert body =~ "Tools used: none"
+    assert body =~ "missing_action"
+    assert body =~ "Raw model output"
+    assert body =~ "{}"
+    assert body =~ "Model output retry: attempted 1/1"
+    assert body =~ "<runtime-dets-path>"
+    refute body =~ "Likely issue: tool failure"
+    refute body =~ "/mnt/data4/matt"
+    refute body =~ "Last error: none"
+
+    GenServer.stop(pid)
+  end
+
+  test "export reports completed tool result that was not delivered to a next model turn", %{
+    conn: conn
+  } do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    insert(:tool_execution,
+      lemming_instance: instance,
+      world: world,
+      tool_name: "knowledge.search",
+      status: "ok",
+      args: %{"query" => "price list"},
+      summary: "Found 0 source-file chunks",
+      result: %{
+        "result" => %{
+          "kind" => "source_file",
+          "count" => 0,
+          "results" => [],
+          "dets_path" => "/mnt/data4/matt/code/personal_stuffs/lemmings-os/runtime.dets"
+        }
+      },
+      completed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      duration_ms: 12
+    )
+
+    {:ok, failed_instance} = LemmingInstances.update_status(instance, "failed", %{})
+
+    conn = get(conn, ~p"/lemmings/instances/#{failed_instance.id}/raw.md?#{%{world: world.id}}")
+    body = response(conn, 200)
+
+    assert body =~ "Likely issue: tool completed but model was not resumed"
+    assert body =~ "Last tool result delivery: tool completed but model was not resumed"
+    assert body =~ "knowledge.search completed"
+    assert body =~ "count"
+    assert body =~ "<runtime-dets-path>"
+    refute body =~ "Likely issue: runtime gap"
+    refute body =~ "/mnt/data4/matt"
+  end
+
   defp spawn_runtime_session do
     unique = System.unique_integer([:positive])
     world = insert(:world, name: "Ops World #{unique}", slug: "ops-world-#{unique}")
@@ -211,6 +366,21 @@ defmodule LemmingsOsWeb.InstanceRawSnapshotControllerTest do
       _other ->
         Process.sleep(20)
         eventually_executor_status(pid, expected_status, attempts - 1)
+    end
+  end
+
+  defp eventually_executor_last_error(pid, attempts \\ 40)
+
+  defp eventually_executor_last_error(_pid, 0), do: false
+
+  defp eventually_executor_last_error(pid, attempts) do
+    case Executor.snapshot(pid) do
+      %{last_error: last_error} when is_binary(last_error) and last_error != "" ->
+        true
+
+      _snapshot ->
+        Process.sleep(20)
+        eventually_executor_last_error(pid, attempts - 1)
     end
   end
 end

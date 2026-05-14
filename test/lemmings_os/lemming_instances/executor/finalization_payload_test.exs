@@ -113,6 +113,33 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayloadTest do
     assert Enum.any?(payload.references.chunks, &String.contains?(&1.snippet, "Dish Drying Rack"))
   end
 
+  test "apply_goal_context/3 continues quote workflow on zero knowledge results when placeholders are allowed" do
+    tool_execution = %{
+      status: "ok",
+      tool_name: "knowledge.search",
+      summary: "Found 0 source-file chunks",
+      result: %{
+        "result" => %{
+          "kind" => "source_file",
+          "count" => 0,
+          "results" => []
+        }
+      }
+    }
+
+    payload =
+      tool_execution
+      |> FinalizationPayload.tool_result_payload()
+      |> FinalizationPayload.apply_goal_context(
+        tool_execution,
+        "Create a quotation and use $ XXX.XX placeholders for unavailable prices"
+      )
+
+    assert [remaining_work] = payload.remaining_work
+    assert remaining_work =~ "$ XXX.XX"
+    assert remaining_work =~ "Continue the quote workflow"
+  end
+
   test "build_finalization_context/3 normalizes context fields" do
     tool_execution = %{
       tool_name: "fs.write_text_file",

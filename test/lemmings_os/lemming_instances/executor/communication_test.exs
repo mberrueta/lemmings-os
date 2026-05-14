@@ -109,6 +109,9 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationTest do
     assert is_nil(Communication.resume_rejection_reason("idle", %{id: "item-1"}, nil))
 
     assert Communication.call_terminal?(%{status: "completed"})
+    assert Communication.call_terminal?(%{status: "failed"})
+    assert Communication.call_terminal?(%{status: "cancelled"})
+    assert Communication.call_terminal?(%{status: "expired"})
     refute Communication.call_terminal?(%{status: "running"})
     assert is_nil(Communication.resume_call_rejection_reason(%{status: "completed"}))
 
@@ -122,7 +125,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationTest do
       internal_error_details: %{kind: :model_timeout}
     }
 
-    call = %{status: "completed", result_summary: "Done"}
+    call = %{id: "call-1", status: "completed", result_summary: "Done"}
 
     updated = Communication.prepare_state_for_resume(state, call)
 
@@ -131,5 +134,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationTest do
     assert updated.internal_error_details == nil
     assert length(updated.context_messages) == 2
     assert String.contains?(List.last(updated.context_messages).content, "Lemming call result:")
+
+    updated_again = Communication.prepare_state_for_resume(updated, call)
+    assert length(updated_again.context_messages) == 2
   end
 end
