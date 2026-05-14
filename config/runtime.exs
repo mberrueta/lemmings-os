@@ -188,8 +188,12 @@ config :lemmings_os, :documents,
 
 config :lemmings_os, :runtime_city,
   node_name: runtime_city_node_name,
-  slug: System.get_env("LEMMINGS_CITY_SLUG"),
-  name: System.get_env("LEMMINGS_CITY_NAME"),
+  slug:
+    System.get_env("LEMMINGS_CITY_SLUG") ||
+      if(config_env() == :dev, do: "demo_city", else: nil),
+  name:
+    System.get_env("LEMMINGS_CITY_NAME") ||
+      if(config_env() == :dev, do: "Demo City", else: nil),
   host: System.get_env("LEMMINGS_CITY_HOST"),
   distribution_port: System.get_env("LEMMINGS_CITY_DISTRIBUTION_PORT"),
   epmd_port: System.get_env("LEMMINGS_CITY_EPMD_PORT")

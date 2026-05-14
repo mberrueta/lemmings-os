@@ -1,447 +1,829 @@
 # Script for populating the database. You can run it as:
 #
 #     mix run priv/repo/seeds.exs
-#
-# Inside the script, you can read and write to any of your
-# repositories directly:
-#
-#     LemmingsOs.Repo.insert!(%LemmingsOs.SomeSchema{})
-#
-# We recommend using the bang functions (`insert!`, `update!`
-# and so on) as they will fail if something goes wrong.
 
 alias LemmingsOs.Cities
-alias LemmingsOs.Cities.Runtime, as: RuntimeCities
+alias LemmingsOs.Connections
 alias LemmingsOs.Departments
+alias LemmingsOs.Knowledge
+alias LemmingsOs.Knowledge.SourceFiles, as: KnowledgeSourceFiles
 alias LemmingsOs.Lemmings
-alias LemmingsOs.SecretBank
+alias LemmingsOs.Repo
 alias LemmingsOs.Worlds
-alias LemmingsOs.Worlds.World
 
-default_world_attrs = %{
-  slug: "local",
-  name: "Local World",
+world_attrs = %{
+  slug: "demo_world",
+  name: "Demo World",
   status: "ok",
   last_import_status: "ok",
   bootstrap_source: "seed",
-  bootstrap_path: Path.expand("priv/default.world.yaml", File.cwd!())
+  bootstrap_path: "priv/default.world.yaml"
 }
 
-city_plans = [
+city_attrs = %{
+  slug: "demo_city",
+  name: "Demo City",
+  node_name: "demo_city@localhost",
+  host: "127.0.0.1",
+  distribution_port: 9110,
+  epmd_port: 4371,
+  status: "active"
+}
+
+department_attrs = %{
+  slug: "sales_demo",
+  name: "Sales Demo",
+  status: "active",
+  notes: "Demo sales workflow with manager-led delegation.",
+  tags: ["sales", "demo"]
+}
+
+sales_manager_instructions = """
+You are the Sales Department Manager.
+
+Your job is to understand the user's commercial request and delegate work to the right specialist lemmings.
+
+You must not do operational work yourself unless the request is trivial, such as answering what your role is or listing available capabilities.
+
+For quotation, proposal, customer email, sales research, document generation, or customer memory tasks, delegate.
+
+Use the Available Lemming Calls section provided by the runtime to decide which specialist can handle each task.
+
+When lemming calls are available, delegate operational work instead of doing it yourself.
+
+Default workflow for quotation requests:
+1. Ask sales_knowledge_librarian for relevant templates, prices, policies, brand tone, and customer memories.
+2. Ask sales_web_researcher for external facts needed for the quote.
+3. Ask sales_quote_specialist to prepare the quotation using the gathered context.
+4. Return a concise summary to the user with created files, draft status, assumptions, and missing information.
+
+Never ask sales_knowledge_librarian for current external data such as exchange rates, current public prices, current events, or public web facts.
+Use sales_web_researcher for exchange rates, current public prices, current events, travel context, and public web facts.
+
+Never create a final quote yourself if a specialist can do it.
+Never claim that a file, PDF, memory, or Gmail draft exists unless a specialist reported successful creation.
+"""
+
+sales_knowledge_librarian_instructions = """
+You are the Sales Knowledge Librarian.
+
+Your job is to retrieve and summarize internal sales knowledge.
+
+Use available knowledge sources, memories, reference files, templates, price lists, company policies, and prior examples.
+
+When asked for quotation support, return:
+- relevant price list items
+- recommended template
+- commercial terms
+- brand/tone guidance
+- customer memories, if available
+- missing internal information
+
+Do not browse the web.
+Do not generate PDFs.
+Do not create Gmail drafts.
+Do not invent prices or policies. If something is not found, say it clearly.
+"""
+
+sales_web_researcher_instructions = """
+You are the Sales Web Researcher.
+
+Your job is to gather external information useful for sales quotations and commercial proposals.
+
+Focus only on sales-relevant facts, such as:
+- exchange rates
+- public market prices
+- destination or logistics information
+- local events that may affect price or availability
+- supplier/public references
+- travel context
+- competitor/package references when useful
+
+Do not go off-topic.
+Do not write the quotation.
+Do not create files.
+Do not create emails.
+
+Return concise findings with:
+- fact
+- source URL if available
+- date or freshness note
+- confidence level
+- how the fact affects the quotation
+"""
+
+sales_quote_specialist_instructions = """
+You are the Sales Quote Specialist.
+
+Your job is to prepare complete customer quotations.
+
+You may use internal knowledge, templates, price lists, customer memories, and provided web research to create a professional quotation.
+
+For each quotation:
+1. Identify the customer, destination/service, requested items, quantities, dates or duration, and currency.
+2. Retrieve or use the relevant internal price list and quotation template.
+   - Start with a broad department-scoped knowledge.search query. Do not use guessed tags or exact source types on the first search unless the request provides them.
+   - If a broad search returns no prices and the user explicitly allowed placeholders such as `$ XXX.XX`, continue the quotation with those placeholders.
+   - If placeholders were not explicitly allowed and required prices are missing, ask for clarification or report missing knowledge before producing priced documents.
+3. Apply external facts provided by the manager or sales_web_researcher, such as exchange rates.
+4. Prepare a Markdown quotation file.
+5. Convert it to HTML when needed.
+6. Generate a PDF when requested.
+7. Create a Gmail draft when explicitly requested.
+
+Never send emails.
+Only create Gmail drafts.
+Do not browse the web directly.
+Do not invent prices. If internal prices are missing and placeholders were allowed, use `$ XXX.XX` and mark them as assumptions/missing information. If placeholders were not allowed, ask the manager for clarification.
+Always report:
+- files created
+- PDF created or not
+- Gmail draft created or not
+- assumptions used
+- missing information
+"""
+
+lemming_attrs = [
   %{
-    key: :runtime,
-    kind: :runtime,
-    departments: [
+    slug: "sales_manager",
+    name: "Sales Manager",
+    status: "active",
+    collaboration_role: "manager",
+    description: "Delegates sales tasks to specialist lemmings.",
+    instructions: sales_manager_instructions,
+    models_config: %{
+      "profiles" => %{
+        "primary" => %{
+          "provider" => "ollama",
+          "model" => "qwen3.5:latest"
+        }
+      }
+    },
+    tools_config: %{
+      "allowed_tools" => ["lemming.call"],
+      "denied_tools" => [
+        "fs.read_text_file",
+        "fs.write_text_file",
+        "web.search",
+        "web.fetch",
+        "knowledge.search",
+        "knowledge.read",
+        "knowledge.store",
+        "documents.markdown_to_html",
+        "documents.print_to_pdf",
+        "email.create_draft"
+      ]
+    }
+  },
+  %{
+    slug: "sales_knowledge_librarian",
+    name: "Sales Knowledge Librarian",
+    status: "active",
+    collaboration_role: "worker",
+    description:
+      "internal sales knowledge, memories, templates, price lists, policies, prior examples.",
+    instructions: sales_knowledge_librarian_instructions,
+    models_config: %{
+      "profiles" => %{
+        "primary" => %{
+          "provider" => "ollama",
+          "model" => "qwen3.5:latest"
+        }
+      }
+    },
+    tools_config: %{
+      "allowed_tools" => [
+        "knowledge.search",
+        "knowledge.read",
+        "knowledge.store",
+        "fs.read_text_file"
+      ],
+      "denied_tools" => [
+        "web.search",
+        "web.fetch",
+        "documents.markdown_to_html",
+        "documents.print_to_pdf",
+        "email.create_draft"
+      ]
+    }
+  },
+  %{
+    slug: "sales_web_researcher",
+    name: "Sales Web Researcher",
+    status: "active",
+    collaboration_role: "worker",
+    description:
+      "external sales-related research such as exchange rates, public prices, market references, events, logistics, and travel context.",
+    instructions: sales_web_researcher_instructions,
+    models_config: %{
+      "profiles" => %{
+        "primary" => %{
+          "provider" => "ollama",
+          "model" => "qwen3.5:latest"
+        }
+      }
+    },
+    tools_config: %{
+      "allowed_tools" => ["web.search", "web.fetch"],
+      "denied_tools" => [
+        "fs.read_text_file",
+        "fs.write_text_file",
+        "knowledge.store",
+        "documents.markdown_to_html",
+        "documents.print_to_pdf",
+        "email.create_draft"
+      ]
+    }
+  },
+  %{
+    slug: "sales_quote_specialist",
+    name: "Sales Quote Specialist",
+    status: "active",
+    collaboration_role: "worker",
+    description:
+      "prepares complete customer quotations, including document files and Gmail drafts.",
+    instructions: sales_quote_specialist_instructions,
+    models_config: %{
+      "profiles" => %{
+        "primary" => %{
+          "provider" => "ollama",
+          "model" => "qwen3.5:latest"
+        }
+      }
+    },
+    tools_config: %{
+      "allowed_tools" => [
+        "fs.read_text_file",
+        "fs.write_text_file",
+        "knowledge.search",
+        "knowledge.read",
+        "documents.markdown_to_html",
+        "documents.print_to_pdf",
+        "email.create_draft"
+      ],
+      "denied_tools" => ["web.search", "web.fetch", "knowledge.store"]
+    }
+  }
+]
+
+source_file_seeds = [
+  %{
+    slug: "company_profile",
+    filename: "company_profile.md",
+    title: "Company Profile",
+    source_file_type: "company_knowledge",
+    content: """
+    # Entre Mundos Travel — Company Profile
+
+    Default quote language: Portuguese
+    Tone: friendly, professional, concise
+    Currency for customer-facing totals: BRL
+    Quote validity: 7 days
+    Payment terms: 50% upfront, 50% before travel
+    Human approval: all emails must be sent manually by a human from Gmail
+    """
+  },
+  %{
+    slug: "price_list",
+    filename: "price_list.md",
+    title: "Price List",
+    source_file_type: "price_list",
+    content: """
+    # Demo Price List
+
+    ## Buenos Aires Package Base Prices
+
+    - Hotel 3-star, per night, double room: USD 85
+    - Hotel 4-star, per night, double room: USD 140
+    - Airport transfer, per group: USD 45
+    - City tour, per adult: USD 35
+    - City tour, per child: USD 20
+    - Tango dinner experience, per adult: USD 75
+    - Food tour, per adult: USD 55
+    - Service fee: 12%
+
+    ## Default Rules
+
+    - Children under 12 use child pricing when available.
+    - If a requested item is missing from the price list, mark it as an assumption.
+    - Convert USD to BRL using the exchange rate supplied by sales_web_researcher.
+    """
+  }
+]
+
+reference_file_seeds = [
+  %{
+    slug: "quote_template",
+    filename: "quote_template.md",
+    title: "Quote Template",
+    reference_ref: "kref:sales_demo_quote_template",
+    reference_file_type: "quote_template",
+    content: """
+    # Cotação de Viagem
+
+    Cliente: {{client_name}}
+    Destino: {{destination}}
+    Período: {{dates_or_duration}}
+    Viajantes: {{travelers}}
+
+    ## Resumo
+
+    {{summary}}
+
+    ## Itens incluídos
+
+    {{items}}
+
+    ## Pesquisa utilizada
+
+    {{research_notes}}
+
+    ## Valores
+
+    {{pricing_table}}
+
+    ## Total estimado
+
+    {{total}}
+
+    ## Condições
+
+    - Cotação válida por 7 dias.
+    - Valores sujeitos à disponibilidade.
+    - Pagamento: 50% na reserva, 50% antes da viagem.
+    - Esta cotação é uma estimativa para aprovação humana antes do envio final.
+    """
+  },
+  %{
+    slug: "email_examples",
+    filename: "email_examples.md",
+    title: "Email Examples",
+    reference_ref: "kref:sales_demo_email_examples",
+    reference_file_type: "email_examples",
+    content: """
+    # Email Example
+
+    Subject style:
+    Cotação de viagem para {{destination}} - {{client_name}}
+
+    Body style:
+    Olá {{client_name}},
+
+    preparamos uma cotação personalizada para sua viagem.
+
+    Segue em anexo a proposta com os itens solicitados, condições comerciais e valores estimados.
+
+    Ficamos à disposição para ajustar datas, categoria de hotel ou experiências incluídas.
+
+    Atenciosamente,
+    Entre Mundos Travel
+    """
+  }
+]
+
+customer_memory_seeds = [
+  %{
+    customer_name: "João Silva",
+    customer_email: "joao.silva@example.com",
+    items: [
       %{
-        slug: "support",
-        name: "Support",
-        status: "active",
-        notes: "Customer-facing support department.",
-        tags: ["support", "tier-1"]
+        key: "hotel_preference",
+        content: "João usually prefers 4-star hotels."
       },
       %{
-        slug: "platform",
-        name: "Platform",
-        status: "active",
-        notes: "Platform operations and runtime ownership.",
-        tags: ["platform", "backend"]
+        key: "pricing_preference",
+        content: "João likes clear itemized pricing before approving a trip."
+      },
+      %{
+        key: "family_context",
+        content: "João is traveling with family and prefers child-friendly activities."
+      },
+      %{
+        key: "language_preference",
+        content: "João prefers communication in Portuguese."
+      },
+      %{
+        key: "value_sensitivity",
+        content:
+          "João is price-sensitive but accepts premium options when the value is clearly explained."
       }
     ]
   },
   %{
-    key: :beta,
-    kind: :regular,
-    attrs: %{
-      slug: "beta-city",
-      name: "Beta City",
-      node_name: "beta@localhost",
-      host: "127.0.0.1",
-      distribution_port: 9102,
-      epmd_port: 4370,
-      status: "active"
-    },
-    departments: [
+    customer_name: "Mariana Costa",
+    customer_email: "mariana.costa@example.com",
+    items: [
       %{
-        slug: "research",
-        name: "Research",
-        status: "active",
-        notes: "Experiments and model evaluation.",
-        tags: ["research", "experiments"]
+        key: "hotel_preference",
+        content: "Mariana prefers boutique hotels and cultural experiences."
       },
       %{
-        slug: "ops",
-        name: "Ops",
-        status: "draining",
-        notes: "Operational follow-up and incident handling.",
-        tags: ["ops", "incident"]
+        key: "package_preference",
+        content: "Mariana dislikes generic tourist packages."
       },
       %{
-        slug: "finance",
-        name: "Finance",
-        status: "active",
-        notes: "Budget oversight and cost control.",
-        tags: ["finance", "budget"]
+        key: "proposal_style",
+        content: "Mariana likes short, elegant proposals with strong visual presentation."
       },
       %{
-        slug: "quality",
-        name: "Quality",
-        status: "active",
-        notes: "Quality review and release verification.",
-        tags: ["quality", "testing"]
+        key: "experience_focus",
+        content: "Mariana often asks for gastronomy, art, music, and local-history experiences."
+      },
+      %{
+        key: "tone_preference",
+        content: "Mariana prefers a more premium tone and does not want the quote to feel cheap."
+      }
+    ]
+  },
+  %{
+    customer_name: "Carlos Pereira",
+    customer_email: "carlos.pereira@example.com",
+    items: [
+      %{
+        key: "travel_context",
+        content: "Carlos usually travels for business and values efficiency."
+      },
+      %{
+        key: "itinerary_preference",
+        content:
+          "Carlos prefers direct flights, airport transfers, and hotels near business areas."
+      },
+      %{
+        key: "email_style",
+        content: "Carlos wants concise emails with only the essential details."
+      },
+      %{
+        key: "billing_preference",
+        content: "Carlos often needs invoices or clearly separated service fees."
+      },
+      %{
+        key: "approval_preference",
+        content:
+          "Carlos prefers fast approval options and dislikes long back-and-forth conversations."
       }
     ]
   }
 ]
 
-lemming_seeds = %{
-  {:runtime, "support"} => [
-    %{
-      slug: "incident-triage",
-      name: "Incident Triage",
-      status: "active",
-      description: "Classifies inbound incidents and routes them to the right team.",
-      instructions:
-        "Review new incidents, tag urgency, and route them to the correct department.",
-      tools_config: %{
-        "allowed_tools" => ["github", "logs", "knowledge.store"],
-        "denied_tools" => ["shell"]
-      }
-    },
-    %{
-      slug: "customer-follow-up",
-      name: "Customer Follow-up",
-      status: "draft",
-      description: "Prepares customer updates after support triage completes.",
-      instructions:
-        "Summarize the issue status, identify next actions, and draft a clear customer-facing update.",
-      tools_config: %{"allowed_tools" => ["github"], "denied_tools" => ["shell"]}
-    }
-  ],
-  {:runtime, "platform"} => [
-    %{
-      slug: "deploy-check",
-      name: "Deploy Check",
-      status: "active",
-      description: "Validates deploy readiness before rollout starts.",
-      instructions:
-        "Review deploy prerequisites, verify environment health, and flag rollout blockers early.",
-      tools_config: %{"allowed_tools" => ["logs"], "denied_tools" => ["shell"]}
-    },
-    %{
-      slug: "runtime-watch",
-      name: "Runtime Watch",
-      status: "active",
-      description: "Monitors runtime warnings and summarizes cluster anomalies.",
-      instructions:
-        "Track runtime issues, cluster repeated symptoms, and escalate suspicious error patterns.",
-      tools_config: %{"allowed_tools" => ["logs", "github"], "denied_tools" => ["shell"]}
-    },
-    %{
-      slug: "runbook-editor",
-      name: "Runbook Editor",
-      status: "archived",
-      description: "Maintains runbook drafts and operational remediation notes.",
-      instructions:
-        "Keep runbooks current, merge validated remediation notes, and archive obsolete guidance.",
-      tools_config: %{"allowed_tools" => ["github"], "denied_tools" => ["shell"]}
-    }
-  ],
-  {:beta, "research"} => [
-    %{
-      slug: "release-notes",
-      name: "Release Notes",
-      status: "draft",
-      description: "Drafts operator-facing release summaries from merged changes.",
-      instructions:
-        "Scan recent merged work, produce concise release notes, and highlight breaking changes.",
-      tools_config: %{"allowed_tools" => ["github"], "denied_tools" => []}
-    },
-    %{
-      slug: "eval-scorer",
-      name: "Eval Scorer",
-      status: "active",
-      description: "Scores experiment outputs and keeps benchmark summaries current.",
-      instructions:
-        "Compare experiment outputs, score benchmark quality, and summarize meaningful regressions.",
-      tools_config: %{"allowed_tools" => ["github", "logs"], "denied_tools" => ["shell"]}
-    }
-  ],
-  {:beta, "ops"} => [
-    %{
-      slug: "queue-sweeper",
-      name: "Queue Sweeper",
-      status: "active",
-      description: "Keeps operational queues from stalling on untriaged items.",
-      instructions:
-        "Review pending operational work, remove duplicates, and escalate blocked items quickly.",
-      tools_config: %{"allowed_tools" => ["logs"], "denied_tools" => ["shell"]}
-    },
-    %{
-      slug: "handoff-writer",
-      name: "Handoff Writer",
-      status: "draft",
-      description: "Produces structured handoff notes between shifts.",
-      instructions:
-        "Summarize open incidents, pending actions, and operational risks for the next shift.",
-      tools_config: %{"allowed_tools" => ["github"], "denied_tools" => []}
-    }
-  ],
-  {:beta, "finance"} => [
-    %{
-      slug: "cost-watch",
-      name: "Cost Watch",
-      status: "active",
-      description: "Monitors model and runtime spend against declared budgets.",
-      instructions:
-        "Compare usage against configured budgets and flag unusual spend before limits are exceeded.",
-      tools_config: %{"allowed_tools" => ["logs"], "denied_tools" => ["shell"]}
-    },
-    %{
-      slug: "budget-brief",
-      name: "Budget Brief",
-      status: "active",
-      description: "Builds concise budget summaries for operators.",
-      instructions:
-        "Summarize budget status, upcoming risks, and the biggest current cost drivers. When the user asks you to create or update a file, use fs.write_text_file with a workspace-relative path instead of only describing the content. When you need external context, use web.search or web.fetch.",
-      tools_config: %{
-        "allowed_tools" => [
-          "fs.read_text_file",
-          "fs.write_text_file",
-          "web.search",
-          "web.fetch"
-        ],
-        "denied_tools" => []
-      }
-    },
-    %{
-      slug: "variance-review",
-      name: "Variance Review",
-      status: "archived",
-      description: "Reviews unusual budget variance after monthly close.",
-      instructions:
-        "Inspect large budget deltas, explain the likely cause, and record durable follow-up notes.",
-      tools_config: %{"allowed_tools" => ["logs"], "denied_tools" => ["shell"]}
-    }
-  ],
-  {:beta, "quality"} => [
-    %{
-      slug: "qa-reviewer",
-      name: "QA Reviewer",
-      status: "active",
-      description: "Reviews release candidates and validates testing coverage.",
-      instructions:
-        "Check release readiness, call out gaps in validation coverage, and summarize open defects.",
-      tools_config: %{"allowed_tools" => ["github"], "denied_tools" => ["shell"]}
-    },
-    %{
-      slug: "regression-tracker",
-      name: "Regression Tracker",
-      status: "draft",
-      description: "Tracks recurring regressions across recent releases.",
-      instructions:
-        "Identify repeated regressions, group them by area, and propose the next verification focus.",
-      tools_config: %{"allowed_tools" => ["github", "logs"], "denied_tools" => ["shell"]}
-    }
-  ]
+gmail_connection_config = %{
+  "provider" => "gmail",
+  "account_email" => "$GMAIL_ACCOUNT_EMAIL_DEMO_WORLD",
+  "scopes" => ["https://www.googleapis.com/auth/gmail.compose"],
+  "client_id" => "$GMAIL_CLIENT_ID",
+  "client_secret" => "$GMAIL_CLIENT_SECRET",
+  "refresh_token" => "$GMAIL_REFRESH_TOKEN_DEMO_WORLD"
 }
 
-all_tools_access_config = %{
-  "allowed_tools" => [],
-  "denied_tools" => []
-}
-
-lemming_seeds =
-  Map.new(lemming_seeds, fn {scope_key, lemmings} ->
-    normalized_lemmings =
-      Enum.map(lemmings, fn lemming_attrs ->
-        Map.put(lemming_attrs, :tools_config, all_tools_access_config)
-      end)
-
-    {scope_key, normalized_lemmings}
-  end)
-
-create_department! = fn city, attrs ->
-  case Departments.create_department(city, attrs) do
-    {:ok, department} ->
-      department
+upsert_world! = fn attrs ->
+  case Worlds.upsert_world(attrs) do
+    {:ok, world} ->
+      world
 
     {:error, changeset} ->
-      raise """
-      failed to seed department #{inspect(attrs.name)} for #{inspect(city.slug)}
-      #{inspect(changeset.errors)}
-      """
+      raise "failed to upsert demo world: #{inspect(changeset.errors)}"
   end
 end
 
-update_department! = fn department, attrs ->
-  case Departments.update_department(department, attrs) do
-    {:ok, updated_department} ->
-      updated_department
-
-    {:error, changeset} ->
-      raise """
-      failed to update seeded department #{inspect(attrs.name)} for #{inspect(department.slug)}
-      #{inspect(changeset.errors)}
-      """
-  end
-end
-
-create_lemming! = fn world, city, department, attrs ->
-  case Lemmings.create_lemming(world, city, department, attrs) do
-    {:ok, lemming} ->
-      lemming
-
-    {:error, changeset} ->
-      raise """
-      failed to seed lemming #{inspect(attrs.name)} for #{inspect(department.slug)}
-      #{inspect(changeset.errors)}
-      """
-  end
-end
-
-update_lemming! = fn lemming, attrs ->
-  case Lemmings.update_lemming(lemming, attrs) do
-    {:ok, updated_lemming} ->
-      updated_lemming
-
-    {:error, changeset} ->
-      raise """
-      failed to update seeded lemming #{inspect(attrs.name)} for #{inspect(lemming.slug)}
-      #{inspect(changeset.errors)}
-      """
-  end
-end
-
-create_city! = fn world, attrs ->
-  case Cities.create_city(world, attrs) do
-    {:ok, city} ->
-      city
-
-    {:error, changeset} ->
-      raise """
-      failed to seed city #{inspect(attrs.name)}
-      #{inspect(changeset.errors)}
-      """
-  end
-end
-
-update_city! = fn city, attrs ->
-  case Cities.update_city(city, attrs) do
-    {:ok, updated_city} ->
-      updated_city
-
-    {:error, changeset} ->
-      raise """
-      failed to update seeded city #{inspect(city.slug)}
-      #{inspect(changeset.errors)}
-      """
-  end
-end
-
-upsert_primary_city! = fn world, attrs ->
-  case Cities.get_city_by_slug(world, "local_city") || List.first(Cities.list_cities(world)) do
-    city when not is_nil(city) ->
-      # Preserve the first/default city identity as-is on reruns.
-      city
-
-    nil ->
-      create_city!.(world, attrs)
-  end
-end
-
-upsert_city_by_slug! = fn world, attrs ->
+upsert_city! = fn world, attrs ->
   case Cities.get_city_by_slug(world, attrs.slug) do
-    nil -> create_city!.(world, attrs)
-    city -> update_city!.(city, attrs)
+    nil ->
+      case Cities.create_city(world, attrs) do
+        {:ok, city} -> city
+        {:error, changeset} -> raise "failed to create demo city: #{inspect(changeset.errors)}"
+      end
+
+    city ->
+      case Cities.update_city(city, attrs) do
+        {:ok, updated_city} -> updated_city
+        {:error, changeset} -> raise "failed to update demo city: #{inspect(changeset.errors)}"
+      end
   end
 end
 
 upsert_department! = fn city, attrs ->
   case Departments.get_department_by_slug(city, attrs.slug) do
-    nil -> create_department!.(city, attrs)
-    department -> update_department!.(department, attrs)
+    nil ->
+      case Departments.create_department(city, attrs) do
+        {:ok, department} ->
+          department
+
+        {:error, changeset} ->
+          raise "failed to create demo department: #{inspect(changeset.errors)}"
+      end
+
+    department ->
+      case Departments.update_department(department, attrs) do
+        {:ok, updated_department} ->
+          updated_department
+
+        {:error, changeset} ->
+          raise "failed to update demo department: #{inspect(changeset.errors)}"
+      end
   end
 end
 
 upsert_lemming! = fn world, city, department, attrs ->
   case Lemmings.get_lemming_by_slug(department, attrs.slug) do
-    nil -> create_lemming!.(world, city, department, attrs)
-    lemming -> update_lemming!.(lemming, attrs)
+    nil ->
+      case Lemmings.create_lemming(world, city, department, attrs) do
+        {:ok, lemming} ->
+          lemming
+
+        {:error, changeset} ->
+          raise "failed to create lemming #{attrs.slug}: #{inspect(changeset.errors)}"
+      end
+
+    lemming ->
+      case Lemmings.update_lemming(lemming, attrs) do
+        {:ok, updated_lemming} ->
+          updated_lemming
+
+        {:error, changeset} ->
+          raise "failed to update lemming #{attrs.slug}: #{inspect(changeset.errors)}"
+      end
   end
 end
 
-create_sample_secret! = fn world ->
-  if SecretBank.list_effective_metadata(world, bank_key: "GITHUB_TOKEN") == [] do
-    {:ok, _metadata} =
-      SecretBank.upsert_secret(world, "GITHUB_TOKEN", "dev_only_mock_github_token")
+upsert_source_file! = fn department, seed ->
+  summary_content = "Seeded sales demo source file: #{seed.filename}"
+
+  existing =
+    department
+    |> Knowledge.list_source_files()
+    |> Enum.find(fn source_file ->
+      source_file.original_filename == seed.filename
+    end)
+
+  case existing do
+    nil ->
+      tmp_path = Path.join(System.tmp_dir!(), "lemmings_os_#{seed.slug}.md")
+      File.write!(tmp_path, seed.content)
+      size_bytes = byte_size(seed.content)
+
+      attrs = %{
+        title: seed.title,
+        content: summary_content,
+        tags: ["sales_demo", seed.slug],
+        source_file_type: seed.source_file_type,
+        original_filename: seed.filename,
+        content_type: "text/markdown",
+        size_bytes: size_bytes,
+        metadata: %{"seed_slug" => seed.slug}
+      }
+
+      case Knowledge.create_source_file_upload(department, attrs, tmp_path) do
+        {:ok, %{source_file: source_file}} ->
+          source_file
+
+        {:error, changeset_or_reason} ->
+          raise "failed to create source file #{seed.slug}: #{inspect(changeset_or_reason)}"
+      end
+
+    source_file ->
+      case Knowledge.update_source_file_metadata(department, source_file, %{
+             title: seed.title,
+             tags: ["sales_demo", seed.slug],
+             source_file_type: seed.source_file_type,
+             metadata: %{"seed_slug" => seed.slug}
+           }) do
+        {:ok, %{source_file: updated_source_file}} ->
+          updated_source_file
+
+        {:error, changeset_or_reason} ->
+          raise "failed to update source file #{seed.slug}: #{inspect(changeset_or_reason)}"
+      end
   end
 end
 
-{:ok, world} =
-  case Worlds.get_default_world() do
-    %World{} = world -> {:ok, world}
-    nil -> Worlds.upsert_world(default_world_attrs)
+ensure_source_file_ready! = fn source_file ->
+  source_file = Repo.preload(source_file, :knowledge_item)
+
+  if source_file.knowledge_item.status != "ready" do
+    case KnowledgeSourceFiles.run_source_file_indexing(source_file.id) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        raise "failed to index seeded source file #{source_file.id}: #{inspect(reason)}"
+    end
   end
+end
 
-create_sample_secret!.(world)
+upsert_reference_file! = fn world, seed ->
+  summary_content = "Seeded sales demo reference file: #{seed.filename}"
 
-runtime_city_attrs = RuntimeCities.runtime_city_attrs()
+  existing =
+    world
+    |> Knowledge.list_reference_files(status: "active")
+    |> Enum.find(&(&1.reference_ref == seed.reference_ref))
 
-seeded =
-  city_plans
-  |> Enum.map(fn
-    %{key: :runtime, departments: departments} ->
-      runtime_city = upsert_primary_city!.(world, runtime_city_attrs)
+  case existing do
+    nil ->
+      tmp_path = Path.join(System.tmp_dir!(), "lemmings_os_#{seed.slug}.md")
+      File.write!(tmp_path, seed.content)
+      size_bytes = byte_size(seed.content)
 
-      seeded_departments =
-        Enum.map(departments, fn department_attrs ->
-          department = upsert_department!.(runtime_city, department_attrs)
+      attrs = %{
+        title: seed.title,
+        content: summary_content,
+        tags: ["sales_demo", seed.slug],
+        reference_ref: seed.reference_ref,
+        reference_file_type: seed.reference_file_type,
+        original_filename: seed.filename,
+        content_type: "text/markdown",
+        size_bytes: size_bytes
+      }
 
-          lemming_seeds
-          |> Map.get({:runtime, department.slug}, [])
-          |> Enum.each(fn lemming_attrs ->
-            upsert_lemming!.(world, runtime_city, department, lemming_attrs)
-          end)
+      case Knowledge.create_reference_file_upload(world, attrs, tmp_path) do
+        {:ok, _created} ->
+          :ok
 
-          department
-        end)
+        {:error, changeset_or_reason} ->
+          raise "failed to create reference file #{seed.slug}: #{inspect(changeset_or_reason)}"
+      end
 
-      %{city: runtime_city, departments: seeded_departments}
+    existing_file ->
+      case Knowledge.update_reference_file_metadata(world, existing_file, %{
+             title: seed.title,
+             content: summary_content,
+             tags: ["sales_demo", seed.slug],
+             reference_file_type: seed.reference_file_type
+           }) do
+        {:ok, _updated} ->
+          :ok
 
-    %{key: key, attrs: city_attrs, departments: departments} ->
-      city = upsert_city_by_slug!.(world, city_attrs)
+        {:error, changeset_or_reason} ->
+          raise "failed to update reference file #{seed.slug}: #{inspect(changeset_or_reason)}"
+      end
+  end
+end
 
-      seeded_departments =
-        Enum.map(departments, fn department_attrs ->
-          department = upsert_department!.(city, department_attrs)
-
-          lemming_seeds
-          |> Map.get({key, department.slug}, [])
-          |> Enum.each(fn lemming_attrs ->
-            upsert_lemming!.(world, city, department, lemming_attrs)
-          end)
-
-          department
-        end)
-
-      %{city: city, departments: seeded_departments}
+archive_incorrect_reference_files! = fn world ->
+  world
+  |> Knowledge.list_reference_files()
+  |> Enum.filter(
+    &(&1.reference_ref in ["kref:sales_demo_company_profile", "kref:sales_demo_price_list"])
+  )
+  |> Enum.each(fn reference_file ->
+    case Knowledge.archive_reference_file(world, reference_file) do
+      {:ok, _archived} -> :ok
+      {:error, reason} -> raise "failed to archive incorrect reference file: #{inspect(reason)}"
+    end
   end)
+end
 
-department_count =
-  seeded
-  |> Enum.flat_map(& &1.departments)
-  |> length()
+upsert_customer_memory! = fn department, seed, memory ->
+  key = memory.key
+  email = seed.customer_email
+  name = seed.customer_name
 
-lemming_count =
-  seeded
-  |> Enum.flat_map(fn %{departments: departments} ->
-    Enum.flat_map(departments, &Lemmings.list_lemmings/1)
+  title = "[demo_seed][sales_demo][customer_memory] #{email} :: #{key}"
+
+  attrs = %{
+    title: title,
+    content: "#{name} (#{email}): #{memory.content}",
+    tags: [
+      "sales_demo",
+      "customer_memory",
+      "demo_seed",
+      "entity_type:customer",
+      "customer_email:#{email}",
+      "memory_key:#{key}"
+    ]
+  }
+
+  existing =
+    department
+    |> Knowledge.list_memories(status: "active", source: "user")
+    |> Enum.find(&(&1.title == title))
+
+  case existing do
+    nil ->
+      case Knowledge.create_memory(department, attrs) do
+        {:ok, _memory} ->
+          :ok
+
+        {:error, reason} ->
+          raise "failed to create customer memory #{email}/#{key}: #{inspect(reason)}"
+      end
+
+    memory_item ->
+      case Knowledge.update_memory(department, memory_item, attrs) do
+        {:ok, _memory} ->
+          :ok
+
+        {:error, reason} ->
+          raise "failed to update customer memory #{email}/#{key}: #{inspect(reason)}"
+      end
+  end
+end
+
+upsert_gmail_connection! = fn world, config ->
+  attrs = %{type: "gmail", status: "enabled", config: config}
+
+  case Connections.get_connection_by_type(world, "gmail") do
+    nil ->
+      case Connections.create_connection(world, attrs) do
+        {:ok, _connection} ->
+          :ok
+
+        {:error, changeset_or_reason} ->
+          raise "failed to create gmail connection: #{inspect(changeset_or_reason)}"
+      end
+
+    connection ->
+      case Connections.update_connection(world, connection, attrs) do
+        {:ok, _connection} ->
+          :ok
+
+        {:error, changeset_or_reason} ->
+          raise "failed to update gmail connection: #{inspect(changeset_or_reason)}"
+      end
+  end
+end
+
+prune_other_worlds! = fn demo_world ->
+  Worlds.list_worlds()
+  |> Enum.reject(&(&1.id == demo_world.id))
+  |> Enum.each(&Repo.delete!/1)
+end
+
+prune_other_cities! = fn world, demo_city ->
+  world
+  |> Cities.list_cities()
+  |> Enum.reject(&(&1.id == demo_city.id))
+  |> Enum.each(&Repo.delete!/1)
+end
+
+prune_other_departments! = fn demo_city, demo_department ->
+  demo_city
+  |> Departments.list_departments()
+  |> Enum.reject(&(&1.id == demo_department.id))
+  |> Enum.each(&Repo.delete!/1)
+end
+
+prune_other_lemmings! = fn demo_department, keep_slugs ->
+  demo_department
+  |> Lemmings.list_lemmings()
+  |> Enum.reject(&(&1.slug in keep_slugs))
+  |> Enum.each(&Repo.delete!/1)
+end
+
+prune_other_world_connections! = fn world ->
+  world
+  |> Connections.list_connections()
+  |> Enum.reject(&(&1.type == "gmail"))
+  |> Enum.each(fn connection ->
+    case Connections.delete_connection(world, connection) do
+      {:ok, _deleted} ->
+        :ok
+
+      {:error, reason} ->
+        raise "failed to prune world connection #{connection.id}: #{inspect(reason)}"
+    end
   end)
-  |> length()
+end
 
-seed_summary =
-  "Seeded world #{world.slug} with #{length(seeded)} cities, #{department_count} departments, #{lemming_count} lemmings, and sample Secret Bank metadata."
+world = upsert_world!.(world_attrs)
+prune_other_worlds!.(world)
+
+city = upsert_city!.(world, city_attrs)
+prune_other_cities!.(world, city)
+
+department = upsert_department!.(city, department_attrs)
+prune_other_departments!.(city, department)
+
+Enum.each(lemming_attrs, fn attrs ->
+  upsert_lemming!.(world, city, department, attrs)
+end)
+
+prune_other_lemmings!.(department, Enum.map(lemming_attrs, & &1.slug))
+
+archive_incorrect_reference_files!.(world)
+
+Enum.each(source_file_seeds, fn seed ->
+  seed
+  |> then(&upsert_source_file!.(department, &1))
+  |> then(fn source_file ->
+    ensure_source_file_ready!.(source_file)
+  end)
+end)
+
+Enum.each(reference_file_seeds, fn seed ->
+  upsert_reference_file!.(world, seed)
+end)
+
+Enum.each(customer_memory_seeds, fn seed ->
+  Enum.each(seed.items, fn memory ->
+    upsert_customer_memory!.(department, seed, memory)
+  end)
+end)
+
+upsert_gmail_connection!.(world, gmail_connection_config)
+prune_other_world_connections!.(world)
 
 if Mix.env() != :test or System.get_env("SEEDS_VERBOSE") in ["1", "true"] do
-  IO.puts(seed_summary)
+  IO.puts(
+    "Seeded demo topology: world=demo_world cities=1 departments=1 lemmings=4 source_files=2 reference_files=2 customer_memories=15"
+  )
 end
