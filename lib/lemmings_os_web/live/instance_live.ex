@@ -230,6 +230,10 @@ defmodule LemmingsOsWeb.InstanceLive do
     {:noreply, put_flash(socket, :info, dgettext("lemmings", "Workspace path copied."))}
   end
 
+  def handle_event("instance_id_copied", _params, socket) do
+    {:noreply, put_flash(socket, :info, dgettext("lemmings", "Instance ID copied."))}
+  end
+
   def handle_event(
         "promote_workspace_artifact",
         _params,
@@ -628,6 +632,34 @@ defmodule LemmingsOsWeb.InstanceLive do
     max_retries = Map.get(runtime_state, :max_retries, @default_max_retries)
     retry_info(retry_count, max_retries)
   end
+
+  defp retry_state_copy(%{status: "retrying"} = runtime_state) do
+    retry_info(runtime_state) || "-"
+  end
+
+  defp retry_state_copy(%{status: "failed"} = runtime_state) do
+    retry_count = Map.get(runtime_state, :retry_count, 0)
+    max_retries = Map.get(runtime_state, :max_retries, @default_max_retries)
+
+    cond do
+      retry_count >= max_retries ->
+        dgettext("lemmings", "Retries exhausted %{count} of %{max}",
+          count: retry_count,
+          max: max_retries
+        )
+
+      retry_count > 0 ->
+        dgettext("lemmings", "Stopped after %{count} of %{max}",
+          count: retry_count,
+          max: max_retries
+        )
+
+      true ->
+        "-"
+    end
+  end
+
+  defp retry_state_copy(_runtime_state), do: "-"
 
   defp retry_info(retry_count, max_retries) when is_integer(retry_count) and retry_count >= 0 do
     dgettext("lemmings", "Retry attempt %{count} of %{max}",

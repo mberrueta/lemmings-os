@@ -84,14 +84,14 @@ defmodule LemmingsOsWeb.InstanceComponents do
         </div>
 
         <div
-          :if={retry_info(@runtime_state) != nil}
+          :if={retry_state_copy(@status, @runtime_state) != nil}
           class="border border-zinc-800 bg-zinc-950/70 px-3 py-2"
         >
           <p class="text-xs uppercase tracking-widest text-zinc-500">
-            {dgettext("lemmings", "Retry state")}
+            {dgettext("lemmings", "Executor retries")}
           </p>
           <p class="mt-1 font-mono text-sm text-zinc-100">
-            {retry_info(@runtime_state)}
+            {retry_state_copy(@status, @runtime_state)}
           </p>
         </div>
 
@@ -836,6 +836,32 @@ defmodule LemmingsOsWeb.InstanceComponents do
   end
 
   defp retry_info(_runtime_state), do: nil
+
+  defp retry_state_copy("retrying", runtime_state), do: retry_info(runtime_state)
+
+  defp retry_state_copy("failed", runtime_state) when is_map(runtime_state) do
+    retry_count = Map.get(runtime_state, :retry_count, 0)
+    max_retries = Map.get(runtime_state, :max_retries, @default_max_retries)
+
+    cond do
+      retry_count >= max_retries ->
+        dgettext("lemmings", "Retries exhausted %{count} of %{max}",
+          count: retry_count,
+          max: max_retries
+        )
+
+      retry_count > 0 ->
+        dgettext("lemmings", "Stopped after %{count} of %{max}",
+          count: retry_count,
+          max: max_retries
+        )
+
+      true ->
+        nil
+    end
+  end
+
+  defp retry_state_copy(_status, _runtime_state), do: nil
 
   defp status_copy("created", _runtime_state, _now), do: dgettext("lemmings", "Starting...")
 

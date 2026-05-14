@@ -346,6 +346,70 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
     refute html =~ "boom"
   end
 
+  test "S04b2: renders failed retry state as terminal instead of active", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    assert {:ok, _instance} =
+             LemmingsOs.LemmingInstances.update_status(instance, "failed", %{
+               stopped_at: now,
+               last_activity_at: now
+             })
+
+    assert {:ok, _state} =
+             EtsStore.put(instance.id, %{
+               department_id: instance.department_id,
+               world_id: world.id,
+               retry_count: 3,
+               max_retries: 3,
+               queue: :queue.new(),
+               current_item: nil,
+               context_messages: [],
+               last_error: "provider timeout",
+               status: :failed,
+               started_at: now,
+               last_activity_at: now
+             })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-session-page", "Retries exhausted 3 of 3")
+    refute has_element?(view, "#instance-session-page", "Retry attempt 3 of 3")
+  end
+
+  test "S04b3: renders early terminal retry state without implying active retrying", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    assert {:ok, _instance} =
+             LemmingsOs.LemmingInstances.update_status(instance, "failed", %{
+               stopped_at: now,
+               last_activity_at: now
+             })
+
+    assert {:ok, _state} =
+             EtsStore.put(instance.id, %{
+               department_id: instance.department_id,
+               world_id: world.id,
+               retry_count: 1,
+               max_retries: 3,
+               queue: :queue.new(),
+               current_item: nil,
+               context_messages: [],
+               last_error: "invalid structured output",
+               status: :failed,
+               started_at: now,
+               last_activity_at: now
+             })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    assert has_element?(view, "#instance-session-page", "Stopped after 1 of 3")
+    refute has_element?(view, "#instance-session-page", "Retry attempt 1 of 3")
+  end
+
   test "S04c: truncates long current item copy in the status banner" do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -1031,12 +1095,31 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
 
     assert html =~ ~s(type="button")
     assert html =~ ~s(data-workspace-path=)
-    assert html =~ "Copy workspace path"
+    assert html =~ ~s(aria-label="Copy workspace path")
+    assert html =~ "Path"
     assert html =~ "navigator.clipboard.writeText(this.dataset.workspacePath)"
 
     refute html =~ ~s(target="_blank")
     refute html =~ ~s(href=)
     refute html =~ "Open workspace"
+  end
+
+  test "S08j2: instance action copies the instance ID", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    html =
+      view
+      |> element("#instance-id-copy-button")
+      |> render()
+
+    assert html =~ ~s(type="button")
+    assert html =~ ~s(data-instance-id="#{instance.id}")
+    assert html =~ ~s(aria-label="Copy instance ID")
+    assert html =~ "ID"
+    assert html =~ "navigator.clipboard.writeText(this.dataset.instanceId)"
   end
 
   test "S08k: clicking copy workspace path shows a copied flash", %{conn: conn} do
@@ -1051,6 +1134,20 @@ defmodule LemmingsOsWeb.InstanceLiveTest do
       |> render_click()
 
     assert html =~ "Workspace path copied."
+  end
+
+  test "S08k2: clicking copy instance ID shows a copied flash", %{conn: conn} do
+    %{world: world, instance: instance} = spawn_runtime_session()
+
+    {:ok, view, _html} =
+      live(conn, ~p"/lemmings/instances/#{instance.id}?#{%{world: world.id}}")
+
+    html =
+      view
+      |> element("#instance-id-copy-button")
+      |> render_click()
+
+    assert html =~ "Instance ID copied."
   end
 
   test "S08l: tool execution promotion renders a safe Artifact reference", %{conn: conn} do
