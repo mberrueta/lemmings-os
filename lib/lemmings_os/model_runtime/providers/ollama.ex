@@ -112,14 +112,14 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
     do: {:error, {:provider_invalid_response, %{provider: @provider_name}}}
 
   defp build_provider_response(content, body, model) do
-    input_tokens = fetch_integer(body, "prompt_eval_count")
-    output_tokens = fetch_integer(body, "eval_count")
+    input_tokens = fetch_integer(body, "prompt_eval_count", :prompt_eval_count)
+    output_tokens = fetch_integer(body, "eval_count", :eval_count)
     total_tokens = resolve_total_tokens(body, input_tokens, output_tokens)
 
     %{
       content: content,
       provider: @provider_name,
-      model: fetch_string(body, "model") || model,
+      model: fetch_string(body, "model", :model) || model,
       input_tokens: input_tokens,
       output_tokens: output_tokens,
       total_tokens: total_tokens,
@@ -130,14 +130,14 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
 
   defp usage_map(body) do
     %{
-      prompt_eval_count: fetch_integer(body, "prompt_eval_count"),
-      eval_count: fetch_integer(body, "eval_count"),
-      total_duration: fetch_integer(body, "total_duration"),
-      load_duration: fetch_integer(body, "load_duration"),
-      prompt_eval_duration: fetch_integer(body, "prompt_eval_duration"),
-      eval_duration: fetch_integer(body, "eval_duration"),
-      done: fetch_bool(body, "done"),
-      done_reason: fetch_string(body, "done_reason")
+      prompt_eval_count: fetch_integer(body, "prompt_eval_count", :prompt_eval_count),
+      eval_count: fetch_integer(body, "eval_count", :eval_count),
+      total_duration: fetch_integer(body, "total_duration", :total_duration),
+      load_duration: fetch_integer(body, "load_duration", :load_duration),
+      prompt_eval_duration: fetch_integer(body, "prompt_eval_duration", :prompt_eval_duration),
+      eval_duration: fetch_integer(body, "eval_duration", :eval_duration),
+      done: fetch_bool(body, "done", :done),
+      done_reason: fetch_string(body, "done_reason", :done_reason)
     }
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
@@ -148,30 +148,30 @@ defmodule LemmingsOs.ModelRuntime.Providers.Ollama do
       is_integer(input_tokens) and is_integer(output_tokens) ->
         input_tokens + output_tokens
 
-      is_integer(fetch_integer(body, "total_tokens")) ->
-        fetch_integer(body, "total_tokens")
+      is_integer(fetch_integer(body, "total_tokens", :total_tokens)) ->
+        fetch_integer(body, "total_tokens", :total_tokens)
 
       true ->
         nil
     end
   end
 
-  defp fetch_integer(body, key) do
-    case Map.get(body, key) || Map.get(body, String.to_atom(key)) do
+  defp fetch_integer(body, string_key, atom_key) do
+    case Map.get(body, string_key) || Map.get(body, atom_key) do
       value when is_integer(value) -> value
       _ -> nil
     end
   end
 
-  defp fetch_string(body, key) do
-    case Map.get(body, key) || Map.get(body, String.to_atom(key)) do
+  defp fetch_string(body, string_key, atom_key) do
+    case Map.get(body, string_key) || Map.get(body, atom_key) do
       value when is_binary(value) -> value
       _ -> nil
     end
   end
 
-  defp fetch_bool(body, key) do
-    case Map.get(body, key) || Map.get(body, String.to_atom(key)) do
+  defp fetch_bool(body, string_key, atom_key) do
+    case Map.get(body, string_key) || Map.get(body, atom_key) do
       value when is_boolean(value) -> value
       _ -> nil
     end

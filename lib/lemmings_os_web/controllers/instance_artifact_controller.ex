@@ -18,22 +18,21 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
   alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds
 
+  # sobelow_skip ["Traversal.SendFile"]
   def download(conn, %{"artifact_id" => artifact_id} = params) when is_binary(artifact_id) do
     with %{} = world <- resolve_world(params),
          {:ok, instance_id} <- fetch_instance_id(params),
          {:ok, instance} <- LemmingInstances.get_instance(instance_id, world: world),
-         {:ok, artifact} <- Artifacts.open_artifact_download(instance, artifact_id),
-         {:ok, content} <- File.read(artifact.path) do
+         {:ok, artifact} <- Artifacts.open_artifact_download(instance, artifact_id) do
       conn
       |> put_resp_header("content-type", artifact.content_type)
       |> put_resp_header("x-content-type-options", "nosniff")
       |> put_resp_header("content-disposition", content_disposition(artifact.filename))
-      |> send_resp(200, content)
+      |> send_file(200, artifact.path)
     else
       nil -> send_resp(conn, 404, "World not found")
       {:error, :missing_instance_id} -> send_resp(conn, 404, "Artifact not found")
       {:error, :not_found} -> send_resp(conn, 404, "Artifact not found")
-      {:error, :enoent} -> send_resp(conn, 404, "Artifact not found")
       {:error, _reason} -> send_resp(conn, 404, "Artifact not found")
     end
   end
@@ -52,6 +51,7 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
 
   def show(conn, _params), do: send_resp(conn, 404, "Artifact not found")
 
+  # sobelow_skip ["Traversal.SendFile"]
   defp workspace_download_by_path(conn, path_segments, params) when is_list(path_segments) do
     with %{} = world <- resolve_world(params),
          {:ok, instance_id} <- fetch_instance_id(params),
@@ -60,23 +60,22 @@ defmodule LemmingsOsWeb.InstanceArtifactController do
          relative_path <- Path.join(path_segments),
          {:ok, %{absolute_path: absolute_path, relative_path: normalized_path}} <-
            workspace_download_path(instance, world, relative_path),
-         {:ok, content} <- File.read(absolute_path) do
+         true <- File.regular?(absolute_path) do
       conn
       |> put_resp_header("content-type", "application/octet-stream")
       |> put_resp_header("x-content-type-options", "nosniff")
       |> put_resp_header(
         "content-disposition",
-        ~s(attachment; filename="#{Path.basename(normalized_path)}")
+        content_disposition(Path.basename(normalized_path))
       )
-      |> send_resp(200, content)
+      |> send_file(200, absolute_path)
     else
       nil -> send_resp(conn, 404, "World not found")
       {:error, :missing_instance_id} -> send_resp(conn, 404, "Artifact not found")
       {:error, :not_found} -> send_resp(conn, 404, "Instance not found")
       {:error, :invalid_path} -> send_resp(conn, 404, "Artifact not found")
       {:error, :path_outside_workspace} -> send_resp(conn, 404, "Artifact not found")
-      {:error, :enoent} -> send_resp(conn, 404, "Artifact not found")
-      {:error, _reason} -> send_resp(conn, 404, "Artifact not found")
+      false -> send_resp(conn, 404, "Artifact not found")
     end
   end
 

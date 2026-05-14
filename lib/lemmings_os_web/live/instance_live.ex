@@ -436,6 +436,7 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp instance_workspace_path(_instance, _runtime_state), do: nil
 
+  # sobelow_skip ["CI.System"]
   defp open_workspace_path(path) when is_binary(path) do
     with :ok <- File.mkdir_p(path),
          {command, args} <- workspace_open_command(path),

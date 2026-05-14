@@ -3,6 +3,7 @@ defmodule LemmingsOs.Knowledge.SourceFiles.ToolsRunner.SystemExecutor do
 
   @spec run(String.t(), [String.t()], pos_integer()) ::
           {:ok, %{stdout: String.t(), exit_status: integer()}} | {:error, atom()}
+  # sobelow_skip ["CI.System"]
   def run(command, args, timeout_ms)
       when is_binary(command) and is_list(args) and is_integer(timeout_ms) and timeout_ms > 0 do
     task =

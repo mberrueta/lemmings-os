@@ -16,7 +16,15 @@ defmodule LemmingsOs.Runtime.Status do
   alias LemmingsOs.Repo
 
   @recoverable_statuses ~w(created queued processing retrying idle)
-  @statuses @recoverable_statuses ++ ~w(failed expired)
+  @status_count_keys [
+    {"created", :created},
+    {"queued", :queued},
+    {"processing", :processing},
+    {"retrying", :retrying},
+    {"idle", :idle},
+    {"failed", :failed},
+    {"expired", :expired}
+  ]
 
   @spec snapshot() :: map()
   def snapshot do
@@ -102,9 +110,9 @@ defmodule LemmingsOs.Runtime.Status do
         _ -> %{}
       end
 
-    Enum.reduce(@statuses, %{total: 0}, fn status, acc ->
+    Enum.reduce(@status_count_keys, %{total: 0}, fn {status, key}, acc ->
       count = Map.get(counts, status, 0)
-      acc |> Map.put(String.to_atom(status), count) |> Map.update!(:total, &(&1 + count))
+      acc |> Map.put(key, count) |> Map.update!(:total, &(&1 + count))
     end)
   end
 
