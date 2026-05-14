@@ -3,7 +3,22 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepPayload do
   Pure payload and sanitization helpers for executor model-step traces.
   """
 
+  alias LemmingsOs.LemmingInstances.Executor.Redaction
   alias LemmingsOs.ModelRuntime.Response
+
+  @redacted "[REDACTED]"
+  @max_debug_string_length 16_000
+  @sensitive_key_patterns [
+    "api_key",
+    "apikey",
+    "password",
+    "passwd",
+    "passphrase",
+    "token",
+    "secret",
+    "authorization",
+    "auth"
+  ]
 
   @doc """
   Builds normalized model-step result attributes from one model execution result.
@@ -63,7 +78,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepPayload do
   defp parsed_output(%Response{action: :tool_call} = response) do
     %{
       "action" => "tool_call",
-      "tool_name" => response.tool_name,
+      "target" => response.tool_name,
       "args" => sanitize_json_map(response.tool_args)
     }
   end
@@ -72,14 +87,16 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepPayload do
     %{
       "action" => "lemming_call",
       "target" => response.lemming_target,
-      "request" => response.lemming_request,
-      "continue_call_id" => response.continue_call_id
+      "args" => %{"request" => response.lemming_request}
     }
   end
 
   defp sanitize_json_term(nil), do: nil
 
-  defp sanitize_json_term(value) when is_binary(value) or is_boolean(value) or is_number(value),
+  defp sanitize_json_term(value) when is_binary(value),
+    do: sanitize_debug_string(value)
+
+  defp sanitize_json_term(value) when is_boolean(value) or is_number(value),
     do: value
 
   defp sanitize_json_term(value) when is_atom(value), do: Atom.to_string(value)
@@ -97,7 +114,11 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepPayload do
 
   defp sanitize_json_term(value) when is_map(value) do
     Map.new(value, fn {key, nested_value} ->
-      {to_string(key), sanitize_json_term(nested_value)}
+      if sensitive_key?(key) do
+        {to_string(key), @redacted}
+      else
+        {to_string(key), sanitize_json_term(nested_value)}
+      end
     end)
   end
 
@@ -111,8 +132,53 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepPayload do
 
   defp sanitize_json_term(value), do: inspect(value)
 
+  defp sanitize_debug_string(value) do
+    value
+    |> Redaction.redact_string()
+    |> redact_local_paths()
+    |> truncate_debug_string()
+  end
+
+  defp redact_local_paths(value) do
+    Regex.replace(
+      ~r/(?<![\w.-])\/(?:home|Users|mnt|tmp|var|private|opt|data\d*)\/[^\s"'`<>{}\]]+\.dets\b/,
+      value,
+      "<runtime-dets-path>"
+    )
+    |> then(fn redacted ->
+      Regex.replace(
+        ~r/(?<![\w.-])\/(?:home|Users|mnt|tmp|var|private|opt|data\d*)\/[^\s"'`<>{}\]]+/,
+        redacted,
+        "<local-path>"
+      )
+    end)
+  end
+
+  defp truncate_debug_string(value) do
+    if String.length(value) > @max_debug_string_length do
+      String.slice(value, 0, @max_debug_string_length) <>
+        "\n[TRUNCATED #{String.length(value) - @max_debug_string_length} characters]"
+    else
+      value
+    end
+  end
+
+  defp sensitive_key?(key) do
+    key
+    |> to_string()
+    |> String.downcase()
+    |> then(&Enum.any?(@sensitive_key_patterns, fn pattern -> String.contains?(&1, pattern) end))
+  end
+
   defp model_step_error_payload({kind, metadata})
        when kind in [:invalid_structured_output, :unknown_action] and is_map(metadata) do
+    metadata
+    |> sanitize_json_map()
+    |> Map.put("kind", Atom.to_string(kind))
+    |> Map.put_new("reason", Atom.to_string(kind))
+  end
+
+  defp model_step_error_payload({kind, metadata}) when is_atom(kind) and is_map(metadata) do
     metadata
     |> sanitize_json_map()
     |> Map.put("kind", Atom.to_string(kind))
