@@ -483,13 +483,15 @@ defmodule LemmingsOs.Tools.Adapters.EmailTest do
 
     broken = insert_broken_ready_artifact!(context, "broken.txt", "text/plain")
 
-    assert {:error, %{code: "tool.email.artifact_not_found"}} =
-             Email.create_draft(
-               context.instance,
-               Map.put(valid_args(), "artifact_ids", [broken.id]),
-               %{},
-               success_config(self())
-             )
+    assert capture_log(fn ->
+             assert {:error, %{code: "tool.email.artifact_not_found"}} =
+                      Email.create_draft(
+                        context.instance,
+                        Map.put(valid_args(), "artifact_ids", [broken.id]),
+                        %{},
+                        success_config(self())
+                      )
+           end) =~ "artifact storage open failed"
   end
 
   test "rejects an individual attachment larger than configured megabyte limit", context do

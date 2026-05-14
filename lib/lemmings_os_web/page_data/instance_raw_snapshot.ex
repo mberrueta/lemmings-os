@@ -326,8 +326,8 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       "Queue depth: #{queue_depth_label(runtime_state)}",
       "Retries: #{retry_state_label(runtime_state)}",
       "Current item: #{current_item_label(runtime_state)}",
-      "Last error: #{last_error_label(runtime_state)}",
-      "Last error code: #{last_error_code_label(runtime_state)}",
+      "Last error: #{last_error_label(runtime_state, snapshot)}",
+      "Last error code: #{last_error_code_label(runtime_state, snapshot)}",
       "Model output retry: #{model_output_retry_label(snapshot)}",
       "Last tool result delivery: #{last_tool_result_delivery_label(snapshot)}",
       "Last activity: #{timestamp_label(Map.get(runtime_state, :last_activity_at))}",
@@ -732,7 +732,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       model_output_validation_failure?(snapshot) ->
         "model output validation failure"
 
-      last_error_label(snapshot.runtime_state) =~ "invalid structured output" ->
+      last_error_label(snapshot.runtime_state, snapshot) =~ "invalid structured output" ->
         "prompt ambiguity / structured-output mismatch"
 
       tool_failure?(snapshot) ->
@@ -770,7 +770,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       model_output_validation_failure?(snapshot) ->
         "Provider returned output that failed the action contract validation."
 
-      last_error_label(snapshot.runtime_state) =~ "invalid structured output" ->
+      last_error_label(snapshot.runtime_state, snapshot) =~ "invalid structured output" ->
         "Provider returned invalid structured output. Prompt or schema mismatch is likely."
 
       tool_failure?(snapshot) ->
@@ -976,23 +976,112 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     end
   end
 
-  defp last_error_label(runtime_state) do
+  defp last_error_label(runtime_state, snapshot) do
     runtime_state
     |> map_value(:last_error)
     |> case do
-      nil -> "none"
+      nil -> model_error_label(snapshot)
       value when is_binary(value) -> value
       other -> inspect(other)
     end
   end
 
-  defp last_error_code_label(runtime_state) do
-    runtime_state
-    |> map_value(:last_error_details)
-    |> case do
-      %{} = details -> present_or_default(map_value(details, :code), "unknown")
-      _details -> "unknown"
+  defp model_error_label(snapshot) do
+    case model_validation_error_code(snapshot) do
+      "unknown" -> "none"
+      _code -> "Model returned invalid structured output."
     end
+  end
+
+  defp last_error_code_label(runtime_state, snapshot) do
+    case map_value(runtime_state, :last_error_details) do
+      %{} = details ->
+        present_or_default(map_value(details, :code), "unknown")
+
+      _details ->
+        runtime_state_code =
+          runtime_state
+          |> map_value(:internal_error_details)
+          |> validation_error_code()
+
+        case runtime_state_code do
+          "unknown" -> model_validation_error_code(snapshot)
+          code -> code
+        end
+    end
+  end
+
+  defp validation_error_code(%{} = details) do
+    case recursive_error_code(details) do
+      value when is_binary(value) and value != "" ->
+        value
+
+      _value ->
+        "unknown"
+    end
+  end
+
+  defp validation_error_code(_details), do: "unknown"
+
+  defp recursive_error_code(%{} = details) do
+    direct =
+      map_value(details, :validation_error) ||
+        map_value(details, :code)
+
+    case direct do
+      value when is_binary(value) and value != "" ->
+        value
+
+      _value ->
+        details
+        |> Map.values()
+        |> Enum.find_value(&recursive_error_code/1)
+    end
+  end
+
+  defp recursive_error_code(values) when is_list(values),
+    do: Enum.find_value(values, &recursive_error_code/1)
+
+  defp recursive_error_code(_value), do: nil
+
+  defp model_validation_error_code(%__MODULE__{model_steps: model_steps} = snapshot) do
+    ([List.last(model_steps)] ++ Enum.reverse(model_steps))
+    |> Enum.find_value("unknown", fn
+      %{} = model_step ->
+        code =
+          model_step
+          |> model_step_validation_result()
+          |> validation_error_code()
+
+        if code == "unknown", do: nil, else: code
+
+      _model_step ->
+        nil
+    end)
+    |> case do
+      "unknown" ->
+        snapshot
+        |> latest_model_debug_payload(:validation_error_details)
+        |> validation_error_details_code()
+
+      code ->
+        code
+    end
+  end
+
+  defp validation_error_details_code(%{} = details),
+    do: present_or_default(map_value(details, :code), "unknown")
+
+  defp validation_error_details_code(_details), do: "unknown"
+
+  defp model_step_validation_result(%{} = model_step) do
+    model_step_debug_payload(model_step, :validation_result) ||
+      model_step
+      |> map_value(:error)
+      |> case do
+        %{} = error -> map_value(error, :validation_result)
+        _error -> nil
+      end
   end
 
   defp model_output_retry_label(snapshot) do
@@ -1000,8 +1089,8 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     retry_limit = 1
 
     case retry_attempted do
-      true -> "attempted 1/#{retry_limit}"
-      "true" -> "attempted 1/#{retry_limit}"
+      true -> "1/#{retry_limit}"
+      "true" -> "1/#{retry_limit}"
       false -> "skipped 0/#{retry_limit}"
       "false" -> "skipped 0/#{retry_limit}"
       _other -> "unavailable 0/#{retry_limit}"

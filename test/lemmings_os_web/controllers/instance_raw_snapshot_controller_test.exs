@@ -273,7 +273,7 @@ defmodule LemmingsOsWeb.InstanceRawSnapshotControllerTest do
     assert body =~ "missing_action"
     assert body =~ "Raw model output"
     assert body =~ "{}"
-    assert body =~ "Model output retry: attempted 1/1"
+    assert body =~ "Model output retry: 1/1"
     assert body =~ "<runtime-dets-path>"
     refute body =~ "Likely issue: tool failure"
     refute body =~ "/mnt/data4/matt"

@@ -734,7 +734,7 @@ defmodule LemmingsOs.LemmingInstances do
   end
 
   defp normalize_runtime_state(state) do
-    %{
+    runtime_state = %{
       work_area_ref: Map.get(state, :work_area_ref),
       retry_count: Map.get(state, :retry_count, 0),
       max_retries: Map.get(state, :max_retries, 3),
@@ -744,11 +744,15 @@ defmodule LemmingsOs.LemmingInstances do
       context_messages: normalize_context_messages(Map.get(state, :context_messages)),
       last_error: Map.get(state, :last_error),
       internal_error_details: Map.get(state, :internal_error_details),
-      last_error_details: Map.get(state, :last_error_details),
       status: runtime_status(Map.get(state, :status)),
       started_at: Map.get(state, :started_at),
       last_activity_at: Map.get(state, :last_activity_at)
     }
+
+    case Map.get(state, :last_error_details) || Map.get(state, "last_error_details") do
+      nil -> runtime_state
+      last_error_details -> Map.put(runtime_state, :last_error_details, last_error_details)
+    end
   end
 
   defp runtime_queue_depth(queue) when is_tuple(queue) do
