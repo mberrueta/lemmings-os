@@ -13,14 +13,19 @@ defmodule LemmingsOsWeb.Telemetry do
 
   @impl true
   def init(_arg) do
-    children = [
-      # Telemetry poller will execute the given period measurements
-      # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
-      {:telemetry_poller,
-       measurements: periodic_measurements(), period: 10_000, init_delay: 10_000}
-      # Add reporters as children of your supervision tree.
-      # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
-    ]
+    children =
+      if telemetry_poller_enabled?() do
+        [
+          # Telemetry poller will execute the given period measurements
+          # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
+          {:telemetry_poller,
+           measurements: periodic_measurements(), period: 10_000, init_delay: 10_000}
+          # Add reporters as children of your supervision tree.
+          # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
+        ]
+      else
+        []
+      end
 
     Supervisor.init(children, strategy: :one_for_one)
   end
@@ -126,6 +131,10 @@ defmodule LemmingsOsWeb.Telemetry do
 
   defp periodic_measurements do
     [{__MODULE__, :emit_runtime_snapshot, []}]
+  end
+
+  defp telemetry_poller_enabled? do
+    Application.get_env(:lemmings_os, :telemetry_poller_on_startup, true)
   end
 
   def emit_runtime_snapshot do
