@@ -47,6 +47,18 @@
         </div>
 
         <div class="flex flex-wrap gap-3">
+          <button
+            id="instance-raw-copy-id-button"
+            type="button"
+            title={@instance.id}
+            data-instance-id={@instance.id}
+            onclick="navigator.clipboard.writeText(this.dataset.instanceId)"
+            class="inline-flex min-h-11 items-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-xs font-medium uppercase tracking-widest text-emerald-300 transition duration-150 ease-out hover:-translate-y-px hover:border-emerald-300 hover:text-emerald-200"
+          >
+            <.icon name="hero-identification" class="size-4" />
+            {dgettext("lemmings", "Copy instance ID")}
+          </button>
+
           <.link
             :if={@session_path}
             id="instance-raw-session-link"
@@ -159,6 +171,62 @@
               </div>
             </details>
           </article>
+        </div>
+      </section>
+
+      <section id="instance-raw-runtime-debug-summary" class="space-y-3">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Last Error Code</p>
+            <p class="mt-2 break-all text-sm text-zinc-200">
+              {last_error_code(@runtime_state)}
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Output Retry</p>
+            <p class="mt-2 text-sm text-zinc-200">{model_output_retry(@model_steps)}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+              Tool Result Delivery
+            </p>
+            <p class="mt-2 text-sm text-zinc-200">{last_tool_result_delivery(@runtime_state)}</p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 md:col-span-2 xl:col-span-1">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+              Last Error Message
+            </p>
+            <p class="mt-2 text-sm leading-7 text-zinc-200">
+              {last_error_message(@runtime_state)}
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 md:col-span-2">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Parse Error</p>
+            <p class="mt-2 break-all text-sm leading-7 text-zinc-200">
+              {latest_parse_error(@model_steps)}
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 md:col-span-2">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">Validation Error</p>
+            <p class="mt-2 break-all text-sm leading-7 text-zinc-200">
+              {latest_validation_error(@model_steps)}
+            </p>
+          </div>
+
+          <div class="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 md:col-span-2 xl:col-span-4">
+            <p class="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+              Last Raw Model Output
+            </p>
+            <pre
+              class="mt-3 max-h-64 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs leading-6 text-zinc-300"
+              phx-no-curly-interpolation
+            ><%= latest_raw_model_output(@model_steps) %></pre>
+          </div>
         </div>
       </section>
 

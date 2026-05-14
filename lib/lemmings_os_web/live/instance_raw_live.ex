@@ -134,6 +134,112 @@ defmodule LemmingsOsWeb.InstanceRawLive do
 
   defp timeline_entry_status_class(_status), do: "border-zinc-700 bg-zinc-900 text-zinc-300"
 
+  defp last_error_code(runtime_state) do
+    runtime_state
+    |> map_value(:last_error_details)
+    |> case do
+      %{} = details -> present_or_default(map_value(details, :code), "unknown")
+      _details -> "unknown"
+    end
+  end
+
+  defp last_error_message(runtime_state) do
+    case map_value(runtime_state, :last_error) do
+      value when is_binary(value) and value != "" -> value
+      _value -> "none"
+    end
+  end
+
+  defp model_output_retry(model_steps) do
+    case latest_model_debug_payload(model_steps, :retry_attempted) do
+      true -> "attempted 1/1"
+      "true" -> "attempted 1/1"
+      false -> "skipped 0/1"
+      "false" -> "skipped 0/1"
+      _value -> "unavailable 0/1"
+    end
+  end
+
+  defp last_tool_result_delivery(runtime_state) do
+    runtime_state
+    |> map_value(:last_tool_result_delivery)
+    |> case do
+      %{} = delivery ->
+        [
+          map_value(delivery, :status),
+          map_value(delivery, :tool_name),
+          map_value(delivery, :reason)
+        ]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join(" / ")
+        |> present_or_default("unknown")
+
+      _delivery ->
+        "none"
+    end
+  end
+
+  defp latest_raw_model_output(model_steps) do
+    case latest_model_debug_payload(model_steps, :raw_model_output) ||
+           latest_model_debug_payload(model_steps, :content) do
+      value when is_binary(value) and value != "" -> value
+      _value -> "none"
+    end
+  end
+
+  defp latest_parse_error(model_steps) do
+    model_steps
+    |> latest_model_debug_payload(:parser_result)
+    |> case do
+      %{} = parser_result -> present_or_default(map_value(parser_result, :parse_error), "none")
+      _parser_result -> "none"
+    end
+  end
+
+  defp latest_validation_error(model_steps) do
+    model_steps
+    |> latest_model_debug_payload(:validation_result)
+    |> case do
+      %{} = validation_result ->
+        present_or_default(
+          map_value(validation_result, :validation_error_details) ||
+            map_value(validation_result, :validation_error),
+          "none"
+        )
+
+      _validation_result ->
+        "none"
+    end
+  end
+
+  defp latest_model_debug_payload(model_steps, field) when is_list(model_steps) do
+    model_steps
+    |> List.last()
+    |> case do
+      %{} = model_step ->
+        case map_value(map_value(model_step, :response_payload) || %{}, field) do
+          nil -> map_value(map_value(model_step, :error) || %{}, field)
+          value -> value
+        end
+
+      _model_step ->
+        nil
+    end
+  end
+
+  defp latest_model_debug_payload(_model_steps, _field), do: nil
+
+  defp map_value(%{} = map, key) when is_atom(key) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
+
+  defp map_value(_map, _key), do: nil
+
+  defp present_or_default(value, _default) when is_binary(value) and value != "", do: value
+  defp present_or_default(value, _default) when is_integer(value), do: Integer.to_string(value)
+  defp present_or_default(value, _default) when is_boolean(value), do: to_string(value)
+  defp present_or_default(_value, default), do: default
+
   defp resolve_world(%{"world" => world_id}) when is_binary(world_id) and world_id != "" do
     Worlds.get_world(world_id)
   end

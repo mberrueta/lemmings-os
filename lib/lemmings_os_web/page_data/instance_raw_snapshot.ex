@@ -12,7 +12,10 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   alias LemmingsOs.LemmingCalls
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances
+  alias LemmingsOs.LemmingInstances.Executor.CommunicationRuntime
   alias LemmingsOs.LemmingInstances.Executor
+  alias LemmingsOs.LemmingInstances.Executor.ModelStepPayload
+  alias LemmingsOs.LemmingInstances.Executor.TransitionsData
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
   alias LemmingsOs.LemmingInstances.ToolExecution
@@ -46,8 +49,10 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
           delegation_state: map() | nil,
           interaction_timeline: [timeline_entry()],
           interaction_timeline_source: atom() | nil,
+          model_config_snapshot: map(),
           model_request: map(),
-          model_request_source: atom() | nil
+          model_request_source: atom() | nil,
+          target_resolution_debug: map()
         }
 
   defstruct [
@@ -59,8 +64,10 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     :delegation_state,
     :interaction_timeline,
     :interaction_timeline_source,
+    :model_config_snapshot,
     :model_request,
-    :model_request_source
+    :model_request_source,
+    :target_resolution_debug
   ]
 
   @doc """
@@ -86,10 +93,15 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       {interaction_timeline, interaction_timeline_source} =
         build_interaction_timeline(model_steps, messages, tool_executions, lemming_calls)
 
-      {model_request, model_request_source} =
-        load_model_request(instance, runtime_state, model_steps, messages)
+      model_config_snapshot = effective_model_config_snapshot(instance, runtime_state)
 
-      delegation_state = build_delegation_state(runtime_state, instance, lemming_calls)
+      {model_request, model_request_source} =
+        load_model_request(instance, runtime_state, model_steps, messages, model_config_snapshot)
+
+      target_resolution_debug =
+        target_resolution_debug(instance, model_config_snapshot, model_request)
+
+      delegation_state = build_delegation_state(runtime_state, instance, lemming_calls, messages)
 
       {:ok,
        %__MODULE__{
@@ -101,8 +113,10 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
          delegation_state: delegation_state,
          interaction_timeline: interaction_timeline,
          interaction_timeline_source: interaction_timeline_source,
+         model_config_snapshot: model_config_snapshot,
          model_request: model_request,
-         model_request_source: model_request_source
+         model_request_source: model_request_source,
+         target_resolution_debug: target_resolution_debug
        }}
     else
       _other -> {:error, :not_found}
@@ -261,10 +275,12 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     [
       "## Model Input Summary",
       bullet_list(bullets),
+      "Delegation target resolver:",
+      target_resolution_debug_block(snapshot),
       "System prompt preview:",
       system_prompt_preview_block(system_prompt),
       "Config snapshot summary:",
-      config_snapshot_summary_block(snapshot.instance.config_snapshot)
+      config_snapshot_summary_block(snapshot.model_config_snapshot)
     ]
     |> Enum.reject(&blank?/1)
     |> Enum.join("\n\n")
@@ -274,13 +290,19 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     case delegation_state(snapshot) do
       %{} = state ->
         bullets = [
-          "Latest call id: #{state.call_id}",
-          "Child instance: #{state.child_instance}",
-          "Status: #{state.status}",
+          "Latest call id: #{state.latest_call_id}",
+          "Caller instance id: #{state.caller_instance_id}",
+          "Callee instance id: #{state.callee_instance_id}",
+          "Child status: #{state.child_status}",
           "Recovery status: #{state.recovery_status}",
           "Result summary: #{state.result_summary}",
           "Error summary: #{state.error_summary}",
+          "Callback context delivered: #{state.callback_context_delivered}",
           "Manager received callback context: #{state.callback_context_received}",
+          "Callback context message id: #{state.callback_context_message_id}",
+          "Parent requeued at: #{state.parent_requeued_at}",
+          "Parent last scheduler event: #{state.parent_last_scheduler_event}",
+          "Parent waiting state: #{state.parent_waiting_state}",
           "Manager waiting state: #{state.waiting_state}"
         ]
 
@@ -305,6 +327,9 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       "Retries: #{retry_state_label(runtime_state)}",
       "Current item: #{current_item_label(runtime_state)}",
       "Last error: #{last_error_label(runtime_state)}",
+      "Last error code: #{last_error_code_label(runtime_state)}",
+      "Model output retry: #{model_output_retry_label(snapshot)}",
+      "Last tool result delivery: #{last_tool_result_delivery_label(snapshot)}",
       "Last activity: #{timestamp_label(Map.get(runtime_state, :last_activity_at))}",
       "Context messages: #{message_count_label(runtime_state)}"
     ]
@@ -328,10 +353,16 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     raw_sections =
       [
         {"Raw Provider Request", snapshot.model_request, :json},
+        {"Last Raw Model Output", latest_raw_model_output(snapshot), :json},
+        {"Last Parse Error", latest_parse_error(snapshot), :json},
+        {"Last Validation Error", latest_validation_error(snapshot), :json},
+        {"Last Error Details", map_value(snapshot.runtime_state, :last_error_details), :json},
         {"Raw Context Messages", Map.get(snapshot.runtime_state, :context_messages), :json},
         {"Raw Current Item", Map.get(snapshot.runtime_state, :current_item), :json},
         {"Raw Runtime State", snapshot.runtime_state, :json},
-        {"Raw Config Snapshot", snapshot.instance.config_snapshot, :json}
+        {"Raw Config Snapshot", snapshot.instance.config_snapshot, :json},
+        {"Raw Effective Model Config Snapshot", snapshot.model_config_snapshot, :json},
+        {"Raw Target Resolution Debug", snapshot.target_resolution_debug, :json}
       ]
       |> Enum.flat_map(fn {title, payload, kind} ->
         raw_payload_markdown(title, payload, kind)
@@ -460,6 +491,30 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   end
 
   defp config_snapshot_summary_block(_snapshot), do: "Config snapshot unavailable."
+
+  defp target_resolution_debug_block(%{target_resolution_debug: debug}) when is_map(debug) do
+    bullets = [
+      "resolver_called: #{debug_field(debug, :resolver_called)}",
+      "allowed_lemming_call_tool: #{debug_field(debug, :allowed_lemming_call_tool)}",
+      "candidate_targets_count: #{debug_field(debug, :candidate_targets_count)}",
+      "allowed_targets_count: #{debug_field(debug, :allowed_targets_count)}",
+      "rendered_available_lemming_calls: #{debug_field(debug, :rendered_available_lemming_calls)}",
+      "unavailable_reason: #{debug_field(debug, :unavailable_reason)}"
+    ]
+
+    bullet_list(bullets)
+  end
+
+  defp target_resolution_debug_block(_snapshot), do: "unavailable"
+
+  defp debug_field(debug, field) do
+    case map_value(debug, field) do
+      nil -> "none"
+      true -> "true"
+      false -> "false"
+      value -> to_string(value)
+    end
+  end
 
   defp request_messages(nil), do: []
 
@@ -644,7 +699,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   defp delegation_from_model_step(%{parsed_output: %{"action" => "lemming_call"} = parsed_output}) do
     [
       parsed_output["target"],
-      parsed_output["request"]
+      parsed_lemming_request(parsed_output)
     ]
   end
 
@@ -674,6 +729,9 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
   defp likely_issue_label(snapshot) do
     cond do
+      model_output_validation_failure?(snapshot) ->
+        "model output validation failure"
+
       last_error_label(snapshot.runtime_state) =~ "invalid structured output" ->
         "prompt ambiguity / structured-output mismatch"
 
@@ -682,6 +740,9 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
       delegation_stalled?(snapshot) ->
         "incomplete delegation or manager decision gap"
+
+      tool_completed_without_model_resume?(snapshot) ->
+        "tool completed but model was not resumed"
 
       final_action_label(snapshot) == "unknown" ->
         "runtime gap"
@@ -706,6 +767,9 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
   defp diagnostic_issue_note(snapshot) do
     cond do
+      model_output_validation_failure?(snapshot) ->
+        "Provider returned output that failed the action contract validation."
+
       last_error_label(snapshot.runtime_state) =~ "invalid structured output" ->
         "Provider returned invalid structured output. Prompt or schema mismatch is likely."
 
@@ -714,6 +778,9 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
       delegation_stalled?(snapshot) ->
         "Delegated child result was present, but manager did not turn it into a final reply."
+
+      tool_completed_without_model_resume?(snapshot) ->
+        "Tool completed successfully, but no following model request is visible."
 
       final_action_label(snapshot) == "unknown" ->
         "Final decision is not obvious from the trace."
@@ -761,18 +828,29 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       build_delegation_state(snapshot.runtime_state, snapshot.instance, snapshot.lemming_calls)
   end
 
-  defp build_delegation_state(runtime_state, instance, lemming_calls) do
+  defp build_delegation_state(runtime_state, instance, lemming_calls, messages \\ []) do
     case List.last(lemming_calls || []) do
       %LemmingCall{} = call ->
+        waiting_state = manager_waiting_state_label(runtime_state, instance, messages, call)
+
         %{
+          latest_call_id: present_or_default(call.id, "unavailable"),
           call_id: present_or_default(call.id, "unknown"),
+          caller_instance_id: present_or_default(call.caller_instance_id, "unavailable"),
+          callee_instance_id: present_or_default(call.callee_instance_id, "unavailable"),
           child_instance: present_or_default(call.callee_instance_id, "unknown"),
+          child_status: present_or_default(call.status, "unknown"),
           status: present_or_default(call.status, "unknown"),
-          recovery_status: present_or_default(call.recovery_status, "none"),
-          result_summary: present_or_default(call.result_summary, "none"),
-          error_summary: present_or_default(call.error_summary, "none"),
-          callback_context_received: callback_context_value(runtime_state, call),
-          waiting_state: manager_waiting_state_label(runtime_state, instance, call)
+          recovery_status: present_or_default(call.recovery_status, "unavailable"),
+          result_summary: present_or_default(call.result_summary, "unavailable"),
+          error_summary: present_or_default(call.error_summary, "unavailable"),
+          callback_context_received: callback_context_value(runtime_state, messages, call),
+          callback_context_delivered: callback_context_value(runtime_state, messages, call),
+          callback_context_message_id: callback_context_message_id(runtime_state, messages, call),
+          parent_requeued_at: "unavailable",
+          parent_last_scheduler_event: "unavailable",
+          waiting_state: waiting_state,
+          parent_waiting_state: waiting_state
         }
 
       _other ->
@@ -780,8 +858,17 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     end
   end
 
-  defp callback_context_value(runtime_state, call) do
-    if callback_context_present?(runtime_state, call), do: "yes", else: "no"
+  defp callback_context_value(runtime_state, messages, call) do
+    if callback_context_present?(runtime_state, messages, call), do: "yes", else: "no"
+  end
+
+  defp callback_context_message_id(runtime_state, messages, call) do
+    runtime_state
+    |> callback_context_message(messages, call)
+    |> case do
+      %{} = message -> present_or_default(map_value(message, :id), "unavailable")
+      _other -> "unavailable"
+    end
   end
 
   defp present_or_default(value, _default) when is_binary(value) and value != "", do: value
@@ -808,6 +895,43 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     snapshot.instance.id
     |> tool_executions_for_snapshot(snapshot)
     |> Enum.any?(fn execution -> execution.status == "error" end)
+  end
+
+  defp tool_completed_without_model_resume?(snapshot) do
+    case last_persisted_tool_execution(snapshot) do
+      %ToolExecution{status: "ok"} = tool_execution ->
+        not model_step_after_tool_execution?(snapshot.model_steps, tool_execution)
+
+      _tool_execution ->
+        false
+    end
+  end
+
+  defp last_persisted_tool_execution(snapshot) do
+    snapshot.instance.id
+    |> tool_executions_for_snapshot(snapshot)
+    |> List.last()
+  end
+
+  defp model_step_after_tool_execution?(model_steps, %ToolExecution{
+         completed_at: %DateTime{} = completed_at
+       })
+       when is_list(model_steps) do
+    Enum.any?(model_steps, fn model_step ->
+      case Map.get(model_step, :started_at) do
+        %DateTime{} = started_at -> DateTime.compare(started_at, completed_at) == :gt
+        _started_at -> false
+      end
+    end)
+  end
+
+  defp model_step_after_tool_execution?(_model_steps, _tool_execution), do: false
+
+  defp model_output_validation_failure?(snapshot) do
+    case latest_model_debug_payload(snapshot, :validation_result) do
+      %{} = validation_result -> not blank?(map_value(validation_result, :validation_error))
+      _validation_result -> false
+    end
   end
 
   defp delegation_stalled?(snapshot) do
@@ -862,6 +986,50 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     end
   end
 
+  defp last_error_code_label(runtime_state) do
+    runtime_state
+    |> map_value(:last_error_details)
+    |> case do
+      %{} = details -> present_or_default(map_value(details, :code), "unknown")
+      _details -> "unknown"
+    end
+  end
+
+  defp model_output_retry_label(snapshot) do
+    retry_attempted = latest_model_debug_payload(snapshot, :retry_attempted)
+    retry_limit = 1
+
+    case retry_attempted do
+      true -> "attempted 1/#{retry_limit}"
+      "true" -> "attempted 1/#{retry_limit}"
+      false -> "skipped 0/#{retry_limit}"
+      "false" -> "skipped 0/#{retry_limit}"
+      _other -> "unavailable 0/#{retry_limit}"
+    end
+  end
+
+  defp last_tool_result_delivery_label(snapshot) do
+    delivery = map_value(snapshot.runtime_state || %{}, :last_tool_result_delivery)
+
+    cond do
+      is_map(delivery) ->
+        [
+          map_value(delivery, :status),
+          map_value(delivery, :tool_name),
+          map_value(delivery, :reason)
+        ]
+        |> Enum.reject(&blank?/1)
+        |> Enum.join(" / ")
+        |> present_or_default("unknown")
+
+      tool_completed_without_model_resume?(snapshot) ->
+        "tool completed but model was not resumed"
+
+      true ->
+        "none"
+    end
+  end
+
   defp message_count_label(runtime_state) do
     runtime_state
     |> map_value(:context_messages)
@@ -879,19 +1047,29 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     end
   end
 
-  defp callback_context_present?(runtime_state, call) do
-    runtime_messages =
-      runtime_state
-      |> map_value(:context_messages)
-      |> List.wrap()
+  defp callback_context_present?(runtime_state, messages, call) do
+    not is_nil(callback_context_message(runtime_state, messages, call))
+  end
 
-    Enum.any?(runtime_messages, fn
+  defp callback_context_message(runtime_state, messages, call) do
+    runtime_state
+    |> callback_context_messages(messages)
+    |> Enum.find(fn
       %{} = message ->
         callback_context_message?(message, call)
 
       _other ->
         false
     end)
+  end
+
+  defp callback_context_messages(runtime_state, messages) do
+    runtime_messages =
+      runtime_state
+      |> map_value(:context_messages)
+      |> List.wrap()
+
+    runtime_messages ++ List.wrap(messages)
   end
 
   defp callback_context_message?(message, call) do
@@ -909,7 +1087,12 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     )
   end
 
-  defp manager_waiting_state_label(runtime_state, instance, %LemmingCall{status: "running"}) do
+  defp manager_waiting_state_label(
+         runtime_state,
+         instance,
+         _messages,
+         %LemmingCall{status: "running"}
+       ) do
     if state_status_label(runtime_state, instance) == "idle" do
       "idle waiting on child"
     else
@@ -917,16 +1100,22 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     end
   end
 
-  defp manager_waiting_state_label(runtime_state, _instance, %LemmingCall{status: status} = call)
+  defp manager_waiting_state_label(
+         runtime_state,
+         _instance,
+         messages,
+         %LemmingCall{status: status} = call
+       )
        when status in ["completed", "failed"] do
-    if callback_context_present?(runtime_state, call) do
+    if callback_context_present?(runtime_state, messages, call) do
       "child terminal and callback delivered"
     else
       "child terminal but callback not visible"
     end
   end
 
-  defp manager_waiting_state_label(_runtime_state, _instance, %LemmingCall{}), do: "unknown"
+  defp manager_waiting_state_label(_runtime_state, _instance, _messages, %LemmingCall{}),
+    do: "unknown"
 
   defp config_profile_label(snapshot) do
     models_config = map_value(snapshot, :models_config) || %{}
@@ -959,37 +1148,38 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   end
 
   defp config_allowed_tools_label(snapshot) do
-    snapshot
-    |> map_value(:tools_config)
-    |> case do
+    case map_value(snapshot, :tools_config) do
       %{} = tools_config ->
-        tools_config
-        |> map_value(:allowed_tools)
-        |> list_label()
+        if map_has_field?(tools_config, :allowed_tools) do
+          tools_config
+          |> map_value(:allowed_tools)
+          |> list_label()
+        else
+          "unavailable"
+        end
 
       _other ->
-        "none"
+        "unavailable"
     end
   end
 
   defp config_delegation_targets_label(snapshot) do
-    snapshot
-    |> map_value(:lemming_call_targets)
-    |> case do
-      targets when is_list(targets) ->
-        targets
-        |> Enum.map(fn target ->
-          [
-            map_value(target, :capability) || map_value(target, :slug) || "unknown",
-            map_value(target, :role)
-          ]
-          |> Enum.reject(&blank?/1)
-          |> Enum.join(" / ")
-        end)
-        |> list_label()
+    case map_has_field?(snapshot, :lemming_call_targets) do
+      false ->
+        "unavailable"
 
-      _other ->
-        "none"
+      true ->
+        snapshot
+        |> map_value(:lemming_call_targets)
+        |> case do
+          targets when is_list(targets) ->
+            targets
+            |> Enum.map(&delegation_target_label/1)
+            |> list_label()
+
+          _other ->
+            "unavailable"
+        end
     end
   end
 
@@ -1028,6 +1218,19 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   end
 
   defp map_value(_map, _key), do: nil
+
+  defp map_has_field?(map, key) when is_map(map) and is_atom(key) do
+    Map.has_key?(map, key) or Map.has_key?(map, Atom.to_string(key))
+  end
+
+  defp delegation_target_label(target) do
+    [
+      map_value(target, :capability) || map_value(target, :slug) || "unknown",
+      map_value(target, :role)
+    ]
+    |> Enum.reject(&blank?/1)
+    |> Enum.join(" / ")
+  end
 
   defp list_label(values) when is_list(values) do
     values
@@ -1088,8 +1291,34 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   defp load_runtime_state(instance, world) do
     case LemmingInstances.get_runtime_state(instance.id, world: world) do
       {:ok, state} -> state
-      {:error, :not_found} -> %{}
+      {:error, :not_found} -> fallback_runtime_state(instance)
     end
+  end
+
+  defp fallback_runtime_state(%LemmingInstance{status: "failed"} = instance) do
+    details = TransitionsData.missing_failure_error_details()
+
+    %{
+      status: "failed",
+      last_error: Map.fetch!(details, "message"),
+      last_error_details:
+        Map.put(details, "context", Map.put(details["context"], "instance_id", instance.id)),
+      internal_error_details: Map.put(details["context"], "instance_id", instance.id),
+      retry_count: 0,
+      max_retries: 0,
+      context_messages: [],
+      current_item: nil
+    }
+  end
+
+  defp fallback_runtime_state(%LemmingInstance{} = instance) do
+    %{
+      status: instance.status,
+      retry_count: 0,
+      max_retries: 0,
+      context_messages: [],
+      current_item: nil
+    }
   end
 
   defp load_messages(instance, world) do
@@ -1129,46 +1358,76 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     :exit, _reason -> []
   end
 
-  defp load_model_request(instance, runtime_state, model_steps, messages)
+  defp load_model_request(instance, runtime_state, model_steps, messages, model_config_snapshot)
        when is_list(model_steps) do
     case List.last(model_steps) do
       %{request_payload: payload} when is_map(payload) ->
         {payload, :live_executor_trace}
 
       _other ->
-        fallback_model_request(instance, runtime_state, messages)
+        fallback_model_request(instance, runtime_state, messages, model_config_snapshot)
     end
   end
 
-  defp fallback_model_request(instance, runtime_state, messages) do
-    case build_model_request(instance, runtime_state) do
+  defp effective_model_config_snapshot(instance, runtime_state) do
+    config_snapshot =
+      case map_value(runtime_state, :config_snapshot) do
+        snapshot when is_map(snapshot) -> snapshot
+        _other -> instance.config_snapshot || %{}
+      end
+
+    CommunicationRuntime.model_config_snapshot(config_snapshot, LemmingCalls, instance)
+  end
+
+  defp fallback_model_request(_instance, runtime_state, messages, model_config_snapshot) do
+    case build_model_request(runtime_state, model_config_snapshot) do
       {:ok, request} ->
         {request, :runtime_state}
 
       {:error, _reason} ->
-        case build_model_request_from_transcript(instance, messages) do
+        case build_model_request_from_transcript(messages, model_config_snapshot) do
           {:ok, request} -> {request, :transcript_reconstruction}
           {:error, reason} -> {%{error: inspect(reason)}, :unavailable}
         end
     end
   end
 
-  defp build_model_request(instance, runtime_state) do
+  defp build_model_request(runtime_state, model_config_snapshot) do
     history = Map.get(runtime_state, :context_messages, [])
     current_item = Map.get(runtime_state, :current_item)
 
-    ModelRuntime.debug_request(instance.config_snapshot || %{}, history, current_item)
+    ModelRuntime.debug_request(model_config_snapshot, history, current_item)
   end
 
-  defp build_model_request_from_transcript(instance, messages) do
+  defp build_model_request_from_transcript(messages, model_config_snapshot) do
     case split_transcript_for_request(messages) do
       {:ok, history, current_request} ->
-        ModelRuntime.debug_request(instance.config_snapshot || %{}, history, current_request)
+        ModelRuntime.debug_request(model_config_snapshot, history, current_request)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  defp target_resolution_debug(instance, model_config_snapshot, model_request) do
+    model_request
+    |> request_messages()
+    |> extract_system_prompt()
+    |> then(fn system_prompt ->
+      instance
+      |> LemmingCalls.target_resolution_debug(model_config_snapshot)
+      |> Map.put(
+        :rendered_available_lemming_calls,
+        rendered_available_lemming_calls?(system_prompt)
+      )
+    end)
+  end
+
+  defp rendered_available_lemming_calls?(system_prompt) when is_binary(system_prompt) do
+    String.contains?(system_prompt, "Available Lemming Calls:")
+  end
+
+  defp rendered_available_lemming_calls?(_system_prompt), do: false
 
   defp split_transcript_for_request(messages) do
     user_messages =
@@ -1181,18 +1440,30 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       %Message{} = current_request ->
         history =
           messages
-          |> Enum.take_while(&(&1.id != current_request.id))
+          |> transcript_history_for_request(current_request)
           |> Enum.map(&message_to_context_message/1)
 
-        {:ok, history, %{content: current_request.content}}
+        {:ok, history, %{id: current_request.id, content: current_request.content}}
 
       nil ->
         {:error, :invalid_request}
     end
   end
 
-  defp message_to_context_message(%Message{role: role, content: content}) do
-    %{role: role, content: content}
+  defp transcript_history_for_request(messages, current_request) do
+    internal_context_messages = Enum.filter(messages, &Message.internal_context?/1)
+
+    case internal_context_messages do
+      [_message | _rest] ->
+        [current_request | internal_context_messages]
+
+      [] ->
+        Enum.take_while(messages, &(&1.id != current_request.id))
+    end
+  end
+
+  defp message_to_context_message(%Message{id: id, role: role, content: content}) do
+    %{id: id, role: role, content: content}
   end
 
   defp build_interaction_timeline(model_steps, messages, tool_executions, lemming_calls)
@@ -1339,6 +1610,24 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       meta: response_meta(model_step),
       status: Map.get(model_step, :status),
       raw_sections: [
+        %{
+          label: "Raw model output",
+          payload: model_step_debug_payload(model_step, :raw_model_output)
+        },
+        %{label: "Parser result", payload: model_step_debug_payload(model_step, :parser_result)},
+        %{
+          label: "Validation result",
+          payload: model_step_debug_payload(model_step, :validation_result)
+        },
+        %{
+          label: "Retry attempted",
+          payload: model_step_debug_payload(model_step, :retry_attempted)
+        },
+        %{label: "Retry output", payload: model_step_debug_payload(model_step, :retry_output)},
+        %{
+          label: "Final parse error",
+          payload: model_step_debug_payload(model_step, :final_parse_error)
+        },
         %{label: "Parsed response", payload: parsed_output},
         %{label: "Provider raw response", payload: model_step.response_payload},
         %{label: "Error", payload: model_step.error}
@@ -1346,8 +1635,55 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     }
   end
 
+  defp model_step_debug_payload(model_step, field) do
+    case map_value(model_step.response_payload || %{}, field) do
+      nil -> map_value(model_step.error || %{}, field)
+      value -> value
+    end
+  end
+
+  defp latest_model_debug_payload(%__MODULE__{model_steps: model_steps}, field) do
+    model_steps
+    |> List.last()
+    |> case do
+      %{} = model_step -> model_step_debug_payload(model_step, field)
+      _other -> nil
+    end
+  end
+
+  defp latest_parse_error(snapshot) do
+    snapshot
+    |> latest_model_debug_payload(:parser_result)
+    |> case do
+      %{} = parser_result -> present_or_default(map_value(parser_result, :parse_error), "none")
+      _parser_result -> "none"
+    end
+  end
+
+  defp latest_validation_error(snapshot) do
+    snapshot
+    |> latest_model_debug_payload(:validation_result)
+    |> case do
+      %{} = validation_result ->
+        present_or_default(
+          map_value(validation_result, :validation_error_details) ||
+            map_value(validation_result, :validation_error),
+          "none"
+        )
+
+      _validation_result ->
+        "none"
+    end
+  end
+
+  defp latest_raw_model_output(snapshot) do
+    latest_model_debug_payload(snapshot, :raw_model_output) ||
+      latest_model_debug_payload(snapshot, :content) ||
+      "none"
+  end
+
   defp llm_response_summary_and_body(_model_step, %{"action" => "tool_call"} = parsed_output) do
-    tool_name = parsed_output["tool_name"] || "unknown tool"
+    tool_name = parsed_tool_target(parsed_output) || "unknown tool"
     {"LLM requested tool #{tool_name}", format_tool_args_body(parsed_output["args"] || %{})}
   end
 
@@ -1357,7 +1693,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
   defp llm_response_summary_and_body(_model_step, %{"action" => "lemming_call"} = parsed_output) do
     target = parsed_output["target"] || "unknown target"
-    request = humanize_text(parsed_output["request"] || "")
+    request = humanize_text(parsed_lemming_request(parsed_output) || "")
     {"LLM requested lemming call #{target}", request}
   end
 
@@ -1392,7 +1728,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
          %{parsed_output: %{"action" => "tool_call"} = parsed_output} = model_step,
          tool_execution
        ) do
-    tool_name = parsed_output["tool_name"] || "unknown tool"
+    tool_name = parsed_tool_target(parsed_output) || "unknown tool"
     tool_args = parsed_output["args"] || %{}
 
     [
@@ -1417,7 +1753,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
   defp build_lemming_call_entries(model_step, parsed_output, nil) do
     target = parsed_output["target"] || "unknown target"
-    request_text = humanize_text(parsed_output["request"] || "")
+    request_text = humanize_text(parsed_lemming_request(parsed_output) || "")
 
     [
       %{
@@ -1454,7 +1790,8 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
         kind: :tool_call,
         title: "App -> Lemming",
         summary: lemming_call_request_summary(lemming_call, parsed_output),
-        body: humanize_text(lemming_call.request_text || parsed_output["request"] || ""),
+        body:
+          humanize_text(lemming_call.request_text || parsed_lemming_request(parsed_output) || ""),
         timestamp: lemming_call_request_timestamp(lemming_call),
         meta: lemming_call_request_meta(lemming_call),
         status: lemming_call.status,
@@ -1515,6 +1852,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
       build_persisted_user_entry(messages),
       Enum.flat_map(lemming_calls, &build_persisted_lemming_entries/1),
       Enum.map(tool_executions, &build_persisted_tool_entry/1),
+      build_persisted_runtime_context_entries(messages),
       build_persisted_reply_entry(messages)
     ]
     |> List.flatten()
@@ -1591,13 +1929,9 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
   defp build_persisted_reply_entry(messages) do
     messages
-    |> Enum.reverse()
-    |> Enum.find(fn
-      %Message{role: "assistant"} -> true
-      _message -> false
-    end)
+    |> persisted_reply_message()
     |> case do
-      %Message{} = message ->
+      %Message{role: "assistant"} = message ->
         %{
           id: "persisted-final-reply",
           kind: :final_reply,
@@ -1610,9 +1944,52 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
           raw_sections: []
         }
 
-      nil ->
+      _other ->
         nil
     end
+  end
+
+  defp persisted_reply_message(messages) do
+    case List.last(messages) do
+      %Message{} = message ->
+        if Message.internal_context?(message) do
+          nil
+        else
+          latest_visible_assistant_message(messages)
+        end
+
+      _other ->
+        nil
+    end
+  end
+
+  defp latest_visible_assistant_message(messages) do
+    messages
+    |> Enum.reverse()
+    |> Enum.find(fn
+      %Message{role: "assistant"} = message -> Message.visible_transcript?(message)
+      _message -> false
+    end)
+  end
+
+  defp build_persisted_runtime_context_entries(messages) do
+    messages
+    |> Enum.filter(&Message.internal_context?/1)
+    |> Enum.map(fn message ->
+      %{
+        id: "persisted-runtime-context-#{message.id}",
+        kind: :runtime_context,
+        title: "Runtime -> LLM context",
+        summary: runtime_context_summary(message),
+        body: message.content,
+        timestamp: message.inserted_at,
+        meta: persisted_message_meta(message),
+        status: nil,
+        raw_sections: [
+          %{label: "Runtime context message", payload: runtime_context_payload(message)}
+        ]
+      }
+    end)
   end
 
   defp latest_user_message_content(messages) do
@@ -1701,6 +2078,43 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     [message.provider, message.model, tokens_meta(message)]
     |> Enum.reject(&is_nil/1)
   end
+
+  defp runtime_context_summary(%Message{} = message) do
+    case runtime_context_usage_value(message, "kind") do
+      "runtime_context" -> "Internal runtime context for next model turn"
+      kind when is_binary(kind) -> "Internal #{kind} context for next model turn"
+      _other -> "Internal runtime context for next model turn"
+    end
+  end
+
+  defp runtime_context_payload(%Message{} = message) do
+    %{
+      id: message.id,
+      role: message.role,
+      visibility: runtime_context_usage_value(message, "visibility") || "internal",
+      source: runtime_context_usage_value(message, "source") || "runtime_context",
+      kind: runtime_context_usage_value(message, "kind"),
+      lemming_call_id: runtime_context_usage_value(message, "lemming_call_id"),
+      content: message.content
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  defp runtime_context_usage_value(%Message{usage: usage}, key) when is_map(usage) do
+    Map.get(usage, key) || runtime_context_atom_usage_value(usage, key)
+  end
+
+  defp runtime_context_usage_value(%Message{}, _key), do: nil
+
+  defp runtime_context_atom_usage_value(usage, "visibility"), do: Map.get(usage, :visibility)
+  defp runtime_context_atom_usage_value(usage, "source"), do: Map.get(usage, :source)
+  defp runtime_context_atom_usage_value(usage, "kind"), do: Map.get(usage, :kind)
+
+  defp runtime_context_atom_usage_value(usage, "lemming_call_id"),
+    do: Map.get(usage, :lemming_call_id)
+
+  defp runtime_context_atom_usage_value(_usage, _key), do: nil
 
   defp tokens_meta(%{input_tokens: input_tokens, output_tokens: output_tokens})
        when is_integer(input_tokens) and is_integer(output_tokens) do
@@ -1828,9 +2242,12 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
   defp extract_system_prompt(messages) do
     messages
-    |> Enum.find(fn message -> message["role"] == "system" end)
+    |> Enum.find(fn message ->
+      Map.get(message, "role") == "system" or Map.get(message, :role) == "system"
+    end)
     |> case do
       %{"content" => content} -> content
+      %{content: content} -> content
       _other -> nil
     end
   end
@@ -1840,7 +2257,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
 
   defp take_matching_lemming_call(lemming_calls, model_step, parsed_output) do
     continue_call_id = parsed_output["continue_call_id"]
-    request_text = parsed_output["request"]
+    request_text = parsed_lemming_request(parsed_output)
     step_time = Map.get(model_step, :completed_at) || Map.get(model_step, :started_at)
 
     pop_first(lemming_calls, fn call ->
@@ -1861,6 +2278,17 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   end
 
   defp matching_request_text?(_call, _request_text, _step_time), do: false
+
+  defp parsed_tool_target(%{} = parsed_output) do
+    parsed_output["target"] || parsed_output["tool_name"]
+  end
+
+  defp parsed_lemming_request(%{} = parsed_output) do
+    case parsed_output["args"] do
+      %{"request" => request} when is_binary(request) -> request
+      _other -> parsed_output["request"]
+    end
+  end
 
   defp call_near_step?(_call, nil), do: true
 
@@ -2080,7 +2508,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   defp raw_payload_body(_title, nil), do: nil
 
   defp raw_payload_body(_title, payload) when is_binary(payload),
-    do: quoted_block(humanize_text(payload))
+    do: quoted_block(payload |> sanitize_debug_string() |> humanize_text())
 
   defp raw_payload_body(_title, payload) do
     cond do
@@ -2187,6 +2615,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   defp json_payload(payload) do
     payload
     |> json_sanitize()
+    |> ModelStepPayload.sanitize_json_map()
     |> Jason.encode!(pretty: true)
   end
 
@@ -2206,13 +2635,29 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   defp json_sanitize(tuple) when is_tuple(tuple),
     do: tuple |> Tuple.to_list() |> Enum.map(&json_sanitize/1)
 
-  defp json_sanitize(value)
-       when is_binary(value) or is_number(value) or is_boolean(value) or is_nil(value),
-       do: value
+  defp json_sanitize(value) when is_binary(value), do: sanitize_debug_string(value)
+
+  defp json_sanitize(value) when is_number(value) or is_boolean(value) or is_nil(value),
+    do: value
 
   defp json_sanitize(value), do: inspect(value)
 
   defp json_sanitize_key(key) when is_atom(key), do: key
   defp json_sanitize_key(key) when is_binary(key), do: key
   defp json_sanitize_key(key), do: inspect(key)
+
+  defp sanitize_debug_string(value) when is_binary(value) do
+    Regex.replace(
+      ~r/(?<![\w.-])\/(?:home|Users|mnt|tmp|var|private|opt|data\d*)\/[^\s"'`<>{}\]]+\.dets\b/,
+      value,
+      "<runtime-dets-path>"
+    )
+    |> then(fn redacted ->
+      Regex.replace(
+        ~r/(?<![\w.-])\/(?:home|Users|mnt|tmp|var|private|opt|data\d*)\/[^\s"'`<>{}\]]+/,
+        redacted,
+        "<local-path>"
+      )
+    end)
+  end
 end

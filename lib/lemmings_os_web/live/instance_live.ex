@@ -292,6 +292,10 @@ defmodule LemmingsOsWeb.InstanceLive do
         case LemmingInstances.get_instance(id, world: world, preload: [:lemming]) do
           {:ok, instance} ->
             messages = LemmingInstances.list_messages(instance)
+
+            visible_messages =
+              Enum.filter(messages, &LemmingInstances.Message.visible_transcript?/1)
+
             tool_executions = LemmingTools.list_tool_executions(world, instance)
             artifacts_by_filename = list_instance_artifacts_by_filename(instance)
             delegated_work = InstanceDelegationSnapshot.build(instance)
@@ -303,10 +307,10 @@ defmodule LemmingsOsWeb.InstanceLive do
               world: world,
               instance: instance,
               runtime_state: runtime_state,
-              message_count: length(messages),
-              total_tokens: transcript_total_tokens(messages),
-              conversation_provider: transcript_provider(messages),
-              conversation_model: transcript_model(messages),
+              message_count: length(visible_messages),
+              total_tokens: transcript_total_tokens(visible_messages),
+              conversation_provider: transcript_provider(visible_messages),
+              conversation_model: transcript_model(visible_messages),
               status_now: status_now,
               parent_lemming_path: parent_lemming_path(instance),
               waiting_for_first_response?: waiting_for_first_response?(messages),
@@ -321,7 +325,7 @@ defmodule LemmingsOsWeb.InstanceLive do
             |> stream(
               :messages,
               transcript_entries(
-                messages,
+                visible_messages,
                 tool_executions,
                 artifacts_by_filename,
                 socket.assigns.artifact_promotion_messages,
@@ -859,7 +863,10 @@ defmodule LemmingsOsWeb.InstanceLive do
 
   defp transcript_message_entries(messages, delegated_calls, mode, instance) do
     messages
-    |> Enum.reject(&omit_message_from_transcript?(&1, delegated_calls, mode))
+    |> Enum.reject(fn message ->
+      LemmingInstances.Message.internal_context?(message) or
+        omit_message_from_transcript?(message, delegated_calls, mode)
+    end)
     |> Enum.map(fn message ->
       %{
         id: "message-#{message.id}",
