@@ -154,8 +154,10 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   defp bullet_list_or_none([]), do: "- none"
   defp bullet_list_or_none(values), do: Enum.map_join(values, "\n", &"- #{redact_text(&1)}")
 
-  defp tool_result_path(%{"path" => path}) when is_binary(path), do: path
-  defp tool_result_path(%{path: path}) when is_binary(path), do: path
+  defp tool_result_path(%{"output_path" => path}) when is_binary(path), do: safe_path(path)
+  defp tool_result_path(%{output_path: path}) when is_binary(path), do: safe_path(path)
+  defp tool_result_path(%{"path" => path}) when is_binary(path), do: safe_path(path)
+  defp tool_result_path(%{path: path}) when is_binary(path), do: safe_path(path)
   defp tool_result_path(_result), do: nil
 
   defp tool_result_artifacts(result) do
@@ -167,8 +169,6 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
 
   defp tool_result_details(result, tool_execution) do
     [
-      tool_result_workspace_path(result),
-      tool_result_root_path(result),
       tool_result_bytes_detail(result),
       Map.get(tool_execution, :preview)
     ]
@@ -176,24 +176,6 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
     |> Enum.map(&redact_text/1)
     |> Enum.take(4)
   end
-
-  defp tool_result_workspace_path(%{"workspace_path" => workspace_path})
-       when is_binary(workspace_path),
-       do: "Workspace path: #{workspace_path}"
-
-  defp tool_result_workspace_path(%{workspace_path: workspace_path})
-       when is_binary(workspace_path),
-       do: "Workspace path: #{workspace_path}"
-
-  defp tool_result_workspace_path(_result), do: nil
-
-  defp tool_result_root_path(%{"root_path" => root_path}) when is_binary(root_path),
-    do: "Root path: #{root_path}"
-
-  defp tool_result_root_path(%{root_path: root_path}) when is_binary(root_path),
-    do: "Root path: #{root_path}"
-
-  defp tool_result_root_path(_result), do: nil
 
   defp tool_result_bytes_detail(%{"bytes" => bytes}) when is_integer(bytes),
     do: "Bytes written: #{bytes}"
@@ -355,4 +337,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayload do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp safe_path(path) when is_binary(path) do
+    path_segments = String.split(path, "/", trim: true)
+
+    if path != "" and Path.type(path) == :relative and path_segments != [] and
+         Enum.all?(path_segments, &(&1 not in [".", ".."])) do
+      path
+    end
+  end
 end

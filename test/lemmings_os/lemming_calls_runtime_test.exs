@@ -8,6 +8,7 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.Lemmings
   alias LemmingsOs.Runtime.ActivityLog
+  alias LemmingsOsWeb.PageData.InstanceRawSnapshot
 
   defmodule FakeRuntime do
     def spawn_session(lemming, request_text, _opts) do
@@ -753,6 +754,126 @@ defmodule LemmingsOs.LemmingCallsRuntimeTest do
 
     assert length(terminal_callback_messages(manager_instance, call.id)) == 1
     refute_receive {:manager_resumed_after_call, _duplicate_call}, 50
+  end
+
+  test "terminal child sync sends structured deliverables and warnings through manager callback",
+       %{
+         manager_instance: manager_instance
+       } do
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "Prepare quote"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, _pid} = start_supervised({FakeManagerExecutor, {self(), manager_instance.id}})
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    deliverables = %{
+      "files" => [
+        %{
+          "kind" => "pdf",
+          "path" => "quotation_joao_silva.pdf",
+          "tool_execution_id" => "tool-pdf",
+          "exists" => true
+        }
+      ],
+      "email_drafts" => []
+    }
+
+    warnings = [
+      %{
+        "code" => "deliverable.claim_unverified",
+        "message" =>
+          "Child result_summary claimed a Gmail draft was created, but no email draft tool result was recorded."
+      }
+    ]
+
+    assert :ok =
+             LemmingCalls.sync_child_instance_terminal(child_instance, "idle", %{
+               result_summary: "PDF generated and Gmail draft created.",
+               deliverables: deliverables,
+               warnings: warnings
+             })
+
+    assert_receive {:manager_resumed_after_call, resumed_call}
+    assert resumed_call.deliverables == deliverables
+    assert resumed_call.warnings == warnings
+
+    {:ok, persisted_call} = LemmingCalls.get_call(call.id, world_id: manager_instance.world_id)
+    refute Map.has_key?(persisted_call, :deliverables)
+    refute Map.has_key?(persisted_call, :warnings)
+
+    [callback_message] = terminal_callback_messages(manager_instance, call.id)
+    assert callback_message.content =~ "payload.deliverables"
+    assert callback_message.content =~ "quotation_joao_silva.pdf"
+    assert callback_message.content =~ "deliverable.claim_unverified"
+    assert callback_message.content =~ "Only claim files, PDFs, HTML, or Gmail drafts"
+    assert callback_message.usage["callback_payload"]["deliverables"] == deliverables
+    assert callback_message.usage["callback_payload"]["warnings"] == warnings
+  end
+
+  test "failed child callback stores finalization diagnostics visible in manager raw export", %{
+    manager_instance: manager_instance
+  } do
+    assert {:ok, call} =
+             LemmingCalls.request_call(
+               manager_instance,
+               %{target: "ops-worker", request: "Prepare quote"},
+               runtime_mod: FakeRuntime
+             )
+
+    {:ok, child_instance} =
+      LemmingInstances.get_instance(call.callee_instance_id, world_id: manager_instance.world_id)
+
+    failure_details = %{
+      "child_instance_id" => child_instance.id,
+      "last_raw_model_output" => %{
+        "action" => "tool_call",
+        "target" => "documents.markdown_to_html"
+      },
+      "parsed_action" => %{"action" => "tool_call", "target" => "documents.markdown_to_html"},
+      "finalization_error_details" => %{
+        "code" => "runtime.tool_call_after_finalization_limit",
+        "context" => %{
+          "attempted_tool_target" => "documents.markdown_to_html",
+          "tool_iteration_count" => 1,
+          "max_tool_iterations" => 1
+        }
+      },
+      "tool_iteration_count" => 1,
+      "deliverables_snapshot" => %{
+        "deliverables" => %{"files" => [], "email_drafts" => []},
+        "missing_deliverables" => [],
+        "assumptions" => [],
+        "warnings" => []
+      }
+    }
+
+    assert :ok =
+             LemmingCalls.sync_child_instance_terminal(child_instance, "failed", %{
+               error_summary: "Model requested another tool after finalization limit.",
+               failure_details: failure_details
+             })
+
+    [callback_message] = terminal_callback_messages(manager_instance, call.id)
+    assert callback_message.usage["callback_payload"]["failure_details"] == failure_details
+
+    assert {:ok, snapshot} =
+             InstanceRawSnapshot.build(
+               instance_id: manager_instance.id,
+               world_id: manager_instance.world_id
+             )
+
+    markdown = InstanceRawSnapshot.to_markdown(snapshot)
+    assert markdown =~ "## Child Failure Details"
+    assert markdown =~ child_instance.id
+    assert markdown =~ "runtime.tool_call_after_finalization_limit"
+    assert markdown =~ "documents.markdown_to_html"
+    assert markdown =~ ~s("files": [])
   end
 
   test "S08b: terminal child sync appends failure callback context and resumes caller", %{

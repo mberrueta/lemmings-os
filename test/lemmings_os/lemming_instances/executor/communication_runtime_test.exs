@@ -351,8 +351,23 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
     state = %{
       lemming_calls_mod: TrackingCalls,
       instance: %{id: "instance-1", test_pid: self(), pending_calls?: true},
+      instance_id: "instance-1",
       context_messages: [%{role: "assistant", content: "Final child answer"}],
       last_error: "model timeout",
+      last_error_details: %{
+        "code" => "runtime.tool_call_after_finalization_limit",
+        "context" => %{"attempted_tool_target" => "documents.markdown_to_html"}
+      },
+      tool_iteration_count: 1,
+      model_steps: [
+        %{
+          raw_model_output: %{"action" => "tool_call", "target" => "documents.markdown_to_html"},
+          parsed_output: %{"action" => "tool_call", "target" => "documents.markdown_to_html"},
+          validation_result: %{"status" => "ok"}
+        }
+      ],
+      tools_context_mod: nil,
+      work_area_ref: "instance-1",
       now_fun: fn -> ~U[2026-04-26 17:02:00Z] end
     }
 
@@ -362,5 +377,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntimeTest do
     assert attrs.result_summary == nil
     assert attrs.error_summary == "model timeout"
     assert attrs.completed_at == ~U[2026-04-26 17:02:00Z]
+    assert attrs.failure_details["child_instance_id"] == "instance-1"
+    assert attrs.failure_details["parsed_action"]["target"] == "documents.markdown_to_html"
+
+    assert attrs.failure_details["finalization_error_details"]["code"] ==
+             "runtime.tool_call_after_finalization_limit"
+
+    assert attrs.failure_details["tool_iteration_count"] == 1
+    assert attrs.failure_details["deliverables_snapshot"]["deliverables"]["files"] == []
   end
 end

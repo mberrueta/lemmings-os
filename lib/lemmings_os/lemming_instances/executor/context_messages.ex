@@ -45,11 +45,41 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
           "the runtime is returning delegated outcome now.",
           "Lemming call result: status=#{Map.get(call, :status)} payload=#{Redaction.encode_redacted(payload)}.",
           lemming_call_result_guidance(payload),
-          "Do not guess file paths or read artifacts unless this payload explicitly includes a path or artifact reference.",
+          "Only claim files, PDFs, HTML, or Gmail drafts as created when they appear in payload.deliverables.",
+          "Treat payload.missing_deliverables as failed or missing deliverables.",
+          "Treat payload.warnings as unverified child claims and do not present them as created deliverables.",
+          "Do not guess file paths or read artifacts unless this payload explicitly includes a work-area-relative path or artifact reference.",
           "Decide what to do next."
         ]
         |> Enum.join(" ")
     }
+  end
+
+  @doc """
+  Builds the structured payload embedded in delegated call-result context.
+  """
+  @spec lemming_call_result_payload(map()) :: map()
+  def lemming_call_result_payload(call) do
+    %{}
+    |> maybe_put(:call_id, Map.get(call, :id))
+    |> maybe_put(:caller_instance_id, Map.get(call, :caller_instance_id))
+    |> maybe_put(:status, Map.get(call, :status))
+    |> maybe_put(:callee_instance_id, Map.get(call, :callee_instance_id))
+    |> maybe_put(:child_instance_id, Map.get(call, :callee_instance_id))
+    |> maybe_put(:callee_lemming_id, Map.get(call, :callee_lemming_id))
+    |> maybe_put(:callee_slug, nested_call_value(call, [:callee_lemming, :slug]))
+    |> maybe_put(:callee_name, nested_call_value(call, [:callee_lemming, :name]))
+    |> maybe_put(:root_call_id, Map.get(call, :root_call_id))
+    |> maybe_put(:previous_call_id, Map.get(call, :previous_call_id))
+    |> maybe_put(:request_text, Map.get(call, :request_text))
+    |> maybe_put(:result_summary, Map.get(call, :result_summary))
+    |> maybe_put(:error_summary, Map.get(call, :error_summary))
+    |> maybe_put(:deliverables, call_value(call, :deliverables))
+    |> maybe_put(:missing_deliverables, call_value(call, :missing_deliverables))
+    |> maybe_put(:assumptions, call_value(call, :assumptions))
+    |> maybe_put(:warnings, call_value(call, :warnings))
+    |> maybe_put(:failure_details, call_value(call, :failure_details))
+    |> maybe_put(:recovery_status, Map.get(call, :recovery_status))
   end
 
   @doc """
@@ -140,24 +170,6 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
     is_list(results) and results != []
   end
 
-  defp lemming_call_result_payload(call) do
-    %{}
-    |> maybe_put(:call_id, Map.get(call, :id))
-    |> maybe_put(:caller_instance_id, Map.get(call, :caller_instance_id))
-    |> maybe_put(:status, Map.get(call, :status))
-    |> maybe_put(:callee_instance_id, Map.get(call, :callee_instance_id))
-    |> maybe_put(:child_instance_id, Map.get(call, :callee_instance_id))
-    |> maybe_put(:callee_lemming_id, Map.get(call, :callee_lemming_id))
-    |> maybe_put(:callee_slug, nested_call_value(call, [:callee_lemming, :slug]))
-    |> maybe_put(:callee_name, nested_call_value(call, [:callee_lemming, :name]))
-    |> maybe_put(:root_call_id, Map.get(call, :root_call_id))
-    |> maybe_put(:previous_call_id, Map.get(call, :previous_call_id))
-    |> maybe_put(:request_text, Map.get(call, :request_text))
-    |> maybe_put(:result_summary, Map.get(call, :result_summary))
-    |> maybe_put(:error_summary, Map.get(call, :error_summary))
-    |> maybe_put(:recovery_status, Map.get(call, :recovery_status))
-  end
-
   defp maybe_put(payload, _field, nil), do: payload
   defp maybe_put(payload, field, value), do: Map.put(payload, field, value)
 
@@ -178,9 +190,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.ContextMessages do
 
   defp nested_call_value(_value, _path), do: nil
 
+  defp call_value(call, field) when is_map(call) and is_atom(field) do
+    Map.get(call, field) || Map.get(call, Atom.to_string(field))
+  end
+
   defp lemming_call_result_guidance(%{status: "completed", result_summary: result_summary})
        when is_binary(result_summary) and result_summary != "" do
-    "When status=completed, payload.result_summary is child usable result."
+    "When status=completed, payload.result_summary is child usable result; payload.deliverables is the evidence for created files and drafts."
   end
 
   defp lemming_call_result_guidance(_payload) do

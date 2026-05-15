@@ -13,6 +13,7 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.Executor.CommunicationRuntime
+  alias LemmingsOs.LemmingInstances.Executor.Deliverables
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingInstances.Executor.ModelStepPayload
   alias LemmingsOs.LemmingInstances.Executor.TransitionsData
@@ -132,6 +133,8 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
     [
       "# Instance Raw Context",
       execution_summary_markdown(snapshot),
+      deliverables_markdown(snapshot),
+      child_failure_details_markdown(snapshot),
       trace_provenance_markdown(snapshot),
       timeline_markdown(snapshot),
       delegation_state_markdown(snapshot),
@@ -164,6 +167,222 @@ defmodule LemmingsOsWeb.PageData.InstanceRawSnapshot do
   end
 
   defp format_list(values), do: list_label(values)
+
+  defp deliverables_markdown(snapshot) do
+    sections =
+      [
+        instance_deliverables_block(snapshot)
+      ] ++ Enum.map(snapshot.lemming_calls || [], &call_deliverables_block(&1, snapshot))
+
+    sections = Enum.reject(sections, &blank?/1)
+
+    case sections do
+      [] ->
+        nil
+
+      sections ->
+        ["## Deliverables", Enum.join(sections, "\n\n")]
+        |> Enum.join("\n\n")
+    end
+  end
+
+  defp instance_deliverables_block(snapshot) do
+    instance_id = Map.get(snapshot.instance, :id)
+    tool_executions = tool_executions_for_snapshot(instance_id, snapshot)
+
+    payload =
+      Deliverables.completion_fields(snapshot.instance, tool_executions, nil,
+        work_area_ref: runtime_work_area_ref(snapshot)
+      )
+
+    deliverables_payload_block("Instance #{instance_id}", payload)
+  end
+
+  defp call_deliverables_block(%LemmingCall{} = call, snapshot) do
+    payload =
+      call_deliverables_from_tool_executions(call, snapshot) ||
+        call_deliverables_from_callback_payload(call)
+
+    deliverables_payload_block("Child instance #{Map.get(call, :callee_instance_id)}", payload)
+  end
+
+  defp call_deliverables_from_tool_executions(%LemmingCall{} = call, snapshot) do
+    with {:ok, callee_instance} <-
+           LemmingInstances.get_instance(call.callee_instance_id, world: snapshot.world),
+         tool_executions <- LemmingTools.list_tool_executions(snapshot.world, callee_instance),
+         payload <-
+           Deliverables.completion_fields(callee_instance, tool_executions, call.result_summary,
+             work_area_ref: callee_instance.id
+           ),
+         true <- deliverables_payload_present?(payload) do
+      payload
+    else
+      _other -> nil
+    end
+  end
+
+  defp call_deliverables_from_callback_payload(%LemmingCall{} = call) do
+    call
+    |> terminal_callback_payload()
+    |> case do
+      %{} = payload ->
+        %{
+          deliverables:
+            map_value(payload, :deliverables) || %{"files" => [], "email_drafts" => []},
+          missing_deliverables: map_value(payload, :missing_deliverables) || [],
+          assumptions: map_value(payload, :assumptions) || [],
+          warnings: map_value(payload, :warnings) || []
+        }
+
+      _payload ->
+        %{
+          deliverables: %{"files" => [], "email_drafts" => []},
+          missing_deliverables: [],
+          assumptions: [],
+          warnings: []
+        }
+    end
+  end
+
+  defp deliverables_payload_present?(payload) when is_map(payload) do
+    files = payload |> map_value(:deliverables) |> map_value(:files) || []
+    email_drafts = payload |> map_value(:deliverables) |> map_value(:email_drafts) || []
+    missing = map_value(payload, :missing_deliverables) || []
+    warnings = map_value(payload, :warnings) || []
+
+    files != [] or email_drafts != [] or missing != [] or warnings != []
+  end
+
+  defp terminal_callback_payload(%LemmingCall{} = call) do
+    Message
+    |> where(
+      [message],
+      message.lemming_instance_id == ^call.caller_instance_id and
+        message.world_id == ^call.world_id and
+        message.role == "assistant" and
+        like(message.content, ^"%Lemming call result: status=%") and
+        like(message.content, ^"%#{call.id}%")
+    )
+    |> order_by([message], asc: message.inserted_at, asc: message.id)
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      %Message{usage: %{} = usage} -> map_value(usage, :callback_payload)
+      _message -> nil
+    end
+  end
+
+  defp deliverables_payload_block(title, payload) do
+    files = payload |> map_value(:deliverables) |> map_value(:files) || []
+    email_drafts = payload |> map_value(:deliverables) |> map_value(:email_drafts) || []
+    missing = map_value(payload, :missing_deliverables) || []
+    warnings = map_value(payload, :warnings) || []
+
+    lines =
+      [
+        "### #{title}",
+        "Files created:",
+        deliverable_file_lines(files),
+        "Email drafts:",
+        deliverable_email_lines(email_drafts),
+        "Failed/missing deliverables:",
+        deliverable_map_lines(missing),
+        "Unverified claims:",
+        deliverable_map_lines(warnings)
+      ]
+      |> Enum.reject(&blank?/1)
+
+    if files == [] and email_drafts == [] and missing == [] and warnings == [] do
+      nil
+    else
+      Enum.join(lines, "\n")
+    end
+  end
+
+  defp deliverable_file_lines([]), do: "- none"
+
+  defp deliverable_file_lines(files) when is_list(files) do
+    Enum.map_join(files, "\n", fn file ->
+      [
+        "- #{map_value(file, :kind) || "file"} `#{map_value(file, :path) || "unknown"}`",
+        "tool_execution_id=#{map_value(file, :tool_execution_id) || "unavailable"}",
+        "exists=#{inspect(map_value(file, :exists))}",
+        artifact_ids_label(map_value(file, :artifact_ids))
+      ]
+      |> Enum.reject(&blank?/1)
+      |> Enum.join(" ")
+    end)
+  end
+
+  defp deliverable_email_lines([]), do: "- none"
+
+  defp deliverable_email_lines(email_drafts) when is_list(email_drafts) do
+    Enum.map_join(email_drafts, "\n", fn draft ->
+      [
+        "- #{map_value(draft, :provider) || "email"} draft_id=#{map_value(draft, :draft_id) || "unavailable"}",
+        "connection_ref=#{map_value(draft, :connection_ref) || "unavailable"}",
+        "tool_execution_id=#{map_value(draft, :tool_execution_id) || "unavailable"}",
+        "status=#{map_value(draft, :status) || "unknown"}"
+      ]
+      |> Enum.join(" ")
+    end)
+  end
+
+  defp deliverable_map_lines([]), do: "- none"
+
+  defp deliverable_map_lines(items) when is_list(items) do
+    Enum.map_join(items, "\n", fn item ->
+      "- #{item |> json_sanitize() |> Jason.encode!()}"
+    end)
+  end
+
+  defp artifact_ids_label(ids) when is_list(ids) and ids != [] do
+    "artifact_ids=#{Enum.join(ids, ",")}"
+  end
+
+  defp artifact_ids_label(_ids), do: nil
+
+  defp runtime_work_area_ref(snapshot) do
+    map_value(snapshot.runtime_state || %{}, :work_area_ref) || Map.get(snapshot.instance, :id)
+  end
+
+  defp child_failure_details_markdown(snapshot) do
+    sections =
+      (snapshot.lemming_calls || [])
+      |> Enum.filter(&(Map.get(&1, :status) == "failed"))
+      |> Enum.flat_map(&child_failure_detail_block/1)
+
+    case sections do
+      [] ->
+        nil
+
+      sections ->
+        ["## Child Failure Details", Enum.join(sections, "\n\n")]
+        |> Enum.join("\n\n")
+    end
+  end
+
+  defp child_failure_detail_block(%LemmingCall{} = call) do
+    case terminal_callback_payload(call) do
+      %{} = payload ->
+        failure_details = map_value(payload, :failure_details)
+
+        if is_map(failure_details) do
+          [
+            [
+              "### Child instance #{Map.get(call, :callee_instance_id)}",
+              json_code_block(failure_details)
+            ]
+            |> Enum.join("\n\n")
+          ]
+        else
+          []
+        end
+
+      _payload ->
+        []
+    end
+  end
 
   defp trace_provenance_markdown(snapshot) do
     bullets = [

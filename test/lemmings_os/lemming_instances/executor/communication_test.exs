@@ -94,6 +94,17 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationTest do
     assert attrs.result_summary == "final summary"
     assert attrs.error_summary == "last error"
     assert attrs.completed_at == ~U[2026-04-26 14:00:00Z]
+
+    redacted_attrs =
+      Communication.child_terminal_sync_attrs(
+        "idle",
+        [%{role: "assistant", content: "Saved /mnt/data4/work/quote.pdf"}],
+        "/tmp/runtime/error.log",
+        ~U[2026-04-26 14:00:00Z]
+      )
+
+    assert redacted_attrs.result_summary == "Saved [HOST_PATH_REDACTED]"
+    assert redacted_attrs.error_summary == "[HOST_PATH_REDACTED]"
   end
 
   test "resume helpers normalize rejection and reset runtime fields" do

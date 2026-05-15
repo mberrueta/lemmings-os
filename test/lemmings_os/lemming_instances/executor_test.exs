@@ -519,6 +519,135 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
     end
   end
 
+  defmodule QuoteChainModelRuntime do
+    def run(config_snapshot, context_messages, current_item) do
+      observer_pid = Map.get(config_snapshot, :observer_pid)
+
+      if is_pid(observer_pid) do
+        send(observer_pid, {:quote_chain_model_run, context_messages, current_item})
+      end
+
+      cond do
+        tool_result?(context_messages, "email.create_draft") ->
+          reply(current_item, context_messages)
+
+        tool_result?(context_messages, "documents.print_to_pdf") ->
+          tool_call(current_item, context_messages, "email.create_draft", %{
+            "connection_ref" => "gmail",
+            "to" => ["buyer@example.com"],
+            "subject" => "Quotation",
+            "body" => "Attached quotation",
+            "body_format" => "plain"
+          })
+
+        tool_result?(context_messages, "documents.markdown_to_html") ->
+          tool_call(current_item, context_messages, "documents.print_to_pdf", %{
+            "source_path" => "quote.html",
+            "output_path" => "quote.pdf"
+          })
+
+        tool_result?(context_messages, "fs.write_text_file") ->
+          tool_call(current_item, context_messages, "documents.markdown_to_html", %{
+            "source_path" => "quote.md",
+            "output_path" => "quote.html"
+          })
+
+        true ->
+          tool_call(current_item, context_messages, "fs.write_text_file", %{
+            "path" => "quote.md",
+            "content" => "# Quote"
+          })
+      end
+    end
+
+    defp tool_result?(context_messages, tool_name) do
+      Enum.any?(
+        context_messages,
+        &String.contains?(&1.content, "Tool result for #{tool_name}: status=ok")
+      )
+    end
+
+    defp tool_call(current_item, context_messages, tool_name, args) do
+      {:ok,
+       Response.new(
+         action: :tool_call,
+         tool_name: tool_name,
+         tool_args: args,
+         provider: "fake",
+         model: "quote-chain-model",
+         raw: %{current_item: current_item, context_messages: context_messages}
+       )}
+    end
+
+    defp reply(current_item, context_messages) do
+      {:ok,
+       Response.new(
+         action: :reply,
+         reply: "Quote files and Gmail draft are complete.",
+         provider: "fake",
+         model: "quote-chain-model",
+         raw: %{current_item: current_item, context_messages: context_messages}
+       )}
+    end
+  end
+
+  defmodule QuoteChainToolRuntime do
+    def execute(_world, _instance, tool_name, args) do
+      send(Application.fetch_env!(:lemmings_os, __MODULE__)[:test_pid], {
+        :quote_chain_tool_call,
+        tool_name,
+        args
+      })
+
+      {:ok, success(tool_name, args)}
+    end
+
+    defp success("fs.write_text_file", %{"path" => path, "content" => content}) do
+      %{
+        tool_name: "fs.write_text_file",
+        args: %{"path" => path, "content" => content},
+        summary: "Wrote file #{path}",
+        preview: content,
+        result: %{path: path, bytes: byte_size(content)}
+      }
+    end
+
+    defp success("documents.markdown_to_html", %{"output_path" => path} = args) do
+      %{
+        tool_name: "documents.markdown_to_html",
+        args: args,
+        summary: "Converted quote.md to #{path}",
+        preview: "<h1>Quote</h1>",
+        result: %{"output_path" => path, "content_type" => "text/html", "bytes" => 14}
+      }
+    end
+
+    defp success("documents.print_to_pdf", %{"output_path" => path} = args) do
+      %{
+        tool_name: "documents.print_to_pdf",
+        args: args,
+        summary: "Printed quote.html to #{path}",
+        preview: nil,
+        result: %{"output_path" => path, "content_type" => "application/pdf", "bytes" => 8}
+      }
+    end
+
+    defp success("email.create_draft", args) do
+      %{
+        tool_name: "email.create_draft",
+        args: args,
+        summary: "Created Gmail draft draft-123",
+        preview: nil,
+        result: %{
+          "provider" => "gmail",
+          "connection_ref" => "gmail",
+          "draft_id" => "draft-123",
+          "status" => "created"
+        }
+      }
+    end
+  end
+
   defmodule RepairOnceModelRuntime do
     def run(config_snapshot, context_messages, current_item) do
       observer_pid = Map.get(config_snapshot, :observer_pid)
@@ -1199,7 +1328,7 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              context_messages,
              &String.contains?(
                &1.content,
-               "Do not guess file paths or read artifacts unless this payload explicitly includes a path or artifact reference."
+               "Do not guess file paths or read artifacts unless this payload explicitly includes a work-area-relative path or artifact reference."
              )
            )
 
@@ -2455,6 +2584,118 @@ defmodule LemmingsOs.LemmingInstances.ExecutorTest do
              &(&1.role == "assistant" and
                  &1.content == "Created sample.md with mock budget data for your boss.")
            )
+
+    GenServer.stop(pid)
+  end
+
+  test "sales quote specialist valid tool chain can continue after accidental finalization", %{
+    instance: instance
+  } do
+    Application.put_env(:lemmings_os, QuoteChainToolRuntime, test_pid: self())
+    on_exit(fn -> Application.delete_env(:lemmings_os, QuoteChainToolRuntime) end)
+
+    resource_key = "ollama:quote-chain-model"
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          observer_pid: self(),
+          model: "quote-chain-model",
+          runtime_config: %{max_tool_iterations: 8}
+        },
+        context_mod: LemmingInstances,
+        model_mod: QuoteChainModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: QuoteChainToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Create Markdown, HTML, PDF, and Gmail draft")
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_status(pid, "idle")
+
+    assert_received {:quote_chain_tool_call, "fs.write_text_file", _args}
+    assert_received {:quote_chain_tool_call, "documents.markdown_to_html", _args}
+    assert_received {:quote_chain_tool_call, "documents.print_to_pdf", _args}
+    assert_received {:quote_chain_tool_call, "email.create_draft", _args}
+
+    tool_executions = LemmingTools.list_tool_executions(%World{id: instance.world_id}, instance)
+    assert length(tool_executions) == 4
+
+    snapshot = Executor.snapshot(pid)
+
+    targets = Enum.map(snapshot.model_steps, &get_in(&1, [:parsed_output, "target"]))
+    assert "fs.write_text_file" in targets
+    assert "documents.markdown_to_html" in targets
+    assert "documents.print_to_pdf" in targets
+    assert "email.create_draft" in targets
+
+    assert Enum.any?(
+             LemmingInstances.list_messages(instance),
+             &(&1.role == "assistant" and
+                 &1.content == "Quote files and Gmail draft are complete.")
+           )
+
+    GenServer.stop(pid)
+  end
+
+  test "tool call during finalization after max tool iterations fails with structured diagnostics",
+       %{
+         instance: instance
+       } do
+    Application.put_env(:lemmings_os, QuoteChainToolRuntime, test_pid: self())
+    on_exit(fn -> Application.delete_env(:lemmings_os, QuoteChainToolRuntime) end)
+
+    resource_key = "ollama:quote-chain-model-limit"
+
+    {:ok, pid} =
+      Executor.start_link(
+        instance: instance,
+        config_snapshot: %{
+          observer_pid: self(),
+          model: "quote-chain-model-limit",
+          runtime_config: %{max_tool_iterations: 1}
+        },
+        context_mod: LemmingInstances,
+        model_mod: QuoteChainModelRuntime,
+        tools_context_mod: LemmingTools,
+        tool_runtime_mod: QuoteChainToolRuntime,
+        pool_mod: ResourcePool,
+        pubsub_mod: Phoenix.PubSub,
+        dets_mod: nil,
+        ets_mod: nil,
+        name: nil
+      )
+
+    start_supervised({ResourcePool, resource_key: resource_key, gate: :open, pubsub_mod: nil})
+
+    assert :ok = ResourcePool.checkout(resource_key, holder: pid)
+    assert :ok = Executor.enqueue_work(pid, "Create Markdown, HTML, PDF, and Gmail draft")
+    send(pid, {:scheduler_admit, %{instance_id: instance.id, resource_key: resource_key}})
+
+    assert eventually_status(pid, "failed")
+
+    snapshot = Executor.snapshot(pid)
+    assert snapshot.last_error_details["code"] == "runtime.tool_call_after_finalization_limit"
+    diagnostics = snapshot.last_error_details["context"]
+
+    assert diagnostics["phase"] == "finalization"
+    assert diagnostics["attempted_action"] == "tool_call"
+    assert diagnostics["attempted_tool_target"] == "documents.markdown_to_html"
+    assert diagnostics["tool_iteration_count"] == 1
+    assert diagnostics["max_tool_iterations"] == 1
+    assert diagnostics["finalization_entry_reason"] == "tool_iteration_limit"
+    assert is_binary(diagnostics["last_successful_tool_execution_id"])
+    assert %{} = diagnostics["current_deliverables_snapshot"]
 
     GenServer.stop(pid)
   end

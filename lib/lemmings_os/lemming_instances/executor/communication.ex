@@ -7,6 +7,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
   """
 
   alias LemmingsOs.LemmingInstances.Executor.ContextMessages
+  alias LemmingsOs.LemmingInstances.Executor.Deliverables
+  alias LemmingsOs.LemmingInstances.Executor.Redaction
   alias LemmingsOs.ModelRuntime.Response
 
   @type request_result ::
@@ -311,19 +313,35 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
       iex> attrs.completed_at
       ~U[2026-04-26 15:00:00Z]
   """
-  @spec child_terminal_sync_attrs(String.t(), list(), String.t() | nil, DateTime.t()) :: map()
-  def child_terminal_sync_attrs(status, context_messages, last_error, completed_at) do
+  @spec child_terminal_sync_attrs(String.t(), list(), String.t() | nil, DateTime.t(), keyword()) ::
+          map()
+  def child_terminal_sync_attrs(status, context_messages, last_error, completed_at, opts \\ []) do
     result_summary =
       case status do
-        "idle" -> last_assistant_content(context_messages)
+        "idle" -> context_messages |> last_assistant_content() |> Redaction.redact_string()
         _other -> nil
       end
 
+    deliverable_fields =
+      Deliverables.completion_fields(
+        Keyword.get(opts, :instance, %{}),
+        Keyword.get(opts, :tool_executions, []),
+        result_summary,
+        work_area_ref: Keyword.get(opts, :work_area_ref)
+      )
+
+    failure_details =
+      opts
+      |> Keyword.get(:failure_details)
+      |> maybe_put_deliverables_snapshot(deliverable_fields)
+
     %{
       result_summary: result_summary,
-      error_summary: last_error,
+      error_summary: Redaction.redact_string(last_error),
       completed_at: completed_at
     }
+    |> Map.merge(deliverable_fields)
+    |> maybe_put(:failure_details, failure_details)
   end
 
   @doc """
@@ -383,4 +401,14 @@ defmodule LemmingsOs.LemmingInstances.Executor.Communication do
     [Map.get(call, :id) || Map.get(call, "id")]
     |> Enum.filter(&(is_binary(&1) and &1 != ""))
   end
+
+  defp maybe_put_deliverables_snapshot(failure_details, deliverable_fields)
+       when is_map(failure_details) do
+    Map.put_new(failure_details, "deliverables_snapshot", deliverable_fields)
+  end
+
+  defp maybe_put_deliverables_snapshot(_failure_details, _deliverable_fields), do: nil
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

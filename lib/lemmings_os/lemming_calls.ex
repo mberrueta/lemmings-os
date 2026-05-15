@@ -10,12 +10,15 @@ defmodule LemmingsOs.LemmingCalls do
   alias LemmingsOs.Helpers
   alias LemmingsOs.LemmingInstances
   alias LemmingsOs.LemmingInstances.Executor.ContextMessages
+  alias LemmingsOs.LemmingInstances.Executor.Deliverables
+  alias LemmingsOs.LemmingInstances.Executor.Redaction
   alias LemmingsOs.LemmingInstances.Executor
   alias LemmingsOs.LemmingCalls.PubSub
   alias LemmingsOs.LemmingCalls.Telemetry
   alias LemmingsOs.LemmingCalls.LemmingCall
   alias LemmingsOs.LemmingInstances.LemmingInstance
   alias LemmingsOs.LemmingInstances.Message
+  alias LemmingsOs.LemmingTools
   alias LemmingsOs.Lemmings.Lemming
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime
@@ -413,7 +416,8 @@ defmodule LemmingsOs.LemmingCalls do
       |> classified_child_result()
 
     update_child_calls(instance, call_status, %{
-      result_summary: result_summary,
+      result_summary: Redaction.redact_string(result_summary),
+      callback_payload: terminal_payload_attrs(attrs),
       completed_at: Map.get(attrs, :completed_at) || now()
     })
   end
@@ -421,7 +425,8 @@ defmodule LemmingsOs.LemmingCalls do
   def sync_child_instance_terminal(%LemmingInstance{} = instance, "failed", attrs)
       when is_map(attrs) do
     update_child_calls(instance, "failed", %{
-      error_summary: Map.get(attrs, :error_summary),
+      error_summary: attrs |> Map.get(:error_summary) |> Redaction.redact_string(),
+      callback_payload: terminal_payload_attrs(attrs),
       completed_at: Map.get(attrs, :completed_at) || now()
     })
   end
@@ -430,7 +435,9 @@ defmodule LemmingsOs.LemmingCalls do
       when is_map(attrs) do
     update_child_calls(instance, "failed", %{
       error_summary:
-        Map.get(attrs, :error_summary) || "Child instance expired before completion.",
+        Redaction.redact_string(Map.get(attrs, :error_summary)) ||
+          "Child instance expired before completion.",
+      callback_payload: terminal_payload_attrs(attrs),
       recovery_status: "expired",
       completed_at: Map.get(attrs, :completed_at) || now()
     })
@@ -440,7 +447,9 @@ defmodule LemmingsOs.LemmingCalls do
       when is_map(attrs) do
     update_child_calls(instance, "failed", %{
       error_summary:
-        Map.get(attrs, :error_summary) || "Child instance was cancelled before completion.",
+        Redaction.redact_string(Map.get(attrs, :error_summary)) ||
+          "Child instance was cancelled before completion.",
+      callback_payload: terminal_payload_attrs(attrs),
       recovery_status: "cancelled",
       completed_at: Map.get(attrs, :completed_at) || now()
     })
@@ -1028,15 +1037,20 @@ defmodule LemmingsOs.LemmingCalls do
   end
 
   defp update_child_calls(instance, status, attrs) do
+    status_attrs = Map.drop(attrs, [:callback_payload])
+    callback_payload_attrs = Map.get(attrs, :callback_payload, %{})
+
     instance
     |> list_child_calls(statuses: @pending_child_statuses)
     |> Enum.each(fn call ->
-      case update_call_status(call, status, attrs) do
+      case update_call_status(call, status, status_attrs) do
         {:ok, updated_call}
         when status in ["needs_more_context", "partial_result", "completed", "failed"] ->
           updated_call = Repo.preload(updated_call, [:callee_lemming])
-          _ = ensure_terminal_callback_context(updated_call)
-          resume_caller_instance(updated_call)
+          callback_payload = terminal_callback_payload(updated_call, callback_payload_attrs)
+          callback_call = call_with_callback_payload(updated_call, callback_payload)
+          _ = ensure_terminal_callback_context(updated_call, callback_payload)
+          resume_caller_instance(callback_call)
 
         {:ok, _updated_call} ->
           :ok
@@ -1049,36 +1063,42 @@ defmodule LemmingsOs.LemmingCalls do
     :ok
   end
 
-  defp ensure_terminal_callback_context(%LemmingCall{status: status} = call)
+  defp ensure_terminal_callback_context(call, callback_payload \\ nil)
+
+  defp ensure_terminal_callback_context(%LemmingCall{status: status} = call, callback_payload)
        when status in @callback_terminal_statuses do
     call = Repo.preload(call, [:callee_lemming])
+    callback_payload = callback_payload || terminal_callback_payload(call)
 
     case terminal_callback_message(call) do
       %Message{} = message ->
         {:ok, :existing, message}
 
       nil ->
-        persist_terminal_callback_context(call)
+        persist_terminal_callback_context(call, callback_payload)
     end
   end
 
-  defp ensure_terminal_callback_context(%LemmingCall{} = call) do
+  defp ensure_terminal_callback_context(%LemmingCall{} = call, _callback_payload) do
     {:ok, :not_terminal, call}
   end
 
-  defp persist_terminal_callback_context(%LemmingCall{} = call) do
+  defp persist_terminal_callback_context(%LemmingCall{} = call, callback_payload) do
+    callback_call = call_with_callback_payload(call, callback_payload)
+
     attrs = %{
       lemming_instance_id: call.caller_instance_id,
       world_id: call.world_id,
       role: "assistant",
-      content: Map.fetch!(ContextMessages.lemming_call_result_message(call), :content),
+      content: Map.fetch!(ContextMessages.lemming_call_result_message(callback_call), :content),
       usage: %{
         "visibility" => "internal",
         "source" => "lemming_call_callback",
         "kind" => "runtime_context",
         "lemming_call_id" => call.id,
         "callee_instance_id" => call.callee_instance_id,
-        "status" => call.status
+        "status" => call.status,
+        "callback_payload" => callback_payload
       }
     }
 
@@ -1115,6 +1135,92 @@ defmodule LemmingsOs.LemmingCalls do
     end
   end
 
+  defp terminal_payload_attrs(attrs) when is_map(attrs) do
+    %{
+      deliverables: Map.get(attrs, :deliverables) || %{"files" => [], "email_drafts" => []},
+      missing_deliverables: Map.get(attrs, :missing_deliverables) || [],
+      assumptions: Map.get(attrs, :assumptions) || [],
+      warnings: Map.get(attrs, :warnings) || [],
+      failure_details: Map.get(attrs, :failure_details)
+    }
+  end
+
+  defp terminal_payload_attrs(_attrs) do
+    %{
+      deliverables: %{"files" => [], "email_drafts" => []},
+      missing_deliverables: [],
+      assumptions: [],
+      warnings: [],
+      failure_details: nil
+    }
+  end
+
+  defp terminal_callback_payload(%LemmingCall{} = call, attrs \\ %{}) do
+    derived_attrs =
+      case terminal_payload_attrs(attrs) do
+        %{
+          deliverables: %{"files" => [], "email_drafts" => []},
+          warnings: [],
+          failure_details: nil
+        } ->
+          derive_terminal_payload_attrs(call)
+
+        payload_attrs ->
+          payload_attrs
+      end
+
+    call
+    |> call_with_callback_payload(derived_attrs)
+    |> ContextMessages.lemming_call_result_payload()
+  end
+
+  defp derive_terminal_payload_attrs(
+         %LemmingCall{
+           callee_instance_id: callee_instance_id,
+           world_id: world_id
+         } = call
+       )
+       when is_binary(callee_instance_id) and is_binary(world_id) do
+    with {:ok, callee_instance} <-
+           LemmingInstances.get_instance(callee_instance_id, world_id: world_id),
+         tool_executions <-
+           LemmingTools.list_tool_executions(%World{id: world_id}, callee_instance) do
+      Deliverables.completion_fields(
+        callee_instance,
+        tool_executions,
+        Map.get(call, :result_summary),
+        work_area_ref: callee_instance.id
+      )
+    else
+      _other -> terminal_payload_attrs(%{})
+    end
+  end
+
+  defp derive_terminal_payload_attrs(_call), do: terminal_payload_attrs(%{})
+
+  defp call_with_callback_payload(%LemmingCall{} = call, callback_payload)
+       when is_map(callback_payload) do
+    call
+    |> Map.from_struct()
+    |> Map.merge(derived_callback_fields(callback_payload))
+  end
+
+  defp derived_callback_fields(callback_payload) do
+    %{}
+    |> maybe_put_payload_field(:deliverables, callback_payload)
+    |> maybe_put_payload_field(:missing_deliverables, callback_payload)
+    |> maybe_put_payload_field(:assumptions, callback_payload)
+    |> maybe_put_payload_field(:warnings, callback_payload)
+    |> maybe_put_payload_field(:failure_details, callback_payload)
+  end
+
+  defp maybe_put_payload_field(map, field, payload) do
+    case Map.get(payload, field) || Map.get(payload, Atom.to_string(field)) do
+      nil -> map
+      value -> Map.put(map, field, value)
+    end
+  end
+
   defp terminal_callback_message(%LemmingCall{} = call) do
     Message
     |> where(
@@ -1143,7 +1249,7 @@ defmodule LemmingsOs.LemmingCalls do
     end
   end
 
-  defp resume_caller_instance(%LemmingCall{caller_instance_id: caller_instance_id} = call)
+  defp resume_caller_instance(%{caller_instance_id: caller_instance_id} = call)
        when is_binary(caller_instance_id) do
     with true <- registry_alive?(LemmingsOs.LemmingInstances.ExecutorRegistry),
          result <- Executor.resume_after_lemming_call(caller_instance_id, call) do

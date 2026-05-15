@@ -53,6 +53,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.LemmingInstances.ConfigSnapshot
   alias LemmingsOs.LemmingInstances.Executor.CommunicationRuntime
   alias LemmingsOs.LemmingInstances.Executor.ContextMessages
+  alias LemmingsOs.LemmingInstances.Executor.Deliverables
   alias LemmingsOs.LemmingInstances.Executor.Events
   alias LemmingsOs.LemmingInstances.Executor.FinalizationDecision
   alias LemmingsOs.LemmingInstances.Executor.FinalizationPayload
@@ -60,6 +61,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.LemmingInstances.Executor.ModelStepRuntime
   alias LemmingsOs.LemmingInstances.Executor.ModelStepPayload
   alias LemmingsOs.LemmingInstances.Executor.QueueData
+  alias LemmingsOs.LemmingInstances.Executor.Redaction
   alias LemmingsOs.LemmingInstances.Executor.RetryRuntime
   alias LemmingsOs.LemmingInstances.Executor.RuntimeStore
   alias LemmingsOs.LemmingInstances.Executor.ToolStepRuntime
@@ -75,6 +77,7 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   alias LemmingsOs.LemmingTools
   alias LemmingsOs.Repo
   alias LemmingsOs.Runtime.ActivityLog
+  alias LemmingsOs.Tools.Catalog
   alias LemmingsOs.Tools.Runtime, as: ToolsRuntime
   alias LemmingsOs.Tools.WorkArea
   alias LemmingsOs.Worlds.World
@@ -812,10 +815,8 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         |> clear_active_model_step()
         |> start_execution()
 
-      :tool_call_during_finalization ->
-        state
-        |> clear_active_model_step()
-        |> maybe_repair_finalization(:unexpected_tool_call_during_finalization)
+      {:tool_call_during_finalization, response} ->
+        handle_tool_call_during_finalization(state, response)
 
       {:tool_call, response} ->
         handle_tool_call_result(state, response)
@@ -857,6 +858,32 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         next_state
         |> clear_active_model_step()
         |> handle_model_retry(reason)
+    end
+  end
+
+  defp handle_tool_call_during_finalization(state, response) do
+    diagnostics = finalization_tool_call_diagnostics(state, response)
+
+    if finalization_limit_reached?(state) do
+      state
+      |> clear_active_model_step()
+      |> FinalizationRuntime.fail_without_retry(
+        {:"runtime.tool_call_after_finalization_limit", diagnostics},
+        finalization_runtime_deps()
+      )
+    else
+      state
+      |> Map.put(:phase, :action_selection)
+      |> Map.put(:finalization_context, nil)
+      |> Map.put(:finalization_repair_attempted?, false)
+      |> Map.put(:last_error_details, %{
+        "code" => "runtime.tool_call_after_accidental_finalization",
+        "message" =>
+          "Model requested another tool during finalization; runtime returned to normal tool execution.",
+        "context" => diagnostics
+      })
+      |> put_runtime_state()
+      |> handle_tool_call_result(response)
     end
   end
 
@@ -937,6 +964,117 @@ defmodule LemmingsOs.LemmingInstances.Executor do
         handle_model_retry(state, reason)
     end
   end
+
+  defp finalization_limit_reached?(state) do
+    finalization_entry_reason(state) == "tool_iteration_limit" or
+      state.tool_iteration_count >= max_tool_iterations(state.config_snapshot)
+  end
+
+  defp finalization_tool_call_diagnostics(state, response) do
+    %{
+      "phase" => phase_label(state.phase),
+      "attempted_action" => "tool_call",
+      "attempted_tool_target" => response.tool_name,
+      "attempted_tool_args" => sanitized_tool_args(response.tool_args),
+      "allowed_tools" => allowed_tool_names(state.config_snapshot),
+      "tool_iteration_count" => state.tool_iteration_count,
+      "max_tool_iterations" => max_tool_iterations(state.config_snapshot),
+      "finalization_entry_reason" => finalization_entry_reason(state),
+      "last_successful_tool_execution_id" => last_successful_tool_execution_id(state),
+      "current_deliverables_snapshot" => current_deliverables_snapshot(state)
+    }
+  end
+
+  defp phase_label(:finalizing), do: "finalization"
+  defp phase_label(:action_selection), do: "normal"
+  defp phase_label(phase) when is_atom(phase), do: Atom.to_string(phase)
+  defp phase_label(phase) when is_binary(phase), do: phase
+  defp phase_label(_phase), do: "unknown"
+
+  defp finalization_entry_reason(%{finalization_context: context}) when is_map(context) do
+    context
+    |> map_value(:entered_reason)
+    |> case do
+      reason when is_binary(reason) and reason != "" -> reason
+      _reason -> "unknown"
+    end
+  end
+
+  defp finalization_entry_reason(_state), do: "unknown"
+
+  defp sanitized_tool_args(args) when is_map(args) do
+    args
+    |> Redaction.redact()
+    |> ModelStepPayload.sanitize_json_map()
+  end
+
+  defp sanitized_tool_args(_args), do: %{}
+
+  defp allowed_tool_names(config_snapshot) do
+    allowed_tools = config_tool_list(config_snapshot, :allowed_tools)
+    denied_tools = MapSet.new(config_tool_list(config_snapshot, :denied_tools))
+
+    Catalog.list_tools()
+    |> maybe_filter_allowed_tool_names(allowed_tools)
+    |> Enum.map(& &1.id)
+    |> Enum.reject(&MapSet.member?(denied_tools, &1))
+  end
+
+  defp maybe_filter_allowed_tool_names(tools, []), do: tools
+
+  defp maybe_filter_allowed_tool_names(tools, allowed_tools) do
+    Enum.filter(tools, &(&1.id in allowed_tools))
+  end
+
+  defp config_tool_list(config_snapshot, field) when is_map(config_snapshot) do
+    config_snapshot
+    |> map_value(:tools_config)
+    |> case do
+      tools_config when is_map(tools_config) ->
+        tools_config
+        |> map_value(field)
+        |> case do
+          values when is_list(values) -> Enum.filter(values, &is_binary/1)
+          _values -> []
+        end
+
+      _tools_config ->
+        []
+    end
+  end
+
+  defp config_tool_list(_config_snapshot, _field), do: []
+
+  defp last_successful_tool_execution_id(state) do
+    state
+    |> current_tool_executions()
+    |> Enum.reverse()
+    |> Enum.find_value(fn
+      %{status: "ok", id: id} when is_binary(id) -> id
+      %{"status" => "ok", "id" => id} when is_binary(id) -> id
+      _tool_execution -> nil
+    end)
+  end
+
+  defp current_deliverables_snapshot(state) do
+    Deliverables.completion_fields(
+      state.instance,
+      current_tool_executions(state),
+      nil,
+      work_area_ref: state.work_area_ref
+    )
+  end
+
+  defp current_tool_executions(%{tools_context_mod: tools_context} = state)
+       when is_atom(tools_context) do
+    if module_loaded_and_exports?(tools_context, :list_tool_executions, 2) do
+      tools_context.list_tool_executions(runtime_world_struct(state), state.instance)
+    else
+      []
+    end
+  end
+
+  defp current_tool_executions(_state), do: []
 
   defp create_tool_execution(
          %{tools_context_mod: nil} = state,
@@ -2117,4 +2255,10 @@ defmodule LemmingsOs.LemmingInstances.Executor do
   end
 
   defp runtime_config_value(_config_snapshot, _key), do: nil
+
+  defp map_value(map, key) when is_map(map) and is_atom(key) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
+
+  defp map_value(_map, _key), do: nil
 end

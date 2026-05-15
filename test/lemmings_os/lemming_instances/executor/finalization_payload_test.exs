@@ -23,9 +23,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayloadTest do
     assert payload.artifacts_created == ["sample.md"]
     assert payload.remaining_work == []
     assert payload.preview == String.duplicate("a", 160)
-    assert "Workspace path: /workspace/test/sample.md" in payload.important_details
-    assert "Root path: /workspace/test" in payload.important_details
     assert "Bytes written: 80" in payload.important_details
+    refute Enum.any?(payload.important_details, &String.contains?(&1, "/workspace/test"))
   end
 
   test "tool_result_payload/1 redacts obvious secret-like text in tool strings" do
@@ -45,8 +44,22 @@ defmodule LemmingsOs.LemmingInstances.Executor.FinalizationPayloadTest do
 
     assert payload.action_taken == "Saved Authorization: Bearer [REDACTED]"
     assert payload.preview == "https://x.test?token=[REDACTED]"
-    assert Enum.any?(payload.important_details, &String.contains?(&1, "[REDACTED]"))
+    refute Enum.any?(payload.important_details, &String.contains?(&1, "/workspace/test"))
     refute Enum.any?(payload.important_details, &String.contains?(&1, "abc123"))
+  end
+
+  test "tool_result_payload/1 ignores absolute file paths in artifact references" do
+    payload =
+      FinalizationPayload.tool_result_payload(%{
+        status: "ok",
+        summary: "Wrote file /workspace/test/sample.md",
+        preview: "Created /workspace/test/sample.md",
+        result: %{"path" => "/workspace/test/sample.md", "bytes" => 80}
+      })
+
+    assert payload.action_taken == "Wrote file [HOST_PATH_REDACTED]"
+    assert payload.preview == "Created [HOST_PATH_REDACTED]"
+    assert payload.artifacts_created == []
   end
 
   test "tool_result_payload/1 for error status keeps guidance and error payload" do

@@ -73,7 +73,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepRuntimeTest do
     assert :reply_repair =
              ModelStepRuntime.route_model_result(finalizing_state, {:ok, blank_reply})
 
-    assert :tool_call_during_finalization =
+    assert {:tool_call_during_finalization, ^tool_call} =
              ModelStepRuntime.route_model_result(finalizing_state, {:ok, tool_call})
 
     assert {:error, :model_timeout} =

@@ -35,6 +35,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.Redaction do
   def redact(value) when is_tuple(value),
     do: value |> Tuple.to_list() |> Enum.map(&redact/1) |> List.to_tuple()
 
+  def redact(value) when is_binary(value), do: redact_string(value)
+
   def redact(value), do: value
 
   @doc """
@@ -58,6 +60,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.Redaction do
         ~r/\bauthorization\b(\s*[:=]\s*)(?!Bearer\s)([^&\s]+)/i,
         &1,
         "Authorization\\1#{@redacted}"
+      )
+    )
+    |> then(
+      &Regex.replace(
+        ~r/(?<![A-Za-z0-9:])\/(?:[A-Za-z0-9._-]+\/){1,}[A-Za-z0-9._-]+/,
+        &1,
+        "[HOST_PATH_REDACTED]"
       )
     )
   end

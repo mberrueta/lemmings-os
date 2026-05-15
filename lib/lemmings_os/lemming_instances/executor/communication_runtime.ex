@@ -12,6 +12,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
 
   alias LemmingsOs.LemmingInstances.Executor.Communication
   alias LemmingsOs.LemmingInstances.Executor.ContextMessages
+  alias LemmingsOs.LemmingInstances.Executor.Deliverables
+  alias LemmingsOs.LemmingInstances.Executor.ModelStepPayload
 
   @type continue_deps :: %{
           release_resource: (map() -> map()),
@@ -250,12 +252,18 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
 
     case Communication.child_terminal_sync_decision(status, pending?) do
       :sync ->
+        tool_executions = child_tool_executions(state)
+
         attrs =
           Communication.child_terminal_sync_attrs(
             status,
             state.context_messages,
             state.last_error,
-            state.now_fun.()
+            state.now_fun.(),
+            instance: state.instance,
+            tool_executions: tool_executions,
+            work_area_ref: Map.get(state, :work_area_ref),
+            failure_details: child_failure_details(state, status, tool_executions)
           )
 
         _ =
@@ -280,4 +288,76 @@ defmodule LemmingsOs.LemmingInstances.Executor.CommunicationRuntime do
   defp emit_resume_rejection(deps, state, reason) do
     Map.get(deps, :emit_resume_rejected, fn _state, _reason -> :ok end).(state, reason)
   end
+
+  defp child_tool_executions(%{tools_context_mod: tools_context, instance: instance} = state)
+       when is_atom(tools_context) do
+    if Code.ensure_loaded?(tools_context) and
+         function_exported?(tools_context, :list_tool_executions, 2) do
+      tools_context.list_tool_executions(runtime_world_struct(state), instance)
+    else
+      []
+    end
+  end
+
+  defp child_tool_executions(_state), do: []
+
+  defp child_failure_details(state, status, tool_executions)
+       when status in ["failed", "expired"] do
+    latest_model_step = List.last(Map.get(state, :model_steps, []))
+
+    %{
+      "child_instance_id" => Map.get(state, :instance_id),
+      "last_raw_model_output" => model_step_value(latest_model_step, :raw_model_output),
+      "parsed_action" => parsed_action(latest_model_step),
+      "validation_result" => model_step_value(latest_model_step, :validation_result),
+      "finalization_error_details" =>
+        Map.get(state, :last_error_details) || Map.get(state, :internal_error_details),
+      "tool_iteration_count" => Map.get(state, :tool_iteration_count),
+      "deliverables_snapshot" =>
+        Deliverables.completion_fields(
+          Map.get(state, :instance, %{}),
+          tool_executions,
+          nil,
+          work_area_ref: Map.get(state, :work_area_ref)
+        )
+    }
+    |> ModelStepPayload.sanitize_json_map()
+  end
+
+  defp child_failure_details(_state, _status, _tool_executions), do: nil
+
+  defp parsed_action(model_step) when is_map(model_step) do
+    parsed_output = model_step_value(model_step, :parsed_output) || %{}
+
+    %{
+      "action" => map_value(parsed_output, :action),
+      "target" => map_value(parsed_output, :target)
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  defp parsed_action(_model_step), do: nil
+
+  defp model_step_value(model_step, field) when is_map(model_step) and is_atom(field) do
+    Map.get(model_step, field) || Map.get(model_step, Atom.to_string(field))
+  end
+
+  defp model_step_value(_model_step, _field), do: nil
+
+  defp map_value(map, field) when is_map(map) and is_atom(field) do
+    Map.get(map, field) || Map.get(map, Atom.to_string(field))
+  end
+
+  defp map_value(_map, _field), do: nil
+
+  defp runtime_world_struct(%{instance: %{world_id: world_id}}) when is_binary(world_id) do
+    %LemmingsOs.Worlds.World{id: world_id}
+  end
+
+  defp runtime_world_struct(%{world_id: world_id}) when is_binary(world_id) do
+    %LemmingsOs.Worlds.World{id: world_id}
+  end
+
+  defp runtime_world_struct(_state), do: %LemmingsOs.Worlds.World{}
 end

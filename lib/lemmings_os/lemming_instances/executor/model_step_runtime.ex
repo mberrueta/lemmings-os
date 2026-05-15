@@ -14,7 +14,7 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepRuntime do
   @type route_action ::
           {:reply, Response.t()}
           | :reply_repair
-          | :tool_call_during_finalization
+          | {:tool_call_during_finalization, Response.t()}
           | {:tool_call, Response.t()}
           | {:lemming_call, Response.t()}
           | {:error, term()}
@@ -49,8 +49,8 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepRuntime do
     end
   end
 
-  def route_model_result(%{phase: :finalizing}, {:ok, %Response{action: :tool_call}}),
-    do: :tool_call_during_finalization
+  def route_model_result(%{phase: :finalizing}, {:ok, %Response{action: :tool_call} = response}),
+    do: {:tool_call_during_finalization, response}
 
   def route_model_result(_state, {:ok, %Response{action: :tool_call} = response}),
     do: {:tool_call, response}

@@ -140,11 +140,15 @@ defmodule LemmingsOs.LemmingInstances.Executor.ModelStepPayload do
   end
 
   defp redact_local_paths(value) do
-    Regex.replace(
-      ~r/(?<![\w.-])\/(?:home|Users|mnt|tmp|var|private|opt|data\d*)\/[^\s"'`<>{}\]]+\.dets\b/,
-      value,
-      "<runtime-dets-path>"
-    )
+    value
+    |> String.replace("[HOST_PATH_REDACTED]", "<local-path>")
+    |> then(fn value ->
+      Regex.replace(
+        ~r/(?<![\w.-])\/(?:home|Users|mnt|tmp|var|private|opt|data\d*)\/[^\s"'`<>{}\]]+\.dets\b/,
+        value,
+        "<runtime-dets-path>"
+      )
+    end)
     |> then(fn redacted ->
       Regex.replace(
         ~r/(?<![\w.-])\/(?:home|Users|mnt|tmp|var|private|opt|data\d*)\/[^\s"'`<>{}\]]+/,

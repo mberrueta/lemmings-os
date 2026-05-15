@@ -94,6 +94,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.TransitionsData do
   def last_error_message(:tool_iteration_limit_reached),
     do: dgettext("errors", "Tool iteration limit reached before final reply.")
 
+  def last_error_message({:"runtime.tool_call_after_finalization_limit", _diagnostics}),
+    do:
+      dgettext(
+        "errors",
+        "Model requested another tool after the finalization tool limit was reached."
+      )
+
   def last_error_message({:resume_after_tool_failed, _reason}),
     do: dgettext("errors", "Tool completed, but the executor could not resume the model.")
 
@@ -154,6 +161,13 @@ defmodule LemmingsOs.LemmingInstances.Executor.TransitionsData do
 
   def internal_error_details({:resume_after_tool_failed, reason}) do
     %{kind: :resume_after_tool_failed, reason: inspect(reason)}
+  end
+
+  def internal_error_details({:"runtime.tool_call_after_finalization_limit", diagnostics})
+      when is_map(diagnostics) do
+    diagnostics
+    |> ModelStepPayload.sanitize_json_map()
+    |> Map.put("kind", "runtime.tool_call_after_finalization_limit")
   end
 
   def internal_error_details(reason) when is_atom(reason), do: %{kind: reason}

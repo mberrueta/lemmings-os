@@ -163,10 +163,16 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
   @spec start_finalization_phase(map(), post_tool_deps()) :: map()
   def start_finalization_phase(state, deps) when is_map(state) and is_map(deps) do
     next_iteration_count = state.tool_iteration_count + 1
+    max_tool_iterations = deps.max_tool_iterations.(Map.get(state, :config_snapshot, %{}))
+    entered_reason = finalization_entered_reason(next_iteration_count, max_tool_iterations)
 
     state
     |> Map.put(:phase, :finalizing)
     |> Map.put(:tool_iteration_count, next_iteration_count)
+    |> update_in([:finalization_context], fn
+      context when is_map(context) -> Map.put(context, :entered_reason, entered_reason)
+      _context -> %{entered_reason: entered_reason}
+    end)
     |> Map.put(:retry_count, 0)
     |> Map.put(:last_error, nil)
     |> Map.put(:internal_error_details, nil)
@@ -289,4 +295,12 @@ defmodule LemmingsOs.LemmingInstances.Executor.ToolStepRuntime do
   end
 
   defp finalization_ready?(_context), do: true
+
+  defp finalization_entered_reason(tool_iteration_count, max_tool_iterations)
+       when is_integer(tool_iteration_count) and is_integer(max_tool_iterations) and
+              tool_iteration_count >= max_tool_iterations,
+       do: "tool_iteration_limit"
+
+  defp finalization_entered_reason(_tool_iteration_count, _max_tool_iterations),
+    do: "post_tool_success"
 end
